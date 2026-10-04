@@ -3,9 +3,11 @@
 // `allow-unwrap-in-tests` (clippy.toml) no cubre los helpers de un test de integración.
 #![allow(clippy::unwrap_used)]
 
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use rusqlite::Connection;
-use tramos_core::model::{Class, Course, Event, RaceResult, RaceStatus, Runner};
+use tramos_core::model::{
+    Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE,
+};
 use tramos_store::{
     EventId, PersonId, PersonResult, ResultId, SCHEMA_VERSION, SavedEvent, Store, StoreError,
 };
@@ -104,6 +106,7 @@ fn person_results_come_back_in_race_date_order() {
                 event: october.id,
                 event_date: NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
                 event_name: Some("Sintética de Otoño".into()),
+                event_start: None,
                 class_name: "F21A".into(),
                 status: RaceStatus::Ok,
                 place: Some(2),
@@ -113,6 +116,7 @@ fn person_results_come_back_in_race_date_order() {
                 event: november.id,
                 event_date: NaiveDate::from_ymd_opt(2026, 11, 8).unwrap(),
                 event_name: None,
+                event_start: None,
                 class_name: "F21A".into(),
                 status: RaceStatus::NotClassified,
                 place: None,
@@ -138,6 +142,85 @@ fn person_results_come_back_in_race_date_order() {
             Some(2)
         )
     );
+}
+
+/// La carrera de [`event`] con picadas: cada resultado sale a `start` + 1 min por resultado,
+/// pica la 31 sin hora y la 45 y la meta con hora.
+fn event_with_punches(date: (i32, u32, u32), start: DateTime<Utc>) -> Event {
+    let mut event = event(None, date, RaceStatus::Ok, Some(1));
+    let mut offset = 0;
+    for class in &mut event.classes {
+        for result in &mut class.results {
+            let t = start + Duration::minutes(offset);
+            offset += 1;
+            result.punches = vec![
+                Punch {
+                    code: START_CODE,
+                    time: Some(t),
+                },
+                Punch {
+                    code: 31,
+                    time: None,
+                },
+                Punch {
+                    code: 45,
+                    time: Some(t + Duration::seconds(300)),
+                },
+                Punch {
+                    code: FINISH_CODE,
+                    time: Some(t + Duration::seconds(400)),
+                },
+            ];
+        }
+    }
+    event
+}
+
+#[test]
+fn same_date_is_ordered_by_first_start() {
+    let mut store = Store::open_in_memory().unwrap();
+    let day = (2026, 10, 3);
+    let morning_start = Utc.with_ymd_and_hms(2026, 10, 3, 8, 30, 0).unwrap();
+    let afternoon_start = Utc.with_ymd_and_hms(2026, 10, 3, 14, 0, 0).unwrap();
+    // Se guarda primero la de la tarde, luego una sin horas y al final la de la mañana.
+    let afternoon = store
+        .save_event(&event_with_punches(day, afternoon_start), None)
+        .unwrap();
+    let untimed = store
+        .save_event(&event(None, day, RaceStatus::Ok, Some(1)), None)
+        .unwrap();
+    let morning = store
+        .save_event(&event_with_punches(day, morning_start), None)
+        .unwrap();
+    // Y una del día anterior sin horas: la fecha manda sobre el inicio.
+    let day_before = store
+        .save_event(&event(None, (2026, 10, 2), RaceStatus::Ok, Some(1)), None)
+        .unwrap();
+
+    assert_eq!(store.event_start(morning.id).unwrap(), Some(morning_start));
+    assert_eq!(
+        store.event_start(afternoon.id).unwrap(),
+        Some(afternoon_start)
+    );
+    assert_eq!(store.event_start(untimed.id).unwrap(), None);
+    assert!(matches!(
+        store.event_start(EventId(9_999)),
+        Err(StoreError::EventNotFound(9_999))
+    ));
+
+    let person = store.create_person("Comodín", None).unwrap();
+    for saved in [&afternoon, &untimed, &morning, &day_before] {
+        // El último resultado (Carla) sale el último de su carrera: el inicio es el de Ana.
+        store.link_result(saved.results[1][0], person).unwrap();
+    }
+    let results = store.person_results(person).unwrap();
+    let order: Vec<EventId> = results.iter().map(|r| r.event).collect();
+    assert_eq!(
+        order,
+        vec![day_before.id, morning.id, afternoon.id, untimed.id]
+    );
+    assert_eq!(results[1].event_start, Some(morning_start));
+    assert_eq!(results[3].event_start, None);
 }
 
 #[test]

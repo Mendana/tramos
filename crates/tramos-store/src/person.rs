@@ -10,6 +10,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use tramos_core::model::RaceStatus;
 
 use crate::convert::{ms_to_instant, sql_to_status, text_to_date};
+use crate::event::EVENT_START_MS_SQL;
 use crate::{EventId, ResultId, Store, StoreError};
 
 /// Identificador de una persona guardada.
@@ -36,6 +37,8 @@ pub struct PersonResult {
     pub event_date: NaiveDate,
     /// Nombre de la carrera, si la fuente lo trae.
     pub event_name: Option<String>,
+    /// Inicio de la carrera, para ordenar las del mismo día (ver [`Store::event_start`]).
+    pub event_start: Option<DateTime<Utc>>,
     /// Nombre de la categoría.
     pub class_name: String,
     pub status: RaceStatus,
@@ -158,18 +161,20 @@ impl Store {
 
     /// Resultados de una persona por fecha de carrera, de la más antigua a la más reciente.
     ///
-    /// Con la misma fecha se ordenan por orden de guardado de la carrera y, dentro de ella, por
-    /// el orden de categorías y resultados del modelo.
+    /// Con la misma fecha, por inicio de la carrera ([`Store::event_start`]; las que no lo tienen,
+    /// al final), luego por orden de guardado y, dentro de una carrera, por el orden de
+    /// categorías y resultados del modelo.
     pub fn person_results(&self, person: PersonId) -> Result<Vec<PersonResult>, StoreError> {
         ensure_person(&self.conn, person)?;
-        let mut stmt = self.conn.prepare_cached(
-            "SELECT r.id, e.id, e.date, e.name, c.name, r.status, r.status_code, r.place \
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT r.id, e.id, e.date, e.name, c.name, r.status, r.status_code, r.place, \
+             {EVENT_START_MS_SQL} AS start_ms \
              FROM results r \
              JOIN classes c ON c.id = r.class_id \
              JOIN events e ON e.id = c.event_id \
              WHERE r.person_id = ?1 \
-             ORDER BY e.date, e.id, c.position, r.position",
-        )?;
+             ORDER BY e.date, start_ms IS NULL, start_ms, e.id, c.position, r.position"
+        ))?;
         let mut rows = stmt.query([person.0])?;
         let mut results = Vec::new();
         while let Some(row) = rows.next()? {
@@ -183,6 +188,10 @@ impl Store {
                 class_name: row.get(4)?,
                 status: sql_to_status(&status, row.get(6)?)?,
                 place: row.get(7)?,
+                event_start: row
+                    .get::<_, Option<i64>>(8)?
+                    .map(ms_to_instant)
+                    .transpose()?,
             });
         }
         Ok(results)

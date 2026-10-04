@@ -9,6 +9,7 @@ use tramos_core::model::{
     Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE, Sex,
     Track, TrackPoint,
 };
+use tramos_core::race_format::RaceFormat;
 use tramos_store::{
     EventId, ResultId, SCHEMA_VERSION, SourceFileId, SourceFileKind, Store, StoreError,
 };
@@ -488,4 +489,56 @@ fn events_and_tracks_link_to_their_source_files() {
     // El fallo no toca el track que ya había.
     assert_eq!(store.load_track(berta).unwrap(), Some(sample_track()));
     assert_eq!(store.result_ids(unlinked.id).unwrap().len(), 3);
+}
+
+#[test]
+fn event_format_is_set_read_and_cleared() {
+    let mut store = Store::open_in_memory().unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
+    assert_eq!(store.event_format(saved.id).unwrap(), None);
+
+    store
+        .set_event_format(saved.id, Some(RaceFormat::Sprint))
+        .unwrap();
+    assert_eq!(
+        store.event_format(saved.id).unwrap(),
+        Some(RaceFormat::Sprint)
+    );
+    store.set_event_format(saved.id, None).unwrap();
+    assert_eq!(store.event_format(saved.id).unwrap(), None);
+
+    let missing = EventId(saved.id.0 + 1);
+    assert!(matches!(
+        store.set_event_format(missing, Some(RaceFormat::Long)),
+        Err(StoreError::EventNotFound(_))
+    ));
+    assert!(matches!(
+        store.event_format(missing),
+        Err(StoreError::EventNotFound(_))
+    ));
+}
+
+#[test]
+fn event_is_found_by_its_source_file() {
+    let mut store = Store::open_in_memory().unwrap();
+    let spl = store
+        .save_source_file(SourceFileKind::Spl, "a.spl", b"spl4 contenido")
+        .unwrap();
+    let other = store
+        .save_source_file(SourceFileKind::Spl, "b.spl", b"spl4 otro")
+        .unwrap();
+    assert_eq!(store.event_by_source_file(spl).unwrap(), None);
+    assert_eq!(
+        store.find_source_file(b"spl4 contenido").unwrap(),
+        Some(spl)
+    );
+    assert_eq!(store.find_source_file(b"spl4 nuevo").unwrap(), None);
+
+    let first = store.save_event(&sample_event(), Some(spl)).unwrap();
+    let second = store.save_event(&sample_event(), Some(spl)).unwrap();
+    store.save_event(&sample_event(), None).unwrap();
+    // La primera guardada, aunque haya otra con el mismo fichero.
+    assert_eq!(store.event_by_source_file(spl).unwrap(), Some(first.id));
+    assert_ne!(first.id, second.id);
+    assert_eq!(store.event_by_source_file(other).unwrap(), None);
 }

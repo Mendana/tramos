@@ -82,6 +82,23 @@ tramos contiguos) y sitúa cada baliza en la posición del corredor en el instan
 `median_control_positions` combina las balizas de varios corredores del mismo recorrido con la
 mediana. Algoritmo, casos borde y formato JSON en `docs/segmentacion.md`.
 
+## Formato de carrera
+
+`tramos_core::race_format::RaceFormat`: `sprint` (~15 min, urbano), `middle` (media, ~35 min,
+monte técnico) o `long` (larga, 50–60 min). El .spl no lo trae: al importar se sugiere y el
+corredor lo confirma (P6 en `docs/preguntas.md`), y se guarda en la carrera.
+
+- **Ganador de una categoría** (`winner_time_s`): el menor tiempo de salida a meta entre sus
+  clasificados con hora en las dos picadas.
+- **Sugerencia** (`suggest_format`): la **mediana** de los ganadores de todas las categorías de
+  la carrera, por debajo de 25 min sprint, por debajo de 45 min media y, desde ahí, larga. Es la
+  mediana y no el ganador de la categoría del corredor porque el formato es de la carrera, y una
+  categoría con un solo corredor lento no debe decidirlo (en el fixture de Baltanás, F-VET D gana
+  en 54 min; la mediana es de unos 14 min, sprint). Sin ningún ganador con tiempo, no hay
+  sugerencia.
+- Los cortes (`SPRINT_MAX_WINNER_S`, `MIDDLE_MAX_WINNER_S`) quedan a medio camino entre las
+  duraciones típicas y son revisables.
+
 ## Métricas de tramo
 
 `tramos_core::metrics::leg_metrics(&Track, &Segmentation, &MetricsOptions)` mide cada sub-track:

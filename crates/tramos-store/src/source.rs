@@ -108,6 +108,19 @@ impl Store {
         Ok(SourceFileId(id))
     }
 
+    /// Fichero original ya guardado con el mismo contenido (mismo SHA-256), sin guardar nada.
+    pub fn find_source_file(&self, content: &[u8]) -> Result<Option<SourceFileId>, StoreError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT id FROM source_files WHERE sha256 = ?1",
+                [sha256_hex(content)],
+                |row| row.get(0),
+            )
+            .optional()?
+            .map(SourceFileId))
+    }
+
     /// Carga un fichero original con su contenido.
     pub fn load_source_file(&self, id: SourceFileId) -> Result<SourceFile, StoreError> {
         let (kind, path, sha256, content, imported_at): (String, String, String, Vec<u8>, i64) =

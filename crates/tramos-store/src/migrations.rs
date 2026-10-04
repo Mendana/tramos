@@ -14,6 +14,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0002_people.sql"),
     include_str!("../migrations/0003_track_sport.sql"),
     include_str!("../migrations/0004_drop_runner_source_id.sql"),
+    include_str!("../migrations/0005_event_format.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -90,8 +91,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 4);
-        assert_eq!(user_version(&conn).unwrap(), 4);
+        assert_eq!(SCHEMA_VERSION, 5);
+        assert_eq!(user_version(&conn).unwrap(), 5);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -161,6 +162,29 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap()
+    }
+
+    #[test]
+    fn version_4_events_gain_an_empty_format() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate_to(&conn, 4);
+        conn.execute(
+            "INSERT INTO events (id, name, date) VALUES (1, 'Vieja', '2025-05-04')",
+            [],
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        let format: Option<String> = conn
+            .query_row("SELECT format FROM events WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(format, None);
+        // Solo los tres formatos.
+        assert!(
+            conn.execute("UPDATE events SET format = 'ultra' WHERE id = 1", [])
+                .is_err()
+        );
     }
 
     #[test]

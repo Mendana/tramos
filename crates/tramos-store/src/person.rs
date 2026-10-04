@@ -8,8 +8,9 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use tramos_core::model::RaceStatus;
+use tramos_core::race_format::RaceFormat;
 
-use crate::convert::{ms_to_instant, sql_to_status, text_to_date};
+use crate::convert::{ms_to_instant, sql_to_format, sql_to_status, text_to_date};
 use crate::event::EVENT_START_MS_SQL;
 use crate::{EventId, ResultId, Store, StoreError};
 
@@ -39,11 +40,15 @@ pub struct PersonResult {
     pub event_name: Option<String>,
     /// Inicio de la carrera, para ordenar las del mismo día (ver [`Store::event_start`]).
     pub event_start: Option<DateTime<Utc>>,
+    /// Formato de la carrera, si se ha fijado.
+    pub event_format: Option<RaceFormat>,
     /// Nombre de la categoría.
     pub class_name: String,
     pub status: RaceStatus,
     /// Puesto en la categoría; solo los clasificados lo tienen.
     pub place: Option<u16>,
+    /// El resultado tiene track del reloj guardado.
+    pub has_track: bool,
 }
 
 impl Store {
@@ -168,7 +173,8 @@ impl Store {
         ensure_person(&self.conn, person)?;
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT r.id, e.id, e.date, e.name, c.name, r.status, r.status_code, r.place, \
-             {EVENT_START_MS_SQL} AS start_ms \
+             {EVENT_START_MS_SQL} AS start_ms, e.format, \
+             EXISTS (SELECT 1 FROM tracks t WHERE t.result_id = r.id) \
              FROM results r \
              JOIN classes c ON c.id = r.class_id \
              JOIN events e ON e.id = c.event_id \
@@ -192,6 +198,12 @@ impl Store {
                     .get::<_, Option<i64>>(8)?
                     .map(ms_to_instant)
                     .transpose()?,
+                event_format: row
+                    .get::<_, Option<String>>(9)?
+                    .as_deref()
+                    .map(sql_to_format)
+                    .transpose()?,
+                has_track: row.get(10)?,
             });
         }
         Ok(results)

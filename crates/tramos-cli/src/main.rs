@@ -5,7 +5,7 @@ use clap::Parser;
 #[command(name = "tramos", version = tramos_core::VERSION, about)]
 struct Cli {}
 
-fn main()->anyhow::Result<()>{
+fn main() -> anyhow::Result<()> {
     let _cli = Cli::parse();
     Ok(())
 }

@@ -12,6 +12,7 @@ busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de 
 - [Preguntas del MVP y cómo se calculan](docs/preguntas.md)
 - [Tiempo perdido](docs/tiempo-perdido.md)
 - [Formato .spl de WinSplits](docs/formato-spl.md)
+- [Formato FIT del reloj](docs/formato-fit.md)
 - [Taxonomía de errores](docs/taxonomia.md)
 - [Datos y privacidad](docs/datos-y-privacidad.md)
 - [Cómo trabajamos con agentes](docs/trabajo-con-agentes.md)

@@ -172,3 +172,13 @@ tr.error-leg {
   font-size: 1.4em;
   font-variant-numeric: tabular-nums;
 }
+
+.header-action {
+  margin-left: auto;
+}
+
+.settings fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

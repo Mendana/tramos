@@ -27,6 +27,7 @@ tramos-store = { path = "../../crates/tramos-store" }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 chrono = { version = "0.4", default-features = false, features = ["serde", "std"] }
+chrono-tz = "0.10"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 

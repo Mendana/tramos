@@ -160,7 +160,17 @@ export function statusLabel(status: RaceStatus, place: number | null): string {
 
 export const coreVersion = () => invoke<string>("core_version");
 
-export const storedIdentity = () => invoke<RunnerIdentity>("stored_identity");
+export interface Settings {
+  error_threshold_s: number;
+  error_threshold_pct: number;
+  time_zone: string;
+  identity: RunnerIdentity;
+}
+
+export const getSettings = () => invoke<Settings>("get_settings");
+
+export const saveSettings = (settings: Settings) =>
+  invoke<void>("save_settings", { settings });
 
 export const previewImport = (
   splPath: string,

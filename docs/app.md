@@ -22,14 +22,14 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | Comando | Qué hace |
 | --- | --- |
 | `core_version` | Versión del núcleo. |
-| `stored_identity` | Tarjeta SI y nombre del usuario guardados, para rellenar el formulario. |
+| `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs` y `races.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `races.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -37,7 +37,8 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
 1. **Ficheros**: el usuario arrastra a la ventana el .spl y, si lo tiene, el .fit, o los elige
    con el diálogo del sistema (`tauri-plugin-dialog`). Se distinguen por la extensión.
 2. **Identidad**: tarjeta SI y nombre y apellidos, rellenados con los de la última importación.
-3. **Revisar** (`preview_import`): lee y valida los dos ficheros, identifica al corredor
+3. **Revisar** (`preview_import`): lee y valida los dos ficheros (las horas del .spl, en la zona
+   horaria de los ajustes), identifica al corredor
    (`docs/identificacion.md`) y sugiere el formato (`docs/modelo.md`, "Formato de carrera").
    - Un resultado: se propone. Si casa por tarjeta pero no por nombre, se pide comprobarlo.
    - Varios: el usuario elige.
@@ -53,7 +54,8 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
    - El resultado se vincula con la **persona del usuario** (`docs/almacenamiento.md`,
      Personas). La primera vez se crea con el nombre que escribió (o «Yo» si lo dejó vacío), nunca
      con datos del .spl. Si el resultado ya estaba vinculado a otra persona, no se cambia y se avisa.
-   - Se guardan la tarjeta y el nombre para la próxima vez.
+   - Se guardan la tarjeta y el nombre en los ajustes para la próxima vez (un campo vacío no
+     borra el que había).
    - Con FIT, se alinea con las picadas del resultado (`docs/alineacion.md`). Si se puede, se
      guardan el FIT original y el track, y se muestran el desfase, la confianza y los avisos. Si
      no (track de otra hora o de otra carrera), **no se guarda el track** y se muestra el error,
@@ -64,13 +66,24 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
 El análisis (tiempo perdido, tramos, métricas) no se guarda al importar: se calcula al mostrarlo
 a partir de la carrera y el track guardados.
 
-## Ajustes que usa
+## Ajustes
 
-| Clave | Valor |
-| --- | --- |
-| `self.person_id` | Id de la persona del usuario en `people`. |
-| `self.si_card` | Su tarjeta SI. |
-| `self.full_name` | Su nombre y apellidos, tal y como los escribió. |
+Pantalla **Ajustes** (botón de la cabecera). Se guardan en la tabla `settings` de la base:
+
+| Clave | Valor | Por defecto | Efecto |
+| --- | --- | --- | --- |
+| `lost_time.error_threshold_s` | Pérdida mínima en segundos para que un tramo sea error (≥ 0). | 15 | Inmediato: el análisis se calcula al mostrarlo, así que cambiarlo recalcula la lista y todas las vistas de carrera. |
+| `lost_time.error_threshold_pct` | Pérdida mínima en % del tiempo esperado (≥ 0). | 10 | Igual. |
+| `import.time_zone` | Zona horaria IANA de las horas del .spl (`Europe/Madrid`, `Atlantic/Canary`…). | `Europe/Madrid` | Solo en las carreras que se importen después: las ya guardadas tienen sus horas en UTC. Una carrera reimportada se reutiliza tal cual, así que para corregir su hora habría que borrarla antes (aún no se puede desde la app). |
+| `self.si_card` | Tarjeta SI del usuario. | — | Rellena el formulario de importar. |
+| `self.full_name` | Nombre y apellidos, tal y como los escribió. | — | Igual. |
+| `self.person_id` | Id de la persona del usuario en `people` (no se edita). | — | A ella se vinculan sus resultados. |
+
+Un valor guardado que no se entiende (número negativo, zona desconocida) se trata como si no
+estuviera y toma el valor por defecto. El tiempo ideal sigue siendo la suma de referencias.
+
+Con una zona horaria equivocada, el FIT no se solapa con la carrera y la alineación lo dice, con
+la sugerencia de desplazamiento (`docs/alineacion.md`).
 
 ## Lista de carreras
 
@@ -90,7 +103,7 @@ número de errores) y si tiene track del reloj. Una fila abre la vista de la car
 
 Los números salen de `tramos_core::runner_report::runner_report`, la misma función que usa
 `tramos analizar` (`docs/cli.md`), sobre la carrera guardada: la tabla coincide con la de la CLI.
-Los umbrales son los de por defecto (15 s y 10 %) hasta que haya ajustes (#17).
+Los umbrales son los de los ajustes.
 
 ## Seguridad
 

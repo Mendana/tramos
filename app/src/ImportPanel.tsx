@@ -8,10 +8,10 @@ import {
   RaceFormat,
   RunnerChoice,
   RunnerIdentity,
+  getSettings,
   importRace,
   previewImport,
   statusLabel,
-  storedIdentity,
 } from "./api";
 
 /** Con más candidatos que esto, la lista pide filtrar. */
@@ -67,8 +67,8 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
 
   useEffect(() => {
-    storedIdentity()
-      .then((identity) => {
+    getSettings()
+      .then(({ identity }) => {
         setSiCard(identity.si_card === null ? "" : String(identity.si_card));
         setFullName(identity.full_name ?? "");
       })

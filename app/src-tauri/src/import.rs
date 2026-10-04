@@ -24,12 +24,10 @@ use tramos_core::model::{Event, RaceStatus, Track};
 use tramos_core::race_format::{RaceFormat, median_winner_time_s, suggest_format};
 use tramos_store::{EventId, PersonId, ResultId, SourceFileKind, Store, StoreError};
 
+use crate::settings;
+
 /// Ajuste con el id de la persona del usuario (`people`), a la que se vinculan sus resultados.
 pub const SELF_PERSON_KEY: &str = "self.person_id";
-/// Ajuste con la tarjeta SI del usuario, para buscarlo en la siguiente carrera.
-pub const SELF_SI_CARD_KEY: &str = "self.si_card";
-/// Ajuste con el nombre y apellidos del usuario, para lo mismo.
-pub const SELF_FULL_NAME_KEY: &str = "self.full_name";
 /// Nombre de la persona del usuario si al crearla no ha escrito el suyo.
 const DEFAULT_SELF_NAME: &str = "Yo";
 
@@ -144,7 +142,7 @@ pub fn preview(
     identity: &RunnerIdentity,
 ) -> Result<ImportPreview, ImportError> {
     let spl_bytes = read_file(spl_path)?;
-    let event = spl::read(&spl_bytes)?;
+    let event = spl::read_with_time_zone(&spl_bytes, settings::time_zone(store)?)?;
     let fit_points = fit_path
         .map(|path| read_track(path).map(|track| track.points.len()))
         .transpose()?;
@@ -190,7 +188,7 @@ pub fn preview(
 /// Lee y valida los dos ficheros antes de guardar nada: si alguno no vale, no se guarda nada.
 pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcome, ImportError> {
     let spl_bytes = read_file(&request.spl_path)?;
-    let event = spl::read(&spl_bytes)?;
+    let event = spl::read_with_time_zone(&spl_bytes, settings::time_zone(store)?)?;
     let race_result = request
         .result
         .get(&event)
@@ -228,7 +226,7 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
         Some(_) => {}
         None => store.link_result(result_id, person)?,
     }
-    save_identity(store, &request.identity)?;
+    settings::save_identity(store, &request.identity, false)?;
 
     let alignment = match (fit, track) {
         (Some((path, bytes)), Some(track)) => Some(
@@ -261,28 +259,6 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
         alignment,
         warnings,
     })
-}
-
-/// Identidad guardada en los ajustes, para rellenar el formulario.
-pub fn stored_identity(store: &Store) -> Result<RunnerIdentity, ImportError> {
-    Ok(RunnerIdentity {
-        si_card: store
-            .setting(SELF_SI_CARD_KEY)?
-            .and_then(|v| v.parse().ok()),
-        full_name: store.setting(SELF_FULL_NAME_KEY)?,
-    })
-}
-
-fn save_identity(store: &mut Store, identity: &RunnerIdentity) -> Result<(), ImportError> {
-    if let Some(card) = identity.si_card {
-        store.set_setting(SELF_SI_CARD_KEY, &card.to_string())?;
-    }
-    if let Some(name) = identity.full_name.as_deref().map(str::trim)
-        && !name.is_empty()
-    {
-        store.set_setting(SELF_FULL_NAME_KEY, name)?;
-    }
-    Ok(())
 }
 
 /// Persona del usuario guardada en los ajustes, si existe todavía.
@@ -457,7 +433,7 @@ mod tests {
 
         // La identidad queda guardada para la siguiente carrera, y la persona se llama como
         // escribió el usuario.
-        assert_eq!(stored_identity(&store).unwrap(), identity());
+        assert_eq!(settings::identity(&store).unwrap(), identity());
         let people = store.people().unwrap();
         assert_eq!(people.len(), 1);
         assert_eq!(people[0].display_name, "N143 Apellido143");
@@ -504,6 +480,25 @@ mod tests {
         );
         assert!(!list_races(&store).unwrap()[0].has_track);
         assert_eq!(list_races(&store).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn the_time_zone_setting_is_used_to_read_the_spl() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut s = settings::load(&store).unwrap();
+        // Baltanás está en la península: leído como si fuera en Canarias, las picadas quedan una
+        // hora más tarde en UTC y el FIT no solapa. La alineación lo explica y no lo guarda.
+        s.time_zone = "Atlantic/Canary".into();
+        settings::save(&mut store, &s).unwrap();
+        let p = preview(&store, &spl(), Some(&fit()), &identity()).unwrap();
+        let outcome = import(&mut store, &request(&p, Some(fit()))).unwrap();
+        let alignment = outcome.alignment.unwrap();
+        assert!(!alignment.track_saved);
+        assert!(
+            alignment.messages[0].contains("1 h"),
+            "{:?}",
+            alignment.messages
+        );
     }
 
     #[test]

@@ -41,6 +41,23 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
+  # Solo en Linux: son herramientas de desarrollo (oráculos, anonimizador y generador de
+  # fixtures) que se ejecutan a mano en Linux, y en Windows `zoneinfo` necesitaría el paquete
+  # `tzdata`. Los fixtures que producen son los mismos en cualquier sistema y el núcleo que los
+  # consume ya se prueba en los dos.
+  tools:
+    name: tests de Python de tools/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Tests
+        run: python -m unittest discover -s tools -p "test_*.py"
+
   app:
     name: app Tauri (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

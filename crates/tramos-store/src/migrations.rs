@@ -9,7 +9,10 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::StoreError;
 
 /// Scripts SQL en orden. No pueden abrir ni cerrar transacciones: ya van dentro de una.
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_initial.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_initial.sql"),
+    include_str!("../migrations/0002_people.sql"),
+];
 
 /// Versión del esquema que deja `migrate`.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
@@ -46,12 +49,13 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
 mod tests {
     use super::*;
 
-    const TABLES: [&str; 14] = [
+    const TABLES: [&str; 15] = [
         "classes",
         "course_controls",
         "courses",
         "events",
         "legs",
+        "people",
         "punches",
         "results",
         "runners",
@@ -77,15 +81,15 @@ mod tests {
     }
 
     #[test]
-    fn fresh_database_gets_every_table_and_version_1() {
+    fn fresh_database_gets_every_table_and_latest_version() {
         let mut conn = Connection::open_in_memory().unwrap();
         assert_eq!(user_version(&conn).unwrap(), 0);
         assert!(table_names(&conn).is_empty());
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 1);
-        assert_eq!(user_version(&conn).unwrap(), 1);
+        assert_eq!(SCHEMA_VERSION, 2);
+        assert_eq!(user_version(&conn).unwrap(), 2);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -98,7 +102,7 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(user_version(&conn).unwrap(), 1);
+        assert_eq!(user_version(&conn).unwrap(), SCHEMA_VERSION);
         assert_eq!(table_names(&conn), TABLES.to_vec());
         let value: String = conn
             .query_row("SELECT value FROM settings WHERE key = 'a'", [], |r| {
@@ -118,7 +122,7 @@ mod tests {
                 err,
                 StoreError::SchemaTooNew {
                     found: 99,
-                    supported: 1
+                    supported: 2
                 }
             ),
             "{err:?}"
@@ -134,5 +138,44 @@ mod tests {
         assert!(migrate(&mut conn).is_err());
         assert_eq!(user_version(&conn).unwrap(), 0);
         assert_eq!(table_names(&conn), vec!["runners".to_string()]);
+    }
+
+    /// Deja la base como la dejaba una versión de Tramos con solo las `n` primeras migraciones.
+    fn migrate_to(conn: &Connection, n: usize) {
+        for script in &MIGRATIONS[..n] {
+            conn.execute_batch(script).unwrap();
+        }
+        conn.pragma_update(None, "user_version", n as i64).unwrap();
+    }
+
+    #[test]
+    fn version_1_database_gains_people_and_keeps_its_results() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        migrate_to(&conn, 1);
+        conn.execute_batch(
+            "INSERT INTO events (id, name, date) VALUES (1, 'Vieja', '2025-05-04');
+             INSERT INTO courses (id, event_id) VALUES (1, 1);
+             INSERT INTO classes (id, event_id, position, source_id, name, course_id)
+                 VALUES (1, 1, 0, 1, 'F21A', 1);
+             INSERT INTO runners (id, event_id, source_id, given_name, family_name)
+                 VALUES (1, 1, 1, 'Ana', 'Pérez');
+             INSERT INTO results (id, class_id, position, runner_id, status, place)
+                 VALUES (1, 1, 0, 1, 'ok', 3);",
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        assert_eq!(user_version(&conn).unwrap(), 2);
+        assert_eq!(table_names(&conn), TABLES.to_vec());
+        let (place, person): (i64, Option<i64>) = conn
+            .query_row(
+                "SELECT place, person_id FROM results WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((place, person), (3, None));
     }
 }

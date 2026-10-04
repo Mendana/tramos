@@ -29,6 +29,18 @@ pub enum StoreError {
     #[error("no existe el fichero original {0}")]
     SourceFileNotFound(i64),
 
+    #[error("no existe la persona {0}")]
+    PersonNotFound(i64),
+
+    /// El nombre visible de una persona no puede estar vacío ni ser solo espacios.
+    #[error("el nombre de la persona está vacío")]
+    EmptyPersonName,
+
+    /// Un resultado pertenece como mucho a una persona. Para cambiarlo de persona hay que
+    /// desvincularlo antes (ver `docs/almacenamiento.md`).
+    #[error("el resultado {result} ya está vinculado a la persona {person}")]
+    ResultAlreadyLinked { result: i64, person: i64 },
+
     /// Un valor guardado no corresponde a ningún valor del modelo.
     #[error("dato inválido en la base de datos: {0}")]
     InvalidData(String),

@@ -8,6 +8,7 @@ mod convert;
 mod error;
 mod event;
 mod migrations;
+mod person;
 mod settings;
 mod source;
 mod track;
@@ -19,6 +20,7 @@ use rusqlite::Connection;
 pub use error::StoreError;
 pub use event::SavedEvent;
 pub use migrations::SCHEMA_VERSION;
+pub use person::{Person, PersonId, PersonResult};
 pub use source::{SourceFile, SourceFileId, SourceFileKind};
 
 /// Identificador de una carrera guardada.

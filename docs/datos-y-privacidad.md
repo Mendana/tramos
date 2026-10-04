@@ -8,6 +8,9 @@
 - El contenido del .spl original guardado sí incluye las fechas de nacimiento (y los nombres de
   toda la prueba), así que los ficheros originales nunca salen de la base local: no van en los
   paquetes para la entrenadora ni a proveedores externos (ver `docs/almacenamiento.md`).
+- Las personas (identidad de un corredor entre carreras) solo guardan lo que escribe el usuario:
+  un nombre visible y notas. No llevan fecha de nacimiento ni se rellenan desde el .spl
+  (ver `docs/almacenamiento.md`).
 - Pulso y GPS se tratan como datos sensibles: cada corredor decide, carrera a carrera, qué comparte
   con la entrenadora (nada, agregados, tramos o track completo).
 - La entrenadora solo lee; los datos de un corredor solo cambian desde su propia app.

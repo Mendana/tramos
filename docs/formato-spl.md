@@ -80,7 +80,7 @@ el primer registro de categoría con el marcador `0x2c`.
 
 | Etiqueta | Tipo | Significado |
 | --- | --- | --- |
-| `0x80` | u32 | id |
+| `0x80` | u32 | longitud en bytes del resto del registro del corredor. **No es un id** (ver abajo) |
 | `0x81` | u32 | dorsal (probable) |
 | `0x84` | u32 | tarjeta SportIdent |
 | `0x87` | texto | nombre |
@@ -96,6 +96,36 @@ el primer registro de categoría con el marcador `0x2c`.
 | `0x9b` | f64 | fecha de nacimiento (OLE). **Se descarta al importar.** |
 
 Códigos especiales de baliza: `32736` = salida, `32752` = meta.
+
+### `0x80` no es un id: es la longitud del registro
+
+Los primeros lectores trataban `0x80` como «id del corredor», pero no identifica a nadie. En el
+fixture de Baltanás:
+
+- Toma **70 valores distintos para 275 corredores**, todos entre 108 y 208. 26 valores salen
+  una sola vez y el más repetido, 16 veces.
+- Se repite **dentro de una misma categoría** en 16 de las 18 (en M-SEN, el 203 es del 4.º y
+  del 6.º, de clubes distintos) y entre categorías.
+- No sigue al club, al sexo, al puesto ni a la hora de salida. Tiende a parecerse dentro de una
+  categoría (en ALEVÍN va de 147 a 159; en M-SEN, de 163 a 208), porque sus corredores tienen el
+  mismo número de picadas, pero los rangos de las categorías se solapan.
+- Es exactamente el **número de bytes del resto del registro**: desde el byte siguiente a su
+  `u32` hasta el siguiente `0x80` o `0x40`. Se cumple en 274 de los 275 corredores; el último
+  declara 10 bytes más de los que quedan, justo el valor de `0x9a` y el registro `0x9b` que
+  faltan por el truncado de origen (ver Notas), igual que la tabla `0x20` de la cabecera.
+  El primer corredor, por ejemplo, declara 154 = `0x81` 5 + `0x84` 5 + `0x87` 3 + 4 +
+  `0x88` 3 + 14 + `0x89` 5 + `0x8c` 3 + 16 + `0x8d` 3 + 3 + `0x8e` 3 + 3 + `0x97` 3 + 13 × 5 +
+  `0x98` 2 + `0x99` 3 + `0x9a` 2 + `0x9b` 9.
+
+Por eso se repite: dos corredores con nombres, club y número de picadas de la misma longitud
+tienen el mismo valor. El anonimizador no cambia la longitud de ningún campo, así que la
+propiedad vale igual en el fichero original. Solo se ha comprobado con Baltanás (el test
+`runner_record_tag_is_the_record_length` de `importers/spl.rs` la verifica byte a byte); en
+otros ficheros podría no cumplirse, así que el lector no la usa para avanzar ni la valida.
+
+Consecuencia: para el núcleo **no hay id de corredor en el .spl**. Un resultado se identifica
+por su posición en la carrera (categoría e índice dentro de ella), y la identidad del corredor
+entre carreras la da la persona a la que el usuario lo vincula (`docs/almacenamiento.md`).
 
 ## Notas
 
@@ -132,7 +162,12 @@ Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
   | 10 | `did_not_start` |
   | otro `n` | `unknown(n)` |
 
-  Un corredor sin `0x98` es un error.
+  Un corredor sin `0x98` es un error, que señala al corredor por la posición de su `0x80` y por
+  su categoría.
+- **`0x80`**: se guarda tal cual en `Runner::id` (nombre heredado de cuando se creía un id) y
+  en `runners.source_id` del almacenamiento. No es clave de nada: ni el lector ni el
+  almacenamiento suponen que sea único, y nadie debe usarlo para identificar o buscar
+  corredores (ver arriba).
 - **Puesto** (`0x99`): 0 → `None`. **Dorsal** (`0x81`) y **tarjeta** (`0x84`): 0 → `None`.
 - **Sexo** (`0x9a`): 1 → `male`, 2 → `female`, otro valor o ausente → `None`.
 - **Nombre y apellidos**: si faltan, cadena vacía. **Club** (`0x8c`): ausente → `None`.

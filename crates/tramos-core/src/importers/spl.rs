@@ -11,6 +11,8 @@
 //!   el cambio de hora (inexistente o ambigua), la lectura falla: no se adivina.
 //! - El recorrido se valida (salida → … → meta) y se guarda sin salida ni meta.
 //! - La fecha de nacimiento se lee para avanzar, pero no se guarda.
+//! - El `0x80` que abre cada corredor no es un id: es la longitud del resto de su registro y se
+//!   repite. Se conserva en `Runner::id`, pero el lector no lo usa para nada.
 //! - Una etiqueta desconocida es un error, con su valor y su posición. Solo se tolera un último
 //!   registro truncado que se reduzca a su etiqueta, como hace el lector de referencia.
 
@@ -83,8 +85,10 @@ pub enum SplError {
     #[error("a la categoría {class_id} le falta el nombre (0x43)")]
     MissingClassName { class_id: u32 },
 
-    #[error("al corredor {runner_id} le falta el estado (0x98)")]
-    MissingStatus { runner_id: u32 },
+    /// El corredor se señala por la posición de su registro (`offset`, la de su `0x80`) y no por
+    /// el valor de `0x80`, que es la longitud del registro y se repite (`docs/formato-spl.md`).
+    #[error("al corredor del byte {offset} (categoría {class_id}) le falta el estado (0x98)")]
+    MissingStatus { class_id: u32, offset: usize },
 
     #[error("recorrido inválido en la categoría {class_id}: {reason}")]
     InvalidCourse { class_id: u32, reason: String },
@@ -398,7 +402,7 @@ impl ClassDraft {
         let results = self
             .runners
             .into_iter()
-            .map(RunnerDraft::finish)
+            .map(|runner| runner.finish(self.id))
             .collect::<Result<_, _>>()?;
         Ok(Class {
             id: self.id,
@@ -452,7 +456,11 @@ fn course_from_legs(
 }
 
 struct RunnerDraft {
+    /// Valor de `0x80`: longitud en bytes del resto del registro, no un id único
+    /// (`docs/formato-spl.md`). Se conserva en `Runner::id`.
     id: u32,
+    /// Posición del registro (su etiqueta `0x80`), para los mensajes de error.
+    offset: usize,
     given_name: Option<String>,
     family_name: Option<String>,
     club: Option<String>,
@@ -465,9 +473,10 @@ struct RunnerDraft {
 }
 
 impl RunnerDraft {
-    fn new(id: u32) -> Self {
+    fn new(id: u32, offset: usize) -> Self {
         Self {
             id,
+            offset,
             given_name: None,
             family_name: None,
             club: None,
@@ -480,11 +489,14 @@ impl RunnerDraft {
         }
     }
 
-    fn finish(self) -> Result<RaceResult, SplError> {
+    fn finish(self, class_id: u32) -> Result<RaceResult, SplError> {
         let status = self
             .status
             .map(status_from_code)
-            .ok_or(SplError::MissingStatus { runner_id: self.id })?;
+            .ok_or(SplError::MissingStatus {
+                class_id,
+                offset: self.offset,
+            })?;
         Ok(RaceResult {
             runner: Runner {
                 id: self.id,
@@ -588,9 +600,12 @@ impl Parser<'_> {
             }
 
             // --- Corredor ---
+            // Longitud del resto del registro, no un id único (`docs/formato-spl.md`).
             0x80 => {
                 let id = c.u32()?;
-                self.class(tag, offset)?.runners.push(RunnerDraft::new(id));
+                self.class(tag, offset)?
+                    .runners
+                    .push(RunnerDraft::new(id, offset));
                 self.in_runner = true;
             }
             0x81 => {
@@ -1228,13 +1243,55 @@ mod tests {
         ));
     }
 
+    /// `0x80` no es un id: en el fixture de Baltanás es la longitud en bytes del resto del
+    /// registro del corredor (`docs/formato-spl.md`). Se recorre el fichero con el propio lector
+    /// y se mide cada registro hasta el siguiente `0x40` u `0x80`.
+    #[test]
+    fn runner_record_tag_is_the_record_length() {
+        let data: &[u8] = include_bytes!("../../../../fixtures/spl/baltanas-anon.spl");
+        let header = read_header(data).unwrap();
+        let mut parser = Parser {
+            cursor: Cursor::new(data, header.body_start),
+            date: header.date,
+            classes: Vec::new(),
+            in_runner: false,
+        };
+        let mut record_starts = Vec::new();
+        while let Some((tag, offset)) = parser.cursor.next_tag() {
+            parser.record(tag, offset).unwrap();
+            if tag == CLASS_TAG || tag == 0x80 {
+                record_starts.push(offset);
+            }
+        }
+        record_starts.push(data.len());
+
+        let runners: Vec<&RunnerDraft> = parser.classes.iter().flat_map(|c| &c.runners).collect();
+        assert_eq!(runners.len(), 275);
+        let (last, rest) = runners.split_last().unwrap();
+        let record_len = |runner: &RunnerDraft| {
+            let end = record_starts.iter().find(|&&s| s > runner.offset).unwrap();
+            // Etiqueta (1 byte) + u32 (4 bytes).
+            u32::try_from(end - (runner.offset + 5)).unwrap()
+        };
+        for runner in rest {
+            assert_eq!(runner.id, record_len(runner), "byte {}", runner.offset);
+        }
+        // El último registro viene truncado de origen: le faltan el valor de 0x9a (1 byte) y el
+        // registro 0x9b entero (9 bytes), que su 0x80 sí cuenta.
+        assert_eq!(last.id, record_len(last) + 10);
+    }
+
     #[test]
     fn missing_status_is_an_error() {
-        let data = SplBuilder::new(date(2026, 10, 3))
-            .class(7, "F21A")
-            .u32(0x80, 1)
-            .text(0x87, "Ana")
-            .0;
-        assert_eq!(read(&data), Err(SplError::MissingStatus { runner_id: 1 }));
+        let class = SplBuilder::new(date(2026, 10, 3)).class(7, "F21A");
+        let offset = class.0.len();
+        let data = class.u32(0x80, 1).text(0x87, "Ana").0;
+        assert_eq!(
+            read(&data),
+            Err(SplError::MissingStatus {
+                class_id: 7,
+                offset
+            })
+        );
     }
 }

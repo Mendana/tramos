@@ -9,7 +9,8 @@ use crate::convert::{
     date_to_text, instant_to_ms, ms_to_instant, position, sex_to_sql, sql_to_sex, sql_to_status,
     status_to_sql, text_to_date,
 };
-use crate::{EventId, ResultId, Store, StoreError};
+use crate::source::ensure_source_file;
+use crate::{EventId, ResultId, SourceFileId, Store, StoreError};
 
 /// Identificadores asignados al guardar una carrera.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,13 +22,33 @@ pub struct SavedEvent {
 
 impl Store {
     /// Guarda una carrera completa en una transacción: o se guarda entera o nada.
+    /// `source` enlaza el .spl del que sale, si se guardó con [`Store::save_source_file`].
     ///
     /// Las categorías con la misma secuencia de balizas comparten una fila de `courses`.
-    pub fn save_event(&mut self, event: &Event) -> Result<SavedEvent, StoreError> {
+    pub fn save_event(
+        &mut self,
+        event: &Event,
+        source: Option<SourceFileId>,
+    ) -> Result<SavedEvent, StoreError> {
         let tx = self.conn.transaction()?;
-        let saved = insert_event(&tx, event)?;
+        let source = ensure_source_file(&tx, source)?;
+        let saved = insert_event(&tx, event, source)?;
         tx.commit()?;
         Ok(saved)
+    }
+
+    /// Fichero original enlazado a una carrera, si lo tiene.
+    pub fn event_source_file(&self, id: EventId) -> Result<Option<SourceFileId>, StoreError> {
+        let source: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT source_file_id FROM events WHERE id = ?1",
+                [id.0],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(StoreError::EventNotFound(id.0))?;
+        Ok(source.map(SourceFileId))
     }
 
     /// Carga una carrera tal y como se guardó.
@@ -105,10 +126,14 @@ impl Store {
     }
 }
 
-fn insert_event(conn: &Connection, event: &Event) -> Result<SavedEvent, StoreError> {
+fn insert_event(
+    conn: &Connection,
+    event: &Event,
+    source: Option<i64>,
+) -> Result<SavedEvent, StoreError> {
     conn.execute(
-        "INSERT INTO events (name, date) VALUES (?1, ?2)",
-        params![event.name, date_to_text(event.date)],
+        "INSERT INTO events (name, date, source_file_id) VALUES (?1, ?2, ?3)",
+        params![event.name, date_to_text(event.date), source],
     )?;
     let event_id = conn.last_insert_rowid();
 

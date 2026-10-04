@@ -4,12 +4,20 @@ use rusqlite::{OptionalExtension, params};
 use tramos_core::model::{Track, TrackPoint};
 
 use crate::convert::{instant_to_ms, ms_to_instant, opt_real, position, real};
-use crate::{ResultId, Store, StoreError};
+use crate::source::ensure_source_file;
+use crate::{ResultId, SourceFileId, Store, StoreError};
 
 impl Store {
     /// Guarda el track de un resultado. Si ya tenía uno, lo sustituye.
-    pub fn save_track(&mut self, result: ResultId, track: &Track) -> Result<(), StoreError> {
+    /// `source` enlaza el FIT del que sale, si se guardó con [`Store::save_source_file`].
+    pub fn save_track(
+        &mut self,
+        result: ResultId,
+        track: &Track,
+        source: Option<SourceFileId>,
+    ) -> Result<(), StoreError> {
         let tx = self.conn.transaction()?;
+        let source = ensure_source_file(&tx, source)?;
         let exists = tx
             .query_row(
                 "SELECT 1 FROM results WHERE id = ?1",
@@ -22,7 +30,10 @@ impl Store {
         }
         // Los puntos del track anterior se borran en cascada.
         tx.execute("DELETE FROM tracks WHERE result_id = ?1", [result.0])?;
-        tx.execute("INSERT INTO tracks (result_id) VALUES (?1)", [result.0])?;
+        tx.execute(
+            "INSERT INTO tracks (result_id, source_file_id) VALUES (?1, ?2)",
+            params![result.0, source],
+        )?;
         let track_id = tx.last_insert_rowid();
         {
             let mut stmt = tx.prepare_cached(
@@ -46,6 +57,20 @@ impl Store {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    /// Fichero original enlazado al track de un resultado; `None` si no tiene track o el
+    /// track no tiene fichero enlazado.
+    pub fn track_source_file(&self, result: ResultId) -> Result<Option<SourceFileId>, StoreError> {
+        let source: Option<Option<i64>> = self
+            .conn
+            .query_row(
+                "SELECT source_file_id FROM tracks WHERE result_id = ?1",
+                [result.0],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(source.flatten().map(SourceFileId))
     }
 
     /// Carga el track de un resultado; `None` si no tiene.

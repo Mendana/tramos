@@ -9,7 +9,9 @@ use tramos_core::model::{
     Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE, Sex,
     Track, TrackPoint,
 };
-use tramos_store::{EventId, ResultId, SCHEMA_VERSION, Store, StoreError};
+use tramos_store::{
+    EventId, ResultId, SCHEMA_VERSION, SourceFileId, SourceFileKind, Store, StoreError,
+};
 
 fn utc(h: u32, m: u32, s: u32) -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 10, 3, h, m, s).unwrap()
@@ -172,7 +174,7 @@ fn full_event_round_trips_exactly() {
     let mut store = Store::open_in_memory().unwrap();
     let event = sample_event();
 
-    let saved = store.save_event(&event).unwrap();
+    let saved = store.save_event(&event, None).unwrap();
 
     assert_eq!(store.load_event(saved.id).unwrap(), event);
     // Ids de resultado por categoría, en orden.
@@ -193,8 +195,8 @@ fn two_events_in_one_database_stay_apart() {
         classes: vec![],
     };
 
-    let a = store.save_event(&first).unwrap();
-    let b = store.save_event(&second).unwrap();
+    let a = store.save_event(&first, None).unwrap();
+    let b = store.save_event(&second, None).unwrap();
 
     assert_ne!(a.id, b.id);
     assert_eq!(store.load_event(a.id).unwrap(), first);
@@ -223,7 +225,7 @@ fn file_database_persists_and_shares_courses() {
 
     let saved = {
         let mut store = Store::open(&path).unwrap();
-        store.save_event(&event).unwrap()
+        store.save_event(&event, None).unwrap()
     };
 
     // Al reabrir no se vuelve a migrar y los datos siguen ahí.
@@ -266,12 +268,12 @@ fn file_database_persists_and_shares_courses() {
 #[test]
 fn track_round_trips_with_optional_fields() {
     let mut store = Store::open_in_memory().unwrap();
-    let saved = store.save_event(&sample_event()).unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
     let ana = saved.results[0][0];
     let berta = saved.results[0][1];
     let track = sample_track();
 
-    store.save_track(ana, &track).unwrap();
+    store.save_track(ana, &track, None).unwrap();
 
     assert_eq!(store.load_track(ana).unwrap(), Some(track.clone()));
     assert_eq!(store.load_track(berta).unwrap(), None);
@@ -282,28 +284,28 @@ fn track_round_trips_with_optional_fields() {
 #[test]
 fn saving_a_track_again_replaces_it() {
     let mut store = Store::open_in_memory().unwrap();
-    let saved = store.save_event(&sample_event()).unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
     let ana = saved.results[0][0];
-    store.save_track(ana, &sample_track()).unwrap();
+    store.save_track(ana, &sample_track(), None).unwrap();
 
     let shorter = Track {
         points: sample_track().points[1..2].to_vec(),
     };
-    store.save_track(ana, &shorter).unwrap();
+    store.save_track(ana, &shorter, None).unwrap();
     assert_eq!(store.load_track(ana).unwrap(), Some(shorter));
 
-    store.save_track(ana, &Track::default()).unwrap();
+    store.save_track(ana, &Track::default(), None).unwrap();
     assert_eq!(store.load_track(ana).unwrap(), Some(Track::default()));
 }
 
 #[test]
 fn track_errors_leave_nothing_behind() {
     let mut store = Store::open_in_memory().unwrap();
-    let saved = store.save_event(&sample_event()).unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
     let ana = saved.results[0][0];
 
     assert!(matches!(
-        store.save_track(ResultId(9_999), &sample_track()),
+        store.save_track(ResultId(9_999), &sample_track(), None),
         Err(StoreError::ResultNotFound(9_999))
     ));
 
@@ -311,7 +313,7 @@ fn track_errors_leave_nothing_behind() {
     let mut bad = sample_track();
     bad.points[2].time += Duration::microseconds(1);
     assert!(matches!(
-        store.save_track(ana, &bad),
+        store.save_track(ana, &bad, None),
         Err(StoreError::SubMillisecondInstant(_))
     ));
     assert_eq!(store.load_track(ana).unwrap(), None);
@@ -319,7 +321,7 @@ fn track_errors_leave_nothing_behind() {
     let mut nan = sample_track();
     nan.points[0].altitude_m = Some(f64::NAN);
     assert!(matches!(
-        store.save_track(ana, &nan),
+        store.save_track(ana, &nan, None),
         Err(StoreError::NotANumber("altitude_m"))
     ));
     assert_eq!(store.load_track(ana).unwrap(), None);
@@ -359,7 +361,7 @@ fn failed_event_save_is_rolled_back() {
 
     let mut store = Store::open(&path).unwrap();
     assert!(matches!(
-        store.save_event(&event),
+        store.save_event(&event, None),
         Err(StoreError::SubMillisecondInstant(_))
     ));
     drop(store);
@@ -373,4 +375,117 @@ fn failed_event_save_is_rolled_back() {
             .unwrap();
         assert_eq!(n, 0, "{table}");
     }
+}
+
+const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+#[test]
+fn source_file_content_round_trips() {
+    let mut store = Store::open_in_memory().unwrap();
+    let before = Utc::now();
+
+    let id = store
+        .save_source_file(SourceFileKind::Spl, "C:/carreras/otono.spl", b"abc")
+        .unwrap();
+    let file = store.load_source_file(id).unwrap();
+
+    assert_eq!(file.kind, SourceFileKind::Spl);
+    assert_eq!(file.path, "C:/carreras/otono.spl");
+    assert_eq!(file.sha256, ABC_SHA256);
+    assert_eq!(file.content, b"abc".to_vec());
+    // Se guarda al milisegundo.
+    assert!(file.imported_at >= before - Duration::milliseconds(1));
+    assert!(file.imported_at <= Utc::now());
+
+    // Contenido binario arbitrario, con ceros y bytes no UTF-8.
+    let binary: Vec<u8> = (0..=255u8).chain([0, 0, 0xff]).collect();
+    let fit = store
+        .save_source_file(SourceFileKind::Fit, "reloj.fit", &binary)
+        .unwrap();
+    assert_ne!(fit, id);
+    let file = store.load_source_file(fit).unwrap();
+    assert_eq!(file.kind, SourceFileKind::Fit);
+    assert_eq!(file.content, binary);
+}
+
+#[test]
+fn same_content_is_stored_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tramos.sqlite");
+    let mut store = Store::open(&path).unwrap();
+
+    let first = store
+        .save_source_file(SourceFileKind::Spl, "a/otono.spl", b"abc")
+        .unwrap();
+    let again = store
+        .save_source_file(SourceFileKind::Spl, "b/copia.spl", b"abc")
+        .unwrap();
+    let other = store
+        .save_source_file(SourceFileKind::Spl, "a/otono.spl", b"abd")
+        .unwrap();
+
+    assert_eq!(again, first);
+    assert_ne!(other, first);
+    // Se conserva la ruta de la primera importación.
+    assert_eq!(store.load_source_file(again).unwrap().path, "a/otono.spl");
+    drop(store);
+
+    let conn = Connection::open(&path).unwrap();
+    let (rows, size): (i64, i64) = conn
+        .query_row(
+            "SELECT count(*), sum(size_bytes) FROM source_files",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((rows, size), (2, 6));
+    // El esquema no admite un tamaño que no cuadre con el contenido.
+    let bad = conn.execute(
+        "INSERT INTO source_files (kind, path, sha256, size_bytes, content, imported_at_epoch_ms) \
+         VALUES ('fit', 'x', ?1, 99, x'00', 0)",
+        ["0".repeat(64)],
+    );
+    assert!(bad.is_err());
+}
+
+#[test]
+fn events_and_tracks_link_to_their_source_files() {
+    let mut store = Store::open_in_memory().unwrap();
+    let spl = store
+        .save_source_file(SourceFileKind::Spl, "otono.spl", b"spl sintetico")
+        .unwrap();
+    let fit = store
+        .save_source_file(SourceFileKind::Fit, "ana.fit", b"fit sintetico")
+        .unwrap();
+
+    let linked = store.save_event(&sample_event(), Some(spl)).unwrap();
+    let unlinked = store.save_event(&sample_event(), None).unwrap();
+    let ana = linked.results[0][0];
+    let berta = linked.results[0][1];
+    store.save_track(ana, &sample_track(), Some(fit)).unwrap();
+    store.save_track(berta, &sample_track(), None).unwrap();
+
+    assert_eq!(store.event_source_file(linked.id).unwrap(), Some(spl));
+    assert_eq!(store.event_source_file(unlinked.id).unwrap(), None);
+    assert_eq!(store.track_source_file(ana).unwrap(), Some(fit));
+    assert_eq!(store.track_source_file(berta).unwrap(), None);
+    assert_eq!(store.track_source_file(linked.results[2][0]).unwrap(), None);
+    assert_eq!(store.load_event(linked.id).unwrap(), sample_event());
+    assert_eq!(store.load_track(ana).unwrap(), Some(sample_track()));
+
+    assert!(matches!(
+        store.load_source_file(SourceFileId(9_999)),
+        Err(StoreError::SourceFileNotFound(9_999))
+    ));
+    assert!(matches!(
+        store.save_event(&sample_event(), Some(SourceFileId(9_999))),
+        Err(StoreError::SourceFileNotFound(9_999))
+    ));
+    assert!(matches!(
+        store.save_track(berta, &sample_track(), Some(SourceFileId(9_999))),
+        Err(StoreError::SourceFileNotFound(9_999))
+    ));
+    // El fallo no toca el track que ya había.
+    assert_eq!(store.load_track(berta).unwrap(), Some(sample_track()));
+    assert_eq!(store.result_ids(unlinked.id).unwrap().len(), 3);
 }

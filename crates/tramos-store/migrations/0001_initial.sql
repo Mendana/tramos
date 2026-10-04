@@ -7,17 +7,21 @@
 -- - Orden de las listas del modelo: columna `position`, desde 0.
 -- - Enumerados del modelo: TEXT en snake_case, como en el JSON de tramos_core::model.
 
--- Ficheros originales: solo ruta, huella y tipo; nunca el contenido.
+-- Ficheros originales, con su contenido, para poder recalcular. El .spl incluye fechas de
+-- nacimiento: esta tabla nunca sale de la base local (docs/datos-y-privacidad.md).
+-- `sha256` es UNIQUE: importar dos veces el mismo fichero no duplica su contenido.
 CREATE TABLE source_files (
     id                   INTEGER PRIMARY KEY,
     kind                 TEXT    NOT NULL CHECK (kind IN ('spl', 'fit')),
+    -- Ruta de origen al importar; solo informativa.
     path                 TEXT    NOT NULL,
-    sha256               TEXT    NOT NULL
+    sha256               TEXT    NOT NULL UNIQUE
         CHECK (length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
-    size_bytes           INTEGER NOT NULL CHECK (size_bytes >= 0),
-    imported_at_epoch_ms INTEGER NOT NULL
+    size_bytes           INTEGER NOT NULL,
+    content              BLOB    NOT NULL,
+    imported_at_epoch_ms INTEGER NOT NULL,
+    CHECK (typeof(content) = 'blob' AND size_bytes = length(content))
 );
-CREATE INDEX source_files_sha256 ON source_files (sha256);
 
 -- Carreras.
 CREATE TABLE events (

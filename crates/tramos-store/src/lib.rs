@@ -9,6 +9,7 @@ mod error;
 mod event;
 mod migrations;
 mod settings;
+mod source;
 mod track;
 
 use std::path::Path;
@@ -18,6 +19,7 @@ use rusqlite::Connection;
 pub use error::StoreError;
 pub use event::SavedEvent;
 pub use migrations::SCHEMA_VERSION;
+pub use source::{SourceFile, SourceFileId, SourceFileKind};
 
 /// Identificador de una carrera guardada.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

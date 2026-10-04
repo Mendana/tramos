@@ -9,10 +9,14 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | Función | Qué hace |
 | --- | --- |
 | `Store::open(ruta)` / `Store::open_in_memory()` | Abre o crea la base, activa las claves foráneas y aplica las migraciones pendientes. |
-| `save_event(&Event) -> SavedEvent` | Guarda una carrera completa en una transacción. Devuelve su `EventId` y los `ResultId` por categoría y en orden. |
+| `save_source_file(tipo, ruta, &[u8]) -> SourceFileId` | Guarda un fichero original con su contenido y su SHA-256. Si ya hay uno con la misma huella, devuelve su id sin duplicarlo. |
+| `load_source_file(SourceFileId) -> SourceFile` | Tipo, ruta de origen, SHA-256, contenido e instante de importación. |
+| `save_event(&Event, Option<SourceFileId>) -> SavedEvent` | Guarda una carrera completa en una transacción, enlazada a su .spl si se indica. Devuelve su `EventId` y los `ResultId` por categoría y en orden. |
 | `load_event(EventId) -> Event` | Carga la carrera exactamente como se guardó. |
 | `result_ids(EventId)` | Los `ResultId` de una carrera ya guardada, como en `SavedEvent`. |
-| `save_track(ResultId, &Track)` / `load_track(ResultId)` | Track del reloj de un resultado. Guardar otra vez sustituye el anterior. |
+| `event_source_file(EventId)` | El fichero original enlazado a la carrera, si lo tiene. |
+| `save_track(ResultId, &Track, Option<SourceFileId>)` / `load_track(ResultId)` | Track del reloj de un resultado, enlazado a su FIT si se indica. Guardar otra vez sustituye el anterior. |
+| `track_source_file(ResultId)` | El fichero original enlazado al track, si lo tiene. |
 | `setting(clave)` / `set_setting(clave, valor)` | Ajustes clave-valor. |
 
 Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
@@ -52,7 +56,7 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 | `legs` | Tramos de un resultado con lo que calcula el análisis (`docs/tiempo-perdido.md`). | `result_id`, `leg_index` (desde 1), `from_code`, `to_code`, `split_s`, `reference_s`, `performance_index`, `expected_s`, `loss_s`, `loss_ratio`, `is_error`, `algorithm_version`. |
 | `tags` | Etiqueta del corredor sobre un tramo (`docs/taxonomia.md`). | `result_id`, `leg_index`, `taxonomy_version`; nivel 1 `confirmation` (`error`, `no_error`, `physical`); nivel 2 `error_type`, `error_subtype`; nivel 3 `leg_part` (`start`, `middle`, `attack`), `perceived_loss_s`, `effort` (1–10), `note`; `created_at_epoch_ms`, `updated_at_epoch_ms`. |
 | `tag_causes` | Causas percibidas de una etiqueta (varias). | `tag_id`, `cause`. |
-| `source_files` | Ficheros originales importados. | `kind` (`spl`, `fit`), `path`, `sha256`, `size_bytes`, `imported_at_epoch_ms`. |
+| `source_files` | Ficheros originales importados, con su contenido. **Nunca sale de la base local.** | `kind` (`spl`, `fit`), `path` (informativa), `sha256` (única), `size_bytes`, `content`, `imported_at_epoch_ms`. |
 | `settings` | Ajustes clave-valor (umbrales, preferencias…). | `key`, `value`. |
 
 Notas:
@@ -85,15 +89,20 @@ Notas:
 
 ## Ficheros originales
 
-Se guarda **la ruta, la huella SHA-256, el tamaño y el tipo**, no el contenido:
+Se guarda **el contenido completo** (`content`, `BLOB`), junto con el tipo, la ruta de origen
+(solo informativa), la huella SHA-256, el tamaño y el instante de importación:
 
-- El .spl trae nombres y fechas de nacimiento de todos los corredores de la prueba, y la fecha de
-  nacimiento se descarta al importar (`docs/datos-y-privacidad.md`). Guardar el fichero entero en
-  la base la conservaría por la puerta de atrás.
-- El FIT lleva GPS y pulso, que son datos sensibles; su copia útil ya está en `track_points`, de
-  donde se comparte solo lo que el corredor decida.
-- Lo importado (carrera, picadas, track) basta para recalcular el análisis. El original solo hace
-  falta si cambia un importador y hay que volver a leer el fichero; la huella dice si el fichero de
-  la ruta sigue siendo el mismo.
-- Coste: si el usuario borra o mueve el fichero, no se puede reimportar desde la app hasta que lo
-  vuelva a señalar. La huella permite reconocerlo.
+- Así se puede volver a leer el fichero si cambia un importador, aunque el usuario haya borrado o
+  movido el original del disco.
+- `sha256` es `UNIQUE`: importar dos veces el mismo fichero (aunque venga de otra ruta) no
+  duplica el contenido. `save_source_file` calcula la huella y, si ya existe, devuelve el id del
+  fichero guardado, con la ruta y el tipo de la primera importación. Un `CHECK` asegura que
+  `size_bytes = length(content)`.
+- Las carreras y los tracks enlazan su fichero con `events.source_file_id` y
+  `tracks.source_file_id`.
+
+**Privacidad.** Aunque el modelo descarta la fecha de nacimiento al importar, el contenido del
+.spl guardado la incluye, junto con los nombres de todos los corredores de la prueba. El FIT lleva
+GPS y pulso. Por eso `source_files` **nunca sale de la base local**: no va en los paquetes para la
+entrenadora ni a proveedores externos (`docs/datos-y-privacidad.md`). Lo que se comparta se saca
+de las tablas del modelo, no de los ficheros originales.

@@ -26,6 +26,9 @@ pub enum StoreError {
     #[error("no existe el resultado {0}")]
     ResultNotFound(i64),
 
+    #[error("no existe el fichero original {0}")]
+    SourceFileNotFound(i64),
+
     /// Un valor guardado no corresponde a ningún valor del modelo.
     #[error("dato inválido en la base de datos: {0}")]
     InvalidData(String),

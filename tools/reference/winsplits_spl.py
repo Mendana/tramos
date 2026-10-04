@@ -28,7 +28,8 @@ Categoría (empieza con 0x40)
   0x47 u32 n + n bytes   tramos: (desde u16, hasta u16, longitud u32, a 0 en el ejemplo)
   0x48/0x49/0x4a u8 ?    0x4d u32 ?
 Corredor (empieza con 0x80)
-  0x80 u32 id            0x81 u32 dorsal?       0x84 u32 tarjeta SportIdent
+  0x80 u32 longitud del resto del registro (no es un id: se repite; sale como "id" en el JSON)
+                         0x81 u32 dorsal?       0x84 u32 tarjeta SportIdent
   0x87 txt nombre        0x88 txt apellidos     0x89 u32 id club
   0x8c txt club          0x8d txt país          0x8e txt nacionalidad
   0x97 u16 n + n x (código u16, hora u24)        hora = centésimas desde medianoche,

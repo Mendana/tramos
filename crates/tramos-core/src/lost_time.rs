@@ -31,7 +31,20 @@ pub const SHORT_REFERENCE_S: f64 = 20.0;
 /// Con menos corredores clasificados que este número, la referencia del recorrido es débil.
 pub const MIN_RUNNERS_FOR_STRONG_REFERENCE: usize = 4;
 
-/// Umbrales de error. Un tramo es error si la pérdida supera **los dos**.
+/// Definición del tiempo ideal de un tramo, que se acumula para la diferencia respecto al ideal.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdealTime {
+    /// La referencia del tramo (`ref_i`). Por defecto.
+    #[default]
+    SumOfReferences,
+    /// El mejor split del tramo entre los clasificados (el "superman" de WinSplits).
+    SumOfBestSplits,
+}
+
+/// Configuración del cálculo. Un tramo es error si la pérdida supera **los dos** umbrales.
+///
+/// En JSON, los campos ausentes toman el valor por defecto.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LostTimeConfig {
@@ -39,6 +52,8 @@ pub struct LostTimeConfig {
     pub error_threshold_s: f64,
     /// Pérdida mínima en porcentaje del tiempo esperado (10 = 10 %; estricta).
     pub error_threshold_pct: f64,
+    /// Qué tiempo ideal se usa para `ideal_elapsed_s` y `behind_ideal_s`.
+    pub ideal_time: IdealTime,
 }
 
 impl Default for LostTimeConfig {
@@ -46,6 +61,7 @@ impl Default for LostTimeConfig {
         Self {
             error_threshold_s: DEFAULT_ERROR_THRESHOLD_S,
             error_threshold_pct: DEFAULT_ERROR_THRESHOLD_PCT,
+            ideal_time: IdealTime::default(),
         }
     }
 }
@@ -53,7 +69,7 @@ impl Default for LostTimeConfig {
 /// Tiempo perdido de toda una carrera: un análisis por recorrido.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LostTimeReport {
-    /// Umbrales con los que se calculó.
+    /// Configuración con la que se calculó (umbrales y tiempo ideal).
     pub config: LostTimeConfig,
     /// En el orden de [`group_by_course`].
     pub courses: Vec<CourseAnalysis>,
@@ -87,6 +103,9 @@ pub struct LegReference {
     pub reference_count: usize,
     /// `None` si ningún clasificado tiene split en el tramo.
     pub reference_s: Option<f64>,
+    /// Tiempo ideal acumulado desde la salida hasta el final del tramo, según
+    /// [`LostTimeConfig::ideal_time`]; `None` desde el primer tramo sin clasificados con split.
+    pub ideal_elapsed_s: Option<f64>,
     /// Último tramo (a meta).
     pub is_last: bool,
     /// Referencia menor de [`SHORT_REFERENCE_S`].
@@ -136,7 +155,7 @@ pub struct RunnerLeg {
     /// `100 · p_i / esp_i`.
     pub loss_pct: Option<f64>,
     pub is_error: bool,
-    /// Diferencia acumulada respecto al tiempo ideal: `elapsed_s − Σ ref_j` hasta este tramo.
+    /// Diferencia acumulada respecto al tiempo ideal: `elapsed_s − ideal_elapsed_s` del tramo.
     pub behind_ideal_s: Option<f64>,
 }
 
@@ -215,7 +234,7 @@ pub fn analyze_course(
         })
         .collect();
 
-    let legs: Vec<LegReference> = ok_splits
+    let mut legs: Vec<LegReference> = ok_splits
         .iter()
         .enumerate()
         .map(|(leg, splits)| {
@@ -230,6 +249,7 @@ pub fn analyze_course(
                 valid_splits: splits.len(),
                 reference_count,
                 reference_s,
+                ideal_elapsed_s: None,
                 is_last,
                 short_reference,
                 excluded_from_patterns: is_last || short_reference,
@@ -237,18 +257,20 @@ pub fn analyze_course(
         })
         .collect();
 
-    // Tiempo ideal acumulado (suma de referencias); sin valor desde el primer tramo sin referencia.
-    let ideal: Vec<Option<f64>> = legs
-        .iter()
-        .scan(Some(0.0), |acc, leg| {
-            *acc = acc.zip(leg.reference_s).map(|(a, r)| a + r);
-            Some(*acc)
-        })
-        .collect();
+    // Tiempo ideal acumulado; sin valor desde el primer tramo sin clasificados con split.
+    let mut ideal = Some(0.0);
+    for (leg, splits) in legs.iter_mut().zip(&ok_splits) {
+        let leg_ideal = match config.ideal_time {
+            IdealTime::SumOfReferences => leg.reference_s,
+            IdealTime::SumOfBestSplits => splits.first().copied(),
+        };
+        ideal = ideal.zip(leg_ideal).map(|(acc, t)| acc + t);
+        leg.ideal_elapsed_s = ideal;
+    }
 
     let runners = entries
         .iter()
-        .map(|entry| analyze_runner(entry, &legs, &ok_splits, &ideal, config))
+        .map(|entry| analyze_runner(entry, &legs, &ok_splits, config))
         .collect();
 
     CourseAnalysis {
@@ -265,7 +287,6 @@ fn analyze_runner(
     entry: &Entry<'_>,
     legs: &[LegReference],
     ok_splits: &[Vec<f64>],
-    ideal: &[Option<f64>],
     config: &LostTimeConfig,
 ) -> RunnerAnalysis {
     let split = |leg: usize| entry.splits.get(leg).copied().flatten();
@@ -306,9 +327,7 @@ fn analyze_runner(
             lost = lost.zip(loss).map(|(acc, p)| acc + p);
             error_count += 1;
         }
-        let behind_ideal = elapsed
-            .zip(ideal.get(leg).copied().flatten())
-            .map(|(e, i)| e - i);
+        let behind_ideal = elapsed.zip(reference.ideal_elapsed_s).map(|(e, i)| e - i);
         runner_legs.push(RunnerLeg {
             index: leg + 1,
             split_s: t,
@@ -720,12 +739,14 @@ mod tests {
         let strict = LostTimeConfig {
             error_threshold_s: 5.0,
             error_threshold_pct: 4.0,
+            ..LostTimeConfig::default()
         };
         assert!(threshold_case(400.0, 420.0, &strict).is_error);
         assert!(threshold_case(20.0, 30.0, &strict).is_error);
         let lax = LostTimeConfig {
             error_threshold_s: 30.0,
             error_threshold_pct: 10.0,
+            ..LostTimeConfig::default()
         };
         assert!(!threshold_case(100.0, 116.0, &lax).is_error);
     }
@@ -914,7 +935,11 @@ mod tests {
         let value = serde_json::to_value(&report).unwrap();
         assert_eq!(
             value["config"],
-            json!({"error_threshold_s": 15.0, "error_threshold_pct": 10.0})
+            json!({
+                "error_threshold_s": 15.0,
+                "error_threshold_pct": 10.0,
+                "ideal_time": "sum_of_references"
+            })
         );
         let course = &value["courses"][0];
         assert_eq!(course["classes"][0]["name"], json!("M21"));
@@ -922,7 +947,8 @@ mod tests {
             course["legs"][1],
             json!({
                 "index": 2, "from": 31, "to": FINISH_CODE, "valid_splits": 4,
-                "reference_count": 1, "reference_s": 60.0, "is_last": true,
+                "reference_count": 1, "reference_s": 60.0, "ideal_elapsed_s": 120.0,
+                "is_last": true,
                 "short_reference": false, "excluded_from_patterns": true
             })
         );
@@ -937,5 +963,85 @@ mod tests {
         let partial: LostTimeConfig =
             serde_json::from_value(json!({"error_threshold_s": 20.0})).unwrap();
         assert_eq!(partial.error_threshold_pct, DEFAULT_ERROR_THRESHOLD_PCT);
+        assert_eq!(partial.ideal_time, IdealTime::SumOfReferences);
+        let best: LostTimeConfig =
+            serde_json::from_value(json!({"ideal_time": "sum_of_best_splits"})).unwrap();
+        assert_eq!(best.ideal_time, IdealTime::SumOfBestSplits);
+        assert_eq!(best.error_threshold_s, DEFAULT_ERROR_THRESHOLD_S);
+    }
+
+    /// 5 corredores, 2 tramos: tramo 1 en 50, 80, 54, 70 y 60 s; tramo 2 en 30 s todos.
+    fn ideal_case(ideal_time: IdealTime) -> CourseAnalysis {
+        let controls: &[u16] = &[31];
+        let results = [50.0, 80.0, 54.0, 70.0, 60.0]
+            .iter()
+            .map(|&s| ok(controls, &[s, 30.0]))
+            .collect();
+        let config = LostTimeConfig {
+            ideal_time,
+            ..LostTimeConfig::default()
+        };
+        let mut report = analyze_event(&event(vec![("A", controls, results)]), &config);
+        assert_eq!(report.config.ideal_time, ideal_time);
+        report.courses.remove(0)
+    }
+
+    #[test]
+    fn ideal_time_as_sum_of_references() {
+        // ref_1 = (50 + 54) / 2 = 52, ref_2 = 30 → ideal 52 y 82 s.
+        let course = ideal_case(IdealTime::SumOfReferences);
+        let ideal: Vec<Option<f64>> = course.legs.iter().map(|l| l.ideal_elapsed_s).collect();
+        assert_eq!(ideal, [Some(52.0), Some(82.0)]);
+        // El de 80 s pasa a 80 y 110 s → +28 y +28 s.
+        let slow = &course.runners[1];
+        close(slow.legs[0].behind_ideal_s, 28.0);
+        close(slow.legs[1].behind_ideal_s, 28.0);
+        // El más rápido va por delante del ideal: 50 − 52 = −2 s.
+        close(course.runners[0].legs[0].behind_ideal_s, -2.0);
+    }
+
+    #[test]
+    fn ideal_time_as_sum_of_best_splits() {
+        // Mejores splits: 50 y 30 → ideal 50 y 80 s ("superman").
+        let course = ideal_case(IdealTime::SumOfBestSplits);
+        let ideal: Vec<Option<f64>> = course.legs.iter().map(|l| l.ideal_elapsed_s).collect();
+        assert_eq!(ideal, [Some(50.0), Some(80.0)]);
+        let slow = &course.runners[1];
+        close(slow.legs[0].behind_ideal_s, 30.0);
+        close(slow.legs[1].behind_ideal_s, 30.0);
+        close(course.runners[0].legs[1].behind_ideal_s, 0.0);
+        // El resto del cálculo no depende de la definición del ideal.
+        let by_refs = ideal_case(IdealTime::SumOfReferences);
+        assert_eq!(
+            course.runners[1].usual_performance,
+            by_refs.runners[1].usual_performance
+        );
+        assert_eq!(course.legs[0].reference_s, by_refs.legs[0].reference_s);
+    }
+
+    #[test]
+    fn best_split_ignores_unclassified_runners() {
+        // Un no clasificado más rápido no cuenta para el mejor split (misma población que ref).
+        let controls: &[u16] = &[31];
+        let results = vec![
+            ok(controls, &[60.0, 30.0]),
+            ok(controls, &[70.0, 40.0]),
+            result(
+                RaceStatus::NotClassified,
+                controls,
+                &[Some(40.0), Some(20.0)],
+            ),
+        ];
+        let config = LostTimeConfig {
+            ideal_time: IdealTime::SumOfBestSplits,
+            ..LostTimeConfig::default()
+        };
+        let report = analyze_event(&event(vec![("A", controls, results)]), &config);
+        let ideal: Vec<Option<f64>> = report.courses[0]
+            .legs
+            .iter()
+            .map(|l| l.ideal_elapsed_s)
+            .collect();
+        assert_eq!(ideal, [Some(60.0), Some(90.0)]);
     }
 }

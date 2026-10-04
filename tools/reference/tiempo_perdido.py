@@ -9,7 +9,11 @@ Salida: el mismo JSON que serializa `tramos_core::lost_time::LostTimeReport`, m�
 `resumen` con un resumen legible para revisión humana (el test de Rust la ignora).
 
 Uso:
-  python tiempo_perdido.py carrera.spl [--umbral-s 15] [--umbral-pct 10] [--resumen M-SEN]
+  python tiempo_perdido.py carrera.spl [--umbral-s 15] [--umbral-pct 10]
+                           [--ideal suma-referencias|suma-mejores] [--resumen M-SEN]
+
+--ideal elige el tiempo ideal de cada tramo: su referencia (por defecto) o el mejor split de los
+clasificados (el "superman" de WinSplits).
 """
 import json
 import os
@@ -25,6 +29,8 @@ SHORT_REFERENCE_S = 20.0
 MIN_STRONG_RUNNERS = 4
 DECIMALS = 6  # decimales de los flotantes en el JSON de salida
 STATUS = {0: "ok", 6: "not_classified", 10: "did_not_start"}
+SUM_OF_REFERENCES, SUM_OF_BEST_SPLITS = "sum_of_references", "sum_of_best_splits"
+IDEAL_ARG = {"suma-referencias": SUM_OF_REFERENCES, "suma-mejores": SUM_OF_BEST_SPLITS}
 
 
 def status_json(code):
@@ -90,7 +96,7 @@ def weighted_median(pairs):
     return pairs[-1][0]
 
 
-def analyze_course(course, classes, threshold_s, threshold_pct):
+def analyze_course(course, classes, threshold_s, threshold_pct, ideal_time=SUM_OF_REFERENCES):
     """`course`: balizas sin salida ni meta. `classes`: [(índice, categoría del parser)]."""
     codes = [START] + list(course) + [FINISH]
     n_legs = len(codes) - 1
@@ -128,15 +134,23 @@ def analyze_course(course, classes, threshold_s, threshold_pct):
         legs.append({
             "index": i + 1, "from": codes[i], "to": codes[i + 1],
             "valid_splits": len(valid), "reference_count": k, "reference_s": ref,
-            "is_last": is_last, "short_reference": short,
+            "ideal_elapsed_s": None, "is_last": is_last, "short_reference": short,
             "excluded_from_patterns": is_last or short,
         })
 
-    # Tiempo ideal acumulado: suma de referencias hasta cada tramo (None desde el primer hueco).
+    # Tiempo ideal acumulado: suma de referencias o de mejores splits de los clasificados hasta
+    # cada tramo (None desde el primer tramo sin clasificados con split).
+    if ideal_time == SUM_OF_REFERENCES:
+        per_leg = refs
+    elif ideal_time == SUM_OF_BEST_SPLITS:
+        per_leg = [valid[0] if valid else None for valid in ok_splits]
+    else:
+        raise ValueError(f"tiempo ideal desconocido: {ideal_time}")
     ideal, acc = [], 0.0
-    for ref in refs:
-        acc = None if acc is None or ref is None else acc + ref
+    for leg, t in zip(legs, per_leg):
+        acc = None if acc is None or t is None else acc + t
         ideal.append(acc)
+        leg["ideal_elapsed_s"] = acc
 
     runners = []
     for e in entries:
@@ -207,10 +221,12 @@ def group_by_course(parsed):
     return [(list(key), groups[key]) for key in order]
 
 
-def analyze(parsed, threshold_s=DEFAULT_THRESHOLD_S, threshold_pct=DEFAULT_THRESHOLD_PCT):
+def analyze(parsed, threshold_s=DEFAULT_THRESHOLD_S, threshold_pct=DEFAULT_THRESHOLD_PCT,
+            ideal_time=SUM_OF_REFERENCES):
     return {
-        "config": {"error_threshold_s": threshold_s, "error_threshold_pct": threshold_pct},
-        "courses": [analyze_course(course, classes, threshold_s, threshold_pct)
+        "config": {"error_threshold_s": threshold_s, "error_threshold_pct": threshold_pct,
+                   "ideal_time": ideal_time},
+        "courses": [analyze_course(course, classes, threshold_s, threshold_pct, ideal_time)
                     for course, classes in group_by_course(parsed)],
     }
 
@@ -294,6 +310,7 @@ def _arg(name, default):
 if __name__ == "__main__":
     parsed = winsplits_spl.parse(open(sys.argv[1], "rb").read())
     report = analyze(parsed, float(_arg("--umbral-s", DEFAULT_THRESHOLD_S)),
-                     float(_arg("--umbral-pct", DEFAULT_THRESHOLD_PCT)))
+                     float(_arg("--umbral-pct", DEFAULT_THRESHOLD_PCT)),
+                     IDEAL_ARG[_arg("--ideal", "suma-referencias")])
     report["resumen"] = summary(parsed, report, _arg("--resumen", "M-SEN"))
     sys.stdout.write(dumps(report) + "\n")

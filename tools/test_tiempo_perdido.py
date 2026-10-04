@@ -132,6 +132,41 @@ class Rules(unittest.TestCase):
                          [0, 5000, None, 15000])
 
 
+class IdealTime(unittest.TestCase):
+    """5 corredores, 2 tramos: tramo 1 en 50, 80, 54, 70 y 60 s; tramo 2 en 30 s todos."""
+
+    def course(self, ideal_time):
+        p = parsed([runner([s, 30]) for s in (50, 80, 54, 70, 60)])
+        report = tp.analyze(p, ideal_time=ideal_time)
+        self.assertEqual(report["config"]["ideal_time"], ideal_time)
+        return report["courses"][0]
+
+    def test_sum_of_references_is_default(self):
+        self.assertEqual(tp.analyze(doc_example())["config"]["ideal_time"], "sum_of_references")
+        course = self.course(tp.SUM_OF_REFERENCES)
+        self.assertEqual([leg["ideal_elapsed_s"] for leg in course["legs"]], [52, 82])
+        self.assertEqual([leg["behind_ideal_s"] for leg in course["runners"][1]["legs"]], [28, 28])
+
+    def test_sum_of_best_splits(self):
+        course = self.course(tp.SUM_OF_BEST_SPLITS)
+        self.assertEqual([leg["ideal_elapsed_s"] for leg in course["legs"]], [50, 80])
+        self.assertEqual([leg["behind_ideal_s"] for leg in course["runners"][1]["legs"]], [30, 30])
+        # El resto no cambia.
+        by_refs = self.course(tp.SUM_OF_REFERENCES)
+        self.assertEqual(course["legs"][0]["reference_s"], by_refs["legs"][0]["reference_s"])
+        self.assertEqual(course["runners"][1]["usual_performance"],
+                         by_refs["runners"][1]["usual_performance"])
+
+    def test_best_split_ignores_unclassified(self):
+        p = parsed([runner([60, 30]), runner([70, 40]), runner([40, 20], status=6)])
+        course = tp.analyze(p, ideal_time=tp.SUM_OF_BEST_SPLITS)["courses"][0]
+        self.assertEqual([leg["ideal_elapsed_s"] for leg in course["legs"]], [60, 90])
+
+    def test_unknown_definition_fails(self):
+        with self.assertRaises(ValueError):
+            tp.analyze(doc_example(), ideal_time="otra")
+
+
 class Fixture(unittest.TestCase):
     def test_expected_json_is_up_to_date(self):
         with open(os.path.join(FIXTURES, "baltanas-anon.spl"), "rb") as f:
@@ -143,6 +178,21 @@ class Fixture(unittest.TestCase):
             expected = f.read()
         self.assertEqual(tp.dumps(report) + "\n", expected)
         self.assertEqual(len(json.loads(expected)["courses"]), 9)
+
+    def test_best_splits_on_fixture(self):
+        with open(os.path.join(FIXTURES, "baltanas-anon.spl"), "rb") as f:
+            data = winsplits_spl.parse(f.read())
+        report = tp.analyze(data, ideal_time=tp.SUM_OF_BEST_SPLITS)
+        for course in report["courses"]:
+            acc = 0.0
+            for i, leg in enumerate(course["legs"]):
+                acc += min(r["legs"][i]["split_s"] for r in course["runners"]
+                           if r["status"] == "ok" and r["legs"][i]["split_s"] is not None)
+                self.assertAlmostEqual(leg["ideal_elapsed_s"], acc)
+                for r in course["runners"]:
+                    e = r["legs"][i]["elapsed_s"]
+                    want = None if e is None else e - leg["ideal_elapsed_s"]
+                    self.assertEqual(r["legs"][i]["behind_ideal_s"], want)
 
 
 if __name__ == "__main__":

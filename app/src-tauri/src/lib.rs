@@ -2,6 +2,7 @@
 //! no reimplementa cálculos.
 
 pub mod import;
+pub mod races;
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -9,7 +10,8 @@ use tauri::Manager;
 use tramos_core::identify::RunnerIdentity;
 use tramos_store::Store;
 
-use crate::import::{ImportOutcome, ImportPreview, ImportRequest, RaceRow};
+use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
+use crate::races::{RaceDetail, RaceRow};
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
 const DATABASE_FILE: &str = "tramos.sqlite";
@@ -60,10 +62,16 @@ fn import_race(
     import::import(&mut *state.store()?, &request).map_err(|e| e.to_string())
 }
 
-/// Carreras del usuario, de la más reciente a la más antigua.
+/// Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido.
 #[tauri::command]
 fn list_races(state: tauri::State<'_, AppState>) -> Result<Vec<RaceRow>, String> {
-    import::list_races(&*state.store()?).map_err(|e| e.to_string())
+    races::list_races(&*state.store()?).map_err(|e| e.to_string())
+}
+
+/// Una carrera del usuario con su tabla de tramos.
+#[tauri::command]
+fn race_detail(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceDetail, String> {
+    races::race_detail(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
 /// Arranca la app. Devuelve el error de Tauri en lugar de abortar.
@@ -84,7 +92,8 @@ pub fn run() -> tauri::Result<()> {
             stored_identity,
             preview_import,
             import_race,
-            list_races
+            list_races,
+            race_detail
         ])
         .run(tauri::generate_context!())
 }

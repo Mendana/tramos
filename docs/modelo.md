@@ -82,6 +82,14 @@ tramos contiguos) y sitúa cada baliza en la posición del corredor en el instan
 `median_control_positions` combina las balizas de varios corredores del mismo recorrido con la
 mediana. Algoritmo, casos borde y formato JSON en `docs/segmentacion.md`.
 
+## Informe de un corredor
+
+`tramos_core::runner_report::runner_report(&Event, ResultRef, &LostTimeConfig)` da el tiempo
+perdido de un resultado listo para enseñar: su recorrido (balizas, categorías que lo comparten,
+clasificados, referencia débil), sus totales y, por tramo, la referencia del recorrido junto a sus
+números. Lo usan la CLI y la vista de carrera de la app, para que coincidan. El cálculo está en
+`docs/tiempo-perdido.md`.
+
 ## Formato de carrera
 
 `tramos_core::race_format::RaceFormat`: `sprint` (~15 min, urbano), `middle` (media, ~35 min,

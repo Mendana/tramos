@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
+use tramos_core::identify::ResultRef;
 use tramos_core::model::{Class, Course, Event, Punch, RaceResult, Runner};
 use tramos_core::race_format::RaceFormat;
 
@@ -59,6 +60,32 @@ impl Store {
             .optional()?
             .ok_or(StoreError::EventNotFound(id.0))?;
         Ok(source.map(SourceFileId))
+    }
+
+    /// Carrera de un resultado y su posición en ella (categoría y resultado en el orden del
+    /// modelo), para buscarlo en lo que devuelve [`Store::load_event`].
+    pub fn result_ref(&self, result: ResultId) -> Result<(EventId, ResultRef), StoreError> {
+        let (event, class_position, result_position): (i64, i64, i64) = self
+            .conn
+            .query_row(
+                "SELECT c.event_id, c.position, r.position FROM results r \
+                 JOIN classes c ON c.id = r.class_id WHERE r.id = ?1",
+                [result.0],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?
+            .ok_or(StoreError::ResultNotFound(result.0))?;
+        let index = |position: i64| {
+            usize::try_from(position)
+                .map_err(|_| StoreError::InvalidData(format!("posición {position}")))
+        };
+        Ok((
+            EventId(event),
+            ResultRef {
+                class_index: index(class_position)?,
+                result_index: index(result_position)?,
+            },
+        ))
     }
 
     /// Primera carrera guardada (la de menor id) enlazada a un .spl, si hay alguna. Sirve para no

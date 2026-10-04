@@ -15,6 +15,7 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `save_event(&Event, Option<SourceFileId>) -> SavedEvent` | Guarda una carrera completa en una transacción, enlazada a su .spl si se indica. Devuelve su `EventId` y los `ResultId` por categoría y en orden. |
 | `load_event(EventId) -> Event` | Carga la carrera exactamente como se guardó. |
 | `result_ids(EventId)` | Los `ResultId` de una carrera ya guardada, como en `SavedEvent`. |
+| `result_ref(ResultId) -> (EventId, ResultRef)` | Carrera de un resultado y su posición en ella (índices de categoría y de resultado), para buscarlo en el `Event` que da `load_event`. |
 | `event_source_file(EventId)` | El fichero original enlazado a la carrera, si lo tiene. |
 | `event_by_source_file(SourceFileId) -> Option<EventId>` | La primera carrera guardada (menor id) enlazada a ese fichero. Sirve para no duplicar una carrera al reimportar su .spl (`docs/app.md`). |
 | `event_format(EventId)` / `set_event_format(EventId, Option<RaceFormat>)` | Formato de la carrera (`sprint`, `middle`, `long`); `None` si no se ha fijado o para borrarlo. Carrera inexistente: `EventNotFound`. |

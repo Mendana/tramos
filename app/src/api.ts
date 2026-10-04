@@ -76,6 +76,73 @@ export interface RaceRow {
   place: number | null;
   format: RaceFormat | null;
   has_track: boolean;
+  total_s: number | null;
+  lost_time_s: number | null;
+  error_count: number;
+}
+
+export interface LostTimeConfig {
+  error_threshold_s: number;
+  error_threshold_pct: number;
+  ideal_time: "sum_of_references" | "sum_of_best_splits";
+}
+
+export interface LegReport {
+  index: number;
+  from: number;
+  to: number;
+  split_s: number | null;
+  elapsed_s: number | null;
+  place: number | null;
+  reference_s: number | null;
+  reference_count: number;
+  valid_splits: number;
+  performance_index: number | null;
+  expected_s: number | null;
+  loss_s: number | null;
+  loss_pct: number | null;
+  is_error: boolean;
+  ideal_elapsed_s: number | null;
+  behind_ideal_s: number | null;
+  is_last: boolean;
+  short_reference: boolean;
+  excluded_from_patterns: boolean;
+}
+
+export interface RunnerReport {
+  course: {
+    controls: number[];
+    classes: { index: number; id: number; name: string }[];
+    valid_runners: number;
+    weak_reference: boolean;
+  };
+  lost_time: {
+    total_s: number | null;
+    usual_performance: number | null;
+    lost_time_s: number | null;
+    error_count: number;
+    time_without_errors_s: number | null;
+    ideal_time_s: number | null;
+    behind_ideal_s: number | null;
+    legs: LegReport[];
+  };
+}
+
+export interface RaceDetail {
+  event_id: number;
+  result_id: number;
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  class_name: string;
+  given_name: string;
+  family_name: string;
+  club: string | null;
+  si_card: number | null;
+  status: RaceStatus;
+  place: number | null;
+  config: LostTimeConfig;
+  report: RunnerReport;
 }
 
 export const FORMAT_LABELS: Record<RaceFormat, string> = {
@@ -105,3 +172,34 @@ export const importRace = (request: ImportRequest) =>
   invoke<ImportOutcome>("import_race", { request });
 
 export const listRaces = () => invoke<RaceRow[]>("list_races");
+
+export const raceDetail = (resultId: number) =>
+  invoke<RaceDetail>("race_detail", { resultId });
+
+/** Duración redondeada al segundo: `m:ss`, o `h:mm:ss` desde una hora (como la CLI). */
+export function clock(seconds: number | null): string {
+  if (seconds === null) return "—";
+  const total = Math.round(Math.abs(seconds));
+  const sign = seconds < 0 && total > 0 ? "-" : "";
+  const h = Math.floor(total / 3600);
+  const m = Math.floor(total / 60) % 60;
+  const s = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${sign}${h}:${String(m).padStart(2, "0")}:${s}` : `${sign}${m}:${s}`;
+}
+
+/** Número con coma decimal. */
+export function decimal(value: number, decimals: number): string {
+  return value.toFixed(decimals).replace(".", ",");
+}
+
+/** Con signo y un decimal: `+5,3`, `-2,0`. */
+export function signed(value: number): string {
+  return (value >= 0 ? "+" : "") + decimal(value, 1);
+}
+
+/** Código de baliza con la salida y la meta como S y M. */
+export function codeLabel(code: number): string {
+  if (code === 32736) return "S";
+  if (code === 32752) return "M";
+  return String(code);
+}

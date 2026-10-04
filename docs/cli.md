@@ -1,7 +1,9 @@
 # CLI de desarrollo (`tramos`)
 
 `crates/tramos-cli` expone el núcleo en la terminal para probarlo sin interfaz. No calcula nada
-por su cuenta: lee los ficheros, llama a `tramos_core` y escribe el resultado.
+por su cuenta: lee los ficheros, llama a `tramos_core` y escribe el resultado. El recorrido y el
+tiempo perdido (`course` y `lost_time` del JSON) salen de `tramos_core::runner_report`, lo mismo
+que la vista de carrera de la app (`docs/app.md`).
 
 ```bash
 cargo run -p tramos-cli -- analizar --spl carrera.spl --fit reloj.fit --corredor 2001234

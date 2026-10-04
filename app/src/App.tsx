@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { RaceRow, coreVersion, listRaces } from "./api";
 import ImportPanel from "./ImportPanel";
 import RaceList from "./RaceList";
+import RaceView from "./RaceView";
 import "./App.css";
 
 function App() {
   const [version, setVersion] = useState<string | null>(null);
   const [races, setRaces] = useState<RaceRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Resultado abierto en la vista de carrera; `null` = pantalla principal.
+  const [open, setOpen] = useState<number | null>(null);
 
   const refresh = useCallback(() => {
     listRaces()
@@ -33,11 +36,17 @@ function App() {
           No se pudo consultar el núcleo: {error}
         </p>
       )}
-      <ImportPanel onImported={refresh} />
-      <section className="panel">
-        <h2>Tus carreras</h2>
-        <RaceList races={races} />
-      </section>
+      {open !== null ? (
+        <RaceView resultId={open} onBack={() => setOpen(null)} />
+      ) : (
+        <>
+          <ImportPanel onImported={refresh} />
+          <section className="panel">
+            <h2>Tus carreras</h2>
+            <RaceList races={races} onOpen={setOpen} />
+          </section>
+        </>
+      )}
     </main>
   );
 }

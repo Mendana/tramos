@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSettings, saveSettings } from "./api";
+import { Notice, PageHeader } from "./ui";
 
 /** Zonas horarias que se ofrecen en la lista; se puede escribir cualquier otra IANA. */
 const COMMON_TIME_ZONES = [
@@ -20,7 +21,7 @@ interface Form {
 }
 
 /** Ajustes: umbrales de error, zona horaria e identidad (ver `docs/app.md`). */
-function SettingsView({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }) {
+function SettingsView({ onSaved }: { onSaved: () => void }) {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -78,93 +79,114 @@ function SettingsView({ onBack, onSaved }: { onBack: () => void; onSaved: () => 
   }
 
   return (
-    <section className="panel">
-      <button type="button" onClick={onBack}>
-        ← Tus carreras
-      </button>
-      <h2>Ajustes</h2>
+    <>
+      <PageHeader title="Ajustes" subtitle="Se guardan en tu equipo." />
       {form === null ? (
         error === null && <p className="muted">Cargando…</p>
       ) : (
         <form
-          className="settings"
+          className="card"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
           }}
         >
-          <fieldset>
-            <legend>Tramo con error</legend>
-            <p className="muted">
-              Un tramo es error si pierdes más de los dos umbrales. Cambiarlos recalcula todas tus
-              carreras.
-            </p>
-            <label>
-              Pérdida mínima (segundos)
-              <input
-                inputMode="decimal"
-                value={form.thresholdS}
-                onChange={(e) => update("thresholdS", e.target.value)}
-              />
-            </label>
-            <label>
-              Pérdida mínima (% del tiempo esperado)
-              <input
-                inputMode="decimal"
-                value={form.thresholdPct}
-                onChange={(e) => update("thresholdPct", e.target.value)}
-              />
-            </label>
-          </fieldset>
+          <div className="form-section">
+            <div className="form-section-text">
+              <h3>Tramo con error</h3>
+              <p className="small muted">
+                Un tramo es error si pierdes más de los dos umbrales. Cambiarlos recalcula todas tus
+                carreras.
+              </p>
+            </div>
+            <div className="form-fields">
+              <label className="field">
+                <span className="field-label">Pérdida mínima</span>
+                <input
+                  className="input num"
+                  inputMode="decimal"
+                  value={form.thresholdS}
+                  onChange={(e) => update("thresholdS", e.target.value)}
+                />
+                <span className="field-hint">En segundos. Por defecto, 15.</span>
+              </label>
+              <label className="field">
+                <span className="field-label">Pérdida mínima relativa</span>
+                <input
+                  className="input num"
+                  inputMode="decimal"
+                  value={form.thresholdPct}
+                  onChange={(e) => update("thresholdPct", e.target.value)}
+                />
+                <span className="field-hint">En % del tiempo esperado. Por defecto, 10.</span>
+              </label>
+            </div>
+          </div>
 
-          <fieldset>
-            <legend>Hora de las carreras</legend>
-            <p className="muted">
-              Zona horaria de las horas del .spl. Se aplica a las carreras que importes a partir de
-              ahora.
-            </p>
-            <label>
-              Zona horaria
-              <input
-                list="time-zones"
-                value={form.timeZone}
-                onChange={(e) => update("timeZone", e.target.value)}
-              />
-              <datalist id="time-zones">
-                {COMMON_TIME_ZONES.map((zone) => (
-                  <option key={zone} value={zone} />
-                ))}
-              </datalist>
-            </label>
-          </fieldset>
+          <div className="form-section">
+            <div className="form-section-text">
+              <h3>Hora de las carreras</h3>
+              <p className="small muted">
+                Zona horaria de las horas del .spl. Se aplica a las carreras que importes a partir de
+                ahora.
+              </p>
+            </div>
+            <div className="form-fields">
+              <label className="field">
+                <span className="field-label">Zona horaria</span>
+                <input
+                  className="input"
+                  list="time-zones"
+                  value={form.timeZone}
+                  onChange={(e) => update("timeZone", e.target.value)}
+                />
+                <datalist id="time-zones">
+                  {COMMON_TIME_ZONES.map((zone) => (
+                    <option key={zone} value={zone} />
+                  ))}
+                </datalist>
+                <span className="field-hint">Por ejemplo, Europe/Madrid o Atlantic/Canary.</span>
+              </label>
+            </div>
+          </div>
 
-          <fieldset>
-            <legend>Quién eres</legend>
-            <p className="muted">Para encontrarte en cada carrera al importarla.</p>
-            <label>
-              Tarjeta SI
-              <input
-                inputMode="numeric"
-                value={form.siCard}
-                onChange={(e) => update("siCard", e.target.value)}
-              />
-            </label>
-            <label>
-              Nombre y apellidos
-              <input value={form.fullName} onChange={(e) => update("fullName", e.target.value)} />
-            </label>
-          </fieldset>
+          <div className="form-section">
+            <div className="form-section-text">
+              <h3>Quién eres</h3>
+              <p className="small muted">Para encontrarte en cada carrera al importarla.</p>
+            </div>
+            <div className="form-fields">
+              <label className="field">
+                <span className="field-label">Tarjeta SI</span>
+                <input
+                  className="input num"
+                  inputMode="numeric"
+                  value={form.siCard}
+                  onChange={(e) => update("siCard", e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Nombre y apellidos</span>
+                <input
+                  className="input"
+                  value={form.fullName}
+                  onChange={(e) => update("fullName", e.target.value)}
+                />
+              </label>
+            </div>
+          </div>
 
-          <button type="submit">Guardar</button>
-          {saved && <span className="muted"> Guardado.</span>}
+          {error !== null && <Notice kind="error">{error}</Notice>}
+          <div className="row">
+            <button type="submit" className="btn btn-primary">
+              Guardar
+            </button>
+            {saved && <span className="small muted">Guardado.</span>}
+          </div>
         </form>
       )}
-      {error !== null && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-    </section>
+      {form === null && error !== null && <Notice kind="error">{error}</Notice>}
+    </>
   );
 }
 

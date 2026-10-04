@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -8,11 +8,13 @@ import {
   RaceFormat,
   RunnerChoice,
   RunnerIdentity,
+  decimal,
   getSettings,
   importRace,
   previewImport,
   statusLabel,
 } from "./api";
+import { FileIcon, Notice, PageHeader, UploadIcon, WatchIcon } from "./ui";
 
 /** Con más candidatos que esto, la lista pide filtrar. */
 const MAX_LISTED = 50;
@@ -37,11 +39,19 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-function runnerLabel(c: RunnerChoice): string {
-  const name = `${c.given_name} ${c.family_name}`.trim() || "Sin nombre";
-  const card = c.si_card === null ? "" : ` · tarjeta ${c.si_card}`;
-  const club = c.club === null ? "" : ` · ${c.club}`;
-  return `${c.class_name} · ${name}${club}${card} · ${statusLabel(c.status, c.place)}`;
+function runnerName(c: RunnerChoice): string {
+  return `${c.given_name} ${c.family_name}`.trim() || "Sin nombre";
+}
+
+function runnerDetails(c: RunnerChoice): string {
+  return [
+    c.class_name,
+    c.club,
+    c.si_card === null ? null : `tarjeta ${c.si_card}`,
+    statusLabel(c.status, c.place),
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
 }
 
 function sameResult(a: RunnerChoice, b: RunnerChoice | null): boolean {
@@ -53,7 +63,13 @@ function sameResult(a: RunnerChoice, b: RunnerChoice | null): boolean {
 }
 
 /** Importar una carrera: ficheros, identidad, corredor y formato (ver `docs/app.md`). */
-function ImportPanel({ onImported }: { onImported: () => void }) {
+function ImportPanel({
+  onImported,
+  onOpen,
+}: {
+  onImported: () => void;
+  onOpen: (resultId: number) => void;
+}) {
   const [files, setFiles] = useState<Files>({ spl: null, fit: null });
   const [dragging, setDragging] = useState(false);
   const [siCard, setSiCard] = useState("");
@@ -162,156 +178,237 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
     if (preview === null) return [];
     const words = filter.toLowerCase().split(/\s+/).filter((w) => w !== "");
     return preview.candidates.filter((c) => {
-      const text = runnerLabel(c).toLowerCase();
+      const text = `${runnerName(c)} ${runnerDetails(c)}`.toLowerCase();
       return words.every((w) => text.includes(w));
     });
   }, [preview, filter]);
 
   return (
-    <section className="panel">
-      <h2>Importar una carrera</h2>
+    <>
+      <PageHeader
+        title="Importar una carrera"
+        subtitle="El .spl de WinSplits y, si lo tienes, el FIT de tu reloj."
+      />
 
-      <div className={dragging ? "dropzone dragging" : "dropzone"}>
-        <p>Arrastra aquí el .spl de WinSplits y, si lo tienes, el .fit de tu reloj.</p>
-        <button type="button" onClick={chooseFiles} disabled={busy}>
-          Elegir ficheros…
-        </button>
-        <ul className="files">
-          <li>Splits: {files.spl === null ? "—" : fileName(files.spl)}</li>
-          <li>Reloj: {files.fit === null ? "— (opcional)" : fileName(files.fit)}</li>
-        </ul>
-      </div>
+      {outcome !== null && <Outcome outcome={outcome} onOpen={onOpen} />}
 
-      <div className="identity">
-        <label>
-          Tu tarjeta SI
-          <input
-            inputMode="numeric"
-            value={siCard}
-            onChange={(e) => setSiCard(e.target.value)}
-          />
-        </label>
-        <label>
-          Tu nombre y apellidos
-          <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        </label>
-        <button type="button" onClick={review} disabled={busy || files.spl === null}>
-          Revisar
-        </button>
-      </div>
+      <section className="card">
+        <h3 className="section-title">1 · Ficheros</h3>
+        <div className={dragging ? "dropzone is-dragging" : "dropzone"}>
+          <span className="dropzone-icon">
+            <UploadIcon size={32} />
+          </span>
+          <p>
+            <strong>Arrastra aquí los ficheros</strong>
+            <br />
+            <span className="small muted">o elígelos desde tu equipo</span>
+          </p>
+          <button type="button" className="btn" onClick={chooseFiles} disabled={busy}>
+            Elegir ficheros…
+          </button>
+          <div className="files">
+            <FileSlot icon={<FileIcon />} label="Splits (.spl)" path={files.spl} />
+            <FileSlot icon={<WatchIcon />} label="Reloj (.fit), opcional" path={files.fit} />
+          </div>
+        </div>
+      </section>
 
-      {error !== null && <p role="alert" className="error">{error}</p>}
+      <section className="card">
+        <h3 className="section-title">2 · Quién eres</h3>
+        <div className="row">
+          <label className="field">
+            <span className="field-label">Tarjeta SI</span>
+            <input
+              className="input num"
+              inputMode="numeric"
+              value={siCard}
+              onChange={(e) => setSiCard(e.target.value)}
+            />
+          </label>
+          <label className="field field-grow">
+            <span className="field-label">Nombre y apellidos</span>
+            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </label>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={review}
+            disabled={busy || files.spl === null}
+          >
+            Revisar
+          </button>
+        </div>
+        {files.spl === null && (
+          <p className="small muted">Añade primero el .spl para revisar la carrera.</p>
+        )}
+      </section>
+
+      {error !== null && <Notice kind="error">{error}</Notice>}
 
       {preview !== null && (
-        <div className="preview">
-          <h3>
-            {preview.event_name ?? "Carrera sin nombre"} · {preview.event_date}
-          </h3>
+        <section className="card">
+          <h3 className="section-title">3 · Confirmar</h3>
+          <div className="page-header-text">
+            <h2>{preview.event_name ?? "Carrera sin nombre"}</h2>
+            <div className="meta">
+              <span className="num">{preview.event_date}</span>
+              {preview.fit_points !== null && (
+                <span className="pill">
+                  <WatchIcon size={14} /> {preview.fit_points} puntos del reloj
+                </span>
+              )}
+            </div>
+          </div>
           {preview.already_imported && (
-            <p className="note">
-              Esta carrera ya está importada: no se duplicará, solo se actualizará.
-            </p>
-          )}
-          {preview.fit_points !== null && (
-            <p className="muted">Reloj: {preview.fit_points} puntos con posición.</p>
+            <Notice>Esta carrera ya está importada: no se duplicará, solo se actualizará.</Notice>
           )}
 
-          <fieldset>
-            <legend>Tu resultado</legend>
-            {preview.matched === "unique_name_mismatch" && (
-              <p className="note">
-                La tarjeta coincide, pero el nombre no: comprueba que es tu resultado.
-              </p>
-            )}
-            {preview.matched === "ambiguous" && (
-              <p className="note">Hay varios resultados posibles: elige el tuyo.</p>
-            )}
-            {preview.matched === "not_found" && (
-              <>
-                <p className="note">
-                  No te he encontrado por tarjeta ni por nombre: búscate en la lista.
+          <div className="stack">
+            <div className="field">
+              <span className="field-label">Tu resultado</span>
+              {preview.matched === "unique_name_mismatch" && (
+                <Notice kind="warning">
+                  La tarjeta coincide, pero el nombre no: comprueba que es tu resultado.
+                </Notice>
+              )}
+              {preview.matched === "ambiguous" && (
+                <Notice kind="warning">Hay varios resultados posibles: elige el tuyo.</Notice>
+              )}
+              {preview.matched === "not_found" && (
+                <>
+                  <Notice kind="warning">
+                    No te he encontrado por tarjeta ni por nombre: búscate en la lista.
+                  </Notice>
+                  <input
+                    className="input"
+                    placeholder="Filtrar por nombre, club, categoría…"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                  />
+                </>
+              )}
+              {listed.length > MAX_LISTED ? (
+                <p className="small muted">
+                  {listed.length} resultados: escribe algo en el filtro para acotar.
                 </p>
-                <input
-                  placeholder="Filtrar por nombre, club, categoría…"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                />
-              </>
-            )}
-            {listed.length > MAX_LISTED ? (
-              <p className="muted">
-                {listed.length} resultados: escribe algo en el filtro para acotar.
-              </p>
-            ) : (
-              <ul className="candidates">
-                {listed.map((c) => (
-                  <li key={`${c.result.class_index}-${c.result.result_index}`}>
-                    <label>
+              ) : listed.length === 0 ? (
+                <p className="small muted">Ningún resultado casa con el filtro.</p>
+              ) : (
+                <div className="choices" role="radiogroup" aria-label="Tu resultado">
+                  {listed.map((c) => (
+                    <label className="choice" key={`${c.result.class_index}-${c.result.result_index}`}>
                       <input
                         type="radio"
                         name="candidate"
                         checked={sameResult(c, chosen)}
                         onChange={() => setChosen(c)}
                       />
-                      {runnerLabel(c)}
+                      <span className="choice-main">
+                        <span className="strong">{runnerName(c)}</span>
+                        <span className="small muted">{runnerDetails(c)}</span>
+                      </span>
                     </label>
-                  </li>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="field">
+              <span className="field-label">Formato</span>
+              <div className="segmented" role="radiogroup" aria-label="Formato">
+                {(Object.keys(FORMAT_LABELS) as RaceFormat[]).map((f) => (
+                  <label key={f}>
+                    <input
+                      type="radio"
+                      name="format"
+                      checked={format === f}
+                      onChange={() => setFormat(f)}
+                    />
+                    {FORMAT_LABELS[f]}
+                  </label>
                 ))}
-              </ul>
-            )}
-          </fieldset>
+              </div>
+              {preview.median_winner_s !== null && (
+                <span className="field-hint">
+                  Sugerido por el tiempo de los ganadores: la mediana de las categorías es de{" "}
+                  {Math.round(preview.median_winner_s / 60)} min.
+                </span>
+              )}
+            </div>
+          </div>
 
-          <label>
-            Formato
-            <select
-              value={format ?? ""}
-              onChange={(e) =>
-                setFormat(e.target.value === "" ? null : (e.target.value as RaceFormat))
-              }
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-primary btn-lg"
+              onClick={confirm}
+              disabled={busy || chosen === null}
             >
-              <option value="">Sin decidir</option>
-              {(Object.keys(FORMAT_LABELS) as RaceFormat[]).map((f) => (
-                <option key={f} value={f}>
-                  {FORMAT_LABELS[f]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {preview.median_winner_s !== null && (
-            <p className="muted">
-              Sugerido por el tiempo de los ganadores (mediana de las categorías:{" "}
-              {Math.round(preview.median_winner_s / 60)} min).
-            </p>
-          )}
-
-          <button type="button" onClick={confirm} disabled={busy || chosen === null}>
-            Importar
-          </button>
-        </div>
+              Importar
+            </button>
+            {chosen === null && <span className="small muted">Elige tu resultado.</span>}
+          </div>
+        </section>
       )}
+    </>
+  );
+}
 
-      {outcome !== null && (
-        <div className="outcome">
-          <p>
-            {outcome.already_imported
-              ? "Carrera actualizada (ya estaba importada)."
-              : "Carrera importada."}
-          </p>
-          {outcome.alignment !== null && (
-            <p>
-              {outcome.alignment.track_saved
-                ? `Reloj alineado: desfase ${outcome.alignment.offset_s?.toFixed(1)} s, confianza ${Math.round((outcome.alignment.confidence ?? 0) * 100)} %.`
-                : "El reloj no se ha guardado."}
-            </p>
-          )}
-          {[...outcome.warnings, ...(outcome.alignment?.messages ?? [])].map((m) => (
-            <p key={m} className="note">
-              {m}
-            </p>
-          ))}
-        </div>
-      )}
-    </section>
+function FileSlot({
+  icon,
+  label,
+  path,
+}: {
+  icon: ReactNode;
+  label: string;
+  path: string | null;
+}) {
+  return (
+    <div className={path === null ? "file is-empty" : "file"}>
+      {icon}
+      <div className="choice-main">
+        <span className="small muted">{label}</span>
+        <span className="file-name" title={path ?? undefined}>
+          {path === null ? "Sin fichero" : fileName(path)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Outcome({
+  outcome,
+  onOpen,
+}: {
+  outcome: ImportOutcome;
+  onOpen: (resultId: number) => void;
+}) {
+  const alignment = outcome.alignment;
+  const messages = [...outcome.warnings, ...(alignment?.messages ?? [])];
+  return (
+    <div className="card">
+      <Notice kind={alignment !== null && !alignment.track_saved ? "warning" : "success"}>
+        <strong>
+          {outcome.already_imported
+            ? "Carrera actualizada (ya estaba importada)."
+            : "Carrera importada."}
+        </strong>{" "}
+        {alignment !== null &&
+          (alignment.track_saved
+            ? `Reloj alineado: desfase ${decimal(alignment.offset_s ?? 0, 1)} s, confianza ${Math.round((alignment.confidence ?? 0) * 100)} %.`
+            : "El reloj no se ha guardado.")}
+      </Notice>
+      {messages.map((m) => (
+        <Notice key={m} kind="warning">
+          {m}
+        </Notice>
+      ))}
+      <div>
+        <button type="button" className="btn btn-primary" onClick={() => onOpen(outcome.result_id)}>
+          Ver la carrera
+        </button>
+      </div>
+    </div>
   );
 }
 

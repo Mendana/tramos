@@ -104,6 +104,29 @@ impl Default for AlignmentOptions {
     }
 }
 
+/// Desplazamientos que se prueban cuando el track no se solapa con la carrera, en orden: una y
+/// dos horas en cada sentido (horario de verano o zona horaria mal elegida).
+pub const SUGGESTED_SHIFTS_S: [i64; 4] = [3600, -3600, 7200, -7200];
+
+/// Final del mensaje de `TrackOutsideRace`, con la pista si la hay.
+fn shift_hint(shift_s: Option<i64>) -> String {
+    match shift_s {
+        Some(shift) => {
+            let (sign, side) = if shift > 0 {
+                ("+", "por detrás")
+            } else {
+                ("-", "por delante")
+            };
+            format!(
+                "con {sign}{} h sí se solaparía (el cronometraje va {side} del reloj): \
+                 ¿la hora está mal convertida (horario de verano o zona horaria)?",
+                shift.abs() / 3600
+            )
+        }
+        None => "¿es el FIT de otra carrera o la hora está mal convertida?".into(),
+    }
+}
+
 /// Errores que impiden alinear.
 #[derive(Debug, Error, PartialEq)]
 pub enum AlignmentError {
@@ -121,8 +144,8 @@ pub enum AlignmentError {
 
     #[error(
         "el track ({track_start} – {track_end}) no se solapa con la carrera ({race_start} – \
-         {race_finish}) ni con ±{max_offset_s} s de desfase: ¿es el FIT de otra carrera o la \
-         hora está mal convertida?"
+         {race_finish}) ni con ±{max_offset_s} s de desfase: {hint}",
+        hint = shift_hint(*suggested_shift_s)
     )]
     TrackOutsideRace {
         track_start: DateTime<Utc>,
@@ -130,6 +153,10 @@ pub enum AlignmentError {
         race_start: DateTime<Utc>,
         race_finish: DateTime<Utc>,
         max_offset_s: u32,
+        /// Desplazamiento de horas enteras ([`SUGGESTED_SHIFTS_S`]) con el que el track sí se
+        /// solaparía, con el convenio de `offset_s` (hora del track = hora de la picada +
+        /// desplazamiento). Es solo una pista: no se aplica.
+        suggested_shift_s: Option<i64>,
     },
 }
 
@@ -384,13 +411,20 @@ pub fn align(
     let max_offset = f64::from(options.max_offset_s);
 
     let race_finish_rel = rel(window.finish);
-    if rel(last_point) < -max_offset || rel(first_point) > race_finish_rel + max_offset {
+    let overlaps = |shift: f64| {
+        rel(last_point) >= shift - max_offset
+            && rel(first_point) <= race_finish_rel + shift + max_offset
+    };
+    if !overlaps(0.0) {
         return Err(AlignmentError::TrackOutsideRace {
             track_start: first_point,
             track_end: last_point,
             race_start: window.start,
             race_finish: window.finish,
             max_offset_s: options.max_offset_s,
+            suggested_shift_s: SUGGESTED_SHIFTS_S
+                .into_iter()
+                .find(|&shift| overlaps(shift as f64)),
         });
     }
 

@@ -153,6 +153,13 @@ En JSON (campos en `snake_case`, instantes en RFC 3339):
 `InvalidOptions` (opciones fuera de rango), `EmptyTrack`, `NoPunchTimes`, `NoRaceWindow` y
 `TrackOutsideRace` (el track no se solapa con `[salida − max_offset_s, meta + max_offset_s]`).
 
+Con `TrackOutsideRace` se prueban desplazamientos de +1 h, −1 h, +2 h y −2 h, en ese orden
+(`SUGGESTED_SHIFTS_S`), por si la hora se ha convertido mal (horario de verano o zona horaria mal
+elegida). El primero con el que el track sí se solaparía va en `suggested_shift_s`, con el
+convenio de `offset_s` (hora del track = hora de la picada + desplazamiento), y el mensaje lo
+explica en español. Si ninguno solapa, `suggested_shift_s` es `None` y el mensaje pregunta si el
+FIT es de otra carrera. El desplazamiento **no se aplica**: decide el usuario (#68).
+
 ## Opciones (`AlignmentOptions`, valores por defecto)
 
 | Opción | Valor | Qué es |

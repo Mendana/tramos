@@ -1,6 +1,8 @@
 //! Núcleo de Tramos: modelos, importadores (.spl, FIT), alineación, segmentación,
 //! métricas y análisis. Sin dependencias de interfaz.
 
+pub mod model;
+
 /// Versión del núcleo, tomada de `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

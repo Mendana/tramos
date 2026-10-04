@@ -1,0 +1,20 @@
+[package]
+name = "tramos-cli"
+description = "CLI de desarrollo sobre el núcleo de Tramos"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "tramos"
+path = "src/main.rs"
+
+[dependencies]
+tramos-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true

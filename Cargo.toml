@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = ["crates/tramos-core", "crates/tramos-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/Mendana/tramos"
+
+[workspace.dependencies]
+tramos-core = { path = "crates/tramos-core" }
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# CLAUDE.md, regla 6: nada de `unwrap`/`expect` fuera de los tests (ver clippy.toml).
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"

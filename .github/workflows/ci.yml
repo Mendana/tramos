@@ -40,3 +40,67 @@ jobs:
 
       - name: Tests
         run: cargo test --workspace
+
+  app:
+    name: app Tauri (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        # bash también en Windows: el shim npm.ps1 de PowerShell se come el `--` de `npm run`.
+        shell: bash
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      # Prerrequisitos de Tauri 2 en Debian/Ubuntu: https://v2.tauri.app/start/prerequisites/
+      - name: Dependencias del sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Dependencias de npm
+        run: npm ci
+
+      - name: Frontend
+        run: npm run build
+
+      - name: Formato
+        working-directory: app/src-tauri
+        run: cargo fmt --check
+
+      - name: Clippy
+        working-directory: app/src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        working-directory: app/src-tauri
+        run: cargo test
+
+      # Compila la app con el frontend embebido, sin instaladores ni publicación.
+      - name: Compilación de la app
+        run: npm run tauri build -- --debug --no-bundle

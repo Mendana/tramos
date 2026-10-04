@@ -1,0 +1,45 @@
+[package]
+name = "tramos-app"
+description = "App de escritorio de Tramos (Tauri 2). Solo llama al núcleo."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT"
+repository = "https://github.com/Mendana/tramos"
+publish = false
+
+# Workspace propio, fuera del raíz (que además lo lista en `exclude`), para que
+# `cargo test --workspace` en la raíz no necesite webkit ni Node. La tabla vacía hace
+# que cargo deje de buscar un workspace hacia arriba aunque el repo esté anidado en otro.
+[workspace]
+
+[lib]
+# El sufijo `_lib` evita que la biblioteca y el binario compartan nombre
+# (https://github.com/rust-lang/cargo/issues/8519).
+name = "tramos_app_lib"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tramos-core = { path = "../../crates/tramos-core" }
+tauri = { version = "2", features = [] }
+
+# Mismos lints que el workspace raíz (CLAUDE.md, regla 6). El `clippy.toml` de la raíz
+# también aplica aquí: clippy lo busca subiendo desde este directorio.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+
+# https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

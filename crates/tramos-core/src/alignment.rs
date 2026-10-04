@@ -53,6 +53,9 @@ const MARGIN_FULL: f64 = 0.6;
 const SEARCH_LIMIT_MARGIN_S: f64 = 1.0;
 /// Mayor `max_offset_s` aceptado: más allá no es un desfase fino, es otro problema.
 const MAX_SEARCH_S: u32 = 600;
+/// Una picada que cae fuera del track por menos de esto (s) se sitúa en su primer o su último
+/// punto: el corredor que para el reloj al picar la meta deja el track acabando en ella.
+pub const EDGE_SNAP_S: f64 = 2.0;
 /// Mayor ventana de giro o de suavizado aceptada (s).
 const MAX_WINDOW_S: u32 = 60;
 
@@ -256,6 +259,10 @@ pub enum PunchUsage {
     Start,
     /// Sin hora en el cronometraje: se ignora.
     NoTime,
+    /// Su instante está en el track (o a menos de [`EDGE_SNAP_S`] de su principio o su final),
+    /// pero demasiado cerca del borde o de un hueco para calcular la señal: se sitúa, pero no
+    /// cuenta para el desfase. Es lo normal en la meta si el reloj se para al picarla.
+    NearEdge,
     /// Su instante cae fuera del track o en un hueco: no hay señal.
     NoSignal,
 }
@@ -500,7 +507,7 @@ pub fn align(
         .enumerate()
         .map(|(i, punch)| {
             let track_time = punch.time.map(|t| t + offset);
-            let location = track_time.and_then(|t| locate(&point_times, rel(t), options));
+            let location = track_time.and_then(|t| locate_near_edge(&point_times, rel(t), options));
             let local_offset_s = estimate
                 .as_ref()
                 .and_then(|e| e.local_offsets.iter().find(|(j, _)| *j == i))
@@ -511,6 +518,10 @@ pub fn align(
                 PunchUsage::Used
             } else if punch.code == START_CODE && !options.use_start_punch {
                 PunchUsage::Start
+            } else if location.is_some_and(|l| !l.in_gap)
+                && track_time.is_some_and(|t| signal.at(rel(t)).is_none())
+            {
+                PunchUsage::NearEdge
             } else {
                 PunchUsage::NoSignal
             };
@@ -750,6 +761,31 @@ fn locate(point_times: &[f64], t: f64, options: &AlignmentOptions) -> Option<Tra
             })
         }
     }
+}
+
+/// Como [`locate`], pero un instante fuera del track por [`EDGE_SNAP_S`] o menos se sitúa en el
+/// primer o el último punto (`fraction` 0). Solo para picadas: la señal no se extrapola.
+fn locate_near_edge(
+    point_times: &[f64],
+    t: f64,
+    options: &AlignmentOptions,
+) -> Option<TrackLocation> {
+    if let Some(location) = locate(point_times, t, options) {
+        return Some(location);
+    }
+    let (&first, &last) = (point_times.first()?, point_times.last()?);
+    let index = if t < first && first - t <= EDGE_SNAP_S {
+        0
+    } else if t > last && t - last <= EDGE_SNAP_S {
+        point_times.len() - 1
+    } else {
+        return None;
+    };
+    Some(TrackLocation {
+        index,
+        fraction: 0.0,
+        in_gap: false,
+    })
 }
 
 /// Señal de "baliza" remuestreada a 1 Hz sobre la parte útil del track.
@@ -1106,6 +1142,23 @@ mod tests {
             (2, 0.25, true)
         );
         assert_eq!((at(30.0).index, at(30.0).fraction), (3, 0.0));
+    }
+
+    #[test]
+    fn punches_just_outside_the_track_snap_to_its_ends() {
+        let options = AlignmentOptions::default();
+        let times = [0.0, 1.0, 2.0];
+        let near = |t| locate_near_edge(&times, t, &options).map(|l| (l.index, l.fraction));
+        // Dentro, igual que `locate`.
+        assert_eq!(near(1.5), Some((1, 0.5)));
+        // Fuera por 2 s o menos: el punto del extremo.
+        assert_eq!(near(-2.0), Some((0, 0.0)));
+        assert_eq!(near(2.1), Some((2, 0.0)));
+        assert_eq!(near(4.0), Some((2, 0.0)));
+        // Más lejos, nada.
+        assert_eq!(near(-2.1), None);
+        assert_eq!(near(4.1), None);
+        assert_eq!(locate_near_edge(&[], 0.0, &options), None);
     }
 
     #[test]

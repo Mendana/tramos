@@ -29,8 +29,9 @@ fracción `fraction`):
 - La altitud solo si los dos puntos la tienen; si falta en alguno, `altitude_m` es `None`.
 - Con `fraction = 0` (también en el último punto del track) es el propio punto.
 
-Se usa `location`, no `usage`: una picada `no_signal` con `location` (por ejemplo, cerca del
-borde del track, o todas si el desfase no se pudo estimar y es 0) se sitúa igual. Sin `location`
+Se usa `location`, no `usage`: una picada `near_edge` (cerca del borde del track, como la meta
+cuando el reloj se para al picarla) o `no_signal` con `location` (todas si el desfase no se pudo
+estimar y es 0) se sitúa igual. Sin `location`
 no hay posición y `missing` dice por qué:
 
 | `missing` | Cuándo |

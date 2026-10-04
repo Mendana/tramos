@@ -9,10 +9,11 @@ use std::path::PathBuf;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde_json::{Value, json};
 use tramos_core::alignment::{
-    Alignment, AlignmentError, AlignmentOptions, PunchUsage, WarningKind, align,
+    Alignment, AlignmentError, AlignmentOptions, EDGE_SNAP_S, PunchUsage, WarningKind, align,
 };
 use tramos_core::importers::{fit, spl};
 use tramos_core::model::{Event, FINISH_CODE, RaceResult, RaceStatus, START_CODE, Track};
+use tramos_core::segmentation::segment;
 
 fn fixtures() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
@@ -239,6 +240,51 @@ fn warns_when_track_does_not_cover_the_race() {
     let in_gap = a.punches.iter().find(|p| p.code == 46).unwrap();
     assert_eq!(in_gap.usage, PunchUsage::NoSignal);
     assert!(in_gap.location.unwrap().in_gap);
+}
+
+/// El reloj se para al picar la meta (muestra 1600): el track acaba unos segundos después o
+/// justo en ella. La meta se sitúa, el último tramo se corta y el desfase apenas cambia.
+#[test]
+fn finish_is_located_when_the_track_ends_at_it() {
+    let (track, result) = load();
+    let options = AlignmentOptions::default();
+    for delta in [-7, 0, 7] {
+        let clock = shifted(&track, TimeDelta::seconds(delta));
+        let full = align(&clock, &result, &options).unwrap();
+        // Hasta 2 s después de la meta, o hasta su muestra (con el desfase estimado, la meta
+        // puede caer unas centésimas después del último punto).
+        for after in [2, 0] {
+            let mut short = clock.clone();
+            short.points.truncate(1601 + after);
+            let a = align(&short, &result, &options).unwrap();
+            let ctx = format!("desfase {delta} s, {after} s tras la meta");
+            assert!(
+                (a.offset_s - full.offset_s).abs() <= 1.0,
+                "{ctx}: {}",
+                a.offset_s
+            );
+            let finish = a.punches.last().unwrap();
+            assert_eq!(finish.code, FINISH_CODE);
+            assert_eq!(finish.usage, PunchUsage::NearEdge, "{ctx}");
+            let location = finish.location.expect(&ctx);
+            assert!(!location.in_gap);
+            assert!(location.index >= 1599, "{ctx}: {location:?}");
+            assert!(a.punches[1..21].iter().all(|p| p.usage == PunchUsage::Used));
+            let legs = segment(&short, &a).unwrap().legs;
+            assert!(legs.last().unwrap().track.is_some(), "{ctx}");
+        }
+    }
+
+    // Si el track acaba bastante antes de la meta, no se inventa su posición.
+    let mut early = track.clone();
+    early.points.truncate(1601 - 5);
+    let a = align(&early, &result, &options).unwrap();
+    assert!(5.0 - a.offset_s > EDGE_SNAP_S);
+    let finish = a.punches.last().unwrap();
+    assert_eq!(
+        (finish.location, finish.usage),
+        (None, PunchUsage::NoSignal)
+    );
 }
 
 fn err_text(track: &Track, result: &RaceResult, hours: i64) -> String {

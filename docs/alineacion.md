@@ -92,6 +92,24 @@ Con el desfase aplicado, la ventana de la carrera en hora del reloj es `[salida 
 `Coverage` da el principio y el final del track, los segundos de carrera que quedan fuera
 (`missing_start_s`, `missing_end_s`) y los huecos de más de `max_gap_s` que tocan la carrera.
 
+## Picadas en el borde del track
+
+La señal necesita `turn_window_s` a cada lado (y algo más por el suavizado), así que no existe en
+los primeros y últimos segundos del track ni junto a un hueco. Lo habitual es la meta: el
+corredor para el reloj al picarla y el track acaba ahí. Esas picadas no cuentan para el desfase,
+pero se sitúan igual:
+
+- Una picada **dentro del track** y fuera de un hueco, sin señal en su instante, sale con
+  `usage: near_edge` y su `location` normal.
+- Una picada que cae **fuera del track por `EDGE_SNAP_S` (2 s) o menos** se sitúa en el primer o
+  el último punto (`fraction` 0) y también sale `near_edge`. Así la meta tiene posición aunque,
+  con el desfase estimado, caiga unas centésimas después del último punto, y el corte en tramos
+  (`docs/segmentacion.md`) tiene el último tramo. Su `track_time` no cambia.
+- Más lejos, o dentro de un hueco, sigue siendo `no_signal` (sin `location` si cae fuera).
+
+Con el FIT sintético recortado a 2 s después de la meta o justo en ella (y desplazado −7, 0 y
++7 s), la meta queda situada, el último tramo se corta y el desfase cambia menos de 0,1 s.
+
 ## Resultado
 
 | Campo | Qué es |
@@ -107,8 +125,8 @@ Con el desfase aplicado, la ventana de la carrera en hora del reloj es `[salida 
 Cada `AlignedPunch` lleva el código, la hora de la picada (`punch_time`, UTC), su instante en el
 reloj (`track_time = punch_time + offset_s`), su posición en el track (`location`: entre
 `points[index]` y `points[index + 1]` a la fracción `fraction`, e `in_gap` si esos dos puntos
-están separados más de `max_gap_s`), su papel (`usage`: `used`, `start`, `no_time` o
-`no_signal`) y su desfase propio. Las picadas sin hora no tienen `track_time` ni `location`. La
+están separados más de `max_gap_s`), su papel (`usage`: `used`, `start`, `no_time`,
+`near_edge` o `no_signal`; ver "Picadas en el borde del track") y su desfase propio. Las picadas sin hora no tienen `track_time` ni `location`. La
 posición geográfica de cada baliza y el corte en tramos salen de `location`
 (`docs/segmentacion.md`).
 
@@ -183,6 +201,8 @@ En JSON se pueden pasar parcialmente: los campos que faltan toman el valor por d
 - FIT sintético desplazado −7, 0, +7 y +45 s: desfase a ±2 s (sale a +0,14 s), confianza ≥ 0,8.
 - Con ruido de GPS (±4 m) y sin cadencia: sigue a ±2 s.
 - Track recortado al final o al principio y con un hueco de 40 s: avisos y picadas sin señal.
+- Track que acaba 2 s después de la meta o justo en ella: la meta sale `near_edge`, situada, y el
+  desfase cambia menos de 1 s. Si acaba 5 s antes, la meta queda sin posición.
 - Picadas sin hora (también salida y meta): se ignoran y el desfase sigue a ±2 s.
 - Verano e invierno: el mismo .spl con la fecha cambiada al 12 de diciembre (UTC+1) da las
   mismas horas locales, 1 h de diferencia en UTC y el mismo desfase; convertido con la hora de

@@ -2,6 +2,7 @@
 //! no reimplementa cálculos.
 
 pub mod import;
+pub mod race_map;
 pub mod races;
 pub mod settings;
 
@@ -13,6 +14,7 @@ use tramos_core::identify::RunnerIdentity;
 use tramos_store::Store;
 
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
+use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
 use crate::settings::Settings;
 
@@ -92,10 +94,17 @@ fn race_comparison(
     races::race_comparison(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Mapa de un resultado: track coloreado por ritmo o pulso, tramos y balizas.
+#[tauri::command]
+fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap, String> {
+    race_map::race_map(&*state.store()?, result_id).map_err(|e| e.to_string())
+}
+
 /// Arranca la app. Devuelve el error de Tauri en lugar de abortar.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -113,7 +122,8 @@ pub fn run() -> tauri::Result<()> {
             import_race,
             list_races,
             race_detail,
-            race_comparison
+            race_comparison,
+            race_map
         ])
         .run(tauri::generate_context!())
 }

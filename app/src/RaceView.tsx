@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   FORMAT_LABELS,
   LegReport,
@@ -13,6 +13,9 @@ import {
 import { GroupComparison } from "./GroupComparison";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
 import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
+
+// MapLibre pesa: se carga solo al abrir una carrera.
+const MapView = lazy(() => import("./MapView"));
 
 /** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
 function RaceView({ resultId, onBack }: { resultId: number; onBack: () => void }) {
@@ -43,6 +46,9 @@ function RaceView({ resultId, onBack }: { resultId: number; onBack: () => void }
 }
 
 function Detail({ detail }: { detail: RaceDetail }) {
+  // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
+  const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
+  const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
   const lost = detail.report.lost_time;
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
@@ -99,6 +105,15 @@ function Detail({ detail }: { detail: RaceDetail }) {
         <GroupComparison resultId={detail.result_id} />
       </div>
 
+      <Suspense fallback={<p className="muted">Cargando el mapa…</p>}>
+        <MapView
+          resultId={detail.result_id}
+          legs={lost.legs}
+          selected={selectedLeg}
+          onSelect={toggleLeg}
+        />
+      </Suspense>
+
       <div className="card card-flush">
         <div className="card-title card-head">
           <h3>Tramos</h3>
@@ -126,7 +141,12 @@ function Detail({ detail }: { detail: RaceDetail }) {
             </thead>
             <tbody>
               {lost.legs.map((leg) => (
-                <LegRow key={leg.index} leg={leg} />
+                <LegRow
+                  key={leg.index}
+                  leg={leg}
+                  selected={leg.index === selectedLeg}
+                  onSelect={toggleLeg}
+                />
               ))}
             </tbody>
           </table>
@@ -137,11 +157,30 @@ function Detail({ detail }: { detail: RaceDetail }) {
   );
 }
 
-function LegRow({ leg }: { leg: LegReport }) {
+function LegRow({
+  leg,
+  selected,
+  onSelect,
+}: {
+  leg: LegReport;
+  selected: boolean;
+  onSelect: (leg: number) => void;
+}) {
   const lossClass =
     leg.loss_s === null ? undefined : leg.is_error ? "loss-bad" : leg.loss_s < 0 ? "loss-good" : undefined;
   return (
-    <tr className={leg.is_error ? "is-error" : undefined}>
+    <tr
+      className={`clickable${leg.is_error ? " is-error" : ""}${selected ? " is-selected" : ""}`}
+      tabIndex={0}
+      aria-current={selected ? "true" : undefined}
+      onClick={() => onSelect(leg.index)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(leg.index);
+        }
+      }}
+    >
       <td className="num strong">{leg.index}</td>
       <td className="num">
         {codeLabel(leg.from)} → {codeLabel(leg.to)}

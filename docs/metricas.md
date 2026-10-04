@@ -26,7 +26,10 @@ puntos del track en medio. Se mide por **intervalos** entre puntos consecutivos:
   son el corredor picando y saliendo de la baliza; un intervalo que los cruza cuenta solo por la
   parte posterior.
 
-Por eso `duration_s` es al menos `moving_s + stopped_s + gap_s`. La diferencia son los intervalos
+Por eso `duration_s` es al menos `moving_s + stopped_s + gap_s`.
+
+La distancia de un intervalo es pública (`tramos_core::metrics::interval_distance_m`): el mapa
+la usa para el ritmo (`docs/app.md`, "Mapa"). La diferencia son los intervalos
 lentos de los primeros 5 s.
 
 ## Métricas

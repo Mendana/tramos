@@ -1,8 +1,10 @@
 # Formato .spl de WinSplits (cabecera `spl4`)
 
 No hay especificación pública. Este documento se dedujo de un fichero real (Liga Madrid MTBO,
-Chinchón, 3 de octubre de 2026: 13 categorías, 54 corredores, 927 tramos) y se comprueba con el
-lector de referencia `tools/reference/winsplits_spl.py`. Si un fichero nuevo trae una etiqueta
+Chinchón, 3 de octubre de 2026: 13 categorías, 54 corredores, 927 tramos), con la cabecera
+completada a partir del sprint de Baltanás y de una prueba de Soria (19 de julio de 2026:
+26 categorías, 465 corredores), y se comprueba con el lector de referencia
+`tools/reference/winsplits_spl.py`. Si un fichero nuevo trae una etiqueta
 desconocida, el lector debe fallar indicando la etiqueta y su posición, nunca ignorarla.
 
 El fixture público es `fixtures/spl/baltanas-anon.spl` (sprint de Baltanás, anonimizado:
@@ -20,10 +22,44 @@ tiene un test de paridad contra ese JSON.
 ## Cabecera
 
 - Bytes 0–3: `spl4`.
-- Offset `0x4C`: `f64` fecha de la carrera (OLE).
-- El resto de la cabecera (nombre de la prueba, organizador, software de origen) aún no está
-  mapeado por etiquetas. Los registros de categoría empiezan en el primer byte `0x40` seguido
-  de 4 bytes y de `0x43`.
+- Bytes 4–11: preámbulo de 8 bytes sin identificar. No es constante: `10 dc 00 00 00 00 00 00`
+  en Baltanás, `10 d4 00 00 00 00 00 00` en Soria. Se salta sin interpretarlo.
+- Desde el byte 12: registros `<etiqueta><valor>` hasta el marcador de fin `0x2c`.
+
+La posición de cada campo depende de la longitud de los textos anteriores, así que la cabecera
+se recorre **por etiquetas, nunca por offsets fijos**. (Las primeras versiones de los lectores
+leían la fecha en el offset `0x4C`, donde cae en Baltanás por casualidad; en Soria la etiqueta
+`0x19` está en `0x45` y en `0x4C` hay otros datos.)
+
+| Etiqueta | Tipo | Significado | Baltanás / Soria |
+| --- | --- | --- | --- |
+| `0x14` | texto | nombre de la prueba | «Cto. SPRINT Liga Norte/Liga FOCYL Baltanas» |
+| `0x18` | texto | organizador | un club |
+| `0x1b` | texto | país | `ESP` |
+| `0x19` | f64 | fecha de la carrera (OLE, parte entera). **Obligatoria.** | 46298,0 = 2026-10-03 / 46222,0 = 2026-07-19 |
+| `0x22` | f64 | fecha y hora (OLE), ¿creación del fichero? | 2026-10-03 19:45:22 / 2026-07-19 13:52:44 |
+| `0x23` | texto | software asociado a `0x22` | `WinSplits Online Upload 4.0` |
+| `0x24` | f64 | fecha y hora (OLE), ¿subida o última modificación? | 2026-10-03 19:46:09 / 2026-07-19 13:53:19 |
+| `0x25` | texto | software asociado a `0x24` | `WinSplits Online Upload 4.0` |
+| `0x26` | texto | origen de los resultados | `IOFXML3 / SportSoftware OE2010 (M) V.11.0` / `… OE12 (M) V.12.1` |
+| `0x27` | u8 | desconocido | 3 / 3 |
+| `0x28` | u32 | desconocido (¿id del evento en WinSplits Online?; crece con la fecha) | 115954 / 114093 |
+| `0x29` | u32 | desconocido | 0 / 0 |
+| `0x1f` | u16 | número de categorías | 18 / 26 |
+| `0x2b` | u16 | desconocido | 0 / 0 |
+| `0x21` | u32 | posición del primer registro de categoría + 1 | `0x178` / `0x1b0` |
+| `0x20` | n × (u32, u32) | tabla de categorías, con n = `0x1f`: desplazamiento y tamaño de cada registro de categoría (con sus corredores), contados desde el primer registro de categoría y acumulativos | |
+| `0x2c` | — | fin de cabecera, **sin valor**: el primer registro de categoría (`0x40`) va en el byte siguiente | `0x176` / `0x1ae` |
+
+Orden observado en los dos ficheros: `0x14 0x18 0x1b 0x19 0x22 0x23 0x24 0x25 0x26 0x27 0x28
+0x29 0x1f 0x2b 0x21 0x20 0x2c`. Los lectores no dependen del orden, salvo que `0x20` necesita
+haber leído antes `0x1f`.
+
+Comprobado con el fixture de Baltanás: cada desplazamiento de la tabla `0x20` cae en un `0x40`,
+y el tamaño de la última categoría pasa 10 bytes del final del fichero, justo lo que falta del
+último corredor (el valor `u8` de `0x9a` y el registro `0x9b` completo): el fichero viene
+truncado de origen (ver Notas). Los lectores no usan la tabla ni `0x21` para avanzar: localizan
+el primer registro de categoría con el marcador `0x2c`.
 
 ## Categoría (empieza con `0x40`)
 
@@ -73,8 +109,11 @@ Códigos especiales de baliza: `32736` = salida, `32752` = meta.
 
 Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
 
-- **Fecha**: la fecha OLE de la cabecera (`0x4C`) se queda en el día (`Event::date`); la parte
-  fraccionaria se ignora. `Event::name` es `None` mientras el nombre de la prueba no esté mapeado.
+- **Cabecera**: se recorre por etiquetas hasta `0x2c`. La fecha OLE de `0x19` se queda en el día
+  (`Event::date`; la parte fraccionaria se ignora) y el texto de `0x14` es `Event::name`
+  (`None` si falta). El resto de etiquetas de la cabecera se leen para avanzar y no se guardan
+  (el organizador no tiene uso en el modelo por ahora). Si la cabecera trae `0x1f`, el número de
+  categorías leídas debe coincidir.
 - **Horas → UTC**: cada hora de picada se interpreta como hora local de `Europe/Madrid` el día de
   la carrera (todas las carreras del grupo son en España peninsular) y se convierte a
   `DateTime<Utc>`. Ejemplos: 17:31:00 del 3-10-2026 (verano, UTC+2) → 15:31:00Z;
@@ -103,7 +142,10 @@ Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
   sin salida ni meta intermedias. `Course::controls` son los destinos de los tramos sin la meta
   (el lector de referencia da los destinos con la meta al final). Una categoría sin tramos, con
   una cadena rota o sin nombre (`0x43`) es un error.
-- **Errores** (`SplError`): cabecera que no empieza por `spl4` o demasiado corta, fecha OLE
-  inválida, sin registros de categoría, etiqueta desconocida (valor y byte), etiqueta de corredor
-  fuera de un corredor y registro cortado a mitad de su valor (etiqueta y byte). Solo se tolera,
-  como el lector de referencia, que el fichero acabe en una etiqueta sin valor.
+- **Errores** (`SplError`): cabecera que no empieza por `spl4`, demasiado corta o sin el
+  marcador `0x2c`; sin fecha (`0x19`) o con una fecha OLE inválida; tabla `0x20` antes de `0x1f`;
+  tras la cabecera no hay registros de categoría o el primero no es `0x40`; número de categorías
+  distinto del de `0x1f`; etiqueta desconocida, en la cabecera o en el cuerpo (valor y byte);
+  etiqueta de corredor fuera de un corredor y registro cortado a mitad de su valor (etiqueta y
+  byte). Solo se tolera, como el lector de referencia, que el fichero acabe en una etiqueta sin
+  valor (en el cuerpo; en la cabecera es un error).

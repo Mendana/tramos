@@ -1,13 +1,27 @@
 """Lector de referencia para ficheros .spl de WinSplits (cabecera "spl4").
 
-Formato deducido de un fichero real (Liga Madrid MTBO 2026, Chinchón).
-No hay especificación pública: si un fichero nuevo falla, el parser se
-detiene en la etiqueta desconocida e informa de su posición.
+Formato deducido de ficheros reales (Liga Madrid MTBO 2026, Chinchón; sprint de Baltanás;
+prueba de Soria). No hay especificación pública: si un fichero nuevo falla, el parser se
+detiene en la etiqueta desconocida e informa de su posición. Ver docs/formato-spl.md.
 
 Estructura: secuencia de registros <etiqueta:1 byte><valor>.
   texto  = uint16 longitud + bytes Latin-1
-  enteros little-endian; double = 8 bytes IEEE-754
+  enteros little-endian; double = 8 bytes IEEE-754; fechas OLE (días desde 1899-12-30)
 
+Cabecera: "spl4" + 8 bytes sin identificar (preámbulo) y registros hasta el marcador 0x2c.
+La posición de cada campo depende de la longitud de los textos anteriores: se recorre por
+etiquetas, nunca por offsets fijos.
+  0x14 txt nombre de la prueba   0x18 txt organizador   0x1b txt país
+  0x19 f64 fecha de la carrera (OLE; obligatoria)
+  0x22 f64 fecha y hora (¿creación?)  0x23 txt software (p. ej. "WinSplits Online Upload 4.0")
+  0x24 f64 fecha y hora (¿subida?)    0x25 txt software
+  0x26 txt origen de los resultados (p. ej. "IOFXML3 / SportSoftware OE2010 (M) V.11.0")
+  0x27 u8 ? (3)          0x28 u32 ? (¿id del evento en WinSplits Online?)    0x29 u32 ? (0)
+  0x1f u16 número de categorías  0x2b u16 ? (0)
+  0x21 u32 posición del primer registro de categoría + 1
+  0x20 tabla: n x (desplazamiento u32, tamaño u32), n = 0x1f; desplazamientos desde el
+       primer registro de categoría, acumulativos
+  0x2c fin de cabecera, sin valor: el primer registro de categoría (0x40) va justo detrás
 Categoría (empieza con 0x40)
   0x40 u32 id            0x43 txt nombre        0x44 txt nombre corto
   0x45 u16 ?             0x4e u8 ?              0x4f u16 ?   0x50 u16 ?
@@ -35,6 +49,14 @@ import struct
 import sys
 
 START, FINISH, MISSING = 32736, 32752, 0xFFFFFF
+PREAMBLE = 12  # "spl4" + 8 bytes sin identificar
+HEADER_STR = {0x14: "name", 0x18: "organizer", 0x1B: "country", 0x23: None, 0x25: None, 0x26: None}
+HEADER_F64 = {0x19, 0x22, 0x24}
+HEADER_U8 = {0x27}
+HEADER_U16 = {0x1F, 0x2B}
+HEADER_U32 = {0x21, 0x28, 0x29}
+CLASS_COUNT, CLASS_TABLE, HEADER_END = 0x1F, 0x20, 0x2C
+EVENT_KEYS = ("name", "organizer", "country", "date")
 STR = {0x43, 0x44, 0x87, 0x88, 0x8C, 0x8D, 0x8E}
 U8 = {0x48, 0x49, 0x4A, 0x4E, 0x98, 0x9A}
 U16 = {0x45, 0x4F, 0x50, 0x99}
@@ -49,12 +71,54 @@ def _ole(days):
     return (datetime.datetime(1899, 12, 30) + datetime.timedelta(days=days)).date().isoformat()
 
 
-def parse(data, keep_birthdate=False):
+def parse_header(data):
+    """Recorre la cabecera por etiquetas.
+
+    Devuelve (evento, posición del primer registro de categoría, número de categorías o None).
+    """
     if data[:4] != b"spl4":
         raise ValueError("no es un fichero spl4")
-    event = {"date": _ole(struct.unpack_from("<d", data, 0x4C)[0])}
-    # El primer registro de categoría es 0x40 seguido de 4 bytes y 0x43 (nombre).
-    p = next(i for i in range(0x40, len(data) - 6) if data[i] == 0x40 and data[i + 5] == 0x43)
+    event, count, p = {}, None, PREAMBLE
+    while True:
+        if p >= len(data):
+            raise ValueError("la cabecera termina sin el marcador de fin (0x2c)")
+        tag = data[p]
+        p += 1
+        if tag == HEADER_END:
+            break
+        if tag in HEADER_STR:
+            n = struct.unpack_from("<H", data, p)[0]
+            val, p = data[p + 2:p + 2 + n].decode("latin-1"), p + 2 + n
+            if HEADER_STR[tag]:
+                event[HEADER_STR[tag]] = val
+        elif tag in HEADER_F64:
+            val, p = struct.unpack_from("<d", data, p)[0], p + 8
+            if tag == 0x19:
+                event["date"] = _ole(val)
+        elif tag in HEADER_U8:
+            p += 1
+        elif tag in HEADER_U16:
+            val, p = struct.unpack_from("<H", data, p)[0], p + 2
+            if tag == CLASS_COUNT:
+                count = val
+        elif tag in HEADER_U32:
+            p += 4
+        elif tag == CLASS_TABLE:
+            if count is None:
+                raise ValueError(f"tabla de categorías (0x20) antes de su número (0x1f) "
+                                 f"en el byte {p - 1}")
+            p += 8 * count
+        else:
+            raise ValueError(f"etiqueta desconocida 0x{tag:02x} en el byte {p - 1}")
+    if "date" not in event:
+        raise ValueError("falta la fecha de la carrera (0x19) en la cabecera")
+    return {k: event[k] for k in EVENT_KEYS if k in event}, p, count
+
+
+def parse(data, keep_birthdate=False):
+    event, p, count = parse_header(data)
+    if p >= len(data) or data[p] != 0x40:
+        raise ValueError(f"no hay registro de categoría (0x40) tras la cabecera, byte {p}")
     classes, cls, runner = [], None, None
     while p < len(data):
         tag = data[p]
@@ -100,6 +164,8 @@ def parse(data, keep_birthdate=False):
                 runner[NAMES.get(tag, hex(tag))] = val
         elif tag in NAMES:
             cls[NAMES[tag]] = val
+    if count is not None and len(classes) != count:
+        raise ValueError(f"la cabecera anuncia {count} categorías (0x1f) y hay {len(classes)}")
     for c in classes:
         c["course"] = [leg[1] for leg in c.get("legs", [])]
         c.pop("legs", None)

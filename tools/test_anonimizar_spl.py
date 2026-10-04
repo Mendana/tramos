@@ -10,23 +10,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import anonimizar_spl as anon  # noqa: E402
 from anonimizar_spl import ref  # noqa: E402
-
-
-def text(tag, s):
-    raw = s.encode("latin-1")
-    return bytes([tag]) + struct.pack("<H", len(raw)) + raw
-
-
-def u8(tag, v):
-    return bytes([tag, v])
-
-
-def u16(tag, v):
-    return bytes([tag]) + struct.pack("<H", v)
-
-
-def u32(tag, v):
-    return bytes([tag]) + struct.pack("<I", v)
+from test_winsplits_spl import header, klass, text, u8, u16, u32  # noqa: E402
 
 
 def punches(items):
@@ -43,12 +27,10 @@ def runner(rid, given, family, club, club_id, bib, card, items, status, place, b
             + bytes([0x9B]) + struct.pack("<d", birth))
 
 
-def synthetic_spl():
-    header = bytearray(b"spl4" + bytes(0x60 - 4))
-    struct.pack_into("<d", header, 0x4C, 46298.0)  # 2026-10-03
-    header += text(0x18, "Club ORCA") + bytes(4)
-    legs = b"".join(struct.pack("<HHI", a, b, 0) for a, b in [(32736, 31), (31, 45), (45, 32752)])
-    cls = u32(0x40, 1) + text(0x43, "F21A") + bytes([0x47]) + struct.pack("<I", len(legs)) + legs
+def synthetic_spl(name="Trofeo de prueba"):
+    # Cabecera por etiquetas; el organizador coincide con el club de un corredor ("ORCA").
+    head = header(name, "Club ORCA", 46298.0, classes=1)  # 2026-10-03
+    cls = klass(1, "F21A", (32736, 31, 45, 32752))
     nine = 9 * 3600 * 100
     r1 = runner(10, "José", "García López", "ORCA", 77, 101, 2000123,
                 [(32736, nine), (31, nine + 9000), (45, nine + 15000), (32752, nine + 18000)],
@@ -56,7 +38,7 @@ def synthetic_spl():
     r2 = runner(11, "Ana", "Pérez", "Montaña Club", 88, 0, 2000456,
                 [(32736, nine), (31, ref.MISSING), (45, nine + 21000), (32752, nine + 24000)],
                 6, 0, 31000.0)
-    return bytes(header) + cls + r1 + r2 + bytes([0x9A])  # último registro truncado
+    return head + cls + r1 + r2 + bytes([0x9A])  # último registro truncado
 
 
 class AnonymizeTest(unittest.TestCase):
@@ -85,6 +67,18 @@ class AnonymizeTest(unittest.TestCase):
         self.assertEqual((r1["bib"], r1["si_card"]), (1, 1))
         self.assertEqual((r2["bib"], r2["si_card"]), (0, 2))  # dorsal 0 se queda en 0
         self.assertEqual({r["birthdate"] for r in self.runners}, {"1899-12-30"})
+
+    def test_rewrites_only_the_organizer_in_the_header(self):
+        self.assertEqual(self.parsed["event"], {"name": "Trofeo de prueba",
+                                                "organizer": "Club CA__", "country": "ESP",
+                                                "date": "2026-10-03"})
+
+    def test_check_rejects_other_header_changes(self):
+        # Un club en el nombre de la prueba también se reescribe, pero la comprobación lo
+        # detecta: hay que revisarlo a mano.
+        original = synthetic_spl("Trofeo ORCA")
+        with self.assertRaisesRegex(AssertionError, "organizador"):
+            anon.check(original, anon.anonymize(original))
 
     def test_no_original_text_left(self):
         for s in ("José", "García", "López", "ORCA", "Ana", "Pérez", "Montaña"):

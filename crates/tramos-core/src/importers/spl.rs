@@ -3,6 +3,9 @@
 //! Porta el lector de referencia `tools/reference/winsplits_spl.py`; el formato y las
 //! decisiones de importación están en `docs/formato-spl.md`. Resumen:
 //!
+//! - La cabecera se recorre por etiquetas hasta su marcador de fin (`0x2c`): de ella salen el
+//!   nombre de la prueba (`0x14`), la fecha (`0x19`) y el número de categorías (`0x1f`), que se
+//!   comprueba con las categorías leídas. Los registros de categoría empiezan justo después.
 //! - Las horas de las picadas son centésimas desde la medianoche local de la carrera
 //!   ([`RACE_TIME_ZONE`]) y se convierten a UTC con la fecha de la cabecera. Si una hora cae en
 //!   el cambio de hora (inexistente o ambigua), la lectura falla: no se adivina.
@@ -26,10 +29,12 @@ use crate::model::{
 pub const RACE_TIME_ZONE: Tz = chrono_tz::Europe::Madrid;
 
 const MAGIC: &[u8] = b"spl4";
-/// Posición de la fecha de la carrera (`f64`, fecha OLE) en la cabecera.
-const EVENT_DATE_OFFSET: usize = 0x4C;
-/// Primer byte desde el que se buscan los registros de categoría.
-const FIRST_RECORD_SEARCH_FROM: usize = 0x40;
+/// `spl4` + 8 bytes sin identificar; las etiquetas de la cabecera empiezan detrás.
+const PREAMBLE_LEN: usize = 12;
+/// Marcador de fin de cabecera (sin valor). El primer registro de categoría va justo detrás.
+const HEADER_END: u8 = 0x2c;
+/// Etiqueta de inicio de un registro de categoría.
+const CLASS_TAG: u8 = 0x40;
 /// Hora de picada que indica que no se registró.
 const MISSING_TIME: u32 = 0xFF_FFFF;
 
@@ -42,8 +47,24 @@ pub enum SplError {
     #[error("fecha de la carrera inválida en la cabecera: {0} (días OLE)")]
     InvalidEventDate(f64),
 
-    #[error("no se encuentra el primer registro de categoría (0x40 … 0x43)")]
+    #[error("a la cabecera le falta la fecha de la carrera (0x19)")]
+    MissingEventDate,
+
+    #[error(
+        "la tabla de categorías (0x20) del byte {offset} va antes del número de categorías (0x1f)"
+    )]
+    ClassTableBeforeCount { offset: usize },
+
+    #[error("no hay registros de categoría tras la cabecera")]
     NoClassRecords,
+
+    #[error(
+        "tras la cabecera (byte {offset}) se esperaba un registro de categoría (0x40) y hay 0x{tag:02x}"
+    )]
+    ExpectedClassRecord { tag: u8, offset: usize },
+
+    #[error("la cabecera anuncia {expected} categorías (0x1f) y el fichero trae {found}")]
+    ClassCountMismatch { expected: u16, found: usize },
 
     #[error("etiqueta desconocida 0x{tag:02x} en el byte {offset}")]
     UnknownTag { tag: u8, offset: usize },
@@ -93,28 +114,36 @@ pub enum SplError {
 }
 
 /// Lee un .spl completo y lo convierte al modelo de dominio.
-///
-/// El nombre de la prueba aún no está mapeado en la cabecera, así que `Event::name` es `None`.
 pub fn read(data: &[u8]) -> Result<Event, SplError> {
-    if data.get(..MAGIC.len()) != Some(MAGIC) {
-        return Err(SplError::InvalidHeader("no empieza por `spl4`"));
+    let header = read_header(data)?;
+    match data.get(header.body_start) {
+        None => return Err(SplError::NoClassRecords),
+        Some(&CLASS_TAG) => {}
+        Some(&tag) => {
+            return Err(SplError::ExpectedClassRecord {
+                tag,
+                offset: header.body_start,
+            });
+        }
     }
-    let date_bytes = data
-        .get(EVENT_DATE_OFFSET..EVENT_DATE_OFFSET + 8)
-        .and_then(|b| <[u8; 8]>::try_from(b).ok())
-        .ok_or(SplError::InvalidHeader(
-            "termina antes de la fecha de la carrera (offset 0x4C)",
-        ))?;
-    let date = ole_date(f64::from_le_bytes(date_bytes))?;
 
-    let start = first_class_record(data).ok_or(SplError::NoClassRecords)?;
     let mut parser = Parser {
-        cursor: Cursor::new(data, start),
-        date,
+        cursor: Cursor::new(data, header.body_start),
+        date: header.date,
         classes: Vec::new(),
         in_runner: false,
     };
     parser.run()?;
+
+    let found = parser.classes.len();
+    if found == 0 {
+        return Err(SplError::NoClassRecords);
+    }
+    if let Some(expected) = header.class_count
+        && usize::from(expected) != found
+    {
+        return Err(SplError::ClassCountMismatch { expected, found });
+    }
 
     let classes = parser
         .classes
@@ -122,9 +151,79 @@ pub fn read(data: &[u8]) -> Result<Event, SplError> {
         .map(ClassDraft::finish)
         .collect::<Result<_, _>>()?;
     Ok(Event {
-        name: None,
-        date,
+        name: header.name,
+        date: header.date,
         classes,
+    })
+}
+
+/// Lo que el importador usa de la cabecera.
+#[derive(Debug, PartialEq)]
+struct Header {
+    /// Nombre de la prueba (`0x14`).
+    name: Option<String>,
+    /// Día de la carrera (`0x19`).
+    date: NaiveDate,
+    /// Número de categorías (`0x1f`), si la cabecera lo trae.
+    class_count: Option<u16>,
+    /// Posición del primer registro de categoría: el byte siguiente al marcador `0x2c`.
+    body_start: usize,
+}
+
+/// Recorre la cabecera por etiquetas (`docs/formato-spl.md`) hasta el marcador `0x2c`.
+///
+/// Las etiquetas que no se usan se leen para avanzar; una desconocida es un error con su
+/// posición, como en el resto del fichero.
+fn read_header(data: &[u8]) -> Result<Header, SplError> {
+    if data.get(..MAGIC.len()) != Some(MAGIC) {
+        return Err(SplError::InvalidHeader("no empieza por `spl4`"));
+    }
+    if data.len() < PREAMBLE_LEN {
+        return Err(SplError::InvalidHeader("termina dentro del preámbulo"));
+    }
+    let mut c = Cursor::new(data, PREAMBLE_LEN);
+    let mut name = None;
+    let mut date = None;
+    let mut class_count = None;
+    loop {
+        let (tag, offset) = c.tag().ok_or(SplError::InvalidHeader(
+            "termina antes del marcador de fin de cabecera (0x2c)",
+        ))?;
+        match tag {
+            0x14 => name = Some(c.text()?),
+            // Organizador, país y textos del software de origen.
+            0x18 | 0x1b | 0x23 | 0x25 | 0x26 => {
+                c.text()?;
+            }
+            0x19 => date = Some(ole_date(c.f64()?)?),
+            // Fechas y horas de creación o subida del fichero.
+            0x22 | 0x24 => {
+                c.f64()?;
+            }
+            0x27 => {
+                c.u8()?;
+            }
+            0x1f => class_count = Some(c.u16()?),
+            0x2b => {
+                c.u16()?;
+            }
+            0x21 | 0x28 | 0x29 => {
+                c.u32()?;
+            }
+            // Tabla de categorías: n × (desplazamiento u32, tamaño u32), con n = `0x1f`.
+            0x20 => {
+                let count = class_count.ok_or(SplError::ClassTableBeforeCount { offset })?;
+                c.take(usize::from(count) * 8)?;
+            }
+            HEADER_END => break,
+            _ => return Err(SplError::UnknownTag { tag, offset }),
+        }
+    }
+    Ok(Header {
+        name,
+        date: date.ok_or(SplError::MissingEventDate)?,
+        class_count,
+        body_start: c.pos,
     })
 }
 
@@ -171,12 +270,6 @@ fn ole_date(days: f64) -> Result<NaiveDate, SplError> {
         .zip(TimeDelta::try_days(whole))
         .and_then(|(epoch, delta)| epoch.checked_add_signed(delta))
         .ok_or(invalid)
-}
-
-/// Igual que el lector de referencia: el primer `0x40` seguido de 4 bytes y de `0x43`.
-fn first_class_record(data: &[u8]) -> Option<usize> {
-    (FIRST_RECORD_SEARCH_FROM..data.len().saturating_sub(6))
-        .find(|&i| data.get(i) == Some(&0x40) && data.get(i.saturating_add(5)) == Some(&0x43))
 }
 
 /// Correspondencia de estados (`docs/formato-spl.md`).
@@ -228,18 +321,20 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Lee la etiqueta del siguiente registro. `None` al final del fichero o si el último
-    /// registro se reduce a su etiqueta (registro final truncado, tolerado).
-    fn next_tag(&mut self) -> Option<(u8, usize)> {
+    /// Lee la etiqueta del siguiente registro. `None` solo al final del fichero.
+    fn tag(&mut self) -> Option<(u8, usize)> {
         let offset = self.pos;
         let tag = *self.data.get(offset)?;
         self.pos = offset + 1;
-        if self.pos >= self.data.len() {
-            return None;
-        }
         self.tag = tag;
         self.tag_offset = offset;
         Some((tag, offset))
+    }
+
+    /// Como [`Cursor::tag`], pero también devuelve `None` si el último registro se reduce a su
+    /// etiqueta (registro final truncado, tolerado en el cuerpo del fichero).
+    fn next_tag(&mut self) -> Option<(u8, usize)> {
+        self.tag().filter(|_| self.pos < self.data.len())
     }
 
     fn take(&mut self, n: usize) -> Result<&'a [u8], SplError> {
@@ -587,11 +682,52 @@ mod tests {
     struct SplBuilder(Vec<u8>);
 
     impl SplBuilder {
-        fn new(date: NaiveDate) -> Self {
+        /// `spl4` y el preámbulo de 8 bytes, sin etiquetas de cabecera.
+        fn preamble() -> Self {
             let mut bytes = b"spl4".to_vec();
-            bytes.resize(EVENT_DATE_OFFSET, 0);
-            bytes.extend(ole_days(date).to_le_bytes());
+            bytes.extend([0x10, 0xdc, 0, 0, 0, 0, 0, 0]);
             Self(bytes)
+        }
+        /// Cabecera mínima: nombre, fecha y marcador de fin, sin número de categorías.
+        fn new(date: NaiveDate) -> Self {
+            Self::preamble()
+                .text(0x14, "Trofeo de prueba")
+                .f64(0x19, ole_days(date))
+                .end_header()
+        }
+        /// Cabecera completa, con las etiquetas en el orden de los ficheros reales.
+        fn full_header(name: &str, date: NaiveDate, class_count: u16) -> Self {
+            let days = ole_days(date);
+            Self::preamble()
+                .text(0x14, name)
+                .text(0x18, "Club Organizador")
+                .text(0x1b, "ESP")
+                .f64(0x19, days)
+                .f64(0x22, days + 0.58)
+                .text(0x23, "WinSplits Online Upload 4.0")
+                .f64(0x24, days + 0.59)
+                .text(0x25, "WinSplits Online Upload 4.0")
+                .text(0x26, "IOFXML3 / Programa de prueba")
+                .u8(0x27, 3)
+                .u32(0x28, 1234)
+                .u32(0x29, 0)
+                .u16(0x1f, class_count)
+                .u16(0x2b, 0)
+                .u32(0x21, 0)
+                .class_table(class_count)
+                .end_header()
+        }
+        /// Tabla `0x20` de `n` pares (desplazamiento, tamaño). El lector no la valida.
+        fn class_table(mut self, n: u16) -> Self {
+            self.0.push(0x20);
+            for _ in 0..n {
+                self.0.extend([0; 8]);
+            }
+            self
+        }
+        fn end_header(mut self) -> Self {
+            self.0.push(HEADER_END);
+            self
         }
         fn u8(mut self, tag: u8, v: u8) -> Self {
             self.0.extend([tag, v]);
@@ -789,7 +925,7 @@ mod tests {
     #[test]
     fn reads_a_synthetic_file() {
         let event = read(&sample().0).unwrap();
-        assert_eq!(event.name, None);
+        assert_eq!(event.name.as_deref(), Some("Trofeo de prueba"));
         assert_eq!(event.date, date(2026, 10, 3));
         assert_eq!(event.classes.len(), 1);
 
@@ -892,6 +1028,110 @@ mod tests {
         // Cabecera completa pero sin ningún registro de categoría.
         let header = SplBuilder::new(date(2026, 10, 3)).0;
         assert_eq!(read(&header), Err(SplError::NoClassRecords));
+    }
+
+    // --- Cabecera ---
+
+    #[test]
+    fn header_is_read_by_tags_wherever_the_date_falls() {
+        // Nombre más corto que el de Baltanás: la fecha (0x19) ya no cae en el offset 0x4C, como
+        // en el segundo fichero real que hizo fallar la lectura por offset fijo.
+        let data = SplBuilder::full_header("Liga de prueba 2026", date(2026, 7, 19), 2)
+            .class(7, "F21A")
+            .runner(1, 0, &[(START_CODE, cs(10, 0, 0, 0))])
+            .class(8, "M21A")
+            .0;
+        let at_0x4c = f64::from_le_bytes(data[0x4C..0x54].try_into().unwrap());
+        assert_ne!(at_0x4c, ole_days(date(2026, 7, 19)));
+
+        let header = read_header(&data).unwrap();
+        assert_eq!(header.class_count, Some(2));
+        assert_eq!(data[header.body_start], CLASS_TAG);
+        assert_eq!(data[header.body_start - 1], HEADER_END);
+
+        let event = read(&data).unwrap();
+        assert_eq!(event.name.as_deref(), Some("Liga de prueba 2026"));
+        assert_eq!(event.date, date(2026, 7, 19));
+        assert_eq!(event.classes.len(), 2);
+        // 10:00 del 19 de julio (CEST) → 08:00Z.
+        assert_eq!(
+            event.classes[0].results[0].punches[0].time,
+            Some(utc(2026, 7, 19, 8, 0, 0, 0))
+        );
+    }
+
+    #[test]
+    fn unknown_header_tag_reports_its_position() {
+        let mut data = SplBuilder::preamble().text(0x14, "Trofeo").0;
+        let offset = data.len();
+        data.extend([0x15, 0, 0]);
+        let data = SplBuilder(data)
+            .f64(0x19, ole_days(date(2026, 10, 3)))
+            .end_header()
+            .class(7, "F21A")
+            .0;
+        assert_eq!(read(&data), Err(SplError::UnknownTag { tag: 0x15, offset }));
+    }
+
+    #[test]
+    fn missing_event_date_is_an_error() {
+        let data = SplBuilder::preamble()
+            .text(0x14, "Trofeo")
+            .end_header()
+            .class(7, "F21A")
+            .0;
+        assert_eq!(read(&data), Err(SplError::MissingEventDate));
+    }
+
+    #[test]
+    fn header_without_end_marker_is_an_error() {
+        let data = SplBuilder::preamble()
+            .text(0x14, "Trofeo")
+            .f64(0x19, ole_days(date(2026, 10, 3)))
+            .0;
+        assert!(matches!(read(&data), Err(SplError::InvalidHeader(_))));
+        // Cortada a mitad de un valor: se informa del registro.
+        let cut = &data[..data.len() - 3];
+        assert_eq!(
+            read(cut),
+            Err(SplError::Truncated {
+                tag: 0x19,
+                offset: data.len() - 9,
+            })
+        );
+    }
+
+    #[test]
+    fn class_count_must_match_the_header() {
+        let data = SplBuilder::full_header("Trofeo", date(2026, 10, 3), 2)
+            .class(7, "F21A")
+            .0;
+        assert_eq!(
+            read(&data),
+            Err(SplError::ClassCountMismatch {
+                expected: 2,
+                found: 1
+            })
+        );
+    }
+
+    #[test]
+    fn class_table_needs_the_class_count_first() {
+        let builder = SplBuilder::preamble().f64(0x19, ole_days(date(2026, 10, 3)));
+        let offset = builder.0.len();
+        let data = builder.class_table(0).end_header().class(7, "F21A").0;
+        assert_eq!(read(&data), Err(SplError::ClassTableBeforeCount { offset }));
+    }
+
+    #[test]
+    fn body_must_start_with_a_class_record() {
+        let builder = SplBuilder::new(date(2026, 10, 3));
+        let offset = builder.0.len();
+        let data = builder.u8(0x48, 0).class(7, "F21A").0;
+        assert_eq!(
+            read(&data),
+            Err(SplError::ExpectedClassRecord { tag: 0x48, offset })
+        );
     }
 
     #[test]

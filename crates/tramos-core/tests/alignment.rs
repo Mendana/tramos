@@ -241,6 +241,16 @@ fn warns_when_track_does_not_cover_the_race() {
     assert!(in_gap.location.unwrap().in_gap);
 }
 
+fn err_text(track: &Track, result: &RaceResult, hours: i64) -> String {
+    align(
+        &shifted(track, TimeDelta::hours(hours)),
+        result,
+        &AlignmentOptions::default(),
+    )
+    .unwrap_err()
+    .to_string()
+}
+
 #[test]
 fn track_from_another_time_is_an_error() {
     let (track, result) = load();
@@ -256,6 +266,36 @@ fn track_from_another_time_is_an_error() {
         "{err}"
     );
     assert!(err.to_string().contains("no se solapa"));
+    assert!(
+        err.to_string().contains("con +1 h sí se solaparía"),
+        "{err}"
+    );
+
+    // Con ±1 h y ±2 h el error sugiere el desplazamiento (convenio de `offset_s`); con 5 h, no.
+    for (hours, want) in [
+        (1, Some(3600)),
+        (-1, Some(-3600)),
+        (2, Some(7200)),
+        (-2, Some(-7200)),
+        (5, None),
+        (-5, None),
+    ] {
+        let err = align(
+            &shifted(&track, TimeDelta::hours(hours)),
+            &result,
+            &AlignmentOptions::default(),
+        )
+        .unwrap_err();
+        match err {
+            AlignmentError::TrackOutsideRace {
+                suggested_shift_s, ..
+            } => assert_eq!(suggested_shift_s, want, "{hours} h"),
+            other => panic!("{hours} h: {other}"),
+        }
+        if want.is_none() {
+            assert!(err_text(&track, &result, hours).contains("¿es el FIT de otra carrera"));
+        }
+    }
 
     let empty = Track::default();
     assert_eq!(

@@ -96,6 +96,25 @@ tramo. Hay dos definiciones y se elige en la configuración (`ideal_time`):
 - Un tramo sin clasificados con split no tiene ideal con ninguna de las dos: el ideal acumulado
   queda sin valor desde ese tramo.
 
+## Frente al grupo (P4)
+
+`tramos_core::comparison::course_comparison(&Event, ResultRef, &LostTimeConfig)` da todos los
+corredores del recorrido de un resultado (todas las categorías que lo comparten), para
+superponerlos en las gráficas de P4. Sale del mismo `analyze_course` que el informe del
+corredor, así que sus números coinciden con los de `runner_report`.
+
+- `legs[]` (`index`, `from`, `to`) e `ideal_time_s` (tiempo ideal del recorrido entero, según
+  `ideal_time`).
+- `runners[]`: `result` (`class_index`, `result_index`), `is_self` (el resultado pedido),
+  nombre, club, `class_name`, `status`, `place` (en su categoría), `course_place`, `total_s` y,
+  una posición por tramo, `behind_ideal_s`, `loss_s` e `is_error`.
+- **Puesto en el recorrido** (`course_place`): 1 + clasificados del recorrido con tiempo total
+  estrictamente menor (empates con el mismo puesto). Solo los clasificados con tiempo.
+- **Orden**: clasificados por tiempo total (los empates, en el orden de la carrera) y después el
+  resto, en el orden de la carrera.
+- Por la definición de la diferencia acumulada, la del ganador en meta es su tiempo total menos
+  el tiempo ideal (criterio de aceptación de #23, comprobado con el oráculo sobre el fixture).
+
 ## Dónde gano y dónde pierdo (P5)
 
 Sale de la pérdida (`tramos_core::gain_loss`, P5 de `docs/preguntas.md`):

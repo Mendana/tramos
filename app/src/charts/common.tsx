@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from "react";
 export const HEIGHT = 220;
 export const MARGIN = { top: 12, right: 12, bottom: 28, left: 52 };
 
+/** Colores de las series, en orden fijo: la primera es siempre el corredor. */
+export const SERIES_COLORS = [
+  "var(--chart-series-1)",
+  "var(--chart-series-2)",
+  "var(--chart-series-3)",
+  "var(--chart-series-4)",
+];
+
 /** Ancho del contenedor, para que el SVG ocupe todo el panel. */
 export function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
@@ -77,6 +85,8 @@ export function lineRuns(
 export interface TooltipText {
   value: string;
   detail: string;
+  /** Con varias series: una fila por serie, con su muestra de color. */
+  rows?: { label: string; color: string; value: string }[];
 }
 
 /** Separación entre el tooltip y la marca a la que acompaña (px). */
@@ -95,6 +105,13 @@ export function Tooltip({ text, x, width }: { text: TooltipText; x: number; widt
     >
       <strong>{text.value}</strong>
       <span>{text.detail}</span>
+      {text.rows?.map((row) => (
+        <span className="chart-tooltip-row" key={row.label}>
+          <span className="legend-swatch" style={{ background: row.color }} />
+          <span className="chart-tooltip-label">{row.label}</span>
+          <b>{row.value}</b>
+        </span>
+      ))}
     </div>
   );
 }

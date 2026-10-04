@@ -36,7 +36,7 @@ const MAX_BAR = 24;
 const RADIUS = 4;
 
 /** Columna con el extremo de datos redondeado y la base recta, sobre la línea del 0. */
-function columnPath(x: number, w: number, y0: number, y1: number): string {
+export function columnPath(x: number, w: number, y0: number, y1: number): string {
   const h = Math.abs(y1 - y0);
   const r = Math.min(RADIUS, h, w / 2);
   if (y1 <= y0) {

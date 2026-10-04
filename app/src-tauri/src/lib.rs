@@ -8,6 +8,7 @@ pub mod settings;
 use std::sync::{Mutex, MutexGuard};
 
 use tauri::Manager;
+use tramos_core::comparison::CourseComparison;
 use tramos_core::identify::RunnerIdentity;
 use tramos_store::Store;
 
@@ -82,6 +83,15 @@ fn race_detail(state: tauri::State<'_, AppState>, result_id: i64) -> Result<Race
     races::race_detail(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Corredores del recorrido de un resultado, para compararse con ellos (P4).
+#[tauri::command]
+fn race_comparison(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<CourseComparison, String> {
+    races::race_comparison(&*state.store()?, result_id).map_err(|e| e.to_string())
+}
+
 /// Arranca la app. Devuelve el error de Tauri en lugar de abortar.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
@@ -102,7 +112,8 @@ pub fn run() -> tauri::Result<()> {
             preview_import,
             import_race,
             list_races,
-            race_detail
+            race_detail,
+            race_comparison
         ])
         .run(tauri::generate_context!())
 }

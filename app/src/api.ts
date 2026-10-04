@@ -156,6 +156,37 @@ export interface RaceDetail {
   report: RunnerReport;
 }
 
+/** Posición de un resultado en la carrera (como en el núcleo). */
+export interface ResultRef {
+  class_index: number;
+  result_index: number;
+}
+
+/** Un corredor del recorrido, con sus series por tramo (P4). */
+export interface ComparedRunner {
+  result: ResultRef;
+  is_self: boolean;
+  given_name: string;
+  family_name: string;
+  club: string | null;
+  class_name: string;
+  status: RaceStatus;
+  place: number | null;
+  /** Puesto juntando todas las categorías del recorrido. */
+  course_place: number | null;
+  total_s: number | null;
+  behind_ideal_s: (number | null)[];
+  loss_s: (number | null)[];
+  is_error: boolean[];
+}
+
+export interface CourseComparison {
+  legs: { index: number; from: number; to: number }[];
+  ideal_time_s: number | null;
+  /** Clasificados por tiempo y después el resto. */
+  runners: ComparedRunner[];
+}
+
 export const FORMAT_LABELS: Record<RaceFormat, string> = {
   sprint: "Sprint",
   middle: "Media",
@@ -196,6 +227,9 @@ export const listRaces = () => invoke<RaceRow[]>("list_races");
 
 export const raceDetail = (resultId: number) =>
   invoke<RaceDetail>("race_detail", { resultId });
+
+export const raceComparison = (resultId: number) =>
+  invoke<CourseComparison>("race_comparison", { resultId });
 
 /** Duración redondeada al segundo: `m:ss`, o `h:mm:ss` desde una hora (como la CLI). */
 export function clock(seconds: number | null): string {

@@ -7,6 +7,7 @@ pub mod identify;
 pub mod importers;
 pub mod lost_time;
 pub mod model;
+pub mod segmentation;
 
 /// Versión del núcleo, tomada de `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

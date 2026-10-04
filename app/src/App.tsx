@@ -8,6 +8,7 @@ import { ControlFlag, ListIcon, Notice, SlidersIcon, UploadIcon } from "./ui";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
+import "./styles/charts.css";
 
 /** Pantalla abierta. Una carrera se abre desde la lista (o al acabar de importarla). */
 type Screen =

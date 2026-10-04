@@ -1,0 +1,8 @@
+# Fin de línea LF en todos los ficheros de texto, también en Windows
+# (rustfmt.toml usa newline_style = "Unix" y `cargo fmt --check` fallaría con CRLF).
+* text=auto eol=lf
+
+# Binarios: sin conversión de fin de línea ni diff de texto
+*.spl binary
+*.fit binary
+*.FIT binary

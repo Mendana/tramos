@@ -153,7 +153,9 @@ Piezas:
 
 - `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0.
 - `ColumnChart`: una serie de columnas (también negativas), línea de referencia opcional, color por
-  columna opcional y tooltip con el valor delante y el detalle detrás.
+  columna opcional y tooltip con el valor delante y el detalle detrás. Opcionalmente, una línea de
+  datos en la **misma unidad y escala** (p. ej. un acumulado; sigue siendo un solo eje) y franjas
+  de fondo resaltadas (p. ej. rachas).
 - `LineChart`: una línea de 2 px con un velo del 10 % hasta el 0, marcadores opcionales con un
   anillo del color de la superficie y un cursor vertical que se ajusta al punto más cercano.
 - `common.tsx`: tamaño, rejilla con marcas, tooltip (al lado de la marca, para no taparla) y
@@ -165,7 +167,10 @@ visualización contra la superficie de cada modo (en oscuro, un tono más oscuro
 la interfaz para quedar en la banda de luminosidad). `--chart-grid`, `--chart-axis` y
 `--chart-reference` son la rejilla, la línea del 0 y la línea de referencia. `--chart-error`
 (naranja de baliza) marca los tramos con error y `--chart-muted` (gris) el resto; validados igual,
-se distinguen también con daltonismo.
+se distinguen también con daltonismo. Para ganar o perder (P5), el par divergente `--chart-gain` (azul)
+y `--chart-loss` (el mismo naranja), validado igual; la dirección de la columna también lo dice.
+`--chart-line-neutral` es una línea de datos en tinta neutra y `--chart-highlight` el fondo de una
+franja resaltada.
 
 Paneles de la vista de carrera:
 
@@ -173,6 +178,7 @@ Paneles de la vista de carrera:
 | --- | --- | --- |
 | Pérdida por tramo (P1), abierto de entrada | Pérdida de cada tramo en segundos, hacia arriba si pierde y hacia abajo si gana; los tramos con error en naranja y el resto en gris. | Tramos con pérdida. |
 | Pérdida acumulada (P3) | Tiempo perdido sumado tramo a tramo desde la salida: solo suben los tramos con error, marcados con un punto. Acaba en el tiempo perdido de la carrera. | Errores y tramos. |
+| Dónde gano y dónde pierdo (P5) | Ganancia de cada tramo frente a lo esperado (`gain_s`, arriba gano en azul, abajo pierdo en naranja), la línea del acumulado (`cumulative_gain_s`) y una franja por cada racha de dos o más tramos seguidos perdiendo (`losing_streaks`). Todo sale del núcleo (`docs/tiempo-perdido.md`). | Tramos con ganancia y rachas. |
 | Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
 
 Los paneles van entre las cifras destacadas y la tabla de tramos, y salen de los mismos tramos que

@@ -71,6 +71,10 @@
   --chart-grid: #ebe8e2;
   --chart-axis: #cfc9bd;
   --chart-reference: #6b655c;
+  --chart-gain: #2a78b8;
+  --chart-loss: #d4580b;
+  --chart-line-neutral: #4a453e;
+  --chart-highlight: #fdeee2;
 
   --sidebar-width: 216px;
   --content-max: 1080px;
@@ -112,6 +116,10 @@
     --chart-grid: #2a2826;
     --chart-axis: #45413b;
     --chart-reference: #a8a197;
+    --chart-gain: #4f95d0;
+    --chart-loss: #dc7430;
+    --chart-line-neutral: #c9c3b8;
+    --chart-highlight: #33241a;
 
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-raised: 0 6px 20px rgb(0 0 0 / 45%);

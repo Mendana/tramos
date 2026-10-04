@@ -1,9 +1,10 @@
 // Gráfica de columnas en SVG: una serie, valores positivos y negativos desde la línea del 0,
-// línea de referencia opcional y tooltip por columna (ratón y teclado). Sigue la guía de
+// línea de referencia opcional, línea de datos opcional en la misma escala (p. ej. el acumulado),
+// franjas resaltadas opcionales y tooltip por columna (ratón y teclado). Sigue la guía de
 // visualización: columnas finas (≤ 24 px) con el extremo redondeado, rejilla tenue y texto en
 // los colores de texto, nunca en el de la serie.
 import { useState } from "react";
-import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, useWidth } from "./common";
+import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
 import { linear, niceDomain } from "./scale";
 
 export interface Column {
@@ -16,6 +17,19 @@ export interface Column {
   tooltip: TooltipText;
   /** Color de la columna; por defecto, el de la serie. */
   color?: string;
+}
+
+/** Línea sobre las columnas, en la misma unidad y escala (un solo eje). */
+export interface ColumnLine {
+  /** Un valor por columna; `null` corta la línea. */
+  values: (number | null)[];
+  color: string;
+}
+
+/** Franja de fondo de la columna `from` a la `to` (índices, ambas incluidas). */
+export interface Highlight {
+  from: number;
+  to: number;
 }
 
 const MAX_BAR = 24;
@@ -37,12 +51,17 @@ export function ColumnChart({
   columns,
   formatTick,
   reference,
+  line,
+  highlights = [],
   label,
 }: {
   columns: Column[];
   formatTick: (value: number) => string;
   /** Línea horizontal de referencia (p. ej. el 100 %), con su nombre. */
   reference?: { value: number; label: string };
+  line?: ColumnLine;
+  /** Franjas resaltadas detrás de las columnas (p. ej. rachas). */
+  highlights?: Highlight[];
   /** Descripción de la gráfica para lectores de pantalla. */
   label: string;
 }) {
@@ -51,6 +70,7 @@ export function ColumnChart({
 
   const values = columns.flatMap((c) => (c.value === null ? [] : [c.value]));
   if (reference !== undefined) values.push(reference.value);
+  if (line !== undefined) values.push(...line.values.flatMap((v) => (v === null ? [] : [v])));
   const { domain, ticks } = niceDomain(Math.min(...values, 0), Math.max(...values, 0));
 
   const plotW = Math.max(width - MARGIN.left - MARGIN.right, 0);
@@ -63,11 +83,22 @@ export function ColumnChart({
   const labelEvery = Math.max(1, Math.ceil(28 / Math.max(band, 1)));
   const zero = y(0);
   const activeColumn = active === null ? undefined : columns[active];
+  const center = (i: number) => x(i) + band / 2;
 
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
         <svg width={width} height={HEIGHT} role="img" aria-label={label}>
+          {highlights.map((h) => (
+            <rect
+              key={h.from}
+              className="chart-highlight"
+              x={x(h.from)}
+              y={MARGIN.top}
+              width={(h.to - h.from + 1) * band}
+              height={plotH}
+            />
+          ))}
           <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
 
           {reference !== undefined && (
@@ -90,6 +121,11 @@ export function ColumnChart({
             </g>
           )}
 
+          {line !== undefined &&
+            lineRuns(line.values, center, y).map((run) => (
+              <path key={run.first} className="chart-line" d={run.d} stroke={line.color} />
+            ))}
+
           {columns.map((c, i) => {
             const cx = x(i) + (band - barW) / 2;
             return (
@@ -101,10 +137,19 @@ export function ColumnChart({
                     fill={c.color ?? "var(--chart-series-1)"}
                   />
                 )}
+                {line !== undefined && line.values[i] !== null && (
+                  <circle
+                    className="chart-marker"
+                    cx={center(i)}
+                    cy={y(line.values[i] ?? 0)}
+                    r={active === i ? 4 : 2.5}
+                    fill={line.color}
+                  />
+                )}
                 {i % labelEvery === 0 && (
                   <text
                     className="chart-tick"
-                    x={x(i) + band / 2}
+                    x={center(i)}
                     y={MARGIN.top + plotH + 18}
                     textAnchor="middle"
                   >
@@ -131,7 +176,7 @@ export function ColumnChart({
         </svg>
       )}
       {activeColumn !== undefined && active !== null && (
-        <Tooltip text={activeColumn.tooltip} x={x(active) + band / 2} width={width} />
+        <Tooltip text={activeColumn.tooltip} x={center(active)} width={width} />
       )}
     </div>
   );

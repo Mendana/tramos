@@ -10,7 +10,7 @@ import {
   signed,
   statusLabel,
 } from "./api";
-import { CumulativeLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
+import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
 import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
 
 /** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
@@ -92,6 +92,7 @@ function Detail({ detail }: { detail: RaceDetail }) {
         <h3 className="section-title">Gráficas</h3>
         <LossPanel legs={lost.legs} />
         <CumulativeLossPanel legs={lost.legs} />
+        <GainLossPanel legs={lost.legs} streaks={lost.losing_streaks} />
         <PerformancePanel legs={lost.legs} />
       </div>
 

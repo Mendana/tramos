@@ -3,6 +3,7 @@
 
 pub mod alignment;
 pub mod courses;
+pub mod gain_loss;
 pub mod identify;
 pub mod importers;
 pub mod lost_time;

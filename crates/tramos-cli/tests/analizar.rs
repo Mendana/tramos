@@ -230,6 +230,12 @@ fn lost_time_matches_reference_oracle() {
         for key in ["place", "is_error"] {
             assert_eq!(leg[key], runner_leg[key], "tramo {n}: {key}");
         }
+        // P5: la ganancia es la pérdida del oráculo cambiada de signo.
+        assert_close(
+            f64_at(leg, "gain_s"),
+            f64_at(runner_leg, "loss_s").map(|p| -p),
+            &format!("tramo {n}: gain_s"),
+        );
         for key in [
             "split_s",
             "elapsed_s",

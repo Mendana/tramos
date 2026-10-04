@@ -95,6 +95,10 @@
   stroke-width: 2;
 }
 
+.chart-highlight {
+  fill: var(--chart-highlight);
+}
+
 .chart-crosshair {
   stroke: var(--chart-reference);
   stroke-width: 1;
@@ -118,6 +122,11 @@
   width: 10px;
   height: 10px;
   border-radius: 2px;
+}
+
+.legend-swatch.is-band {
+  width: 14px;
+  border: 1px solid var(--chart-axis);
 }
 
 /* --- Panel desplegable --- */

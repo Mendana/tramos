@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::courses::{ClassRef, group_by_course};
+use crate::gain_loss::{LosingStreak, leg_gains, losing_streaks};
 use crate::identify::ResultRef;
 use crate::lost_time::{LostTimeConfig, analyze_course};
 use crate::model::{ControlCode, Event};
@@ -42,6 +43,8 @@ pub struct RunnerLostTime {
     pub ideal_time_s: Option<f64>,
     /// Diferencia respecto al tiempo ideal en meta.
     pub behind_ideal_s: Option<f64>,
+    /// Rachas de dos o más tramos seguidos perdiendo (P5, [`crate::gain_loss`]).
+    pub losing_streaks: Vec<LosingStreak>,
     pub legs: Vec<LegReport>,
 }
 
@@ -62,6 +65,9 @@ pub struct LegReport {
     pub loss_s: Option<f64>,
     pub loss_pct: Option<f64>,
     pub is_error: bool,
+    /// Ganancia `esp_i − t_i` y su acumulado (P5, [`crate::gain_loss`]).
+    pub gain_s: Option<f64>,
+    pub cumulative_gain_s: Option<f64>,
     pub ideal_elapsed_s: Option<f64>,
     pub behind_ideal_s: Option<f64>,
     pub is_last: bool,
@@ -88,11 +94,15 @@ pub fn runner_report(
         .iter()
         .find(|r| r.class_index == result.class_index && r.result_index == result.result_index)?;
 
+    let losses: Vec<Option<f64>> = runner.legs.iter().map(|leg| leg.loss_s).collect();
+    let gains = leg_gains(&losses);
+
     let legs = course
         .legs
         .iter()
         .zip(&runner.legs)
-        .map(|(reference, leg)| LegReport {
+        .zip(&gains)
+        .map(|((reference, leg), gain)| LegReport {
             index: reference.index,
             from: reference.from,
             to: reference.to,
@@ -107,6 +117,8 @@ pub fn runner_report(
             loss_s: leg.loss_s,
             loss_pct: leg.loss_pct,
             is_error: leg.is_error,
+            gain_s: gain.gain_s,
+            cumulative_gain_s: gain.cumulative_gain_s,
             ideal_elapsed_s: reference.ideal_elapsed_s,
             behind_ideal_s: leg.behind_ideal_s,
             is_last: reference.is_last,
@@ -130,6 +142,7 @@ pub fn runner_report(
             time_without_errors_s: runner.time_without_errors_s,
             ideal_time_s: course.legs.last().and_then(|l| l.ideal_elapsed_s),
             behind_ideal_s: runner.legs.last().and_then(|l| l.behind_ideal_s),
+            losing_streaks: losing_streaks(&gains),
             legs,
         },
     })
@@ -246,6 +259,7 @@ mod tests {
             assert_eq!(leg.split_s, own.split_s);
             assert_eq!(leg.loss_s, own.loss_s);
             assert_eq!(leg.is_error, own.is_error);
+            assert_eq!(leg.gain_s, own.loss_s.map(|p| -p));
         }
         assert_eq!(report.lost_time.legs[1].to, FINISH_CODE);
         assert!(report.lost_time.legs[1].is_last);

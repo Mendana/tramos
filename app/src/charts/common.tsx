@@ -50,6 +50,29 @@ export function YGrid({
   );
 }
 
+/**
+ * Trazado de una línea por los puntos `(x(i), y(values[i]))`; un `null` la corta. Devuelve un
+ * trazo por tramo continuo, con su primer y último índice (para cerrar el velo hasta el 0).
+ */
+export function lineRuns(
+  values: (number | null)[],
+  x: (i: number) => number,
+  y: (value: number) => number,
+): { first: number; last: number; d: string }[] {
+  const runs: number[][] = [];
+  values.forEach((v, i) => {
+    if (v === null) return;
+    const last = runs[runs.length - 1];
+    if (last !== undefined && last[last.length - 1] === i - 1) last.push(i);
+    else runs.push([i]);
+  });
+  return runs.map((run) => ({
+    first: run[0],
+    last: run[run.length - 1],
+    d: run.map((i, k) => `${k === 0 ? "M" : "L"}${x(i)},${y(values[i] ?? 0)}`).join(" "),
+  }));
+}
+
 /** Lo que enseña el tooltip: el valor delante y el detalle detrás. */
 export interface TooltipText {
   value: string;
@@ -76,11 +99,14 @@ export function Tooltip({ text, x, width }: { text: TooltipText; x: number; widt
   );
 }
 
-/** Leyenda: una muestra de color por serie (cuadrado para barras, raya para líneas). */
+/**
+ * Leyenda: una muestra de color por serie (cuadrado para barras, raya para líneas, rectángulo con
+ * borde para franjas de fondo).
+ */
 export function Legend({
   items,
 }: {
-  items: { label: string; color: string; shape?: "rect" | "line" }[];
+  items: { label: string; color: string; shape?: "rect" | "line" | "band" }[];
 }) {
   return (
     <div className="legend">
@@ -91,7 +117,10 @@ export function Legend({
               <line x1="1" x2="15" y1="5" y2="5" stroke={item.color} strokeWidth="2" strokeLinecap="round" />
             </svg>
           ) : (
-            <span className="legend-swatch" style={{ background: item.color }} />
+            <span
+              className={item.shape === "band" ? "legend-swatch is-band" : "legend-swatch"}
+              style={{ background: item.color }}
+            />
           )}
           {item.label}
         </span>

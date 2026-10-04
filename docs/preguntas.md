@@ -30,6 +30,9 @@ ganador) y el corredor lo confirma.
 
 ## Tanda 2: splits + FIT
 
+Las métricas de tramo del FIT (distancia, línea recta, velocidad en movimiento, paradas, subida
+y bajada, pulso y cadencia) están definidas en `docs/metricas.md`.
+
 **P2. ¿Lento o desorientado?** Versión inicial, heurística:
 - `d_run` distancia recorrida en el tramo; `d_line` línea recta entre las posiciones GPS de las balizas.
 - `r0`: mediana de `d_run / d_line` del corredor en sus tramos sin error de esa carrera.
@@ -42,8 +45,10 @@ Resultado por tramo y agregado: qué parte de la pérdida es desvío, paradas o 
 mueva el tramo de cubo), en escala logarítmica: 20–30 s, 30–60 s, 1–2 min, 2–4 min, 4–8 min, más de
 8 min. Por cubo: tasa de error, pérdida media en % y n. Excluye el último tramo y los de menos de 20 s.
 
-**P13. ¿Me frena el desnivel?** Por tramo, subida y bajada acumuladas del FIT (altitud suavizada)
-por cada 100 m recorridos. Clasificación inicial: subida si sube ≥ 4 m/100 m, bajada si baja
+**P13. ¿Me frena el desnivel?** Por tramo, subida y bajada acumuladas del FIT por cada 100 m
+recorridos. La altitud se suaviza con una media móvil de ±5 s en el tiempo, que no cruza huecos
+del track, y la subida es la suma de sus aumentos, sin umbral (`docs/metricas.md`, "Altitud
+suavizada"). Clasificación inicial: subida si sube ≥ 4 m/100 m, bajada si baja
 ≥ 4 m/100 m, llano en otro caso (umbral configurable). Por clase: IR medio, tasa de error y n.
 
 ## Tanda 3: comportamiento y etiquetas

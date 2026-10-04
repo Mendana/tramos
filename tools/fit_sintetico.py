@@ -319,6 +319,7 @@ def generate(parsed, card, seed=DEFAULT_SEED, detour_leg=None):
         samples.append({
             "time": t0 + datetime.timedelta(seconds=k),
             "latlon": (lat, lon),
+            "terrain": altitude_m(x, y),
             "altitude": altitude_m(x, y) + rng.gauss(0.0, 0.15),
             "heart_rate": round(hr + rng.gauss(0.0, 1.0)),
             "cadence": cadence,
@@ -343,10 +344,14 @@ def generate(parsed, card, seed=DEFAULT_SEED, detour_leg=None):
         a, b = controls[i]["sample_index"], controls[i + 1]["sample_index"]
         path_m = samples[b]["distance"] - samples[a]["distance"]
         straight_m = haversine_m(samples[a]["latlon"], samples[b]["latlon"])
+        # Desnivel del terreno (sin el ruido de la altitud del FIT), segundo a segundo.
+        steps = [samples[k + 1]["terrain"] - samples[k]["terrain"] for k in range(a, b)]
         leg_truth.append({
             "leg": i + 1, "from": controls[i]["code"], "to": controls[i + 1]["code"],
             "split_s": splits[i], "path_m": round(path_m, 2),
             "straight_m": round(straight_m, 2), "ratio": round(path_m / straight_m, 3),
+            "ascent_m": round(sum(d for d in steps if d > 0), 2),
+            "descent_m": round(-sum(d for d in steps if d < 0), 2),
         })
     stop_k = controls[li]["sample_index"] + stop_at
     truth = {

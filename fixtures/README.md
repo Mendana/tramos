@@ -42,6 +42,9 @@ pasa por cada baliza exactamente en su hora de picada. Las horas del .spl son lo
   (ratio 4,86). El resto de tramos tiene ratio < 1,5.
 - Parada: 30 s con velocidad 0 en el tramo 9, de 16:23:32Z a 16:24:02Z (192 s después de la
   picada en la 42). Fuera de ella, ningún segundo de carrera baja de 0,5 m/s.
+- Altitud: terreno con pendiente suave y un cerro, más ruido gaussiano de 0,15 m. Cada tramo del
+  `.truth.json` trae la subida y la bajada del terreno **sin ruido** (`ascent_m`, `descent_m`)
+  para comprobar el suavizado de `docs/metricas.md`.
 
 Los valores exactos están en el `.truth.json`. Para regenerarlos (deterministas, semilla fija):
 

@@ -211,7 +211,9 @@
    "split_s": 54,
    "path_m": 196.35,
    "straight_m": 156.92,
-   "ratio": 1.251
+   "ratio": 1.251,
+   "ascent_m": 2.94,
+   "descent_m": 1.89
   },
   {
    "leg": 2,
@@ -220,7 +222,9 @@
    "split_s": 22,
    "path_m": 71.43,
    "straight_m": 58.39,
-   "ratio": 1.223
+   "ratio": 1.223,
+   "ascent_m": 0,
+   "descent_m": 2.2
   },
   {
    "leg": 3,
@@ -229,7 +233,9 @@
    "split_s": 82,
    "path_m": 272.58,
    "straight_m": 230.11,
-   "ratio": 1.185
+   "ratio": 1.185,
+   "ascent_m": 5.6,
+   "descent_m": 1.84
   },
   {
    "leg": 4,
@@ -238,7 +244,9 @@
    "split_s": 62,
    "path_m": 221.29,
    "straight_m": 192.12,
-   "ratio": 1.152
+   "ratio": 1.152,
+   "ascent_m": 10.84,
+   "descent_m": 0
   },
   {
    "leg": 5,
@@ -247,7 +255,9 @@
    "split_s": 26,
    "path_m": 81.44,
    "straight_m": 73.24,
-   "ratio": 1.112
+   "ratio": 1.112,
+   "ascent_m": 4.73,
+   "descent_m": 0
   },
   {
    "leg": 6,
@@ -256,7 +266,9 @@
    "split_s": 80,
    "path_m": 280.59,
    "straight_m": 227.42,
-   "ratio": 1.234
+   "ratio": 1.234,
+   "ascent_m": 5.27,
+   "descent_m": 4.4
   },
   {
    "leg": 7,
@@ -265,7 +277,9 @@
    "split_s": 46,
    "path_m": 154.65,
    "straight_m": 123.78,
-   "ratio": 1.249
+   "ratio": 1.249,
+   "ascent_m": 0,
+   "descent_m": 10.3
   },
   {
    "leg": 8,
@@ -274,7 +288,9 @@
    "split_s": 68,
    "path_m": 245.25,
    "straight_m": 198.98,
-   "ratio": 1.233
+   "ratio": 1.233,
+   "ascent_m": 0,
+   "descent_m": 13.53
   },
   {
    "leg": 9,
@@ -283,7 +299,9 @@
    "split_s": 427,
    "path_m": 1215.47,
    "straight_m": 250.0,
-   "ratio": 4.862
+   "ratio": 4.862,
+   "ascent_m": 1.8,
+   "descent_m": 6.82
   },
   {
    "leg": 10,
@@ -292,7 +310,9 @@
    "split_s": 125,
    "path_m": 373.93,
    "straight_m": 250.01,
-   "ratio": 1.496
+   "ratio": 1.496,
+   "ascent_m": 3.43,
+   "descent_m": 1.1
   },
   {
    "leg": 11,
@@ -301,7 +321,9 @@
    "split_s": 28,
    "path_m": 89.12,
    "straight_m": 68.69,
-   "ratio": 1.297
+   "ratio": 1.297,
+   "ascent_m": 0.82,
+   "descent_m": 0
   },
   {
    "leg": 12,
@@ -310,7 +332,9 @@
    "split_s": 55,
    "path_m": 195.04,
    "straight_m": 167.82,
-   "ratio": 1.162
+   "ratio": 1.162,
+   "ascent_m": 1.62,
+   "descent_m": 0.02
   },
   {
    "leg": 13,
@@ -319,7 +343,9 @@
    "split_s": 69,
    "path_m": 228.06,
    "straight_m": 181.79,
-   "ratio": 1.255
+   "ratio": 1.255,
+   "ascent_m": 3.13,
+   "descent_m": 0
   },
   {
    "leg": 14,
@@ -328,7 +354,9 @@
    "split_s": 70,
    "path_m": 236.99,
    "straight_m": 220.93,
-   "ratio": 1.073
+   "ratio": 1.073,
+   "ascent_m": 6.77,
+   "descent_m": 0
   },
   {
    "leg": 15,
@@ -337,7 +365,9 @@
    "split_s": 37,
    "path_m": 121.77,
    "straight_m": 93.85,
-   "ratio": 1.297
+   "ratio": 1.297,
+   "ascent_m": 1.41,
+   "descent_m": 2.13
   },
   {
    "leg": 16,
@@ -346,7 +376,9 @@
    "split_s": 78,
    "path_m": 291.54,
    "straight_m": 249.99,
-   "ratio": 1.166
+   "ratio": 1.166,
+   "ascent_m": 0,
+   "descent_m": 4.6
   },
   {
    "leg": 17,
@@ -355,7 +387,9 @@
    "split_s": 68,
    "path_m": 222.88,
    "straight_m": 203.04,
-   "ratio": 1.098
+   "ratio": 1.098,
+   "ascent_m": 0,
+   "descent_m": 2.8
   },
   {
    "leg": 18,
@@ -364,7 +398,9 @@
    "split_s": 52,
    "path_m": 192.8,
    "straight_m": 180.53,
-   "ratio": 1.068
+   "ratio": 1.068,
+   "ascent_m": 0.37,
+   "descent_m": 1.01
   },
   {
    "leg": 19,
@@ -373,7 +409,9 @@
    "split_s": 43,
    "path_m": 152.53,
    "straight_m": 124.21,
-   "ratio": 1.228
+   "ratio": 1.228,
+   "ascent_m": 0,
+   "descent_m": 2.42
   },
   {
    "leg": 20,
@@ -382,7 +420,9 @@
    "split_s": 31,
    "path_m": 108.86,
    "straight_m": 96.65,
-   "ratio": 1.126
+   "ratio": 1.126,
+   "ascent_m": 0.02,
+   "descent_m": 0.73
   },
   {
    "leg": 21,
@@ -391,7 +431,9 @@
    "split_s": 17,
    "path_m": 52.17,
    "straight_m": 50.0,
-   "ratio": 1.043
+   "ratio": 1.043,
+   "ascent_m": 0.77,
+   "descent_m": 0
   }
  ],
  "detour": {
@@ -401,7 +443,9 @@
   "split_s": 427,
   "path_m": 1215.47,
   "straight_m": 250.0,
-  "ratio": 4.862
+  "ratio": 4.862,
+  "ascent_m": 1.8,
+  "descent_m": 6.82
  },
  "stop": {
   "leg": 9,

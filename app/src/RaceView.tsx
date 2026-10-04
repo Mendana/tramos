@@ -10,6 +10,8 @@ import {
   signed,
   statusLabel,
 } from "./api";
+import { ChartPanel } from "./charts/ChartPanel";
+import { ColumnChart } from "./charts/ColumnChart";
 import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
 
 /** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
@@ -120,7 +122,68 @@ function Detail({ detail }: { detail: RaceDetail }) {
           </table>
         </div>
       </div>
+
+      <div className="chart-panels">
+        <h3 className="section-title">Gráficas</h3>
+        <PerformancePanel legs={lost.legs} />
+      </div>
     </>
+  );
+}
+
+/** IR de cada tramo frente al 100 % de la referencia (panel de ejemplo de #21). */
+function PerformancePanel({ legs }: { legs: LegReport[] }) {
+  const withIr = legs.filter((leg) => leg.performance_index !== null).length;
+  const percent = (v: number) => `${decimal(v, 0)} %`;
+  const legName = (leg: LegReport) =>
+    `Tramo ${leg.index} · ${codeLabel(leg.from)} → ${codeLabel(leg.to)}`;
+  return (
+    <ChartPanel
+      title="Rendimiento por tramo"
+      description="IR de cada tramo: 100 % es ir tan rápido como la referencia del recorrido; por debajo, más lento."
+      cases={`${withIr} ${withIr === 1 ? "tramo" : "tramos"}`}
+      chart={
+        <ColumnChart
+          label="Rendimiento (IR) de cada tramo frente al 100 % de la referencia"
+          formatTick={percent}
+          reference={{ value: 100, label: "Referencia" }}
+          columns={legs.map((leg) => ({
+            key: leg.index,
+            label: String(leg.index),
+            value: leg.performance_index === null ? null : leg.performance_index * 100,
+            tooltip: {
+              value:
+                leg.performance_index === null ? "Sin dato" : percent(leg.performance_index * 100),
+              detail: legName(leg),
+            },
+          }))}
+        />
+      }
+      table={
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="num">Tramo</th>
+              <th>Balizas</th>
+              <th className="num">IR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {legs.map((leg) => (
+              <tr key={leg.index}>
+                <td className="num">{leg.index}</td>
+                <td className="num">
+                  {codeLabel(leg.from)} → {codeLabel(leg.to)}
+                </td>
+                <td className="num">
+                  {leg.performance_index === null ? "—" : percent(leg.performance_index * 100)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      }
+    />
   );
 }
 

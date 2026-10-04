@@ -128,6 +128,44 @@ sistema.
   1080 px. Por debajo de 860 px de ancho la barra lateral pasa arriba. La ventana abre a
   1180 × 780 (mínimo 760 × 520).
 
+## Gráficas
+
+Cada análisis se enseña en un **panel desplegable** (`app/src/charts/ChartPanel.tsx`) bajo la
+vista de carrera (o, más adelante, en la vista histórica): título, número de casos en los que se
+apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
+accesible de la gráfica: todo valor que se ve al pasar el ratón está también en ella.
+
+**Sin librería de gráficas** (#21): son componentes propios en SVG y React (`app/src/charts/`).
+
+- La CSP no deja inyectar estilos en tiempo de ejecución, que es lo que hacen varias librerías.
+  Aquí los estilos van en `styles/charts.css` y los colores son las variables de diseño, así que
+  el modo oscuro sale solo.
+- Las gráficas que piden las preguntas (barras, barras con signo, líneas, puntos) son pocas y
+  sencillas. Con componentes propios siguen al pie de la letra las reglas de la guía de
+  visualización: columnas de 24 px como mucho con el extremo redondeado y la base recta desde la
+  línea del 0, rejilla y ejes en líneas finas y tenues, texto siempre en los colores de texto y
+  nunca en el de la serie, y tooltip por columna con una zona activa más grande que la columna,
+  también con el teclado.
+- Si algún día hace falta algo que no merezca la pena dibujar a mano, la alternativa sería una
+  librería que pinte en SVG con atributos de React (por ejemplo, Recharts, MIT).
+
+Piezas:
+
+- `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0.
+- `ColumnChart`: una serie de columnas (también negativas), línea de referencia opcional, color por
+  columna opcional y tooltip con el valor delante y el detalle detrás.
+
+Colores de las gráficas (`tokens.css`): `--chart-series-1` es el acento, validado con la guía de
+visualización contra la superficie de cada modo (en oscuro, un tono más oscuro que el acento de
+la interfaz para quedar en la banda de luminosidad). `--chart-grid`, `--chart-axis` y
+`--chart-reference` son la rejilla, la línea del 0 y la línea de referencia.
+
+Paneles de la vista de carrera:
+
+| Panel | Qué enseña | Casos |
+| --- | --- | --- |
+| Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
+
 ## Seguridad
 
 La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permisos de la ventana

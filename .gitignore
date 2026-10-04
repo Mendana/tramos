@@ -12,6 +12,9 @@ node_modules/
 app/dist/
 app/src-tauri/target/
 
+# Claude Code: worktrees de los subagentes
+.claude/worktrees/
+
 # Varios
 .DS_Store
 *.log

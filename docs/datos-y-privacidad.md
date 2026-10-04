@@ -15,6 +15,14 @@
   con la entrenadora (nada, agregados, tramos o track completo).
 - La entrenadora solo lee; los datos de un corredor solo cambian desde su propia app.
 - Cuando llegue el LLM, a proveedores externos solo se envían agregados anónimos.
+- La ventana de la app tiene una CSP restrictiva (`app/src-tauri/tauri.conf.json`), porque va a
+  mostrar textos leídos de ficheros externos (nombres, clubes, categorías). Solo carga scripts,
+  estilos e imágenes de la propia app, sin `unsafe-eval` ni `unsafe-inline`, y solo se comunica
+  con el núcleo (IPC de Tauri: `ipc:` y `http://ipc.localhost`, este en Windows). No puede
+  conectarse a ningún servidor externo. Cuando llegue el mapa (#20), `img-src` se abrirá solo al
+  servidor de tiles. Tauri añade los hashes de los scripts y estilos en línea del HTML compilado.
+  La CSP solo se aplica a la app compilada: en `npm run tauri dev` la página la sirve Vite
+  directamente y Tauri no la inyecta (en escritorio no hace de proxy del servidor de desarrollo).
 
 ## En el repositorio (es público)
 

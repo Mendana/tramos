@@ -12,6 +12,8 @@ segundos y %, marca de error. Totales: tiempo perdido y tiempo sin errores. Umbr
 
 **P3. Carrera tramo a tramo.** Ruta sobre mapa base (P3 completa necesita FIT; sin FIT, solo
 gráficas). Zona de gráficas desplegables: pérdida por baliza (barras) y pérdida acumulada (línea).
+La pérdida acumulada tras el tramo *i* es la suma de `p_j` de los tramos con error hasta *i*: solo
+sube en los errores y acaba en el tiempo perdido de la carrera (`docs/app.md`, "Gráficas").
 
 **P4. Frente al grupo.** Mismas gráficas superponiendo compañeros elegidos del mismo recorrido.
 Incluye la gráfica clásica de diferencia acumulada respecto al tiempo ideal (suma de las mejores

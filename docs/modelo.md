@@ -34,7 +34,7 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
   (estado, puesto, picadas) va en `RaceResult`.
 - Solo `RaceStatus::Ok` cuenta para la referencia del tiempo perdido (`docs/tiempo-perdido.md`).
   La correspondencia con los códigos del .spl la fija su lector (`docs/formato-spl.md`).
-- Un registro del FIT sin posición no produce `TrackPoint`.
+- Un registro del FIT sin posición no produce `TrackPoint` (`docs/formato-fit.md`).
 
 ## Agrupación por recorrido
 

@@ -19,6 +19,7 @@ anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
 chrono-tz = "0.10"
 clap = { version = "4", features = ["derive"] }
+fitparser = "0.11"
 # `bundled` compila SQLite dentro del crate: no hace falta SQLite del sistema (Windows).
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

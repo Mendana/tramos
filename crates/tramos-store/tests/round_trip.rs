@@ -542,3 +542,24 @@ fn event_is_found_by_its_source_file() {
     assert_ne!(first.id, second.id);
     assert_eq!(store.event_by_source_file(other).unwrap(), None);
 }
+
+#[test]
+fn result_ref_points_back_into_the_loaded_event() {
+    let mut store = Store::open_in_memory().unwrap();
+    store.save_event(&sample_event(), None).unwrap();
+    let event = sample_event();
+    let saved = store.save_event(&event, None).unwrap();
+    let loaded = store.load_event(saved.id).unwrap();
+    for (c, class) in saved.results.iter().enumerate() {
+        for (r, &id) in class.iter().enumerate() {
+            let (event_id, at) = store.result_ref(id).unwrap();
+            assert_eq!(event_id, saved.id);
+            assert_eq!((at.class_index, at.result_index), (c, r));
+            assert_eq!(at.get(&loaded), Some(&event.classes[c].results[r]));
+        }
+    }
+    assert!(matches!(
+        store.result_ref(ResultId(9999)),
+        Err(StoreError::ResultNotFound(9999))
+    ));
+}

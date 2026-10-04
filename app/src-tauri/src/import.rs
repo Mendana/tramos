@@ -8,7 +8,8 @@
 //!    la carrera en vez de duplicarla), fija el formato, vincula el resultado elegido con la
 //!    persona del usuario y, con FIT, lo alinea y guarda el track.
 //!
-//! Todo es Rust sin Tauri, para probarlo con los fixtures. El flujo está en `docs/app.md`.
+//! Todo es Rust sin Tauri, para probarlo con los fixtures. El flujo está en `docs/app.md`; la
+//! lista de carreras, en [`crate::races`].
 
 use std::path::Path;
 
@@ -133,20 +134,6 @@ pub struct AlignmentReport {
     pub confidence: Option<f64>,
     /// Avisos de la alineación o el error, en español.
     pub messages: Vec<String>,
-}
-
-/// Una carrera del usuario en la lista.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct RaceRow {
-    pub event_id: i64,
-    pub result_id: i64,
-    pub date: NaiveDate,
-    pub name: Option<String>,
-    pub class_name: String,
-    pub status: RaceStatus,
-    pub place: Option<u16>,
-    pub format: Option<RaceFormat>,
-    pub has_track: bool,
 }
 
 /// Lee los ficheros, identifica al corredor y sugiere el formato, sin guardar nada.
@@ -276,31 +263,6 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
     })
 }
 
-/// Carreras del usuario (los resultados vinculados a su persona), de la más reciente a la más
-/// antigua. Vacía si aún no ha importado ninguna.
-pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, ImportError> {
-    let Some(person) = stored_self_person(store)? else {
-        return Ok(Vec::new());
-    };
-    let mut rows: Vec<RaceRow> = store
-        .person_results(person)?
-        .into_iter()
-        .map(|r| RaceRow {
-            event_id: r.event.0,
-            result_id: r.result.0,
-            date: r.event_date,
-            name: r.event_name,
-            class_name: r.class_name,
-            status: r.status,
-            place: r.place,
-            format: r.event_format,
-            has_track: r.has_track,
-        })
-        .collect();
-    rows.reverse();
-    Ok(rows)
-}
-
 /// Identidad guardada en los ajustes, para rellenar el formulario.
 pub fn stored_identity(store: &Store) -> Result<RunnerIdentity, ImportError> {
     Ok(RunnerIdentity {
@@ -324,7 +286,7 @@ fn save_identity(store: &mut Store, identity: &RunnerIdentity) -> Result<(), Imp
 }
 
 /// Persona del usuario guardada en los ajustes, si existe todavía.
-fn stored_self_person(store: &Store) -> Result<Option<PersonId>, ImportError> {
+pub(crate) fn stored_self_person(store: &Store) -> Result<Option<PersonId>, StoreError> {
     let Some(id) = store
         .setting(SELF_PERSON_KEY)?
         .and_then(|v| v.parse::<i64>().ok())
@@ -410,6 +372,7 @@ fn read_track(path: &str) -> Result<Track, ImportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::races::list_races;
 
     fn fixture(path: &str) -> String {
         format!("{}/../../fixtures/{path}", env!("CARGO_MANIFEST_DIR"))

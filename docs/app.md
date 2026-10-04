@@ -25,10 +25,11 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `stored_identity` | Tarjeta SI y nombre del usuario guardados, para rellenar el formulario. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
-| `list_races` | Carreras del usuario, de la más reciente a la más antigua. |
+| `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
+| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs` y `races.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -74,7 +75,22 @@ a partir de la carrera y el track guardados.
 ## Lista de carreras
 
 Los resultados vinculados a la persona del usuario, de la carrera más reciente a la más antigua:
-fecha, nombre de la carrera, categoría, puesto (o estado), formato y si tiene track del reloj.
+fecha, nombre de la carrera, categoría, puesto (o estado), formato, tiempo, tiempo perdido (con el
+número de errores) y si tiene track del reloj. Una fila abre la vista de la carrera.
+
+## Vista de carrera (P1)
+
+- **Cabecera**: carrera, fecha, categoría, corredor, resultado, formato, balizas y clasificados
+  del recorrido (con las categorías que lo comparten, si son varias).
+- **Totales**: tiempo, tiempo perdido, tiempo sin errores, número de errores y rendimiento
+  habitual. Aviso si la referencia es débil.
+- **Tabla de tramos**: tramo, balizas (S = salida, M = meta), split, puesto en el tramo,
+  referencia, IR, pérdida en segundos y en % y notas (error, último tramo, referencia corta). Los
+  tramos con error van resaltados.
+
+Los números salen de `tramos_core::runner_report::runner_report`, la misma función que usa
+`tramos analizar` (`docs/cli.md`), sobre la carrera guardada: la tabla coincide con la de la CLI.
+Los umbrales son los de por defecto (15 s y 10 %) hasta que haya ajustes (#17).
 
 ## Seguridad
 

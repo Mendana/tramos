@@ -7,6 +7,8 @@
   --accent: #c8501e;
   --note-bg: #fff4e5;
   --error: #b3261e;
+  --error-bg: #fbe4e1;
+  --hover: #f0efe9;
   font-family: system-ui, sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -21,6 +23,8 @@
     --border: #3d3d3a;
     --note-bg: #3a2c18;
     --error: #f2b8b5;
+    --error-bg: #4a2522;
+    --hover: #30302d;
   }
 }
 
@@ -116,14 +120,55 @@ fieldset {
   color: var(--error);
 }
 
-table.races {
+table.races,
+table.legs {
   width: 100%;
   border-collapse: collapse;
 }
 
 table.races th,
-table.races td {
+table.races td,
+table.legs th,
+table.legs td {
   text-align: left;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
+}
+
+table th.num,
+table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+tr.clickable {
+  cursor: pointer;
+}
+
+tr.clickable:hover,
+tr.clickable:focus {
+  background: var(--hover);
+}
+
+tr.error-leg {
+  background: var(--error-bg);
+  font-weight: 600;
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 16px 0;
+}
+
+.totals dt {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.totals dd {
+  margin: 0;
+  font-size: 1.4em;
+  font-variant-numeric: tabular-nums;
 }

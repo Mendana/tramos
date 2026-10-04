@@ -7,10 +7,10 @@ use serde::Serialize;
 use tramos_core::alignment::{
     AlignmentOptions, AlignmentQuality, AlignmentWarning, Coverage, align,
 };
-use tramos_core::courses::{ClassRef, group_by_course};
 use tramos_core::identify::{Candidate, Identification, RunnerIdentity, identify_runner};
-use tramos_core::lost_time::{LostTimeConfig, analyze_course};
-use tramos_core::model::{ControlCode, Event, RaceResult, RaceStatus, Track};
+use tramos_core::lost_time::LostTimeConfig;
+use tramos_core::model::{Event, RaceResult, RaceStatus, Track};
+use tramos_core::runner_report::{CourseSummary, RunnerLostTime, runner_report};
 
 /// Cómo se busca al corredor: un `--corredor` numérico es la tarjeta SI; si no, el nombre.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +47,7 @@ impl RunnerQuery {
 pub struct Analysis {
     pub event: EventInfo,
     pub runner: RunnerInfo,
-    pub course: CourseInfo,
+    pub course: CourseSummary,
     /// Umbrales y tiempo ideal con los que se ha calculado el tiempo perdido.
     pub config: LostTimeConfig,
     pub lost_time: RunnerLostTime,
@@ -78,55 +78,6 @@ pub struct RunnerInfo {
     pub si_card: Option<u32>,
     pub status: RaceStatus,
     pub place: Option<u16>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct CourseInfo {
-    /// Balizas del recorrido, sin salida ni meta.
-    pub controls: Vec<ControlCode>,
-    /// Categorías que corren este recorrido (comparten referencia).
-    pub classes: Vec<ClassRef>,
-    pub valid_runners: usize,
-    pub weak_reference: bool,
-}
-
-/// Tiempo perdido del corredor: totales y un elemento por tramo.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct RunnerLostTime {
-    pub total_s: Option<f64>,
-    pub usual_performance: Option<f64>,
-    pub lost_time_s: Option<f64>,
-    pub error_count: usize,
-    pub time_without_errors_s: Option<f64>,
-    /// Tiempo ideal del recorrido completo (el acumulado del último tramo).
-    pub ideal_time_s: Option<f64>,
-    /// Diferencia respecto al tiempo ideal en meta.
-    pub behind_ideal_s: Option<f64>,
-    pub legs: Vec<LegOutput>,
-}
-
-/// Un tramo: la referencia del recorrido y los números del corredor juntos.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct LegOutput {
-    pub index: usize,
-    pub from: ControlCode,
-    pub to: ControlCode,
-    pub split_s: Option<f64>,
-    pub elapsed_s: Option<f64>,
-    pub place: Option<usize>,
-    pub reference_s: Option<f64>,
-    pub reference_count: usize,
-    pub valid_splits: usize,
-    pub performance_index: Option<f64>,
-    pub expected_s: Option<f64>,
-    pub loss_s: Option<f64>,
-    pub loss_pct: Option<f64>,
-    pub is_error: bool,
-    pub ideal_elapsed_s: Option<f64>,
-    pub behind_ideal_s: Option<f64>,
-    pub is_last: bool,
-    pub short_reference: bool,
-    pub excluded_from_patterns: bool,
 }
 
 /// La alineación del núcleo sin las picadas situadas en el track.
@@ -194,50 +145,12 @@ pub fn analyze(
     else {
         bail!("error interno: la identificación apunta a un resultado que no existe");
     };
-    let Some(group) = group_by_course(event)
-        .into_iter()
-        .find(|g| g.classes.iter().any(|c| c.index == class_index))
-    else {
+    let Some(report) = runner_report(event, candidate.result, config) else {
         bail!(
-            "error interno: la categoría {} no tiene recorrido",
+            "error interno: el corredor de {} no está en el análisis de su recorrido",
             class.name
         );
     };
-    let course = analyze_course(event, &group, config);
-    let Some(runner) = course
-        .runners
-        .iter()
-        .find(|r| r.class_index == class_index && r.result_index == result_index)
-    else {
-        bail!("error interno: el corredor no está en el análisis de su recorrido");
-    };
-
-    let legs = course
-        .legs
-        .iter()
-        .zip(&runner.legs)
-        .map(|(reference, leg)| LegOutput {
-            index: reference.index,
-            from: reference.from,
-            to: reference.to,
-            split_s: leg.split_s,
-            elapsed_s: leg.elapsed_s,
-            place: leg.place,
-            reference_s: reference.reference_s,
-            reference_count: reference.reference_count,
-            valid_splits: reference.valid_splits,
-            performance_index: leg.performance_index,
-            expected_s: leg.expected_s,
-            loss_s: leg.loss_s,
-            loss_pct: leg.loss_pct,
-            is_error: leg.is_error,
-            ideal_elapsed_s: reference.ideal_elapsed_s,
-            behind_ideal_s: leg.behind_ideal_s,
-            is_last: reference.is_last,
-            short_reference: reference.short_reference,
-            excluded_from_patterns: reference.excluded_from_patterns,
-        })
-        .collect();
 
     let alignment = track
         .map(|track| align_summary(track, result))
@@ -261,23 +174,9 @@ pub fn analyze(
             status: result.status,
             place: result.place,
         },
-        course: CourseInfo {
-            controls: course.course.controls.clone(),
-            classes: course.classes.clone(),
-            valid_runners: course.valid_runners,
-            weak_reference: course.weak_reference,
-        },
+        course: report.course,
         config: *config,
-        lost_time: RunnerLostTime {
-            total_s: runner.total_s,
-            usual_performance: runner.usual_performance,
-            lost_time_s: runner.lost_time_s,
-            error_count: runner.error_count,
-            time_without_errors_s: runner.time_without_errors_s,
-            ideal_time_s: course.legs.last().and_then(|l| l.ideal_elapsed_s),
-            behind_ideal_s: runner.legs.last().and_then(|l| l.behind_ideal_s),
-            legs,
-        },
+        lost_time: report.lost_time,
         alignment,
         warnings,
     })

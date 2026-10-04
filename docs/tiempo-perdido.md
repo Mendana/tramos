@@ -1,7 +1,8 @@
 # Tiempo perdido
 
 Adaptación del método de WinSplits. Todo se calcula por **recorrido** (categorías con la misma
-secuencia de balizas agrupadas), no por categoría.
+secuencia de balizas agrupadas), no por categoría. La agrupación (igualdad exacta de la
+secuencia de balizas) está en `docs/modelo.md`, sección "Agrupación por recorrido".
 
 ## Definiciones
 

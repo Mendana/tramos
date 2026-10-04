@@ -45,14 +45,6 @@ fn baltanas_runner_is_found_by_card_and_by_name() {
     assert_eq!(result.place, Some(16));
     assert_eq!(result.runner.si_card, Some(143));
 
-    // Otro corredor de M-SEN comparte su `Runner::id` (0x80): la posición los distingue.
-    let same_id = event.classes[9]
-        .results
-        .iter()
-        .filter(|r| r.runner.id == result.runner.id)
-        .count();
-    assert!(same_id > 1);
-
     // Por nombre (seudónimo «N143_» «Apellido143_______»; el relleno `_` separa palabras).
     let by_name = identify_runner(
         &event,

@@ -10,7 +10,7 @@
 //!    [`LostTimeConfig`].
 //!
 //! Los corredores se identifican por su posición en el `Event` (índice de categoría e índice de
-//! resultado), nunca por `Runner::id`, que no es único.
+//! resultado): el .spl no trae id de corredor.
 
 use std::iter;
 
@@ -444,7 +444,6 @@ mod tests {
 
     fn runner() -> Runner {
         Runner {
-            id: 1, // repetido a propósito: no se usa como clave
             given_name: String::new(),
             family_name: String::new(),
             club: None,

@@ -166,7 +166,7 @@ def check(original, anon):
         for ra, rb in zip(ca["runners"], cb["runners"]):
             assert {k: v for k, v in ra.items() if k not in PERSONAL + ("birthdate",)} == \
                    {k: v for k, v in rb.items() if k not in PERSONAL + ("birthdate",)}, \
-                f"corredor {ra['id']}"
+                f"corredor {ra.get('bib')} de {ca.get('name')}"
             assert rb.get("birthdate") in (None, "1899-12-30"), "queda la fecha de nacimiento"
             for k in ("given", "family", "club"):
                 if len(ra.get(k, "")) >= 3:

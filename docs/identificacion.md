@@ -21,8 +21,8 @@ En JSON: `{"si_card": 2001234, "full_name": "Ana Pérez García"}`. Un campo `nu
 ## Salida
 
 Los resultados se señalan por su **posición** en la carrera, `ResultRef { class_index,
-result_index }` (índice en `Event::classes` y en `Class::results`). Nunca por `Runner::id`, que
-no es único (`docs/formato-spl.md`).
+result_index }` (índice en `Event::classes` y en `Class::results`): el .spl no trae id de
+corredor (`docs/formato-spl.md`).
 
 | `Identification` | Cuándo | Qué hace la interfaz |
 | --- | --- | --- |

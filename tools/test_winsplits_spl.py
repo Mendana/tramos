@@ -65,6 +65,11 @@ def klass(cid, name="F21A", codes=(32736, 31, 45, 32752)):
     return u32(0x40, cid) + text(0x43, name) + legs(list(codes))
 
 
+def runner_record(body):
+    """Registro de corredor: 0x80 con la longitud de `body` y luego `body`."""
+    return u32(0x80, len(body)) + body
+
+
 # --- Tests ---
 
 
@@ -115,6 +120,36 @@ class HeaderTest(unittest.TestCase):
     def test_body_must_start_with_a_class(self):
         with self.assertRaisesRegex(ValueError, "0x40"):
             ref.parse(header() + u8(0x48, 0) + klass(7))
+
+
+class RunnerLengthTest(unittest.TestCase):
+    BODY = text(0x87, "Ana") + u8(0x98, 0) + u8(0x9A, 2) + f64(0x9B, 30000.0)
+
+    def spl(self, first_len=None, last_len=None):
+        def rec(n):
+            return u32(0x80, len(self.BODY) if n is None else n) + self.BODY
+        return header(classes=2) + klass(1) + rec(first_len) + klass(2) + rec(last_len)
+
+    def test_records_that_match_are_read_without_id(self):
+        res = ref.parse(self.spl())
+        self.assertEqual([r["given"] for c in res["classes"] for r in c["runners"]],
+                         ["Ana", "Ana"])
+        self.assertNotIn("id", res["classes"][0]["runners"][0])
+
+    def test_mismatch_is_an_error(self):
+        n = len(self.BODY)
+        for first in (n - 1, n + 1):
+            with self.assertRaisesRegex(ValueError, f"declara {first} bytes .* ocupa {n}$"):
+                ref.parse(self.spl(first_len=first))
+        with self.assertRaisesRegex(ValueError, f"declara {n - 1} bytes .* ocupa {n}$"):
+            ref.parse(self.spl(last_len=n - 1))
+
+    def test_last_record_may_be_truncated(self):
+        # Como en Baltanás: faltan el valor de 0x9a y el 0x9b entero, que el 0x80 sí cuenta.
+        data = self.spl()[:-10]
+        self.assertEqual(data[-1], 0x9A)
+        last = ref.parse(data)["classes"][1]["runners"][0]
+        self.assertEqual(last, {"given": "Ana", "status": 0})
 
 
 class BaltanasHeaderTest(unittest.TestCase):

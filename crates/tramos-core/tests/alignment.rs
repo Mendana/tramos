@@ -34,7 +34,7 @@ fn truth() -> Value {
     serde_json::from_str(&text).unwrap()
 }
 
-/// El corredor del FIT sintético: M-SEN, tarjeta 143 (no se usa `Runner.id`, que se repite).
+/// El corredor del FIT sintético: M-SEN, tarjeta 143.
 fn synthetic_runner(event: &Event) -> RaceResult {
     event
         .classes

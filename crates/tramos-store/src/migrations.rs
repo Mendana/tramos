@@ -13,6 +13,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_initial.sql"),
     include_str!("../migrations/0002_people.sql"),
     include_str!("../migrations/0003_track_sport.sql"),
+    include_str!("../migrations/0004_drop_runner_source_id.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -89,8 +90,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 3);
-        assert_eq!(user_version(&conn).unwrap(), 3);
+        assert_eq!(SCHEMA_VERSION, 4);
+        assert_eq!(user_version(&conn).unwrap(), 4);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -147,6 +148,53 @@ mod tests {
             conn.execute_batch(script).unwrap();
         }
         conn.pragma_update(None, "user_version", n as i64).unwrap();
+    }
+
+    /// Columnas de una tabla, en orden.
+    fn columns(conn: &Connection, table: &str) -> Vec<String> {
+        let mut stmt = conn
+            .prepare(&format!(
+                "SELECT name FROM pragma_table_info('{table}') ORDER BY cid"
+            ))
+            .unwrap();
+        stmt.query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn version_3_runners_lose_source_id_and_keep_the_rest() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        migrate_to(&conn, 3);
+        conn.execute_batch(
+            "INSERT INTO events (id, name, date) VALUES (1, 'Vieja', '2025-05-04');
+             INSERT INTO courses (id, event_id) VALUES (1, 1);
+             INSERT INTO classes (id, event_id, position, source_id, name, course_id)
+                 VALUES (1, 1, 0, 1, 'F21A', 1);
+             INSERT INTO runners (id, event_id, source_id, given_name, family_name, bib)
+                 VALUES (1, 1, 154, 'Ana', 'Pérez', 7);
+             INSERT INTO results (id, class_id, position, runner_id, status, place)
+                 VALUES (1, 1, 0, 1, 'ok', 3);",
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        assert_eq!(user_version(&conn).unwrap(), SCHEMA_VERSION);
+        assert!(!columns(&conn, "runners").contains(&"source_id".to_string()));
+        // La de categorías es el id de categoría del fichero y se queda.
+        assert!(columns(&conn, "classes").contains(&"source_id".to_string()));
+        let (given, bib, place): (String, i64, i64) = conn
+            .query_row(
+                "SELECT ru.given_name, ru.bib, r.place FROM results r \
+                 JOIN runners ru ON ru.id = r.runner_id WHERE r.id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!((given.as_str(), bib, place), ("Ana", 7, 3));
     }
 
     #[test]

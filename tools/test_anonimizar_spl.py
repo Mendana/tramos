@@ -10,7 +10,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import anonimizar_spl as anon  # noqa: E402
 from anonimizar_spl import ref  # noqa: E402
-from test_winsplits_spl import header, klass, text, u8, u16, u32  # noqa: E402
+from test_winsplits_spl import header, klass, runner_record, text, u8, u16, u32  # noqa: E402
 
 
 def punches(items):
@@ -20,11 +20,11 @@ def punches(items):
     return out
 
 
-def runner(rid, given, family, club, club_id, bib, card, items, status, place, birth):
-    return (u32(0x80, rid) + u32(0x81, bib) + u32(0x84, card) + text(0x87, given)
-            + text(0x88, family) + u32(0x89, club_id) + text(0x8C, club)
-            + punches(items) + u8(0x98, status) + u16(0x99, place) + u8(0x9A, 2)
-            + bytes([0x9B]) + struct.pack("<d", birth))
+def runner(given, family, club, club_id, bib, card, items, status, place, birth, extra=b""):
+    return runner_record(u32(0x81, bib) + u32(0x84, card) + text(0x87, given)
+                         + text(0x88, family) + u32(0x89, club_id) + text(0x8C, club)
+                         + punches(items) + u8(0x98, status) + u16(0x99, place) + u8(0x9A, 2)
+                         + bytes([0x9B]) + struct.pack("<d", birth) + extra)
 
 
 def synthetic_spl(name="Trofeo de prueba"):
@@ -32,13 +32,14 @@ def synthetic_spl(name="Trofeo de prueba"):
     head = header(name, "Club ORCA", 46298.0, classes=1)  # 2026-10-03
     cls = klass(1, "F21A", (32736, 31, 45, 32752))
     nine = 9 * 3600 * 100
-    r1 = runner(10, "José", "García López", "ORCA", 77, 101, 2000123,
+    r1 = runner("José", "García López", "ORCA", 77, 101, 2000123,
                 [(32736, nine), (31, nine + 9000), (45, nine + 15000), (32752, nine + 18000)],
                 0, 1, 30000.5)
-    r2 = runner(11, "Ana", "Pérez", "Montaña Club", 88, 0, 2000456,
+    # El último registro acaba en una etiqueta sin valor (truncado), que su 0x80 sí cuenta.
+    r2 = runner("Ana", "Pérez", "Montaña Club", 88, 0, 2000456,
                 [(32736, nine), (31, ref.MISSING), (45, nine + 21000), (32752, nine + 24000)],
-                6, 0, 31000.0)
-    return head + cls + r1 + r2 + bytes([0x9A])  # último registro truncado
+                6, 0, 31000.0, extra=u8(0x9A, 2))
+    return head + cls + r1 + r2[:-1]
 
 
 class AnonymizeTest(unittest.TestCase):
@@ -54,7 +55,7 @@ class AnonymizeTest(unittest.TestCase):
         after = self.parsed["classes"][0]
         self.assertEqual(after["course"], [31, 45, 32752])
         for a, b in zip(before["runners"], after["runners"]):
-            for k in ("id", "punches", "status", "place", "sex"):
+            for k in ("punches", "status", "place", "sex"):
                 self.assertEqual(a.get(k), b.get(k), k)
         self.assertIsNone(self.runners[1]["punches"][1]["time_of_day_s"])
 

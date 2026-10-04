@@ -48,18 +48,12 @@ pub struct Course {
 }
 
 /// Corredor tal y como aparece en una carrera. Nunca guarda la fecha de nacimiento.
+///
+/// No tiene id: el .spl no trae ninguno (`docs/formato-spl.md`). Un resultado dentro de una
+/// carrera se identifica por su posición: índice de la categoría en `Event::classes` e índice en
+/// `Class::results`. Entre carreras, por la persona a la que se vincula (`tramos-store`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Runner {
-    /// Valor numérico con el que la fuente abre el registro del corredor. **No es una clave
-    /// única** ni identifica al corredor: en el .spl es el campo `0x80`, que resulta ser la
-    /// longitud en bytes del resto del registro y se repite entre corredores, también dentro
-    /// de una misma categoría (`docs/formato-spl.md`).
-    ///
-    /// Se conserva tal cual para no perder información del fichero, pero nada debe usarlo para
-    /// identificar, agrupar ni buscar corredores. Un resultado dentro de una carrera se
-    /// identifica por su posición: índice de la categoría en `Event::classes` e índice en
-    /// `Class::results`. Entre carreras, por la persona a la que se vincula (`tramos-store`).
-    pub id: u32,
     pub given_name: String,
     pub family_name: String,
     pub club: Option<String>,
@@ -158,7 +152,6 @@ mod tests {
 
     fn sample_event() -> Event {
         let runner = Runner {
-            id: 7,
             given_name: "Ana".into(),
             family_name: "Pérez".into(),
             club: Some("Club A".into()),

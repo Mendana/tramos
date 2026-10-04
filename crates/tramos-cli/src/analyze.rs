@@ -361,7 +361,6 @@ mod tests {
             course: Course { controls: vec![31] },
             results: vec![RaceResult {
                 runner: Runner {
-                    id: 1,
                     given_name: "Ana".to_string(),
                     family_name: "Pérez".to_string(),
                     club: None,

@@ -359,7 +359,7 @@ def generate(parsed, card, seed=DEFAULT_SEED, detour_leg=None):
         "utc_offset": _fmt_offset(offset),
         "runner": {
             "class_id": cls["id"], "class_name": cls.get("name"), "index_in_class": index,
-            "spl_id": runner["id"], "bib": runner.get("bib"), "si_card": runner.get("si_card"),
+            "bib": runner.get("bib"), "si_card": runner.get("si_card"),
             "given": runner.get("given"), "family": runner.get("family"),
             "status": runner.get("status"), "place": runner.get("place"),
         },

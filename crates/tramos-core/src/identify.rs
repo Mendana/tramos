@@ -13,8 +13,8 @@
 //!   interfaz pida confirmación (tarjeta prestada o reutilizada); si además el nombre casa con
 //!   otro resultado, se devuelven los dos como candidatos.
 //!
-//! Los resultados se señalan por su posición en el `Event` ([`ResultRef`]), nunca por
-//! `Runner::id`, que no es único (`docs/formato-spl.md`).
+//! Los resultados se señalan por su posición en el `Event` ([`ResultRef`]): el .spl no trae id
+//! de corredor (`docs/formato-spl.md`).
 
 use serde::{Deserialize, Serialize};
 
@@ -214,8 +214,6 @@ mod tests {
     fn result(given: &str, family: &str, si_card: Option<u32>) -> RaceResult {
         RaceResult {
             runner: Runner {
-                // Mismo valor para todos, como pasa con el `0x80` del .spl: no se usa.
-                id: 150,
                 given_name: given.into(),
                 family_name: family.into(),
                 club: None,

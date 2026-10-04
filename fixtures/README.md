@@ -31,9 +31,8 @@ python3 tools/anonimizar_spl.py fixtures/private/baltanas.spl fixtures/spl/balta
 pasa por cada baliza exactamente en su hora de picada. Las horas del .spl son locales
 (Europe/Madrid): el 3 de octubre de 2026 es horario de verano, así que UTC = local − 2 h.
 
-- Corredor: M-SEN, tarjeta SI 143 (= dorsal; el campo id 0x80 del .spl se repite entre
-  corredores), clasificado 16.º, 20 balizas y 21 tramos. Salida 18:13:00 local (16:13:00Z),
-  meta 18:38:40 (16:38:40Z).
+- Corredor: M-SEN, tarjeta SI 143 (= dorsal; el .spl no trae id de corredor), clasificado
+  16.º, 20 balizas y 21 tramos. Salida 18:13:00 local (16:13:00Z), meta 18:38:40 (16:38:40Z).
 - Track: de 60 s antes de la salida a 60 s después de la meta (1661 records,
   16:12:00Z–16:39:40Z), con posición, altitud, pulso, cadencia, distancia y velocidad.
   Cadencia en rpm de un pie, como los Garmin en carrera (pasos/min = 2 × cadencia).

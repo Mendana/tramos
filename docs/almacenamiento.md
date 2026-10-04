@@ -18,6 +18,12 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `save_track(ResultId, &Track, Option<SourceFileId>)` / `load_track(ResultId)` | Track del reloj de un resultado, enlazado a su FIT si se indica. Guardar otra vez sustituye el anterior. |
 | `track_source_file(ResultId)` | El fichero original enlazado al track, si lo tiene. |
 | `setting(clave)` / `set_setting(clave, valor)` | Ajustes clave-valor. |
+| `create_person(nombre, notas) -> PersonId` | Crea una persona (ver [Personas](#personas)). El nombre no puede estar vacío (`EmptyPersonName`). |
+| `people() -> Vec<Person>` | Todas las personas, en orden de creación: id, nombre visible, notas e instante de creación. |
+| `delete_person(PersonId)` | Borra una persona y desvincula sus resultados; no borra ninguno. |
+| `link_result(ResultId, PersonId)` / `unlink_result(ResultId)` | Vincula un resultado con una persona o lo desvincula. Un resultado ya vinculado a otra persona da `ResultAlreadyLinked`. |
+| `result_person(ResultId) -> Option<PersonId>` | Persona a la que está vinculado un resultado, si lo está. |
+| `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre de la carrera (si lo hay), categoría, estado y puesto. |
 
 Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 
@@ -38,7 +44,7 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 - **Enumerados**: `TEXT` en `snake_case`, como en el JSON del modelo, con `CHECK`.
 - **Integridad**: claves foráneas activas (`PRAGMA foreign_keys = ON`). Borrar una carrera borra
   en cascada sus recorridos, categorías, corredores, resultados, picadas, tracks, tramos y
-  etiquetas.
+  etiquetas; las personas se quedan, sin esos resultados.
 
 ## Tablas
 
@@ -49,7 +55,8 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 | `course_controls` | Balizas de cada recorrido, sin salida ni meta. | `course_id`, `position`, `code`. |
 | `classes` | Categorías. | `event_id`, `position`, `source_id` (id del fichero), `name`, `short_name`, `course_id`. |
 | `runners` | Corredores tal y como aparecen en una carrera (uno por resultado). **No hay columna de fecha de nacimiento.** | `event_id`, `source_id`, nombre, apellidos, `club`, `bib`, `si_card`, `sex`. |
-| `results` | Resultado de un corredor en una categoría. | `class_id`, `position`, `runner_id`, `status`, `status_code` (solo para `unknown`), `place`. |
+| `results` | Resultado de un corredor en una categoría. | `class_id`, `position`, `runner_id`, `status`, `status_code` (solo para `unknown`), `place`, `person_id` (opcional). |
+| `people` | Personas: identidad de un corredor entre carreras. Solo lo que escribe el usuario; **sin fecha de nacimiento**. | `display_name`, `notes` (opcional), `created_at_epoch_ms`. |
 | `punches` | Picadas en orden, de la salida a la meta. | `result_id`, `position`, `code`, `time_epoch_ms` (`NULL` si no hay hora). |
 | `tracks` | Track del reloj: como mucho uno por resultado. | `result_id`, `source_file_id` (el FIT, opcional). |
 | `track_points` | Puntos del track. | `track_id`, `position`, `time_epoch_ms`, `lat`, `lon`, `altitude_m`, `heart_rate_bpm`, `cadence_spm`, `distance_m`. |
@@ -86,6 +93,32 @@ Notas:
 | Versión | Script | Cambio |
 | --- | --- | --- |
 | 1 | `0001_initial.sql` | Esquema inicial. |
+| 2 | `0002_people.sql` | Tabla `people` y columna `results.person_id` (nula en los resultados que ya había). |
+
+## Personas
+
+`runners` es por carrera: una fila por resultado, tal y como aparece en cada .spl. Para buscar
+patrones carrera tras carrera, el usuario agrupa en una **persona** (`people`) los resultados que
+sabe que son de la misma persona (él mismo y, más adelante, sus compañeros).
+
+- **Vínculo**: columna `results.person_id`, nula si el resultado no es de nadie conocido. Así un
+  resultado pertenece **como mucho a una persona**, sin tabla intermedia. Va en `results` y no en
+  `runners` porque son uno a uno y todo lo demás (tracks, tramos, etiquetas) cuelga del resultado.
+- **Borrar una persona** desvincula sus resultados (`ON DELETE SET NULL`); no borra ninguno.
+- **Vincular un resultado ya vinculado**: con la misma persona no hace nada; con otra es un error
+  (`ResultAlreadyLinked`) y el vínculo no cambia. Reasignar es explícito: `unlink_result` y luego
+  `link_result`. Así un vínculo hecho a mano no se pisa sin querer (por ejemplo, desde una
+  asignación automática futura). `unlink_result` sobre un resultado sin persona no hace nada.
+- **Orden de `person_results`**: por fecha de la carrera (`events.date`); con la misma fecha, por
+  orden de guardado de la carrera y, dentro de ella, por el orden de categorías y resultados.
+  Las carreras solo tienen día, no hora: dos carreras del mismo día salen en el orden en que se
+  guardaron.
+- Nada impide vincular a una persona dos resultados de la misma carrera.
+- **Qué guarda una persona**: el nombre visible y unas notas, ambos escritos por el usuario, y el
+  instante de creación. No se rellena con datos del .spl y no tiene fecha de nacimiento
+  (`docs/datos-y-privacidad.md`). El nombre se guarda tal cual; solo se rechaza vacío o en blanco.
+- Decidir automáticamente quién es quién queda fuera de esta API (#9, #17): aquí el vínculo lo
+  decide siempre quien llama.
 
 ## Ficheros originales
 

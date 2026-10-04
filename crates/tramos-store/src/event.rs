@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use tramos_core::model::{Class, Course, Event, Punch, RaceResult, Runner};
 
@@ -11,6 +12,14 @@ use crate::convert::{
 };
 use crate::source::ensure_source_file;
 use crate::{EventId, ResultId, SourceFileId, Store, StoreError};
+
+/// Expresión SQL con el inicio de la carrera `e` (ver [`Store::event_start`]): la primera picada
+/// con hora de cualquiera de sus resultados, en milisegundos desde la época Unix, o `NULL`.
+pub(crate) const EVENT_START_MS_SQL: &str = "(SELECT MIN(p.time_epoch_ms) \
+     FROM classes ec \
+     JOIN results er ON er.class_id = ec.id \
+     JOIN punches p ON p.result_id = er.id \
+     WHERE ec.event_id = e.id)";
 
 /// Identificadores asignados al guardar una carrera.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +58,25 @@ impl Store {
             .optional()?
             .ok_or(StoreError::EventNotFound(id.0))?;
         Ok(source.map(SourceFileId))
+    }
+
+    /// Inicio de una carrera para ordenar las del mismo día: la primera picada con hora de
+    /// cualquiera de sus resultados (en la práctica, la primera salida). `None` si ningún
+    /// resultado tiene picadas con hora.
+    ///
+    /// No usa el FIT, que solo tienen algunos resultados, ni las fechas de la cabecera del .spl,
+    /// que parecen de creación del fichero (`docs/almacenamiento.md`).
+    pub fn event_start(&self, id: EventId) -> Result<Option<DateTime<Utc>>, StoreError> {
+        let ms: Option<i64> = self
+            .conn
+            .query_row(
+                &format!("SELECT {EVENT_START_MS_SQL} FROM events e WHERE e.id = ?1"),
+                [id.0],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(StoreError::EventNotFound(id.0))?;
+        ms.map(ms_to_instant).transpose()
     }
 
     /// Carga una carrera tal y como se guardó.

@@ -15,6 +15,7 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `load_event(EventId) -> Event` | Carga la carrera exactamente como se guardó. |
 | `result_ids(EventId)` | Los `ResultId` de una carrera ya guardada, como en `SavedEvent`. |
 | `event_source_file(EventId)` | El fichero original enlazado a la carrera, si lo tiene. |
+| `event_start(EventId) -> Option<DateTime<Utc>>` | Inicio de la carrera para ordenar las del mismo día: la primera picada con hora de cualquiera de sus resultados (ver [Personas](#personas)). |
 | `save_track(ResultId, &Track, Option<SourceFileId>)` / `load_track(ResultId)` | Track del reloj de un resultado, enlazado a su FIT si se indica. Guardar otra vez sustituye el anterior. |
 | `track_source_file(ResultId)` | El fichero original enlazado al track, si lo tiene. |
 | `setting(clave)` / `set_setting(clave, valor)` | Ajustes clave-valor. |
@@ -116,9 +117,16 @@ sabe que son de la misma persona (él mismo y, más adelante, sus compañeros).
   `link_result`. Así un vínculo hecho a mano no se pisa sin querer (por ejemplo, desde una
   asignación automática futura). `unlink_result` sobre un resultado sin persona no hace nada.
 - **Orden de `person_results`**: por fecha de la carrera (`events.date`); con la misma fecha, por
-  orden de guardado de la carrera y, dentro de ella, por el orden de categorías y resultados.
-  Las carreras solo tienen día, no hora: dos carreras del mismo día salen en el orden en que se
-  guardaron.
+  inicio de la carrera (`event_start`, también en `PersonResult::event_start`); luego por orden
+  de guardado y, dentro de una carrera, por el orden de categorías y resultados. Las carreras sin
+  inicio (ninguna picada con hora) van detrás de las demás de su día.
+- **Inicio de una carrera**: la primera picada con hora de cualquiera de sus resultados, que en la
+  práctica es la primera salida. Se calcula en la consulta, sin columna nueva. No se usa el
+  inicio del FIT porque solo lo tienen algunos resultados, y una carrera ordenaría distinto según
+  quién lo haya subido. Tampoco se usan las fechas de la cabecera del .spl (`0x22`/`0x24`): en
+  los ficheros conocidos son de la tarde, después de la carrera, así que parecen de creación o
+  subida del fichero (`docs/formato-spl.md`). Es el inicio de la carrera, no el del resultado:
+  dos resultados de la misma carrera comparten valor.
 - Nada impide vincular a una persona dos resultados de la misma carrera.
 - **Qué guarda una persona**: el nombre visible y unas notas, ambos escritos por el usuario, y el
   instante de creación. No se rellena con datos del .spl y no tiene fecha de nacimiento

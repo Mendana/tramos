@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = ["crates/tramos-core", "crates/tramos-cli", "crates/tramos-store"]
+# La app Tauri va aparte (su propio Cargo.lock y target/) para que `cargo test --workspace`
+# no necesite webkit ni Node. Se compila desde `app/` (ver `.github/workflows/ci.yml`).
+exclude = ["app/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

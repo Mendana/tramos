@@ -16,6 +16,7 @@ use tramos_core::runner_report::{RunnerReport, runner_report};
 use tramos_store::{EventId, ResultId, Store, StoreError};
 
 use crate::import::stored_self_person;
+use crate::settings;
 
 /// Errores al consultar las carreras. Los mensajes van a la interfaz, en español.
 #[derive(Debug, Error)]
@@ -65,18 +66,13 @@ pub struct RaceDetail {
     pub report: RunnerReport,
 }
 
-/// Configuración del tiempo perdido. Hasta que haya ajustes (#17), la de por defecto.
-fn config() -> LostTimeConfig {
-    LostTimeConfig::default()
-}
-
 /// Carreras del usuario (los resultados vinculados a su persona), de la más reciente a la más
 /// antigua, con su tiempo perdido. Vacía si aún no ha importado ninguna.
 pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, RaceError> {
     let Some(person) = stored_self_person(store)? else {
         return Ok(Vec::new());
     };
-    let config = config();
+    let config = settings::lost_time_config(store)?;
     let mut events: HashMap<EventId, Event> = HashMap::new();
     let mut rows = Vec::new();
     for r in store.person_results(person)? {
@@ -111,7 +107,7 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
     let result = ResultId(result_id);
     let (event_id, at) = store.result_ref(result)?;
     let event = store.load_event(event_id)?;
-    let config = config();
+    let config = settings::lost_time_config(store)?;
     let report = runner_report(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))?;
     let (Some(class), Some(result)) = (event.classes.get(at.class_index), at.get(&event)) else {
         return Err(RaceError::NotAnalyzed(result_id));
@@ -209,6 +205,45 @@ mod tests {
         assert_eq!(row.lost_time_s, detail.report.lost_time.lost_time_s);
         assert_eq!(row.error_count, detail.report.lost_time.error_count);
         assert!(row.total_s.is_some() && row.lost_time_s.is_some());
+    }
+
+    /// Criterio de aceptación de #17: cambiar el umbral cambia los tramos marcados como error.
+    #[test]
+    fn thresholds_from_settings_change_the_errors() {
+        let (mut store, result_id) = imported();
+        let errors = |store: &Store| {
+            let detail = race_detail(store, result_id).unwrap();
+            let marked = detail
+                .report
+                .lost_time
+                .legs
+                .iter()
+                .filter(|l| l.is_error)
+                .count();
+            (detail.report.lost_time.error_count, marked)
+        };
+        let (before, marked) = errors(&store);
+        assert!(before > 0);
+        assert_eq!(before, marked);
+
+        let mut lenient = settings::load(&store).unwrap();
+        lenient.error_threshold_s = 600.0;
+        settings::save(&mut store, &lenient).unwrap();
+        assert_eq!(errors(&store), (0, 0));
+        assert_eq!(
+            race_detail(&store, result_id)
+                .unwrap()
+                .config
+                .error_threshold_s,
+            600.0
+        );
+        assert_eq!(list_races(&store).unwrap()[0].error_count, 0);
+
+        let mut strict = lenient;
+        strict.error_threshold_s = 0.0;
+        strict.error_threshold_pct = 0.0;
+        settings::save(&mut store, &strict).unwrap();
+        assert!(errors(&store).0 > before);
     }
 
     #[test]

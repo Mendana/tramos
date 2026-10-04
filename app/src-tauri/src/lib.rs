@@ -3,6 +3,7 @@
 
 pub mod import;
 pub mod races;
+pub mod settings;
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -12,6 +13,7 @@ use tramos_store::Store;
 
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::races::{RaceDetail, RaceRow};
+use crate::settings::Settings;
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
 const DATABASE_FILE: &str = "tramos.sqlite";
@@ -35,10 +37,16 @@ fn core_version() -> &'static str {
     tramos_core::VERSION
 }
 
-/// Identidad del usuario guardada (tarjeta y nombre), para rellenar el formulario de importar.
+/// Ajustes del usuario (umbrales, zona horaria e identidad).
 #[tauri::command]
-fn stored_identity(state: tauri::State<'_, AppState>) -> Result<RunnerIdentity, String> {
-    import::stored_identity(&*state.store()?).map_err(|e| e.to_string())
+fn get_settings(state: tauri::State<'_, AppState>) -> Result<Settings, String> {
+    settings::load(&*state.store()?).map_err(|e| e.to_string())
+}
+
+/// Valida y guarda los ajustes; si alguno no vale, no se guarda ninguno.
+#[tauri::command]
+fn save_settings(state: tauri::State<'_, AppState>, settings: Settings) -> Result<(), String> {
+    settings::save(&mut *state.store()?, &settings).map_err(|e| e.to_string())
 }
 
 /// Primer paso de importar: lee los ficheros y propone corredor y formato, sin guardar nada.
@@ -89,7 +97,8 @@ pub fn run() -> tauri::Result<()> {
         })
         .invoke_handler(tauri::generate_handler![
             core_version,
-            stored_identity,
+            get_settings,
+            save_settings,
             preview_import,
             import_race,
             list_races,

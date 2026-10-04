@@ -6,8 +6,8 @@
 //! - La cabecera se recorre por etiquetas hasta su marcador de fin (`0x2c`): de ella salen el
 //!   nombre de la prueba (`0x14`), la fecha (`0x19`) y el número de categorías (`0x1f`), que se
 //!   comprueba con las categorías leídas. Los registros de categoría empiezan justo después.
-//! - Las horas de las picadas son centésimas desde la medianoche local de la carrera
-//!   ([`RACE_TIME_ZONE`]) y se convierten a UTC con la fecha de la cabecera. Si una hora cae en
+//! - Las horas de las picadas son centésimas desde la medianoche local de la carrera (por
+//!   defecto [`RACE_TIME_ZONE`]; otra con [`read_with_time_zone`]) y se convierten a UTC con la fecha de la cabecera. Si una hora cae en
 //!   el cambio de hora (inexistente o ambigua), la lectura falla: no se adivina.
 //! - El recorrido se valida (salida → … → meta) y se guarda sin salida ni meta.
 //! - La fecha de nacimiento se lee para avanzar, pero no se guarda.
@@ -28,7 +28,8 @@ use crate::model::{
     START_CODE, Sex,
 };
 
-/// Zona horaria de las horas del .spl. Todas las carreras del grupo son en España peninsular.
+/// Zona horaria por defecto de las horas del .spl, la de [`read`]. Las carreras del grupo son en
+/// España peninsular; para otra (Canarias, Portugal…), [`read_with_time_zone`].
 pub const RACE_TIME_ZONE: Tz = chrono_tz::Europe::Madrid;
 
 const MAGIC: &[u8] = b"spl4";
@@ -111,20 +112,22 @@ pub enum SplError {
 
     #[error(
         "la hora local {local} de la picada de la baliza {code} (byte {offset}) no existe en \
-         {RACE_TIME_ZONE}: cae en el cambio de hora"
+         {zone}: cae en el cambio de hora"
     )]
     NonexistentLocalTime {
         local: NaiveDateTime,
+        zone: Tz,
         code: ControlCode,
         offset: usize,
     },
 
     #[error(
         "la hora local {local} de la picada de la baliza {code} (byte {offset}) es ambigua en \
-         {RACE_TIME_ZONE}: se repite en el cambio de hora"
+         {zone}: se repite en el cambio de hora"
     )]
     AmbiguousLocalTime {
         local: NaiveDateTime,
+        zone: Tz,
         code: ControlCode,
         offset: usize,
     },
@@ -135,6 +138,11 @@ pub enum SplError {
 
 /// Lee un .spl completo y lo convierte al modelo de dominio.
 pub fn read(data: &[u8]) -> Result<Event, SplError> {
+    read_with_time_zone(data, RACE_TIME_ZONE)
+}
+
+/// Como [`read`], con las horas de las picadas en la zona horaria `zone`.
+pub fn read_with_time_zone(data: &[u8], zone: Tz) -> Result<Event, SplError> {
     let header = read_header(data)?;
     match data.get(header.body_start) {
         None => return Err(SplError::NoClassRecords),
@@ -150,6 +158,7 @@ pub fn read(data: &[u8]) -> Result<Event, SplError> {
     let mut parser = Parser {
         cursor: Cursor::new(data, header.body_start),
         date: header.date,
+        zone,
         classes: Vec::new(),
         open_runner: None,
     };
@@ -252,6 +261,7 @@ fn read_header(data: &[u8]) -> Result<Header, SplError> {
 /// Las horas de 24 h o más caen en los días siguientes. Una hora inexistente o ambigua por el
 /// cambio de hora es un error (ver `docs/formato-spl.md`).
 fn local_time_to_utc(
+    zone: Tz,
     date: NaiveDate,
     centiseconds: u32,
     code: ControlCode,
@@ -263,15 +273,17 @@ fn local_time_to_utc(
             centiseconds,
             offset,
         })?;
-    match RACE_TIME_ZONE.from_local_datetime(&local) {
+    match zone.from_local_datetime(&local) {
         LocalResult::Single(t) => Ok(t.with_timezone(&Utc)),
         LocalResult::Ambiguous(_, _) => Err(SplError::AmbiguousLocalTime {
             local,
+            zone,
             code,
             offset,
         }),
         LocalResult::None => Err(SplError::NonexistentLocalTime {
             local,
+            zone,
             code,
             offset,
         }),
@@ -556,6 +568,8 @@ impl OpenRunner {
 struct Parser<'a> {
     cursor: Cursor<'a>,
     date: NaiveDate,
+    /// Zona horaria de las horas de las picadas.
+    zone: Tz,
     classes: Vec<ClassDraft>,
     /// Corredor cuyos campos se están leyendo; `None` fuera de un registro de corredor.
     open_runner: Option<OpenRunner>,
@@ -728,7 +742,13 @@ impl Parser<'_> {
             let time = if centiseconds == MISSING_TIME {
                 None
             } else {
-                Some(local_time_to_utc(self.date, centiseconds, code, offset)?)
+                Some(local_time_to_utc(
+                    self.zone,
+                    self.date,
+                    centiseconds,
+                    code,
+                    offset,
+                )?)
             };
             punches.push(Punch { code, time });
         }
@@ -914,31 +934,61 @@ mod tests {
     #[test]
     fn summer_time_is_utc_plus_two() {
         // 3 de octubre de 2026, horario de verano (CEST, UTC+2): 17:31:00 → 15:31:00Z.
-        let t = local_time_to_utc(date(2026, 10, 3), 6_306_000, 31, 0).unwrap();
+        let t = local_time_to_utc(RACE_TIME_ZONE, date(2026, 10, 3), 6_306_000, 31, 0).unwrap();
         assert_eq!(t, utc(2026, 10, 3, 15, 31, 0, 0));
+    }
+
+    #[test]
+    fn another_time_zone_moves_every_punch() {
+        // Las mismas horas locales en Canarias (WEST, UTC+1 en octubre) son 1 h más tarde en UTC.
+        let data = sample().0;
+        let madrid = read(&data).unwrap();
+        let canarias = read_with_time_zone(&data, chrono_tz::Atlantic::Canary).unwrap();
+        let times = |e: &Event| -> Vec<Option<DateTime<Utc>>> {
+            e.classes[0].results[0]
+                .punches
+                .iter()
+                .map(|p| p.time)
+                .collect()
+        };
+        for (m, c) in times(&madrid).into_iter().zip(times(&canarias)) {
+            assert_eq!(c.zip(m).map(|(c, m)| c - m), m.map(|_| TimeDelta::hours(1)));
+        }
+        let err = local_time_to_utc(
+            chrono_tz::Atlantic::Canary,
+            date(2026, 3, 29),
+            cs(1, 30, 0, 0),
+            31,
+            0,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("Atlantic/Canary"), "{err}");
     }
 
     #[test]
     fn winter_time_is_utc_plus_one() {
         // 12 de diciembre de 2026, horario de invierno (CET, UTC+1): 10:00:00,12 → 09:00:00,12Z.
-        let t = local_time_to_utc(date(2026, 12, 12), 3_600_012, 31, 0).unwrap();
+        let t = local_time_to_utc(RACE_TIME_ZONE, date(2026, 12, 12), 3_600_012, 31, 0).unwrap();
         assert_eq!(t, utc(2026, 12, 12, 9, 0, 0, 120));
     }
 
     #[test]
     fn local_midnight_and_next_day() {
         // 00:30 locales del 1 de enero = 23:30Z del 31 de diciembre.
-        let t = local_time_to_utc(date(2027, 1, 1), cs(0, 30, 0, 0), 31, 0).unwrap();
+        let t =
+            local_time_to_utc(RACE_TIME_ZONE, date(2027, 1, 1), cs(0, 30, 0, 0), 31, 0).unwrap();
         assert_eq!(t, utc(2026, 12, 31, 23, 30, 0, 0));
         // 25:00 (pasada la medianoche) cae en el día siguiente: 01:00 CET del 2 = 00:00Z del 2.
-        let t = local_time_to_utc(date(2027, 1, 1), cs(25, 0, 0, 0), 31, 0).unwrap();
+        let t =
+            local_time_to_utc(RACE_TIME_ZONE, date(2027, 1, 1), cs(25, 0, 0, 0), 31, 0).unwrap();
         assert_eq!(t, utc(2027, 1, 2, 0, 0, 0, 0));
     }
 
     #[test]
     fn nonexistent_local_time_is_an_error() {
         // 29 de marzo de 2026: a las 02:00 se pasa a las 03:00; las 02:30 no existen.
-        let err = local_time_to_utc(date(2026, 3, 29), cs(2, 30, 0, 0), 31, 99).unwrap_err();
+        let err = local_time_to_utc(RACE_TIME_ZONE, date(2026, 3, 29), cs(2, 30, 0, 0), 31, 99)
+            .unwrap_err();
         assert!(matches!(
             err,
             SplError::NonexistentLocalTime {
@@ -950,11 +1000,11 @@ mod tests {
         assert!(err.to_string().contains("2026-03-29 02:30:00"), "{err}");
         // Justo antes y justo después del salto sí existen.
         assert_eq!(
-            local_time_to_utc(date(2026, 3, 29), cs(1, 59, 59, 0), 31, 0).unwrap(),
+            local_time_to_utc(RACE_TIME_ZONE, date(2026, 3, 29), cs(1, 59, 59, 0), 31, 0).unwrap(),
             utc(2026, 3, 29, 0, 59, 59, 0)
         );
         assert_eq!(
-            local_time_to_utc(date(2026, 3, 29), cs(3, 0, 0, 0), 31, 0).unwrap(),
+            local_time_to_utc(RACE_TIME_ZONE, date(2026, 3, 29), cs(3, 0, 0, 0), 31, 0).unwrap(),
             utc(2026, 3, 29, 1, 0, 0, 0)
         );
     }
@@ -962,7 +1012,8 @@ mod tests {
     #[test]
     fn ambiguous_local_time_is_an_error() {
         // 25 de octubre de 2026: a las 03:00 se vuelve a las 02:00; las 02:30 ocurren dos veces.
-        let err = local_time_to_utc(date(2026, 10, 25), cs(2, 30, 0, 0), 45, 7).unwrap_err();
+        let err = local_time_to_utc(RACE_TIME_ZONE, date(2026, 10, 25), cs(2, 30, 0, 0), 45, 7)
+            .unwrap_err();
         assert!(matches!(
             err,
             SplError::AmbiguousLocalTime {

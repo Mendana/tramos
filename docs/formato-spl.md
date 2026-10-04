@@ -147,8 +147,10 @@ Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
   categorías leídas debe coincidir.
 - **Horas → UTC**: cada hora de picada se interpreta como hora local de `Europe/Madrid` el día de
   la carrera (todas las carreras del grupo son en España peninsular) y se convierte a
-  `DateTime<Utc>`. Ejemplos: 17:31:00 del 3-10-2026 (verano, UTC+2) → 15:31:00Z;
-  10:00:00,12 del 12-12-2026 (invierno, UTC+1) → 09:00:00,12Z. `0xFFFFFF` → `time = None`.
+  `DateTime<Utc>`. `read_with_time_zone(datos, zona)` usa otra zona (Canarias, Portugal…); la app
+  la toma de sus ajustes (`docs/app.md`). Ejemplos: 17:31:00 del 3-10-2026 (verano, UTC+2) →
+  15:31:00Z; 10:00:00,12 del 12-12-2026 (invierno, UTC+1) → 09:00:00,12Z. `0xFFFFFF` →
+  `time = None`.
   Una hora de 24 h o más cae en el día siguiente.
 - **Cambio de hora**: si una hora local no existe (último domingo de marzo, de 02:00 a 03:00) o es
   ambigua (último domingo de octubre, de 02:00 a 03:00, que ocurre dos veces), la lectura falla

@@ -14,6 +14,7 @@ busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de 
 - [Formato .spl de WinSplits](docs/formato-spl.md)
 - [Formato FIT del reloj](docs/formato-fit.md)
 - [Identificar al corredor en una carrera](docs/identificacion.md)
+- [CLI de desarrollo (`tramos analizar`)](docs/cli.md)
 - [Taxonomía de errores](docs/taxonomia.md)
 - [Datos y privacidad](docs/datos-y-privacidad.md)
 - [Cómo trabajamos con agentes](docs/trabajo-con-agentes.md)
@@ -25,6 +26,13 @@ Requisitos: Rust estable, Node LTS y los [requisitos de Tauri 2](https://v2.taur
 ```bash
 cargo test --workspace
 python3 tools/reference/winsplits_spl.py carrera.spl --csv   # lector de referencia
+```
+
+Mientras no hay interfaz, el análisis se puede hacer desde la terminal con la CLI
+([docs/cli.md](docs/cli.md)):
+
+```bash
+cargo run -p tramos-cli -- analizar --spl carrera.spl --fit reloj.fit --corredor <tarjeta SI|nombre> --formato tabla
 ```
 
 ## Licencia

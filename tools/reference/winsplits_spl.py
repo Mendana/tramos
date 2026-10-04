@@ -28,7 +28,9 @@ Categoría (empieza con 0x40)
   0x47 u32 n + n bytes   tramos: (desde u16, hasta u16, longitud u32, a 0 en el ejemplo)
   0x48/0x49/0x4a u8 ?    0x4d u32 ?
 Corredor (empieza con 0x80)
-  0x80 u32 longitud del resto del registro (no es un id: se repite; sale como "id" en el JSON)
+  0x80 u32 longitud en bytes del resto del registro (no es un id). Se comprueba que cada
+       corredor ocupa lo que declara; solo el último puede quedarse corto si el fichero acaba
+       antes (truncado de origen). No sale en el JSON.
                          0x81 u32 dorsal?       0x84 u32 tarjeta SportIdent
   0x87 txt nombre        0x88 txt apellidos     0x89 u32 id club
   0x8c txt club          0x8d txt país          0x8e txt nacionalidad
@@ -116,13 +118,28 @@ def parse_header(data):
     return {k: event[k] for k in EVENT_KEYS if k in event}, p, count
 
 
+def _check_runner_len(open_runner, end, at_eof):
+    """Comprueba que el corredor abierto (byte de su 0x80, inicio del resto, longitud declarada)
+    acaba en `end`. Al final del fichero se admite que se quede corto."""
+    if open_runner is None:
+        return
+    offset, body, declared = open_runner
+    actual = end - body
+    if actual != declared and not (at_eof and actual < declared):
+        raise ValueError(f"el corredor del byte {offset} declara {declared} bytes de registro "
+                         f"(0x80) y ocupa {actual}")
+
+
 def parse(data, keep_birthdate=False):
     event, p, count = parse_header(data)
     if p >= len(data) or data[p] != 0x40:
         raise ValueError(f"no hay registro de categoría (0x40) tras la cabecera, byte {p}")
-    classes, cls, runner = [], None, None
+    classes, cls, runner, open_runner = [], None, None, None
     while p < len(data):
         tag = data[p]
+        if tag in (0x40, 0x80):
+            _check_runner_len(open_runner, p, at_eof=False)
+            open_runner = None
         p += 1
         if p >= len(data):
             break  # registro final truncado
@@ -158,13 +175,14 @@ def parse(data, keep_birthdate=False):
             classes.append(cls)
             runner = None
         elif tag == 0x80:
-            runner = {"id": val}
+            runner, open_runner = {}, (p - 5, p, val)
             cls["runners"].append(runner)
         elif runner is not None and tag >= 0x80:
             if val is not None:
                 runner[NAMES.get(tag, hex(tag))] = val
         elif tag in NAMES:
             cls[NAMES[tag]] = val
+    _check_runner_len(open_runner, len(data), at_eof=True)
     if count is not None and len(classes) != count:
         raise ValueError(f"la cabecera anuncia {count} categorías (0x1f) y hay {len(classes)}")
     for c in classes:
@@ -176,14 +194,14 @@ def parse(data, keep_birthdate=False):
 def legs_rows(result):
     """Una fila por corredor y tramo, con split y tiempo acumulado en segundos."""
     for c in result["classes"]:
-        for r in c["runners"]:
+        for index, r in enumerate(c["runners"]):
             punches = r.get("punches", [])
             start = punches[0]["time_of_day_s"] if punches else None
             for i in range(1, len(punches)):
                 a, b = punches[i - 1], punches[i]
                 ok = None not in (a["time_of_day_s"], b["time_of_day_s"])
                 yield {
-                    "class": c.get("name"), "runner_id": r["id"],
+                    "class": c.get("name"), "index_in_class": index,
                     "runner": f"{r.get('given', '')} {r.get('family', '')}".strip(),
                     "club": r.get("club"), "status": r.get("status"), "place": r.get("place"),
                     "leg": i, "from": a["code"], "to": b["code"],

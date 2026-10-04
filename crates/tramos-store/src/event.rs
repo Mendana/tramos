@@ -226,12 +226,11 @@ fn insert_result(
     let runner = &result.runner;
     conn.prepare_cached(
         "INSERT INTO runners \
-         (event_id, source_id, given_name, family_name, club, bib, si_card, sex) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+         (event_id, given_name, family_name, club, bib, si_card, sex) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
     )?
     .execute(params![
         event_id,
-        runner.id,
         runner.given_name,
         runner.family_name,
         runner.club,
@@ -277,7 +276,7 @@ fn load_course(conn: &Connection, course_id: i64) -> Result<Course, StoreError> 
 fn load_results(conn: &Connection, class_id: i64) -> Result<Vec<RaceResult>, StoreError> {
     let mut stmt = conn.prepare_cached(
         "SELECT r.id, r.status, r.status_code, r.place, \
-                ru.source_id, ru.given_name, ru.family_name, ru.club, ru.bib, ru.si_card, ru.sex \
+                ru.given_name, ru.family_name, ru.club, ru.bib, ru.si_card, ru.sex \
          FROM results r JOIN runners ru ON ru.id = r.runner_id \
          WHERE r.class_id = ?1 ORDER BY r.position",
     )?;
@@ -286,15 +285,14 @@ fn load_results(conn: &Connection, class_id: i64) -> Result<Vec<RaceResult>, Sto
     while let Some(row) = rows.next()? {
         let result_id: i64 = row.get(0)?;
         let status: String = row.get(1)?;
-        let sex: Option<String> = row.get(10)?;
+        let sex: Option<String> = row.get(9)?;
         results.push(RaceResult {
             runner: Runner {
-                id: row.get(4)?,
-                given_name: row.get(5)?,
-                family_name: row.get(6)?,
-                club: row.get(7)?,
-                bib: row.get(8)?,
-                si_card: row.get(9)?,
+                given_name: row.get(4)?,
+                family_name: row.get(5)?,
+                club: row.get(6)?,
+                bib: row.get(7)?,
+                si_card: row.get(8)?,
                 sex: sex.as_deref().map(sql_to_sex).transpose()?,
             },
             status: sql_to_status(&status, row.get(2)?)?,

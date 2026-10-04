@@ -19,7 +19,7 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
 | `Event` | Carrera: nombre opcional, fecha local (`NaiveDate`) y sus categorías. |
 | `Class` | Categoría: id del fichero de origen, nombre, nombre corto, recorrido y resultados. |
 | `Course` | Recorrido: códigos de las balizas en orden, **sin salida ni meta**; con `n` balizas hay `n + 1` tramos. |
-| `Runner` | Corredor en una carrera: valor `id` de la fuente (**no es clave única**, ver Decisiones), nombre, apellidos, club, dorsal, tarjeta SI y sexo. |
+| `Runner` | Corredor en una carrera: nombre, apellidos, club, dorsal, tarjeta SI y sexo. **Sin id** (ver Decisiones). |
 | `Sex` | `male` o `female`. |
 | `Punch` | Picada: código de baliza e instante UTC, `None` si no se registró. |
 | `RaceResult` | Resultado: corredor, estado, puesto (solo clasificados) y picadas en orden de salida a meta. |
@@ -35,12 +35,12 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
 - Solo `RaceStatus::Ok` cuenta para la referencia del tiempo perdido (`docs/tiempo-perdido.md`).
   La correspondencia con los códigos del .spl la fija su lector (`docs/formato-spl.md`).
 - Un registro del FIT sin posición no produce `TrackPoint` (`docs/formato-fit.md`).
-- **`Runner::id` no identifica al corredor.** Guarda el campo `0x80` del .spl, que es la
-  longitud del registro y se repite entre corredores, también en la misma categoría
-  (`docs/formato-spl.md`). El nombre es heredado; se conserva para no perder el dato, pero no
-  se usa como clave. Un resultado se identifica por su posición en la carrera: índice de la
-  categoría en `Event::classes` e índice en `Class::results` (es lo que usan `ClassRef` y el
-  almacenamiento). La identidad entre carreras es la persona (`docs/almacenamiento.md`).
+- **`Runner` no tiene id.** El .spl no trae ninguno: el campo `0x80`, que antes se guardaba
+  como `Runner::id`, es la longitud del registro y se repite entre corredores
+  (`docs/formato-spl.md`); se quitó en #64. Un resultado se identifica por su posición en la
+  carrera: índice de la categoría en `Event::classes` e índice en `Class::results` (es lo que
+  usan `ClassRef`, `ResultRef` y el almacenamiento). La identidad entre carreras es la persona
+  (`docs/almacenamiento.md`).
 
 ## Agrupación por recorrido
 
@@ -71,7 +71,7 @@ corren el mismo recorrido, que es la unidad sobre la que se calcula el tiempo pe
 
 `tramos_core::identify::identify_runner(&Event, &RunnerIdentity) -> Identification` propone qué
 resultado de la carrera es del usuario a partir de su tarjeta SI y su nombre. Señala los
-resultados con `ResultRef` (`class_index`, `result_index`), nunca con `Runner::id`. Reglas,
+resultados con `ResultRef` (`class_index`, `result_index`). Reglas,
 normalización de nombres y formato JSON en `docs/identificacion.md`.
 
 ## Tramos y posición de las balizas

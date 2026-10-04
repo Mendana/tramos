@@ -444,7 +444,6 @@ mod tests {
 
     fn runner() -> Runner {
         Runner {
-            id: 1, // repetido a propósito: no se usa como clave
             given_name: String::new(),
             family_name: String::new(),
             club: None,

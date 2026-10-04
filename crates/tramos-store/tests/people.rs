@@ -12,10 +12,9 @@ use tramos_store::{
     EventId, PersonId, PersonResult, ResultId, SCHEMA_VERSION, SavedEvent, Store, StoreError,
 };
 
-fn result(id: u32, given: &str, status: RaceStatus, place: Option<u16>) -> RaceResult {
+fn result(given: &str, status: RaceStatus, place: Option<u16>) -> RaceResult {
     RaceResult {
         runner: Runner {
-            id,
             given_name: given.into(),
             family_name: "Sintética".into(),
             club: None,
@@ -49,8 +48,8 @@ fn event(
                 short_name: None,
                 course: course.clone(),
                 results: vec![
-                    result(1, "Ana", ana, ana_place),
-                    result(2, "Berta", RaceStatus::Ok, Some(1)),
+                    result("Ana", ana, ana_place),
+                    result("Berta", RaceStatus::Ok, Some(1)),
                 ],
             },
             Class {
@@ -58,7 +57,7 @@ fn event(
                 name: "F21B".into(),
                 short_name: None,
                 course,
-                results: vec![result(3, "Carla", RaceStatus::Ok, Some(1))],
+                results: vec![result("Carla", RaceStatus::Ok, Some(1))],
             },
         ],
     }

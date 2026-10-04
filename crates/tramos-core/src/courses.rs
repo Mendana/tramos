@@ -85,14 +85,14 @@ mod tests {
     use chrono::NaiveDate;
     use serde_json::json;
 
-    fn result(runner_id: u32) -> RaceResult {
+    /// Resultado con dorsal `bib`, para reconocerlo en los tests.
+    fn result(bib: u32) -> RaceResult {
         RaceResult {
             runner: Runner {
-                id: runner_id,
-                given_name: format!("Corredor {runner_id}"),
+                given_name: format!("Corredor {bib}"),
                 family_name: String::new(),
                 club: None,
-                bib: None,
+                bib: Some(bib),
                 si_card: None,
                 sex: None,
             },
@@ -215,10 +215,16 @@ mod tests {
 
         let classes: Vec<u32> = groups[0].classes_in(&event).map(|c| c.id).collect();
         assert_eq!(classes, [1, 3]);
-        let runners: Vec<u32> = groups[0].results_in(&event).map(|r| r.runner.id).collect();
-        assert_eq!(runners, [1, 2, 4]);
-        let runners: Vec<u32> = groups[1].results_in(&event).map(|r| r.runner.id).collect();
-        assert_eq!(runners, [3]);
+        let bibs: Vec<u32> = groups[0]
+            .results_in(&event)
+            .filter_map(|r| r.runner.bib)
+            .collect();
+        assert_eq!(bibs, [1, 2, 4]);
+        let bibs: Vec<u32> = groups[1]
+            .results_in(&event)
+            .filter_map(|r| r.runner.bib)
+            .collect();
+        assert_eq!(bibs, [3]);
     }
 
     #[test]
@@ -226,11 +232,11 @@ mod tests {
         let full = event(vec![class(1, "A", &[31], &[1]), class(2, "B", &[31], &[2])]);
         let groups = group_by_course(&full);
         let partial = event(vec![class(1, "A", &[31], &[1])]);
-        let runners: Vec<u32> = groups[0]
+        let bibs: Vec<u32> = groups[0]
             .results_in(&partial)
-            .map(|r| r.runner.id)
+            .filter_map(|r| r.runner.bib)
             .collect();
-        assert_eq!(runners, [1]);
+        assert_eq!(bibs, [1]);
     }
 
     #[test]

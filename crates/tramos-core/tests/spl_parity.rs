@@ -92,10 +92,11 @@ fn baltanas_matches_reference_reader() {
 
         let exp_runners = exp["runners"].as_array().unwrap();
         assert_eq!(class.results.len(), exp_runners.len(), "{ctx}");
-        for (result, er) in class.results.iter().zip(exp_runners) {
+        for (i, (result, er)) in class.results.iter().zip(exp_runners).enumerate() {
             let r = &result.runner;
-            let ctx = format!("{ctx}, corredor {}", r.id);
-            assert_eq!(u64::from(r.id), er["id"].as_u64().unwrap(), "{ctx}");
+            let ctx = format!("{ctx}, corredor {i}");
+            // El `0x80` es la longitud del registro y no sale en ninguno de los dos lados.
+            assert!(er.get("id").is_none(), "{ctx}");
             assert_eq!(r.given_name, opt_str(er, "given").unwrap_or(""), "{ctx}");
             assert_eq!(r.family_name, opt_str(er, "family").unwrap_or(""), "{ctx}");
             assert_eq!(r.club.as_deref(), opt_str(er, "club"), "{ctx}");
@@ -157,42 +158,4 @@ fn baltanas_times_are_utc() {
     // (horario de verano, UTC+2) → 15:31:00Z.
     let start = event.classes[0].results[0].punches[0].time.unwrap();
     assert_eq!(start.to_rfc3339(), "2026-10-03T15:31:00+00:00");
-}
-
-/// `0x80` (`Runner::id`) no es un id único (#47): se repite, también dentro de una categoría,
-/// y el fichero se lee igual.
-#[test]
-fn baltanas_runner_ids_repeat() {
-    let (event, _) = load();
-
-    let ids: Vec<u32> = event
-        .classes
-        .iter()
-        .flat_map(|c| &c.results)
-        .map(|r| r.runner.id)
-        .collect();
-    assert_eq!(ids.len(), 275);
-    assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 70);
-
-    // Categorías con algún valor repetido dentro de ellas: todas salvo F-JUN y M-VET D.
-    let with_repeats: Vec<&str> = event
-        .classes
-        .iter()
-        .filter(|c| {
-            let distinct: HashSet<u32> = c.results.iter().map(|r| r.runner.id).collect();
-            distinct.len() < c.results.len()
-        })
-        .map(|c| c.name.as_str())
-        .collect();
-    assert_eq!(with_repeats.len(), 16, "{with_repeats:?}");
-
-    // En M-SEN, el 4.º y el 6.º comparten 203 y son corredores distintos.
-    let m_sen = event.classes.iter().find(|c| c.name == "M-SEN").unwrap();
-    let fourth = &m_sen.results[3];
-    let sixth = &m_sen.results[5];
-    assert_eq!((fourth.place, sixth.place), (Some(4), Some(6)));
-    assert_eq!((fourth.runner.id, sixth.runner.id), (203, 203));
-    assert_ne!(fourth.runner.bib, sixth.runner.bib);
-    assert_ne!(fourth.runner.club, sixth.runner.club);
-    assert_ne!(fourth.punches, sixth.punches);
 }

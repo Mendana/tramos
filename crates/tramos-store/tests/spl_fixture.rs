@@ -1,5 +1,5 @@
-//! Ida y vuelta por SQLite del fixture público de Baltanás, cuyo `Runner::id` (campo `0x80`
-//! del .spl) se repite entre corredores (#47).
+//! Ida y vuelta por SQLite del fixture público de Baltanás. Sus corredores no traen id (#47,
+//! #64): cada resultado se guarda por su posición, aunque coincidan nombre o club.
 
 // `allow-unwrap-in-tests` (clippy.toml) no cubre los helpers de un test de integración.
 #![allow(clippy::unwrap_used)]
@@ -20,18 +20,8 @@ fn baltanas() -> (Vec<u8>, Event) {
 }
 
 #[test]
-fn baltanas_with_repeated_runner_ids_round_trips() {
+fn baltanas_round_trips() {
     let (data, event) = baltanas();
-    let ids: Vec<u32> = event
-        .classes
-        .iter()
-        .flat_map(|c| &c.results)
-        .map(|r| r.runner.id)
-        .collect();
-    assert!(
-        ids.iter().collect::<HashSet<_>>().len() < ids.len(),
-        "el fixture debería tener ids repetidos"
-    );
 
     let mut store = Store::open_in_memory().unwrap();
     let source = store
@@ -39,7 +29,7 @@ fn baltanas_with_repeated_runner_ids_round_trips() {
         .unwrap();
     let saved = store.save_event(&event, Some(source)).unwrap();
 
-    // Un resultado por corredor, aunque compartan id: ninguno se pierde ni se mezcla.
+    // Un resultado por corredor: ninguno se pierde ni se mezcla.
     let result_ids: Vec<_> = saved.results.iter().flatten().collect();
     assert_eq!(result_ids.len(), 275);
     assert_eq!(result_ids.iter().collect::<HashSet<_>>().len(), 275);

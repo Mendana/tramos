@@ -73,7 +73,7 @@ Lo que las definiciones de arriba no fijaban, decidido al implementarlas (#12) e
   `excluded_from_patterns` (cualquiera de las dos).
 - **Referencia débil**: menos de 4 clasificados en el recorrido (todas sus categorías juntas).
 - Los corredores se identifican por su posición (índice de categoría en `Event::classes` e índice
-  en `Class::results`), no por `Runner::id`, que no es único.
+  en `Class::results`): el .spl no trae id de corredor.
 
 ## Tiempo ideal
 

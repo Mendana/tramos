@@ -119,9 +119,10 @@ fixture de Baltanás:
 
 Por eso se repite: dos corredores con nombres, club y número de picadas de la misma longitud
 tienen el mismo valor. El anonimizador no cambia la longitud de ningún campo, así que la
-propiedad vale igual en el fichero original. Solo se ha comprobado con Baltanás (el test
-`runner_record_tag_is_the_record_length` de `importers/spl.rs` la verifica byte a byte); en
-otros ficheros podría no cumplirse, así que el lector no la usa para avanzar ni la valida.
+propiedad vale igual en el fichero original. Se ha comprobado también con el fichero de Soria:
+cuadran todos menos el último, al que le faltan los mismos 10 bytes por el
+mismo truncado. Los lectores la **validan** (ver Importación); no la usan para avanzar, porque
+cada campo ya dice su propia longitud.
 
 Consecuencia: para el núcleo **no hay id de corredor en el .spl**. Un resultado se identifica
 por su posición en la carrera (categoría e índice dentro de ella), y la identidad del corredor
@@ -164,10 +165,14 @@ Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
 
   Un corredor sin `0x98` es un error, que señala al corredor por la posición de su `0x80` y por
   su categoría.
-- **`0x80`**: se guarda tal cual en `Runner::id` (nombre heredado de cuando se creía un id) y
-  en `runners.source_id` del almacenamiento. No es clave de nada: ni el lector ni el
-  almacenamiento suponen que sea único, y nadie debe usarlo para identificar o buscar
-  corredores (ver arriba).
+- **`0x80`**: es la longitud del resto del registro y no pasa al modelo (`Runner` no tiene id).
+  El lector comprueba que cada corredor ocupa exactamente lo que declara, desde el byte siguiente
+  a su `u32` hasta el siguiente `0x80` o `0x40`. Si no cuadra, falla con
+  `RunnerLengthMismatch`, que da la categoría, la posición del `0x80` y las dos longitudes. La
+  única excepción es el **último corredor del fichero**, que puede ocupar menos de lo que
+  declara si el fichero acaba antes (el truncado de origen de las Notas); más, nunca. No se
+  avisa: es lo normal en los ficheros de WinSplits. El lector de referencia hace la misma
+  comprobación y tampoco saca el valor en su JSON.
 - **Puesto** (`0x99`): 0 → `None`. **Dorsal** (`0x81`) y **tarjeta** (`0x84`): 0 → `None`.
 - **Sexo** (`0x9a`): 1 → `male`, 2 → `female`, otro valor o ausente → `None`.
 - **Nombre y apellidos**: si faltan, cadena vacía. **Club** (`0x8c`): ausente → `None`.
@@ -182,5 +187,6 @@ Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
   tras la cabecera no hay registros de categoría o el primero no es `0x40`; número de categorías
   distinto del de `0x1f`; etiqueta desconocida, en la cabecera o en el cuerpo (valor y byte);
   etiqueta de corredor fuera de un corredor y registro cortado a mitad de su valor (etiqueta y
-  byte). Solo se tolera, como el lector de referencia, que el fichero acabe en una etiqueta sin
+  byte); corredor que no ocupa lo que declara su `0x80` (categoría, byte y longitudes). Solo se
+  tolera, como el lector de referencia, que el fichero acabe en una etiqueta sin
   valor (en el cuerpo; en la cabecera es un error).

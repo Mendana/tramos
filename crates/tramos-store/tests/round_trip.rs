@@ -21,14 +21,13 @@ fn punch(code: u16, time: Option<DateTime<Utc>>) -> Punch {
     Punch { code, time }
 }
 
-fn runner(id: u32, given: &str, family: &str) -> Runner {
+fn runner(n: u32, given: &str, family: &str) -> Runner {
     Runner {
-        id,
         given_name: given.into(),
         family_name: family.into(),
         club: Some("Club Sintético".into()),
-        bib: Some(100 + id),
-        si_card: Some(2_000_000 + id),
+        bib: Some(100 + n),
+        si_card: Some(2_000_000 + n),
         sex: Some(Sex::Female),
     }
 }
@@ -87,7 +86,6 @@ fn sample_event() -> Event {
                     RaceResult {
                         // Estado aún sin interpretar; corredora sin datos opcionales.
                         runner: Runner {
-                            id: 3,
                             given_name: "Carla".into(),
                             family_name: "Gómez".into(),
                             club: None,

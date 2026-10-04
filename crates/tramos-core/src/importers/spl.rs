@@ -11,10 +11,11 @@
 //!   el cambio de hora (inexistente o ambigua), la lectura falla: no se adivina.
 //! - El recorrido se valida (salida → … → meta) y se guarda sin salida ni meta.
 //! - La fecha de nacimiento se lee para avanzar, pero no se guarda.
-//! - El `0x80` que abre cada corredor no es un id: es la longitud del resto de su registro y se
-//!   repite. Se conserva en `Runner::id`, pero el lector no lo usa para nada.
+//! - El `0x80` que abre cada corredor no es un id: es la longitud del resto de su registro. El
+//!   lector comprueba que cada registro ocupa lo que declara y no la guarda en el modelo.
 //! - Una etiqueta desconocida es un error, con su valor y su posición. Solo se tolera un último
-//!   registro truncado que se reduzca a su etiqueta, como hace el lector de referencia.
+//!   registro truncado que se reduzca a su etiqueta, como hace el lector de referencia; por eso
+//!   el último corredor puede ocupar menos de lo que declara su `0x80`, pero nunca más.
 
 use chrono::{
     DateTime, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, TimeZone, Utc,
@@ -37,6 +38,8 @@ const PREAMBLE_LEN: usize = 12;
 const HEADER_END: u8 = 0x2c;
 /// Etiqueta de inicio de un registro de categoría.
 const CLASS_TAG: u8 = 0x40;
+/// Etiqueta de inicio de un registro de corredor; su valor es la longitud del resto del registro.
+const RUNNER_TAG: u8 = 0x80;
 /// Hora de picada que indica que no se registró.
 const MISSING_TIME: u32 = 0xFF_FFFF;
 
@@ -90,6 +93,19 @@ pub enum SplError {
     #[error("al corredor del byte {offset} (categoría {class_id}) le falta el estado (0x98)")]
     MissingStatus { class_id: u32, offset: usize },
 
+    /// El registro de un corredor no ocupa los bytes que declara su `0x80`. Solo el último
+    /// corredor del fichero puede ocupar menos, si el fichero acaba antes (truncado de origen).
+    #[error(
+        "el corredor del byte {offset} (categoría {class_id}) declara {declared} bytes de \
+         registro (0x80) y ocupa {actual}"
+    )]
+    RunnerLengthMismatch {
+        class_id: u32,
+        offset: usize,
+        declared: usize,
+        actual: usize,
+    },
+
     #[error("recorrido inválido en la categoría {class_id}: {reason}")]
     InvalidCourse { class_id: u32, reason: String },
 
@@ -135,7 +151,7 @@ pub fn read(data: &[u8]) -> Result<Event, SplError> {
         cursor: Cursor::new(data, header.body_start),
         date: header.date,
         classes: Vec::new(),
-        in_runner: false,
+        open_runner: None,
     };
     parser.run()?;
 
@@ -456,9 +472,6 @@ fn course_from_legs(
 }
 
 struct RunnerDraft {
-    /// Valor de `0x80`: longitud en bytes del resto del registro, no un id único
-    /// (`docs/formato-spl.md`). Se conserva en `Runner::id`.
-    id: u32,
     /// Posición del registro (su etiqueta `0x80`), para los mensajes de error.
     offset: usize,
     given_name: Option<String>,
@@ -473,9 +486,8 @@ struct RunnerDraft {
 }
 
 impl RunnerDraft {
-    fn new(id: u32, offset: usize) -> Self {
+    fn new(offset: usize) -> Self {
         Self {
-            id,
             offset,
             given_name: None,
             family_name: None,
@@ -499,7 +511,6 @@ impl RunnerDraft {
             })?;
         Ok(RaceResult {
             runner: Runner {
-                id: self.id,
                 given_name: self.given_name.unwrap_or_default(),
                 family_name: self.family_name.unwrap_or_default(),
                 club: self.club,
@@ -514,17 +525,49 @@ impl RunnerDraft {
     }
 }
 
+/// Registro de corredor en curso, para comprobar su longitud cuando acabe.
+struct OpenRunner {
+    class_id: u32,
+    /// Posición de su etiqueta `0x80`.
+    offset: usize,
+    /// Primer byte del resto del registro, el siguiente al `u32` de `0x80`.
+    body_start: usize,
+    /// Longitud del resto del registro según `0x80`.
+    declared: usize,
+}
+
+impl OpenRunner {
+    /// Comprueba que el registro acaba en `end`. Con `at_eof`, el fichero acaba ahí y se admite
+    /// que el registro se quede corto (último corredor truncado de origen).
+    fn close(&self, end: usize, at_eof: bool) -> Result<(), SplError> {
+        let actual = end.saturating_sub(self.body_start);
+        if actual == self.declared || (at_eof && actual < self.declared) {
+            return Ok(());
+        }
+        Err(SplError::RunnerLengthMismatch {
+            class_id: self.class_id,
+            offset: self.offset,
+            declared: self.declared,
+            actual,
+        })
+    }
+}
+
 struct Parser<'a> {
     cursor: Cursor<'a>,
     date: NaiveDate,
     classes: Vec<ClassDraft>,
-    in_runner: bool,
+    /// Corredor cuyos campos se están leyendo; `None` fuera de un registro de corredor.
+    open_runner: Option<OpenRunner>,
 }
 
 impl Parser<'_> {
     fn run(&mut self) -> Result<(), SplError> {
         while let Some((tag, offset)) = self.cursor.next_tag() {
             self.record(tag, offset)?;
+        }
+        if let Some(runner) = self.open_runner.take() {
+            runner.close(self.cursor.data.len(), true)?;
         }
         Ok(())
     }
@@ -538,7 +581,7 @@ impl Parser<'_> {
     }
 
     fn runner(&mut self, tag: u8, offset: usize) -> Result<&mut RunnerDraft, SplError> {
-        let in_runner = self.in_runner;
+        let in_runner = self.open_runner.is_some();
         self.classes
             .last_mut()
             .and_then(|class| class.runners.last_mut())
@@ -547,10 +590,16 @@ impl Parser<'_> {
     }
 
     fn record(&mut self, tag: u8, offset: usize) -> Result<(), SplError> {
+        // Un corredor acaba donde empieza el siguiente registro de corredor o de categoría.
+        if (tag == CLASS_TAG || tag == RUNNER_TAG)
+            && let Some(runner) = self.open_runner.take()
+        {
+            runner.close(offset, false)?;
+        }
         let c = &mut self.cursor;
         match tag {
             // --- Categoría ---
-            0x40 => {
+            CLASS_TAG => {
                 let id = c.u32()?;
                 self.classes.push(ClassDraft {
                     id,
@@ -559,7 +608,6 @@ impl Parser<'_> {
                     legs: None,
                     runners: Vec::new(),
                 });
-                self.in_runner = false;
             }
             0x43 => {
                 let name = c.text()?;
@@ -600,13 +648,18 @@ impl Parser<'_> {
             }
 
             // --- Corredor ---
-            // Longitud del resto del registro, no un id único (`docs/formato-spl.md`).
-            0x80 => {
-                let id = c.u32()?;
-                self.class(tag, offset)?
-                    .runners
-                    .push(RunnerDraft::new(id, offset));
-                self.in_runner = true;
+            // Longitud del resto del registro, no un id (`docs/formato-spl.md`).
+            RUNNER_TAG => {
+                let declared = usize::try_from(c.u32()?).map_err(|_| c.truncated())?;
+                let body_start = c.pos;
+                let class = self.class(tag, offset)?;
+                class.runners.push(RunnerDraft::new(offset));
+                self.open_runner = Some(OpenRunner {
+                    class_id: class.id,
+                    offset,
+                    body_start,
+                    declared,
+                });
             }
             0x81 => {
                 let bib = non_zero_u32(c.u32()?);
@@ -800,21 +853,30 @@ mod tests {
                 .u8(0x48, 0)
                 .u32(0x4d, 0)
         }
-        fn runner(self, id: u32, status: u8, punches: &[(u16, u32)]) -> Self {
-            self.u32(0x80, id)
-                .u32(0x81, 100 + id)
-                .u32(0x84, 2_000_000 + id)
-                .text(0x87, "Ana")
-                .text(0x88, "Pérez")
-                .u32(0x89, 1)
-                .text(0x8c, "Club A")
-                .text(0x8d, "ESP")
-                .text(0x8e, "ESP")
-                .punches(punches)
-                .u8(0x98, status)
-                .u16(0x99, if status == 0 { 1 } else { 0 })
-                .u8(0x9a, 2)
-                .f64(0x9b, 30_000.0)
+        /// Registro de corredor: `0x80` con la longitud de los campos que escribe `fields`.
+        fn runner_record(mut self, fields: impl FnOnce(Self) -> Self) -> Self {
+            let body = fields(Self(Vec::new())).0;
+            self = self.u32(RUNNER_TAG, body.len() as u32);
+            self.0.extend(body);
+            self
+        }
+        /// Corredor completo; `n` numera su dorsal y su tarjeta.
+        fn runner(self, n: u32, status: u8, punches: &[(u16, u32)]) -> Self {
+            self.runner_record(|r| {
+                r.u32(0x81, 100 + n)
+                    .u32(0x84, 2_000_000 + n)
+                    .text(0x87, "Ana")
+                    .text(0x88, "Pérez")
+                    .u32(0x89, 1)
+                    .text(0x8c, "Club A")
+                    .text(0x8d, "ESP")
+                    .text(0x8e, "ESP")
+                    .punches(punches)
+                    .u8(0x98, status)
+                    .u16(0x99, if status == 0 { 1 } else { 0 })
+                    .u8(0x9a, 2)
+                    .f64(0x9b, 30_000.0)
+            })
         }
     }
 
@@ -954,7 +1016,6 @@ mod tests {
         assert_eq!(
             result.runner,
             Runner {
-                id: 1,
                 given_name: "Ana".into(),
                 family_name: "Pérez".into(),
                 club: Some("Club A".into()),
@@ -1001,12 +1062,13 @@ mod tests {
 
         let data = SplBuilder::new(date(2026, 10, 3))
             .class(7, "F21A")
-            .u32(0x80, 1)
-            .u32(0x81, 0)
-            .u32(0x84, 0)
-            .u8(0x98, 10)
-            .u16(0x99, 0)
-            .u8(0x9a, 0)
+            .runner_record(|r| {
+                r.u32(0x81, 0)
+                    .u32(0x84, 0)
+                    .u8(0x98, 10)
+                    .u16(0x99, 0)
+                    .u8(0x9a, 0)
+            })
             .0;
         let result = &read(&data).unwrap().classes[0].results[0];
         assert_eq!(result.status, RaceStatus::DidNotStart);
@@ -1020,15 +1082,86 @@ mod tests {
 
     #[test]
     fn tolerates_a_last_record_reduced_to_its_tag() {
-        // Como en el fixture de Baltanás: el fichero acaba en la etiqueta de sexo, sin valor.
+        // Como en el fixture de Baltanás: el fichero acaba en la etiqueta de sexo, sin valor, y
+        // sin la fecha de nacimiento; el 0x80 cuenta los 10 bytes que faltan.
         let mut data = SplBuilder::new(date(2026, 10, 3))
             .class(7, "F21A")
-            .u32(0x80, 1)
-            .u8(0x98, 0)
+            .runner_record(|r| r.u8(0x98, 0).u8(0x9a, 2).f64(0x9b, 30_000.0))
             .0;
-        data.push(0x9a);
+        data.truncate(data.len() - 10);
+        assert_eq!(data.last(), Some(&0x9a));
         let result = &read(&data).unwrap().classes[0].results[0];
         assert_eq!(result.runner.sex, None);
+    }
+
+    /// Cambia el `0x80` del corredor que empieza en `offset`.
+    fn set_record_len(data: &mut [u8], offset: usize, len: u32) {
+        assert_eq!(data[offset], RUNNER_TAG);
+        data[offset + 1..offset + 5].copy_from_slice(&len.to_le_bytes());
+    }
+
+    #[test]
+    fn runner_record_must_take_what_its_tag_declares() {
+        let first = SplBuilder::new(date(2026, 10, 3)).class(7, "F21A");
+        let offset = first.0.len();
+        let data = first
+            .runner(1, 0, &[])
+            .runner(2, 0, &[])
+            .class(8, "M21A")
+            .runner(3, 0, &[])
+            .0;
+        let len = u32::from_le_bytes(data[offset + 1..offset + 5].try_into().unwrap());
+        assert!(read(&data).is_ok());
+
+        // Corto o largo frente al siguiente corredor.
+        for declared in [len - 1, len + 1] {
+            let mut bad = data.clone();
+            set_record_len(&mut bad, offset, declared);
+            assert_eq!(
+                read(&bad),
+                Err(SplError::RunnerLengthMismatch {
+                    class_id: 7,
+                    offset,
+                    declared: declared as usize,
+                    actual: len as usize,
+                })
+            );
+        }
+
+        // El último corredor de una categoría acaba en la siguiente categoría.
+        let second = offset + 5 + len as usize;
+        let mut bad = data.clone();
+        set_record_len(&mut bad, second, len + 1);
+        assert!(matches!(
+            read(&bad),
+            Err(SplError::RunnerLengthMismatch { class_id: 7, offset, .. }) if offset == second
+        ));
+    }
+
+    #[test]
+    fn last_runner_may_fall_short_but_not_overrun() {
+        let class = SplBuilder::new(date(2026, 10, 3)).class(7, "F21A");
+        let offset = class.0.len();
+        let data = class.runner(1, 0, &[]).0;
+        let len = u32::from_le_bytes(data[offset + 1..offset + 5].try_into().unwrap());
+
+        // Declara más de lo que queda: el fichero acaba antes (truncado de origen).
+        let mut short = data.clone();
+        set_record_len(&mut short, offset, len + 10);
+        assert!(read(&short).is_ok());
+
+        // Declara menos de lo que ocupa: error aunque sea el último.
+        let mut overrun = data.clone();
+        set_record_len(&mut overrun, offset, len - 1);
+        assert_eq!(
+            read(&overrun),
+            Err(SplError::RunnerLengthMismatch {
+                class_id: 7,
+                offset,
+                declared: len as usize - 1,
+                actual: len as usize,
+            })
+        );
     }
 
     // --- Ficheros corruptos: siempre `Err`, nunca pánico ---
@@ -1243,49 +1376,11 @@ mod tests {
         ));
     }
 
-    /// `0x80` no es un id: en el fixture de Baltanás es la longitud en bytes del resto del
-    /// registro del corredor (`docs/formato-spl.md`). Se recorre el fichero con el propio lector
-    /// y se mide cada registro hasta el siguiente `0x40` u `0x80`.
-    #[test]
-    fn runner_record_tag_is_the_record_length() {
-        let data: &[u8] = include_bytes!("../../../../fixtures/spl/baltanas-anon.spl");
-        let header = read_header(data).unwrap();
-        let mut parser = Parser {
-            cursor: Cursor::new(data, header.body_start),
-            date: header.date,
-            classes: Vec::new(),
-            in_runner: false,
-        };
-        let mut record_starts = Vec::new();
-        while let Some((tag, offset)) = parser.cursor.next_tag() {
-            parser.record(tag, offset).unwrap();
-            if tag == CLASS_TAG || tag == 0x80 {
-                record_starts.push(offset);
-            }
-        }
-        record_starts.push(data.len());
-
-        let runners: Vec<&RunnerDraft> = parser.classes.iter().flat_map(|c| &c.runners).collect();
-        assert_eq!(runners.len(), 275);
-        let (last, rest) = runners.split_last().unwrap();
-        let record_len = |runner: &RunnerDraft| {
-            let end = record_starts.iter().find(|&&s| s > runner.offset).unwrap();
-            // Etiqueta (1 byte) + u32 (4 bytes).
-            u32::try_from(end - (runner.offset + 5)).unwrap()
-        };
-        for runner in rest {
-            assert_eq!(runner.id, record_len(runner), "byte {}", runner.offset);
-        }
-        // El último registro viene truncado de origen: le faltan el valor de 0x9a (1 byte) y el
-        // registro 0x9b entero (9 bytes), que su 0x80 sí cuenta.
-        assert_eq!(last.id, record_len(last) + 10);
-    }
-
     #[test]
     fn missing_status_is_an_error() {
         let class = SplBuilder::new(date(2026, 10, 3)).class(7, "F21A");
         let offset = class.0.len();
-        let data = class.u32(0x80, 1).text(0x87, "Ana").0;
+        let data = class.runner_record(|r| r.text(0x87, "Ana")).0;
         assert_eq!(
             read(&data),
             Err(SplError::MissingStatus {

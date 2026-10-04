@@ -214,8 +214,6 @@ mod tests {
     fn result(given: &str, family: &str, si_card: Option<u32>) -> RaceResult {
         RaceResult {
             runner: Runner {
-                // Mismo valor para todos, como pasa con el `0x80` del .spl: no se usa.
-                id: 150,
                 given_name: given.into(),
                 family_name: family.into(),
                 club: None,

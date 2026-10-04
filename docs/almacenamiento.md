@@ -56,7 +56,7 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 | `courses` | Recorridos: uno por secuencia de balizas distinta dentro de la carrera. Las categorías con el mismo recorrido comparten fila, porque el tiempo perdido se calcula por recorrido. | `event_id`. |
 | `course_controls` | Balizas de cada recorrido, sin salida ni meta. | `course_id`, `position`, `code`. |
 | `classes` | Categorías. | `event_id`, `position`, `source_id` (id del fichero), `name`, `short_name`, `course_id`. |
-| `runners` | Corredores tal y como aparecen en una carrera (uno por resultado). **No hay columna de fecha de nacimiento.** | `event_id`, `source_id` (`Runner::id`, **no único**), nombre, apellidos, `club`, `bib`, `si_card`, `sex`. |
+| `runners` | Corredores tal y como aparecen en una carrera (uno por resultado). **No hay columna de fecha de nacimiento.** | `event_id`, nombre, apellidos, `club`, `bib`, `si_card`, `sex`. |
 | `results` | Resultado de un corredor en una categoría. | `class_id`, `position`, `runner_id`, `status`, `status_code` (solo para `unknown`), `place`, `person_id` (opcional). |
 | `people` | Personas: identidad de un corredor entre carreras. Solo lo que escribe el usuario; **sin fecha de nacimiento**. | `display_name`, `notes` (opcional), `created_at_epoch_ms`. |
 | `punches` | Picadas en orden, de la salida a la meta. | `result_id`, `position`, `code`, `time_epoch_ms` (`NULL` si no hay hora). |
@@ -70,10 +70,10 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 
 Notas:
 
-- `runners.source_id` guarda `Runner::id`, que en un .spl es el campo `0x80`: la longitud del
-  registro, que se repite entre corredores de la misma carrera (`docs/formato-spl.md`). No tiene
-  índice `UNIQUE` ni se usa para buscar: los resultados se identifican por `results.id` o por
-  `(class_id, position)`. Se guarda solo para que la ida y vuelta del modelo sea exacta.
+- `runners` no tiene id de origen: el .spl no trae ninguno (`docs/formato-spl.md`). Hasta la
+  versión 3 había una columna `source_id` con el campo `0x80`, que es la longitud del registro;
+  la migración 4 la quita. Los resultados se identifican por `results.id` o por
+  `(class_id, position)`.
 - `legs`: los resultados del análisis son todos opcionales (`NULL`), porque un tramo sin picada en
   un extremo no tiene split ni pérdida. `algorithm_version` es obligatoria: cuando cambia, los
   tramos de la carrera se recalculan enteros. La referencia está repetida en cada corredor del
@@ -101,6 +101,7 @@ Notas:
 | 1 | `0001_initial.sql` | Esquema inicial. |
 | 2 | `0002_people.sql` | Tabla `people` y columna `results.person_id` (nula en los resultados que ya había). |
 | 3 | `0003_track_sport.sql` | Columna `tracks.sport` (nula en los tracks que ya había). |
+| 4 | `0004_drop_runner_source_id.sql` | Quita `runners.source_id` (el `0x80` del .spl, que no es un id). El resto de cada corredor se conserva. |
 
 ## Personas
 

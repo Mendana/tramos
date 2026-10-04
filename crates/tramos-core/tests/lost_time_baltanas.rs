@@ -5,6 +5,10 @@
 //! flotantes a 6 decimales, así que se comparan con una tolerancia absoluta de [`TOLERANCE`].
 //! Todo lo demás (claves, enteros, booleanos, textos y `null`) tiene que coincidir exactamente.
 //!
+//! El JSON va en forma compacta (`compact` del oráculo): los tramos de cada corredor son filas
+//! con las columnas de `runner_leg_columns`, y `legs: []` en los corredores sin ningún split.
+//! [`expand`] lo devuelve a la forma que serializa el núcleo antes de comparar.
+//!
 //! El JSON usa el tiempo ideal por defecto (suma de referencias). La otra definición (suma de
 //! los mejores splits) se comprueba contra los splits del oráculo, sin otro JSON esperado.
 
@@ -34,7 +38,58 @@ fn load() -> (Event, Value) {
     let mut expected: Value = serde_json::from_str(&text).unwrap();
     // El resumen legible es para revisión humana; no forma parte de la salida del núcleo.
     expected.as_object_mut().unwrap().remove("resumen").unwrap();
+    expand(&mut expected);
     (spl::read(&data).unwrap(), expected)
+}
+
+/// Pasa el JSON compacto del oráculo a la forma del informe del núcleo.
+fn expand(report: &mut Value) {
+    let columns = report
+        .as_object_mut()
+        .unwrap()
+        .remove("runner_leg_columns")
+        .unwrap();
+    let columns: Vec<&str> = columns
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c.as_str().unwrap())
+        .collect();
+    for course in report["courses"].as_array_mut().unwrap() {
+        let leg_count = course["legs"].as_array().unwrap().len();
+        for runner in course["runners"].as_array_mut().unwrap() {
+            let rows = runner["legs"].as_array().unwrap();
+            let legs: Vec<Value> = if rows.is_empty() {
+                // Sin ningún split: solo el número de tramo, sin error y el resto a `null`.
+                (1..=leg_count)
+                    .map(|index| {
+                        let mut leg: serde_json::Map<String, Value> = columns
+                            .iter()
+                            .map(|c| (c.to_string(), Value::Null))
+                            .collect();
+                        leg.insert("index".into(), index.into());
+                        leg.insert("is_error".into(), false.into());
+                        Value::Object(leg)
+                    })
+                    .collect()
+            } else {
+                rows.iter()
+                    .map(|row| {
+                        let row = row.as_array().unwrap();
+                        assert_eq!(row.len(), columns.len());
+                        Value::Object(
+                            columns
+                                .iter()
+                                .map(|c| c.to_string())
+                                .zip(row.iter().cloned())
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            };
+            runner["legs"] = Value::Array(legs);
+        }
+    }
 }
 
 /// Compara dos JSON y acumula las diferencias con su ruta.

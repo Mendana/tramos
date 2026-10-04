@@ -17,6 +17,7 @@ tramos-core = { path = "crates/tramos-core" }
 tramos-store = { path = "crates/tramos-store" }
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+chrono-tz = "0.10"
 clap = { version = "4", features = ["derive"] }
 # `bundled` compila SQLite dentro del crate: no hace falta SQLite del sistema (Windows).
 rusqlite = { version = "0.40", features = ["bundled"] }

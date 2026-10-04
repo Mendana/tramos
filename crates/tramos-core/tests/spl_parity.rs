@@ -48,7 +48,13 @@ fn opt_str<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
 fn baltanas_matches_reference_reader() {
     let (event, expected) = load();
 
-    assert_eq!(event.name, None);
+    // Cabecera recorrida por etiquetas: nombre (0x14) y fecha (0x19).
+    assert_eq!(
+        event.name.as_deref(),
+        Some("Cto. SPRINT Liga Norte/Liga FOCYL Baltanas")
+    );
+    assert_eq!(event.name.as_deref(), opt_str(&expected["event"], "name"));
+    assert_eq!(event.date, NaiveDate::from_ymd_opt(2026, 10, 3).unwrap());
     assert_eq!(
         event.date.to_string(),
         expected["event"]["date"].as_str().unwrap()

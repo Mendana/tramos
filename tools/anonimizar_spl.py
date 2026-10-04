@@ -11,10 +11,12 @@ de ningún campo (el fichero conserva tamaño y desplazamientos):
 
 No cambian tiempos, códigos, categorías, estados, puestos, sexo ni país. La cabecera (nombre de
 la prueba, software) es información pública del evento y se conserva, salvo los nombres de
-clubes de corredores que aparezcan en ella (el organizador), que pasan a su etiqueta.
+clubes de corredores que aparezcan en ella (el organizador, 0x18), que pasan a su etiqueta.
 
-Al terminar comprueba con el lector de referencia que la estructura y los tiempos son idénticos
-y que ningún nombre, apellido o club original queda en el fichero.
+Al terminar comprueba con el lector de referencia que la estructura y los tiempos son idénticos,
+que la cabecera solo cambia en el organizador y que ningún nombre, apellido o club original
+queda en el fichero. Si un club aparece en otro texto de la cabecera (p. ej. el nombre de la
+prueba), la comprobación falla y hay que revisarlo a mano.
 
 Uso:
   python tools/anonimizar_spl.py fixtures/private/carrera.spl fixtures/spl/carrera-anon.spl
@@ -70,8 +72,11 @@ def club_label(index, length):
 
 
 def records(data):
-    """Recorre los registros como el lector de referencia y devuelve (etiqueta, offset del valor)."""
-    p = next(i for i in range(0x40, len(data) - 6) if data[i] == 0x40 and data[i + 5] == 0x43)
+    """Recorre los registros (tras la cabecera) como el lector de referencia.
+
+    Devuelve (etiqueta, offset del valor).
+    """
+    p = ref.parse_header(data)[1]
     out = []
     while p < len(data):
         tag = data[p]
@@ -128,9 +133,9 @@ def anonymize(data):
                 struct.pack_into("<I", out, off, seq)
         elif tag == 0x9B:
             struct.pack_into("<d", out, off, 0.0)
-    # La cabecera no está mapeada por etiquetas: cualquier aparición del nombre de un club de
-    # corredor (p. ej. el organizador, "Club ORCA" frente a "ORCA") se sustituye por su etiqueta.
-    header_end = records(data)[0][1] - 1
+    # En la cabecera, cualquier aparición del nombre de un club de corredor (el organizador,
+    # p. ej. "Club ORCA" frente a "ORCA") se sustituye por su etiqueta.
+    header_end = ref.parse_header(data)[1]
     for name, idx in clubs.items():
         raw = name.encode("latin-1")
         at = data.find(raw, 0, header_end)
@@ -141,13 +146,17 @@ def anonymize(data):
 
 
 PERSONAL = ("given", "family", "club", "club_id", "bib", "si_card")
+# Campos de la cabecera que el anonimizador reescribe a propósito.
+EVENT_REWRITTEN = ("organizer",)
 
 
 def check(original, anon):
     """Lanza AssertionError si el anonimizado no conserva los datos o filtra alguno personal."""
     assert len(original) == len(anon), "cambió el tamaño del fichero"
     a, b = ref.parse(original, keep_birthdate=True), ref.parse(anon, keep_birthdate=True)
-    assert a["event"] == b["event"]
+    assert {k: v for k, v in a["event"].items() if k not in EVENT_REWRITTEN} == \
+           {k: v for k, v in b["event"].items() if k not in EVENT_REWRITTEN}, \
+        "la cabecera cambia fuera del organizador (0x18)"
     assert len(a["classes"]) == len(b["classes"])
     leaked = set()
     for ca, cb in zip(a["classes"], b["classes"]):

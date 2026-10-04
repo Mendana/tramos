@@ -284,6 +284,43 @@ fn deleting_a_person_unlinks_but_keeps_results() {
 }
 
 #[test]
+fn updating_a_person_replaces_name_and_notes_only() {
+    let mut store = Store::open_in_memory().unwrap();
+    let (_, october) = two_events(&mut store);
+    let ana = store.create_person("Ana", Some("zurda")).unwrap();
+    let berta = store.create_person("Berta", None).unwrap();
+    store.link_result(october.results[0][0], ana).unwrap();
+    let before = store.people().unwrap();
+
+    store
+        .update_person(ana, "Ana Sintética", Some("lee mal las curvas"))
+        .unwrap();
+    let after = store.people().unwrap();
+    assert_eq!(after[0].id, ana);
+    assert_eq!(after[0].display_name, "Ana Sintética");
+    assert_eq!(after[0].notes.as_deref(), Some("lee mal las curvas"));
+    assert_eq!(after[0].created_at, before[0].created_at);
+    assert_eq!(after[1], before[1]); // Berta no cambia
+    assert_eq!(
+        store.result_person(october.results[0][0]).unwrap(),
+        Some(ana)
+    );
+
+    // `None` borra las notas.
+    store.update_person(ana, "Ana Sintética", None).unwrap();
+    assert_eq!(store.people().unwrap()[0].notes, None);
+
+    // Nombre vacío: error y nada cambia.
+    for name in ["", "  \t"] {
+        assert!(matches!(
+            store.update_person(berta, name, Some("x")),
+            Err(StoreError::EmptyPersonName)
+        ));
+    }
+    assert_eq!(store.people().unwrap()[1], before[1]);
+}
+
+#[test]
 fn missing_people_and_results_are_errors() {
     let mut store = Store::open_in_memory().unwrap();
     let (_, october) = two_events(&mut store);
@@ -307,6 +344,10 @@ fn missing_people_and_results_are_errors() {
     ));
     assert!(matches!(
         store.person_results(PersonId(9_999)),
+        Err(StoreError::PersonNotFound(9_999))
+    ));
+    assert!(matches!(
+        store.update_person(PersonId(9_999), "Nadie", None),
         Err(StoreError::PersonNotFound(9_999))
     ));
     assert_eq!(store.result_person(october.results[0][0]).unwrap(), None);

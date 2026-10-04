@@ -20,6 +20,7 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `setting(clave)` / `set_setting(clave, valor)` | Ajustes clave-valor. |
 | `create_person(nombre, notas) -> PersonId` | Crea una persona (ver [Personas](#personas)). El nombre no puede estar vacío (`EmptyPersonName`). |
 | `people() -> Vec<Person>` | Todas las personas, en orden de creación: id, nombre visible, notas e instante de creación. |
+| `update_person(PersonId, nombre, notas)` | Sustituye el nombre visible y las notas (`None` las borra). Mismas reglas del nombre que al crear; persona inexistente: `PersonNotFound`. No cambia el instante de creación ni los vínculos. |
 | `delete_person(PersonId)` | Borra una persona y desvincula sus resultados; no borra ninguno. |
 | `link_result(ResultId, PersonId)` / `unlink_result(ResultId)` | Vincula un resultado con una persona o lo desvincula. Un resultado ya vinculado a otra persona da `ResultAlreadyLinked`. |
 | `result_person(ResultId) -> Option<PersonId>` | Persona a la que está vinculado un resultado, si lo está. |

@@ -79,6 +79,28 @@ impl Store {
         Ok(people)
     }
 
+    /// Cambia el nombre visible y las notas de una persona. Sustituye los dos: `notes = None`
+    /// borra las notas. El nombre se valida como en [`Store::create_person`]; el instante de
+    /// creación y los vínculos no cambian.
+    pub fn update_person(
+        &mut self,
+        person: PersonId,
+        display_name: &str,
+        notes: Option<&str>,
+    ) -> Result<(), StoreError> {
+        if display_name.trim().is_empty() {
+            return Err(StoreError::EmptyPersonName);
+        }
+        let updated = self.conn.execute(
+            "UPDATE people SET display_name = ?1, notes = ?2 WHERE id = ?3",
+            params![display_name, notes, person.0],
+        )?;
+        if updated == 0 {
+            return Err(StoreError::PersonNotFound(person.0));
+        }
+        Ok(())
+    }
+
     /// Borra una persona. Sus resultados quedan sin vincular; no se borra ninguno.
     pub fn delete_person(&mut self, person: PersonId) -> Result<(), StoreError> {
         let deleted = self

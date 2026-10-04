@@ -6,6 +6,7 @@ pub mod courses;
 pub mod identify;
 pub mod importers;
 pub mod lost_time;
+pub mod metrics;
 pub mod model;
 pub mod segmentation;
 

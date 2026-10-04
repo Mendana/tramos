@@ -81,3 +81,10 @@ track en un sub-track por tramo (límites interpolados en cada picada y comparti
 tramos contiguos) y sitúa cada baliza en la posición del corredor en el instante de su picada.
 `median_control_positions` combina las balizas de varios corredores del mismo recorrido con la
 mediana. Algoritmo, casos borde y formato JSON en `docs/segmentacion.md`.
+
+## Métricas de tramo
+
+`tramos_core::metrics::leg_metrics(&Track, &Segmentation, &MetricsOptions)` mide cada sub-track:
+distancia recorrida y en línea recta, tiempo en movimiento, parado y en huecos, velocidad en
+movimiento, subida y bajada con la altitud suavizada, pulso y cadencia medios. Definiciones y
+JSON en `docs/metricas.md`.

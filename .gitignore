@@ -1,0 +1,21 @@
+# Datos reales: nunca al repositorio
+fixtures/private/
+*.fit
+*.FIT
+!fixtures/**/*.fit
+
+# Rust
+target/
+
+# Node / app
+node_modules/
+app/dist/
+app/src-tauri/target/
+
+# Varios
+.DS_Store
+*.log
+.env
+
+# Python
+__pycache__/

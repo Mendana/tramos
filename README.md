@@ -1,0 +1,30 @@
+# Tramos
+
+Análisis de carreras de orientación a pie, tramo a tramo y carrera tras carrera.
+Cruza el FIT de tu reloj con los splits de WinSplits, calcula dónde y por qué pierdes tiempo y
+busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de código abierto (MIT).
+
+> Estado: en construcción. El trabajo se organiza en issues por milestone.
+
+## Documentación
+
+- [Visión y decisiones](docs/vision.md)
+- [Preguntas del MVP y cómo se calculan](docs/preguntas.md)
+- [Tiempo perdido](docs/tiempo-perdido.md)
+- [Formato .spl de WinSplits](docs/formato-spl.md)
+- [Taxonomía de errores](docs/taxonomia.md)
+- [Datos y privacidad](docs/datos-y-privacidad.md)
+- [Cómo trabajamos con agentes](docs/trabajo-con-agentes.md)
+
+## Desarrollo
+
+Requisitos: Rust estable, Node LTS y los [requisitos de Tauri 2](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+cargo test --workspace
+python3 tools/reference/winsplits_spl.py carrera.spl --csv   # lector de referencia
+```
+
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).

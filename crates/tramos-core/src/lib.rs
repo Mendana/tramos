@@ -5,6 +5,7 @@ pub mod alignment;
 pub mod courses;
 pub mod identify;
 pub mod importers;
+pub mod lost_time;
 pub mod model;
 
 /// Versión del núcleo, tomada de `Cargo.toml`.

@@ -15,6 +15,7 @@ Datos de prueba **públicos**: solo anonimizados o sintéticos.
 | `spl/baltanas-anon.expected.json` | Salida de `tools/reference/winsplits_spl.py` sobre el fichero anterior. |
 | `fit/baltanas-sintetico.fit` | FIT **sintético** (posiciones inventadas) del corredor de M-SEN con tarjeta 143 (puesto 16) del fixture anterior. |
 | `fit/baltanas-sintetico.truth.json` | Respuesta conocida del FIT anterior: balizas, tramos, rodeo y parada. |
+| `spl/baltanas-anon.tiempo-perdido.expected.json` | Tiempo perdido de `spl/baltanas-anon.spl` según `tools/reference/tiempo_perdido.py` (umbrales por defecto), con un `resumen` legible de M-SEN. Ver `docs/tiempo-perdido.md`. |
 
 Para regenerarlos desde el original (que solo existe en `fixtures/private/`):
 

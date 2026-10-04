@@ -274,24 +274,59 @@ def summary(parsed, report, class_name):
     return lines
 
 
+def compact(report):
+    """Forma compacta del informe para el JSON esperado (no cambia ningún número).
+
+    Los tramos de cada corredor pasan de objetos a filas, con los nombres de columna una sola vez
+    en `runner_leg_columns`. Los corredores sin ningún split (no presentados y similares) llevan
+    `legs: []`: todos sus tramos tienen solo `index` e `is_error: false`, el resto a `null`.
+    """
+    columns = None
+    courses = []
+    for course in report["courses"]:
+        runners = []
+        for r in course["runners"]:
+            if columns is None and r["legs"]:
+                columns = list(r["legs"][0].keys())
+            if all(leg["split_s"] is None for leg in r["legs"]):
+                assert all(not leg["is_error"] and all(
+                    v is None for k, v in leg.items() if k not in ("index", "is_error"))
+                    for leg in r["legs"])
+                rows = []
+            else:
+                rows = [[leg[k] for k in columns] for leg in r["legs"]]
+            runners.append({**r, "legs": rows})
+        courses.append({**course, "runners": runners})
+    out = {"config": report["config"], "runner_leg_columns": columns, "courses": courses}
+    out.update((k, v) for k, v in report.items() if k not in out)
+    return out
+
+
 def dumps(obj, indent=0):
-    """JSON con los objetos y listas planos (sin anidamiento) en una sola línea.
+    """JSON con los objetos y listas planos (sin objetos dentro) en una sola línea.
 
     Los flotantes se redondean a `DECIMALS` decimales: el test de Rust compara con tolerancia.
     """
     def flat(o):
         if isinstance(o, list) and len(o) > 1 and all(isinstance(v, str) for v in o):
             return False  # líneas de texto (el resumen): una por línea
-        return not any(isinstance(v, (dict, list)) for v in (o.values() if isinstance(o, dict) else o))
+        values = o.values() if isinstance(o, dict) else o
+        # Una lista plana dentro no impide ir en una línea: así las filas de tramos de un
+        # corredor quedan en la línea del corredor.
+        return all(not isinstance(v, (dict, list)) or (isinstance(v, list) and flat(v))
+                   for v in values)
 
-    if isinstance(obj, float):
-        obj = round(obj, DECIMALS)
-    if isinstance(obj, (dict, list)) and flat(obj):
-        obj = ({k: round(v, DECIMALS) if isinstance(v, float) else v for k, v in obj.items()}
-               if isinstance(obj, dict)
-               else [round(v, DECIMALS) if isinstance(v, float) else v for v in obj])
+    def rounded(o):
+        if isinstance(o, float):
+            return round(o, DECIMALS)
+        if isinstance(o, dict):
+            return {k: rounded(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [rounded(v) for v in o]
+        return o
+
     if not isinstance(obj, (dict, list)) or flat(obj):
-        return json.dumps(obj, ensure_ascii=False)
+        return json.dumps(rounded(obj), ensure_ascii=False)
     pad, inner = " " * indent, " " * (indent + 1)
     if isinstance(obj, dict):
         items = [f"{inner}{json.dumps(k, ensure_ascii=False)}: {dumps(v, indent + 1)}"
@@ -313,4 +348,4 @@ if __name__ == "__main__":
                      float(_arg("--umbral-pct", DEFAULT_THRESHOLD_PCT)),
                      IDEAL_ARG[_arg("--ideal", "suma-referencias")])
     report["resumen"] = summary(parsed, report, _arg("--resumen", "M-SEN"))
-    sys.stdout.write(dumps(report) + "\n")
+    sys.stdout.write(dumps(compact(report)) + "\n")

@@ -176,8 +176,20 @@ class Fixture(unittest.TestCase):
         with open(os.path.join(FIXTURES, "baltanas-anon.tiempo-perdido.expected.json"),
                   encoding="utf-8") as f:
             expected = f.read()
-        self.assertEqual(tp.dumps(report) + "\n", expected)
+        self.assertEqual(tp.dumps(tp.compact(report)) + "\n", expected)
         self.assertEqual(len(json.loads(expected)["courses"]), 9)
+
+    def test_compact_keeps_every_leg_with_a_split(self):
+        with open(os.path.join(FIXTURES, "baltanas-anon.spl"), "rb") as f:
+            report = tp.analyze(winsplits_spl.parse(f.read()))
+        compact = tp.compact(report)
+        columns = compact["runner_leg_columns"]
+        for course, small in zip(report["courses"], compact["courses"]):
+            for r, rs in zip(course["runners"], small["runners"]):
+                if rs["legs"]:
+                    self.assertEqual([dict(zip(columns, row)) for row in rs["legs"]], r["legs"])
+                else:
+                    self.assertTrue(all(leg["split_s"] is None for leg in r["legs"]))
 
     def test_best_splits_on_fixture(self):
         with open(os.path.join(FIXTURES, "baltanas-anon.spl"), "rb") as f:

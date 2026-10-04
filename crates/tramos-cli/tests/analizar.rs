@@ -184,11 +184,29 @@ fn lost_time_matches_reference_oracle() {
 
     let legs = lost["legs"].as_array().unwrap();
     let ref_legs = course["legs"].as_array().unwrap();
-    let runner_legs = expected["legs"].as_array().unwrap();
+    // El JSON del oráculo va en forma compacta: cada tramo es una fila con las columnas de
+    // `runner_leg_columns` (`docs/tiempo-perdido.md`).
+    let columns = oracle["runner_leg_columns"].as_array().unwrap();
+    let runner_legs: Vec<Value> = expected["legs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            let row = row.as_array().unwrap();
+            assert_eq!(row.len(), columns.len());
+            Value::Object(
+                columns
+                    .iter()
+                    .map(|c| c.as_str().unwrap().to_string())
+                    .zip(row.iter().cloned())
+                    .collect(),
+            )
+        })
+        .collect();
     assert_eq!(legs.len(), 21);
     assert_eq!(legs.len(), ref_legs.len());
     assert_eq!(legs.len(), runner_legs.len());
-    for ((leg, reference), runner_leg) in legs.iter().zip(ref_legs).zip(runner_legs) {
+    for ((leg, reference), runner_leg) in legs.iter().zip(ref_legs).zip(&runner_legs) {
         let n = &leg["index"];
         for key in [
             "index",

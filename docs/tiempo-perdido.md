@@ -156,6 +156,12 @@ python3 tools/reference/tiempo_perdido.py fixtures/spl/baltanas-anon.spl \
 # otra definición del tiempo ideal: --ideal suma-mejores (por defecto, suma-referencias)
 ```
 
+Para no pesar (~260 KB), el JSON va en forma compacta: los tramos de cada corredor son filas
+cuyas columnas se nombran una sola vez en `runner_leg_columns`, y los corredores sin ningún split
+(no presentados y similares) llevan `legs: []`, porque todos sus tramos tienen solo `index` e
+`is_error: false` y el resto a `null`. El test de Rust lo devuelve a la forma del informe del
+núcleo antes de comparar, así que se comparan todos los tramos.
+
 El JSON redondea los flotantes a 6 decimales; el test de Rust
 (`crates/tramos-core/tests/lost_time_baltanas.rs`) compara todo el informe con tolerancia absoluta
 de 1e-6 en los flotantes y exactitud en el resto, ignorando `resumen`. Con `sum_of_best_splits`

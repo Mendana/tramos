@@ -2,7 +2,8 @@
 // línea de referencia opcional y tooltip por columna (ratón y teclado). Sigue la guía de
 // visualización: columnas finas (≤ 24 px) con el extremo redondeado, rejilla tenue y texto en
 // los colores de texto, nunca en el de la serie.
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, useWidth } from "./common";
 import { linear, niceDomain } from "./scale";
 
 export interface Column {
@@ -12,30 +13,13 @@ export interface Column {
   label: string;
   /** `null` = sin dato: no se dibuja columna. */
   value: number | null;
-  /** Texto del tooltip y de la etiqueta accesible: primero el valor, luego qué es. */
-  tooltip: { value: string; detail: string };
+  tooltip: TooltipText;
   /** Color de la columna; por defecto, el de la serie. */
   color?: string;
 }
 
-const HEIGHT = 220;
-const MARGIN = { top: 12, right: 12, bottom: 28, left: 48 };
 const MAX_BAR = 24;
 const RADIUS = 4;
-
-/** Ancho del contenedor, para que el SVG ocupe todo el panel. */
-function useWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const element = ref.current;
-    if (element === null) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  return { ref, width };
-}
 
 /** Columna con el extremo de datos redondeado y la base recta, sobre la línea del 0. */
 function columnPath(x: number, w: number, y0: number, y1: number): string {
@@ -78,26 +62,13 @@ export function ColumnChart({
   // Con muchas columnas, una etiqueta del eje X de cada `labelEvery`.
   const labelEvery = Math.max(1, Math.ceil(28 / Math.max(band, 1)));
   const zero = y(0);
-  const activeColumn = active === null ? null : columns[active];
+  const activeColumn = active === null ? undefined : columns[active];
 
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
         <svg width={width} height={HEIGHT} role="img" aria-label={label}>
-          {ticks.map((t) => (
-            <g key={t}>
-              <line
-                className={t === 0 ? "chart-axis" : "chart-grid"}
-                x1={MARGIN.left}
-                x2={MARGIN.left + plotW}
-                y1={y(t)}
-                y2={y(t)}
-              />
-              <text className="chart-tick" x={MARGIN.left - 8} y={y(t)} dy="0.32em" textAnchor="end">
-                {formatTick(t)}
-              </text>
-            </g>
-          ))}
+          <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
 
           {reference !== undefined && (
             <g>
@@ -159,17 +130,8 @@ export function ColumnChart({
           })}
         </svg>
       )}
-      {activeColumn !== null && active !== null && (
-        <div
-          className="chart-tooltip"
-          style={{
-            left: Math.min(Math.max(x(active) + band / 2, 70), width - 70),
-            top: MARGIN.top,
-          }}
-        >
-          <strong>{activeColumn.tooltip.value}</strong>
-          <span>{activeColumn.tooltip.detail}</span>
-        </div>
+      {activeColumn !== undefined && active !== null && (
+        <Tooltip text={activeColumn.tooltip} x={x(active) + band / 2} width={width} />
       )}
     </div>
   );

@@ -154,17 +154,29 @@ Piezas:
 - `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0.
 - `ColumnChart`: una serie de columnas (también negativas), línea de referencia opcional, color por
   columna opcional y tooltip con el valor delante y el detalle detrás.
+- `LineChart`: una línea de 2 px con un velo del 10 % hasta el 0, marcadores opcionales con un
+  anillo del color de la superficie y un cursor vertical que se ajusta al punto más cercano.
+- `common.tsx`: tamaño, rejilla con marcas, tooltip (al lado de la marca, para no taparla) y
+  leyenda (cuadrado para barras, raya para líneas). Con dos o más series siempre hay leyenda.
+- Dos medidas de escala distinta nunca comparten eje: van en paneles separados.
 
 Colores de las gráficas (`tokens.css`): `--chart-series-1` es el acento, validado con la guía de
 visualización contra la superficie de cada modo (en oscuro, un tono más oscuro que el acento de
 la interfaz para quedar en la banda de luminosidad). `--chart-grid`, `--chart-axis` y
-`--chart-reference` son la rejilla, la línea del 0 y la línea de referencia.
+`--chart-reference` son la rejilla, la línea del 0 y la línea de referencia. `--chart-error`
+(naranja de baliza) marca los tramos con error y `--chart-muted` (gris) el resto; validados igual,
+se distinguen también con daltonismo.
 
 Paneles de la vista de carrera:
 
 | Panel | Qué enseña | Casos |
 | --- | --- | --- |
+| Pérdida por tramo (P1), abierto de entrada | Pérdida de cada tramo en segundos, hacia arriba si pierde y hacia abajo si gana; los tramos con error en naranja y el resto en gris. | Tramos con pérdida. |
+| Pérdida acumulada (P3) | Tiempo perdido sumado tramo a tramo desde la salida: solo suben los tramos con error, marcados con un punto. Acaba en el tiempo perdido de la carrera. | Errores y tramos. |
 | Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
+
+Los paneles van entre las cifras destacadas y la tabla de tramos, y salen de los mismos tramos que
+la tabla: sus valores coinciden con ella.
 
 ## Seguridad
 

@@ -1,0 +1,99 @@
+# Almacenamiento local
+
+Cada usuario tiene una base de datos SQLite en local (`crates/tramos-store`). Guarda el modelo
+de `docs/modelo.md`, los resultados del análisis, las etiquetas y los ajustes. SQLite va
+compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no depende del sistema.
+
+## API
+
+| Función | Qué hace |
+| --- | --- |
+| `Store::open(ruta)` / `Store::open_in_memory()` | Abre o crea la base, activa las claves foráneas y aplica las migraciones pendientes. |
+| `save_event(&Event) -> SavedEvent` | Guarda una carrera completa en una transacción. Devuelve su `EventId` y los `ResultId` por categoría y en orden. |
+| `load_event(EventId) -> Event` | Carga la carrera exactamente como se guardó. |
+| `result_ids(EventId)` | Los `ResultId` de una carrera ya guardada, como en `SavedEvent`. |
+| `save_track(ResultId, &Track)` / `load_track(ResultId)` | Track del reloj de un resultado. Guardar otra vez sustituye el anterior. |
+| `setting(clave)` / `set_setting(clave, valor)` | Ajustes clave-valor. |
+
+Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
+
+## Convenciones
+
+- **Instantes**: `INTEGER` con los **milisegundos desde la época Unix en UTC**. Las columnas se
+  llaman `*_epoch_ms` para no confundirlas con duraciones. Es compacto (un track tiene miles de
+  puntos), se ordena y se resta directamente en SQL y sobra para el .spl y el FIT, que van al
+  segundo. Para que la ida y vuelta sea exacta, guardar un instante con precisión por debajo del
+  milisegundo (o un segundo intercalar) es un error (`SubMillisecondInstant`) en vez de redondear
+  en silencio.
+- **Fechas locales** (día de la carrera): `TEXT` `AAAA-MM-DD`.
+- **Duraciones**: `REAL` en segundos (`*_s`). Los cocientes (`performance_index`, `loss_ratio`)
+  van en fracción: `0.10` es un 10 %.
+- **Reales**: SQLite guarda NaN como `NULL`, así que guardar un NaN es un error (`NotANumber`).
+- **Orden** de las listas del modelo (categorías, resultados, picadas, balizas, puntos): columna
+  `position`, desde 0.
+- **Enumerados**: `TEXT` en `snake_case`, como en el JSON del modelo, con `CHECK`.
+- **Integridad**: claves foráneas activas (`PRAGMA foreign_keys = ON`). Borrar una carrera borra
+  en cascada sus recorridos, categorías, corredores, resultados, picadas, tracks, tramos y
+  etiquetas.
+
+## Tablas
+
+| Tabla | Qué guarda | Columnas clave |
+| --- | --- | --- |
+| `events` | Carreras. | `name`, `date`, `source_file_id` (el .spl, opcional). |
+| `courses` | Recorridos: uno por secuencia de balizas distinta dentro de la carrera. Las categorías con el mismo recorrido comparten fila, porque el tiempo perdido se calcula por recorrido. | `event_id`. |
+| `course_controls` | Balizas de cada recorrido, sin salida ni meta. | `course_id`, `position`, `code`. |
+| `classes` | Categorías. | `event_id`, `position`, `source_id` (id del fichero), `name`, `short_name`, `course_id`. |
+| `runners` | Corredores tal y como aparecen en una carrera (uno por resultado). **No hay columna de fecha de nacimiento.** | `event_id`, `source_id`, nombre, apellidos, `club`, `bib`, `si_card`, `sex`. |
+| `results` | Resultado de un corredor en una categoría. | `class_id`, `position`, `runner_id`, `status`, `status_code` (solo para `unknown`), `place`. |
+| `punches` | Picadas en orden, de la salida a la meta. | `result_id`, `position`, `code`, `time_epoch_ms` (`NULL` si no hay hora). |
+| `tracks` | Track del reloj: como mucho uno por resultado. | `result_id`, `source_file_id` (el FIT, opcional). |
+| `track_points` | Puntos del track. | `track_id`, `position`, `time_epoch_ms`, `lat`, `lon`, `altitude_m`, `heart_rate_bpm`, `cadence_spm`, `distance_m`. |
+| `legs` | Tramos de un resultado con lo que calcula el análisis (`docs/tiempo-perdido.md`). | `result_id`, `leg_index` (desde 1), `from_code`, `to_code`, `split_s`, `reference_s`, `performance_index`, `expected_s`, `loss_s`, `loss_ratio`, `is_error`, `algorithm_version`. |
+| `tags` | Etiqueta del corredor sobre un tramo (`docs/taxonomia.md`). | `result_id`, `leg_index`, `taxonomy_version`; nivel 1 `confirmation` (`error`, `no_error`, `physical`); nivel 2 `error_type`, `error_subtype`; nivel 3 `leg_part` (`start`, `middle`, `attack`), `perceived_loss_s`, `effort` (1–10), `note`; `created_at_epoch_ms`, `updated_at_epoch_ms`. |
+| `tag_causes` | Causas percibidas de una etiqueta (varias). | `tag_id`, `cause`. |
+| `source_files` | Ficheros originales importados. | `kind` (`spl`, `fit`), `path`, `sha256`, `size_bytes`, `imported_at_epoch_ms`. |
+| `settings` | Ajustes clave-valor (umbrales, preferencias…). | `key`, `value`. |
+
+Notas:
+
+- `legs`: los resultados del análisis son todos opcionales (`NULL`), porque un tramo sin picada en
+  un extremo no tiene split ni pérdida. `algorithm_version` es obligatoria: cuando cambia, los
+  tramos de la carrera se recalculan enteros. La referencia está repetida en cada corredor del
+  recorrido; a cambio, las consultas de patrones no necesitan uniones.
+- `tags` apunta a `(result_id, leg_index)` y no a `legs.id`, para que las etiquetas sobrevivan a un
+  recálculo de los tramos. Hay como mucho una etiqueta por tramo y ningún nivel es obligatorio.
+  Tipos, subtipos y causas son claves del fichero de taxonomía, que vive fuera del código; por eso
+  no tienen `CHECK`, y cada etiqueta guarda la `taxonomy_version` con la que se creó.
+
+## Migraciones
+
+- Scripts SQL en `crates/tramos-store/migrations/NNNN_descripcion.sql`, embebidos en el binario
+  con `include_str!` y listados en orden en `migrations.rs`.
+- La versión aplicada se guarda en `PRAGMA user_version`: tras la migración *n* (desde 1) vale *n*.
+  Una base nueva vale 0.
+- Al abrir se aplican las pendientes en **una sola transacción**: si alguna falla no se aplica
+  ninguna. Con el esquema al día no se hace nada.
+- Si la base tiene una versión mayor que la que conoce la app (la abrió una versión más nueva), se
+  rechaza con `SchemaTooNew` en vez de tocarla.
+- Una migración publicada no se edita nunca: los cambios van en un script nuevo al final.
+  Los scripts no abren ni cierran transacciones.
+
+| Versión | Script | Cambio |
+| --- | --- | --- |
+| 1 | `0001_initial.sql` | Esquema inicial. |
+
+## Ficheros originales
+
+Se guarda **la ruta, la huella SHA-256, el tamaño y el tipo**, no el contenido:
+
+- El .spl trae nombres y fechas de nacimiento de todos los corredores de la prueba, y la fecha de
+  nacimiento se descarta al importar (`docs/datos-y-privacidad.md`). Guardar el fichero entero en
+  la base la conservaría por la puerta de atrás.
+- El FIT lleva GPS y pulso, que son datos sensibles; su copia útil ya está en `track_points`, de
+  donde se comparte solo lo que el corredor decida.
+- Lo importado (carrera, picadas, track) basta para recalcular el análisis. El original solo hace
+  falta si cambia un importador y hay que volver a leer el fichero; la huella dice si el fichero de
+  la ruta sigue siendo el mismo.
+- Coste: si el usuario borra o mueve el fichero, no se puede reimportar desde la app hasta que lo
+  vuelva a señalar. La huella permite reconocerlo.

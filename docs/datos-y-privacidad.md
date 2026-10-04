@@ -2,8 +2,9 @@
 
 ## En la app
 
-- Todo se guarda en local, en un SQLite por usuario. Los ficheros originales se conservan para
-  poder recalcular.
+- Todo se guarda en local, en un SQLite por usuario (`docs/almacenamiento.md`). De los ficheros
+  originales se guarda la ruta y su huella SHA-256, no el contenido, para poder reimportarlos y
+  recalcular sin conservar dentro de la base lo que se descarta al importar.
 - Al importar un .spl se descarta la fecha de nacimiento de los corredores.
 - Pulso y GPS se tratan como datos sensibles: cada corredor decide, carrera a carrera, qué comparte
   con la entrenadora (nada, agregados, tramos o track completo).

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/tramos-core", "crates/tramos-cli"]
+members = ["crates/tramos-core", "crates/tramos-cli", "crates/tramos-store"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,11 +11,15 @@ repository = "https://github.com/Mendana/tramos"
 
 [workspace.dependencies]
 tramos-core = { path = "crates/tramos-core" }
+tramos-store = { path = "crates/tramos-store" }
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
 clap = { version = "4", features = ["derive"] }
+# `bundled` compila SQLite dentro del crate: no hace falta SQLite del sistema (Windows).
+rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tempfile = "3"
 thiserror = "2"
 
 [workspace.lints.rust]

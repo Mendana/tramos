@@ -35,3 +35,28 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
 - Solo `RaceStatus::Ok` cuenta para la referencia del tiempo perdido (`docs/tiempo-perdido.md`).
   La correspondencia con los códigos del .spl la fija su lector (`docs/formato-spl.md`).
 - Un registro del FIT sin posición no produce `TrackPoint`.
+
+## Agrupación por recorrido
+
+`tramos_core::courses::group_by_course(&Event) -> Vec<CourseGroup>` reúne las categorías que
+corren el mismo recorrido, que es la unidad sobre la que se calcula el tiempo perdido
+(`docs/tiempo-perdido.md`).
+
+| Tipo | Qué es |
+| --- | --- |
+| `CourseGroup` | Un recorrido (`course`) y las categorías que lo corren (`classes`). |
+| `ClassRef` | Categoría dentro del `Event`: posición en `Event::classes` (`index`), `id` y `name`. |
+
+- **Criterio**: dos categorías comparten recorrido si su `Course` es **exactamente igual**:
+  mismos códigos de baliza, en el mismo orden y en el mismo número. Las mismas balizas en otro
+  orden, o un recorrido que es prefijo de otro, son recorridos distintos. No se intenta detectar
+  variantes (mariposas, horquillas) ni recorridos "casi iguales".
+- **Orden**: los grupos salen en el orden de la primera categoría de cada recorrido en el
+  fichero; dentro de cada grupo, las categorías conservan su orden en `Event::classes`.
+- **Recorrido vacío**: las categorías sin balizas forman un grupo más, como cualquier otro.
+- **Acceso a los datos**: `CourseGroup::classes_in(&event)` devuelve las categorías y
+  `CourseGroup::results_in(&event)` los resultados de todas ellas, que son la población de la
+  referencia del tiempo perdido. El filtrado por estado lo hace quien lo consume. Hay que
+  pasar el mismo `Event` que se agrupó (se busca por `index`; los índices fuera de rango se
+  ignoran).
+- En JSON: `{"course": {"controls": [31, 45]}, "classes": [{"index": 0, "id": 7, "name": "F21A"}]}`.

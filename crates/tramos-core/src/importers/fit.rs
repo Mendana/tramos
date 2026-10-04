@@ -8,8 +8,10 @@
 //! - Un `record` sin posición válida o sin instante no produce punto (`docs/modelo.md`).
 //! - Posición en grados (el FIT la guarda en semicírculos), instante en UTC.
 //! - Altitud: `enhanced_altitude` si está; si no, `altitude`.
-//! - Cadencia en pasos/min con los dos pies: `2 × (cadence + fractional_cadence)`, porque en
-//!   carrera el FIT guarda las zancadas de un pie por minuto.
+//! - Deporte: el de la sesión (`session.sport`) o, si no hay sesión, el del mensaje `sport`.
+//! - Cadencia en pasos/min con los dos pies: `2 × (cadence + fractional_cadence)` en deportes a
+//!   pie o sin deporte, porque ahí el FIT guarda las zancadas de un pie por minuto. En los demás
+//!   (bici…) es `cadence + fractional_cadence` tal cual, en rpm.
 //! - Puntos ordenados por instante (orden estable: los empates conservan el orden del fichero).
 
 use chrono::{DateTime, Utc};
@@ -22,6 +24,9 @@ use crate::model::{Track, TrackPoint};
 
 /// Grados por semicírculo: el FIT reparte 180° en 2^31 semicírculos.
 const DEGREES_PER_SEMICIRCLE: f64 = 180.0 / 2_147_483_648.0;
+
+/// Deportes a pie (nombres del perfil FIT): su cadencia es de un pie y se duplica.
+const FOOT_SPORTS: [&str; 5] = ["generic", "running", "walking", "hiking", "mountaineering"];
 
 /// Errores al leer un FIT.
 #[derive(Debug, Error)]
@@ -38,6 +43,8 @@ pub enum FitError {
 /// [`Track`] vacío, no un error.
 pub fn read(data: &[u8]) -> Result<Track, FitError> {
     let record = MesgNum::Record.as_u16();
+    // Además de los `record`, la sesión y el deporte: dicen cómo leer la cadencia.
+    let wanted = [record, MesgNum::Session.as_u16(), MesgNum::Sport.as_u16()];
     let mut processor = FitStreamProcessor::new();
     // Los campos que no están en el perfil FIT (muchos son propietarios de Garmin) se descartan.
     processor.add_option(DecodeOption::DropUnknownFields);
@@ -50,11 +57,13 @@ pub fn read(data: &[u8]) -> Result<Track, FitError> {
             // Fin de un fichero; puede venir otro encadenado detrás.
             FitObject::Crc(_) => processor.reset(),
             FitObject::DataMessage(message) => {
-                let is_record = message.global_message_number() == record;
+                let number = message.global_message_number();
+                let is_record = number == record;
+                let is_wanted = wanted.contains(&number);
                 // Todos los mensajes se decodifican, aunque se descarten, porque cualquiera con
                 // `timestamp` fija la referencia de las cabeceras de tiempo comprimido.
                 match processor.decode_message(message) {
-                    Ok(decoded) if is_record => records.push(decoded),
+                    Ok(decoded) if is_wanted => records.push(decoded),
                     Err(err) if is_record => return Err(err.into()),
                     // Un mensaje que no es `record` y que `fitparser` no sabe convertir (un
                     // campo propietario con un tipo inesperado) no afecta al track.
@@ -69,19 +78,33 @@ pub fn read(data: &[u8]) -> Result<Track, FitError> {
 }
 
 /// Convierte los mensajes decodificados en un track: un punto por cada `record` con posición
-/// e instante, ordenados por instante.
+/// e instante, ordenados por instante, y el deporte de la actividad.
 fn track_from_messages(messages: &[FitDataRecord]) -> Track {
+    let sport = sport_from_messages(messages);
+    let on_foot = sport.as_deref().is_none_or(|s| FOOT_SPORTS.contains(&s));
     let mut points: Vec<TrackPoint> = messages
         .iter()
         .filter(|m| m.kind() == MesgNum::Record)
-        .filter_map(point_from_record)
+        .filter_map(|m| point_from_record(m, on_foot))
         .collect();
     points.sort_by_key(|p| p.time);
-    Track { points }
+    Track { points, sport }
+}
+
+/// Deporte de la primera sesión que lo traiga; si ninguna, el del mensaje `sport`.
+fn sport_from_messages(messages: &[FitDataRecord]) -> Option<String> {
+    let from = |kind: MesgNum| {
+        messages
+            .iter()
+            .filter(|m| m.kind() == kind)
+            .find_map(|m| RecordFields(m).text("sport"))
+    };
+    from(MesgNum::Session).or_else(|| from(MesgNum::Sport))
 }
 
 /// Convierte un mensaje `record` en un punto, o `None` si le falta el instante o la posición.
-fn point_from_record(record: &FitDataRecord) -> Option<TrackPoint> {
+/// `on_foot` duplica la cadencia (ver el comentario del módulo).
+fn point_from_record(record: &FitDataRecord, on_foot: bool) -> Option<TrackPoint> {
     let fields = RecordFields(record);
     let time = fields.timestamp()?;
     let lat = fields.degrees("position_lat").filter(|v| v.abs() <= 90.0)?;
@@ -96,9 +119,10 @@ fn point_from_record(record: &FitDataRecord) -> Option<TrackPoint> {
         .number("heart_rate")
         .filter(|v| (0.0..=f64::from(u8::MAX)).contains(v))
         .map(|v| v.round() as u8);
+    let feet = if on_foot { 2.0 } else { 1.0 };
     let cadence_spm = fields
         .number("cadence")
-        .map(|rpm| 2.0 * (rpm + fields.number("fractional_cadence").unwrap_or(0.0)));
+        .map(|rpm| feet * (rpm + fields.number("fractional_cadence").unwrap_or(0.0)));
     let distance_m = fields.number("distance");
 
     Some(TrackPoint {
@@ -125,6 +149,16 @@ impl RecordFields<'_> {
         match self.get("timestamp")?.value() {
             // `fitparser` devuelve el instante en la zona del sistema; el instante es el mismo.
             Value::Timestamp(t) => Some(t.with_timezone(&Utc)),
+            _ => None,
+        }
+    }
+
+    /// Texto del campo: el nombre del valor si `fitparser` lo conoce (un enum del perfil, como
+    /// `running`) o el número tal cual si no.
+    fn text(&self, name: &str) -> Option<String> {
+        match self.get(name)?.value() {
+            Value::String(s) => Some(s.clone()),
+            Value::Enum(n) => Some(n.to_string()),
             _ => None,
         }
     }
@@ -166,6 +200,11 @@ mod tests {
     use chrono::{Local, TimeZone};
     use fitparser::FitDataField;
 
+    /// Punto de un `record` de carrera a pie.
+    fn point(record: &FitDataRecord) -> Option<TrackPoint> {
+        point_from_record(record, true)
+    }
+
     fn field(name: &str, number: u8, value: Value, units: &str) -> FitDataField {
         FitDataField::new(name.into(), number, None, value, units.into())
     }
@@ -198,7 +237,7 @@ mod tests {
     fn converts_semicircles_to_degrees() {
         let mut fields = vec![timestamp(0)];
         fields.extend(position(1 << 29, -(1 << 30)));
-        let p = point_from_record(&record(fields)).unwrap();
+        let p = point(&record(fields)).unwrap();
         assert_eq!(p.lat, 45.0);
         assert_eq!(p.lon, -90.0);
         assert_eq!(p.time.to_rfc3339(), "2026-10-03T16:12:00+00:00");
@@ -215,7 +254,7 @@ mod tests {
             field("position_lat", 0, Value::Float64(41.938), "deg"),
             field("position_long", 1, Value::Float64(-4.249), "degrees"),
         ];
-        let p = point_from_record(&record(fields)).unwrap();
+        let p = point(&record(fields)).unwrap();
         assert_eq!((p.lat, p.lon), (41.938, -4.249));
     }
 
@@ -230,9 +269,9 @@ mod tests {
             field("position_lat", 0, Value::SInt32(1 << 29), "semicircles"),
         ]);
         let no_time = record(position(1 << 29, 1 << 29));
-        assert_eq!(point_from_record(&no_position), None);
-        assert_eq!(point_from_record(&only_lat), None);
-        assert_eq!(point_from_record(&no_time), None);
+        assert_eq!(point(&no_position), None);
+        assert_eq!(point(&only_lat), None);
+        assert_eq!(point(&no_time), None);
     }
 
     #[test]
@@ -240,7 +279,7 @@ mod tests {
         // 2^30 + 1 semicírculos es algo más de 90° de latitud.
         let mut fields = vec![timestamp(0)];
         fields.extend(position((1 << 30) + 1, 0));
-        assert_eq!(point_from_record(&record(fields)), None);
+        assert_eq!(point(&record(fields)), None);
     }
 
     #[test]
@@ -248,11 +287,11 @@ mod tests {
         let mut fields = vec![timestamp(0)];
         fields.extend(position(0, 0));
         fields.push(field("cadence", 4, Value::UInt8(88), "rpm"));
-        let p = point_from_record(&record(fields.clone())).unwrap();
+        let p = point(&record(fields.clone())).unwrap();
         assert_eq!(p.cadence_spm, Some(176.0));
 
         fields.push(field("fractional_cadence", 53, Value::Float64(0.5), "rpm"));
-        let p = point_from_record(&record(fields)).unwrap();
+        let p = point(&record(fields)).unwrap();
         assert_eq!(p.cadence_spm, Some(177.0));
     }
 
@@ -261,10 +300,69 @@ mod tests {
         let mut fields = vec![timestamp(0)];
         fields.extend(position(0, 0));
         fields.push(field("fractional_cadence", 53, Value::Float64(0.5), "rpm"));
-        assert_eq!(
-            point_from_record(&record(fields)).unwrap().cadence_spm,
-            None
-        );
+        assert_eq!(point(&record(fields)).unwrap().cadence_spm, None);
+    }
+
+    fn with_cadence(seconds: u32, rpm: u8) -> FitDataRecord {
+        let mut fields = vec![timestamp(seconds)];
+        fields.extend(position(0, 0));
+        fields.push(field("cadence", 4, Value::UInt8(rpm), "rpm"));
+        record(fields)
+    }
+
+    fn sport_message(kind: MesgNum, sport: Value) -> FitDataRecord {
+        let mut m = FitDataRecord::new(kind);
+        m.push(field("sport", 5, sport, ""));
+        m
+    }
+
+    #[test]
+    fn cycling_cadence_is_not_doubled() {
+        // La sesión va al final del fichero, detrás de los `record`.
+        let messages = vec![
+            with_cadence(0, 85),
+            sport_message(MesgNum::Session, Value::String("cycling".into())),
+        ];
+        let track = track_from_messages(&messages);
+        assert_eq!(track.sport.as_deref(), Some("cycling"));
+        assert_eq!(track.points[0].cadence_spm, Some(85.0));
+    }
+
+    #[test]
+    fn session_sport_wins_over_sport_message() {
+        let messages = vec![
+            sport_message(MesgNum::Sport, Value::String("cycling".into())),
+            with_cadence(0, 88),
+            sport_message(MesgNum::Session, Value::String("running".into())),
+        ];
+        let track = track_from_messages(&messages);
+        assert_eq!(track.sport.as_deref(), Some("running"));
+        assert_eq!(track.points[0].cadence_spm, Some(176.0));
+
+        let only_sport = vec![
+            sport_message(MesgNum::Sport, Value::String("hiking".into())),
+            with_cadence(0, 50),
+        ];
+        let track = track_from_messages(&only_sport);
+        assert_eq!(track.sport.as_deref(), Some("hiking"));
+        assert_eq!(track.points[0].cadence_spm, Some(100.0));
+    }
+
+    #[test]
+    fn unknown_or_missing_sport() {
+        // Sin deporte se supone a pie.
+        let track = track_from_messages(&[with_cadence(0, 88)]);
+        assert_eq!(track.sport, None);
+        assert_eq!(track.points[0].cadence_spm, Some(176.0));
+
+        // Un enum que `fitparser` no sabe nombrar se guarda como número y no es a pie.
+        let messages = vec![
+            with_cadence(0, 70),
+            sport_message(MesgNum::Session, Value::Enum(250)),
+        ];
+        let track = track_from_messages(&messages);
+        assert_eq!(track.sport.as_deref(), Some("250"));
+        assert_eq!(track.points[0].cadence_spm, Some(70.0));
     }
 
     #[test]
@@ -272,11 +370,11 @@ mod tests {
         let mut fields = vec![timestamp(0)];
         fields.extend(position(0, 0));
         fields.push(field("altitude", 2, Value::Float64(700.0), "m"));
-        let p = point_from_record(&record(fields.clone())).unwrap();
+        let p = point(&record(fields.clone())).unwrap();
         assert_eq!(p.altitude_m, Some(700.0));
 
         fields.push(field("enhanced_altitude", 78, Value::Float64(789.4), "m"));
-        let p = point_from_record(&record(fields)).unwrap();
+        let p = point(&record(fields)).unwrap();
         assert_eq!(p.altitude_m, Some(789.4));
     }
 
@@ -286,7 +384,7 @@ mod tests {
         fields.extend(position(0, 0));
         fields.push(field("heart_rate", 3, Value::UInt8(152), "bpm"));
         fields.push(field("distance", 5, Value::Float64(1581.47), "m"));
-        let p = point_from_record(&record(fields)).unwrap();
+        let p = point(&record(fields)).unwrap();
         assert_eq!(p.heart_rate_bpm, Some(152));
         assert_eq!(p.distance_m, Some(1581.47));
     }

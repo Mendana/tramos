@@ -59,7 +59,7 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 | `results` | Resultado de un corredor en una categoría. | `class_id`, `position`, `runner_id`, `status`, `status_code` (solo para `unknown`), `place`, `person_id` (opcional). |
 | `people` | Personas: identidad de un corredor entre carreras. Solo lo que escribe el usuario; **sin fecha de nacimiento**. | `display_name`, `notes` (opcional), `created_at_epoch_ms`. |
 | `punches` | Picadas en orden, de la salida a la meta. | `result_id`, `position`, `code`, `time_epoch_ms` (`NULL` si no hay hora). |
-| `tracks` | Track del reloj: como mucho uno por resultado. | `result_id`, `source_file_id` (el FIT, opcional). |
+| `tracks` | Track del reloj: como mucho uno por resultado. | `result_id`, `source_file_id` (el FIT, opcional), `sport` (`Track::sport`, opcional). |
 | `track_points` | Puntos del track. | `track_id`, `position`, `time_epoch_ms`, `lat`, `lon`, `altitude_m`, `heart_rate_bpm`, `cadence_spm`, `distance_m`. |
 | `legs` | Tramos de un resultado con lo que calcula el análisis (`docs/tiempo-perdido.md`). | `result_id`, `leg_index` (desde 1), `from_code`, `to_code`, `split_s`, `reference_s`, `performance_index`, `expected_s`, `loss_s`, `loss_ratio`, `is_error`, `algorithm_version`. |
 | `tags` | Etiqueta del corredor sobre un tramo (`docs/taxonomia.md`). | `result_id`, `leg_index`, `taxonomy_version`; nivel 1 `confirmation` (`error`, `no_error`, `physical`); nivel 2 `error_type`, `error_subtype`; nivel 3 `leg_part` (`start`, `middle`, `attack`), `perceived_loss_s`, `effort` (1–10), `note`; `created_at_epoch_ms`, `updated_at_epoch_ms`. |
@@ -99,6 +99,7 @@ Notas:
 | --- | --- | --- |
 | 1 | `0001_initial.sql` | Esquema inicial. |
 | 2 | `0002_people.sql` | Tabla `people` y columna `results.person_id` (nula en los resultados que ya había). |
+| 3 | `0003_track_sport.sql` | Columna `tracks.sport` (nula en los tracks que ya había). |
 
 ## Personas
 

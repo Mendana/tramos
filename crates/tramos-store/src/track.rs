@@ -31,8 +31,8 @@ impl Store {
         // Los puntos del track anterior se borran en cascada.
         tx.execute("DELETE FROM tracks WHERE result_id = ?1", [result.0])?;
         tx.execute(
-            "INSERT INTO tracks (result_id, source_file_id) VALUES (?1, ?2)",
-            params![result.0, source],
+            "INSERT INTO tracks (result_id, source_file_id, sport) VALUES (?1, ?2, ?3)",
+            params![result.0, source, track.sport],
         )?;
         let track_id = tx.last_insert_rowid();
         {
@@ -75,15 +75,15 @@ impl Store {
 
     /// Carga el track de un resultado; `None` si no tiene.
     pub fn load_track(&self, result: ResultId) -> Result<Option<Track>, StoreError> {
-        let track_id: Option<i64> = self
+        let track: Option<(i64, Option<String>)> = self
             .conn
             .query_row(
-                "SELECT id FROM tracks WHERE result_id = ?1",
+                "SELECT id, sport FROM tracks WHERE result_id = ?1",
                 [result.0],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
-        let Some(track_id) = track_id else {
+        let Some((track_id, sport)) = track else {
             return Ok(None);
         };
         let mut stmt = self.conn.prepare_cached(
@@ -103,6 +103,6 @@ impl Store {
                 distance_m: row.get(6)?,
             });
         }
-        Ok(Some(Track { points }))
+        Ok(Some(Track { points, sport }))
     }
 }

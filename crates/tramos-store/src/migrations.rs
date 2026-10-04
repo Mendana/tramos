@@ -12,6 +12,7 @@ use crate::StoreError;
 const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_initial.sql"),
     include_str!("../migrations/0002_people.sql"),
+    include_str!("../migrations/0003_track_sport.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -88,8 +89,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 2);
-        assert_eq!(user_version(&conn).unwrap(), 2);
+        assert_eq!(SCHEMA_VERSION, 3);
+        assert_eq!(user_version(&conn).unwrap(), 3);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -122,7 +123,7 @@ mod tests {
                 err,
                 StoreError::SchemaTooNew {
                     found: 99,
-                    supported: 2
+                    supported: SCHEMA_VERSION
                 }
             ),
             "{err:?}"
@@ -149,6 +150,33 @@ mod tests {
     }
 
     #[test]
+    fn version_2_tracks_gain_an_empty_sport() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        migrate_to(&conn, 2);
+        conn.execute_batch(
+            "INSERT INTO events (id, name, date) VALUES (1, 'Vieja', '2025-05-04');
+             INSERT INTO courses (id, event_id) VALUES (1, 1);
+             INSERT INTO classes (id, event_id, position, source_id, name, course_id)
+                 VALUES (1, 1, 0, 1, 'F21A', 1);
+             INSERT INTO runners (id, event_id, source_id, given_name, family_name)
+                 VALUES (1, 1, 1, 'Ana', 'Pérez');
+             INSERT INTO results (id, class_id, position, runner_id, status, place)
+                 VALUES (1, 1, 0, 1, 'ok', 3);
+             INSERT INTO tracks (id, result_id) VALUES (1, 1);",
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        assert_eq!(user_version(&conn).unwrap(), SCHEMA_VERSION);
+        let sport: Option<String> = conn
+            .query_row("SELECT sport FROM tracks WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(sport, None);
+    }
+
+    #[test]
     fn version_1_database_gains_people_and_keeps_its_results() {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.pragma_update(None, "foreign_keys", true).unwrap();
@@ -167,7 +195,7 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(user_version(&conn).unwrap(), 2);
+        assert_eq!(user_version(&conn).unwrap(), SCHEMA_VERSION);
         assert_eq!(table_names(&conn), TABLES.to_vec());
         let (place, person): (i64, Option<i64>) = conn
             .query_row(

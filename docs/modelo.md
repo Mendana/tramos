@@ -25,7 +25,7 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
 | `RaceResult` | Resultado: corredor, estado, puesto (solo clasificados) y picadas en orden de salida a meta. |
 | `RaceStatus` | `ok` (clasificado), `not_classified`, `did_not_start` o `unknown(código)` para los estados aún sin interpretar. |
 | `Leg` | Tramo: número (desde 1, el que sale de la salida), baliza de origen y destino, split en segundos opcional. |
-| `Track` | Registro del reloj: puntos ordenados por instante. |
+| `Track` | Registro del reloj: puntos ordenados por instante y deporte de la actividad (`sport`, opcional; ver `docs/formato-fit.md`). |
 | `TrackPoint` | Punto con posición: instante, lat/lon en grados WGS84 y, opcionales, altitud (m), pulso (ppm), cadencia (pasos/min, ambos pies) y distancia acumulada (m). |
 
 ## Decisiones

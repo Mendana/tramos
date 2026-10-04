@@ -102,11 +102,21 @@ export interface LegReport {
   loss_s: number | null;
   loss_pct: number | null;
   is_error: boolean;
+  /** `expected_s − split_s` (P5): positiva si el tramo fue mejor de lo esperado. */
+  gain_s: number | null;
+  cumulative_gain_s: number | null;
   ideal_elapsed_s: number | null;
   behind_ideal_s: number | null;
   is_last: boolean;
   short_reference: boolean;
   excluded_from_patterns: boolean;
+}
+
+/** Dos o más tramos seguidos perdiendo (P5). Tramos numerados desde 1. */
+export interface LosingStreak {
+  first_leg: number;
+  last_leg: number;
+  loss_s: number;
 }
 
 export interface RunnerReport {
@@ -124,6 +134,7 @@ export interface RunnerReport {
     time_without_errors_s: number | null;
     ideal_time_s: number | null;
     behind_ideal_s: number | null;
+    losing_streaks: LosingStreak[];
     legs: LegReport[];
   };
 }

@@ -68,12 +68,14 @@ RFC 3339 y UTC, `null` lo que no se puede calcular):
 
 - Totales: `total_s`, `usual_performance` (1 = 100 %), `lost_time_s`, `error_count`,
   `time_without_errors_s`, `ideal_time_s` (tiempo ideal del recorrido entero, es decir, el
-  `ideal_elapsed_s` del último tramo) y `behind_ideal_s` (diferencia con el ideal en meta).
+  `ideal_elapsed_s` del último tramo), `behind_ideal_s` (diferencia con el ideal en meta) y
+  `losing_streaks` (rachas de dos o más tramos seguidos perdiendo: `first_leg`, `last_leg`,
+  `loss_s`; ver `docs/tiempo-perdido.md`, "Dónde gano y dónde pierdo").
 - `legs[]`, un elemento por tramo, con la referencia del recorrido y los números del corredor en
   el mismo objeto: `index` (desde 1), `from`, `to` (32736 = salida, 32752 = meta), `split_s`,
   `elapsed_s`, `place`, `reference_s`, `reference_count`, `valid_splits`, `performance_index`,
-  `expected_s`, `loss_s`, `loss_pct`, `is_error`, `ideal_elapsed_s`, `behind_ideal_s`, `is_last`,
-  `short_reference` y `excluded_from_patterns`.
+  `expected_s`, `loss_s`, `loss_pct`, `is_error`, `gain_s` (`−loss_s`), `cumulative_gain_s`,
+  `ideal_elapsed_s`, `behind_ideal_s`, `is_last`, `short_reference` y `excluded_from_patterns`.
 
 `alignment` es el `Alignment` del núcleo (`docs/alineacion.md`, "Resultado") **sin** `punches`
 (las picadas situadas en el track): `offset_s`, `offset_estimated`, `confidence`, `quality`,
@@ -96,12 +98,14 @@ Ejemplo recortado (fixture público de Baltanás, M-SEN, tarjeta 143, con el FIT
   "lost_time": {
     "total_s": 1540.0, "usual_performance": 0.8649, "lost_time_s": 360.43, "error_count": 3,
     "time_without_errors_s": 1179.57, "ideal_time_s": 1039.8, "behind_ideal_s": 500.2,
+    "losing_streaks": [{"first_leg": 7, "last_leg": 10, "loss_s": 347.34}],
     "legs": [
       {"index": 1, "from": 32736, "to": 49, "split_s": 54.0, "elapsed_s": 54.0, "place": 16,
        "reference_s": 42.2, "reference_count": 5, "valid_splits": 18,
        "performance_index": 0.7815, "expected_s": 48.79, "loss_s": 5.21, "loss_pct": 10.67,
-       "is_error": false, "ideal_elapsed_s": 42.2, "behind_ideal_s": 11.8, "is_last": false,
-       "short_reference": false, "excluded_from_patterns": false}
+       "is_error": false, "gain_s": -5.21, "cumulative_gain_s": -5.21, "ideal_elapsed_s": 42.2,
+       "behind_ideal_s": 11.8, "is_last": false, "short_reference": false,
+       "excluded_from_patterns": false}
     ]
   },
   "alignment": {

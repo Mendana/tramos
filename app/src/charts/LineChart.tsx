@@ -3,7 +3,7 @@
 // superficie y un cursor vertical que se ajusta al punto más cercano, con tooltip (ratón y
 // teclado). Ver la guía de visualización y `docs/app.md`, "Gráficas".
 import { useState } from "react";
-import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, useWidth } from "./common";
+import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
 import { linear, niceDomain } from "./scale";
 
 export interface LinePoint {
@@ -45,18 +45,11 @@ export function LineChart({
   const x = (i: number) => MARGIN.left + i * step;
   const labelEvery = Math.max(1, Math.ceil(28 / Math.max(step, 1)));
 
-  // Tramos continuos de la línea (un `null` la corta).
-  const runs: number[][] = [];
-  points.forEach((p, i) => {
-    if (p.value === null) return;
-    const last = runs[runs.length - 1];
-    if (last !== undefined && last[last.length - 1] === i - 1) last.push(i);
-    else runs.push([i]);
-  });
-  const path = (run: number[]) =>
-    run.map((i, k) => `${k === 0 ? "M" : "L"}${x(i)},${y(points[i].value ?? 0)}`).join(" ");
-  const area = (run: number[]) =>
-    `${path(run)} L${x(run[run.length - 1])},${y(0)} L${x(run[0])},${y(0)} Z`;
+  const runs = lineRuns(
+    points.map((p) => p.value),
+    x,
+    y,
+  );
   const activePoint = active === null ? undefined : points[active];
 
   return (
@@ -65,9 +58,13 @@ export function LineChart({
         <svg width={width} height={HEIGHT} role="img" aria-label={label}>
           <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
           {runs.map((run) => (
-            <g key={run[0]}>
-              <path className="chart-area" d={area(run)} fill={color} />
-              <path className="chart-line" d={path(run)} stroke={color} />
+            <g key={run.first}>
+              <path
+                className="chart-area"
+                d={`${run.d} L${x(run.last)},${y(0)} L${x(run.first)},${y(0)} Z`}
+                fill={color}
+              />
+              <path className="chart-line" d={run.d} stroke={color} />
             </g>
           ))}
           {active !== null && (

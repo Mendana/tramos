@@ -1,6 +1,6 @@
 // Paneles de gráficas de la vista de carrera (docs/app.md, "Gráficas"). Todos salen de los mismos
 // tramos que la tabla, así que sus valores coinciden con ella.
-import { LegReport, clock, codeLabel, decimal, signed } from "./api";
+import { LegReport, LosingStreak, clock, codeLabel, decimal, signed } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { Legend } from "./charts/common";
@@ -203,6 +203,105 @@ export function CumulativeLossPanel({ legs }: { legs: LegReport[] }) {
                 <td className="num">{clock(cumulative[i])}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      }
+    />
+  );
+}
+
+/**
+ * Dónde gano y dónde pierdo (P5): la ganancia de cada tramo frente a lo esperado (arriba gano,
+ * abajo pierdo), su acumulado y las rachas de dos o más tramos seguidos perdiendo. Todo sale del
+ * núcleo (`docs/tiempo-perdido.md`, "Dónde gano y dónde pierdo").
+ */
+export function GainLossPanel({
+  legs,
+  streaks,
+}: {
+  legs: LegReport[];
+  streaks: LosingStreak[];
+}) {
+  const withGain = legs.filter((leg) => leg.gain_s !== null).length;
+  const streakOf = (leg: LegReport) =>
+    streaks.find((s) => s.first_leg <= leg.index && leg.index <= s.last_leg);
+  const position = (index: number) => legs.findIndex((leg) => leg.index === index);
+  const streakLabel = (s: LosingStreak) => `${s.first_leg}–${s.last_leg}`;
+  const gain = (v: number | null) => (v === null ? "—" : `${signed(v)} s`);
+  return (
+    <ChartPanel
+      title="Dónde gano y dónde pierdo"
+      description="Segundos ganados (arriba) o perdidos (abajo) en cada tramo frente a lo esperado con tu rendimiento habitual, y la línea con lo que llevas acumulado. Las franjas son rachas de dos o más tramos seguidos perdiendo."
+      cases={`${cases(withGain)} · ${streaks.length} ${streaks.length === 1 ? "racha" : "rachas"}`}
+      chart={
+        <>
+          <Legend
+            items={[
+              { label: "Ganas", color: "var(--chart-gain)" },
+              { label: "Pierdes", color: "var(--chart-loss)" },
+              { label: "Acumulado", color: "var(--chart-line-neutral)", shape: "line" },
+              { label: "Racha perdiendo", color: "var(--chart-highlight)", shape: "band" },
+            ]}
+          />
+          <ColumnChart
+            label="Ganancia en segundos de cada tramo, su acumulado y las rachas perdiendo"
+            formatTick={seconds}
+            highlights={streaks.map((s) => ({
+              from: position(s.first_leg),
+              to: position(s.last_leg),
+            }))}
+            line={{
+              values: legs.map((leg) => leg.cumulative_gain_s),
+              color: "var(--chart-line-neutral)",
+            }}
+            columns={legs.map((leg) => {
+              const streak = streakOf(leg);
+              return {
+                key: leg.index,
+                label: String(leg.index),
+                value: leg.gain_s,
+                color: (leg.gain_s ?? 0) >= 0 ? "var(--chart-gain)" : "var(--chart-loss)",
+                tooltip: {
+                  value: leg.gain_s === null ? "Sin dato" : gain(leg.gain_s),
+                  detail: `${legName(leg)} · acumulado ${gain(leg.cumulative_gain_s)}${
+                    streak === undefined ? "" : ` · racha ${streakLabel(streak)}`
+                  }`,
+                },
+              };
+            })}
+          />
+        </>
+      }
+      table={
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="num">Tramo</th>
+              <th>Balizas</th>
+              <th className="num">Ganancia</th>
+              <th className="num">Acumulado</th>
+              <th>Racha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {legs.map((leg) => {
+              const streak = streakOf(leg);
+              return (
+                <tr key={leg.index}>
+                  <td className="num">{leg.index}</td>
+                  <td className="num">
+                    {codeLabel(leg.from)} → {codeLabel(leg.to)}
+                  </td>
+                  <td className="num">{gain(leg.gain_s)}</td>
+                  <td className="num">{gain(leg.cumulative_gain_s)}</td>
+                  <td>
+                    {streak === undefined
+                      ? ""
+                      : `${streakLabel(streak)} (${decimal(streak.loss_s, 0)} s)`}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       }

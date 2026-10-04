@@ -96,6 +96,27 @@ tramo. Hay dos definiciones y se elige en la configuración (`ideal_time`):
 - Un tramo sin clasificados con split no tiene ideal con ninguna de las dos: el ideal acumulado
   queda sin valor desde ese tramo.
 
+## Dónde gano y dónde pierdo (P5)
+
+Sale de la pérdida (`tramos_core::gain_loss`, P5 de `docs/preguntas.md`):
+
+- **Ganancia** del tramo *i*: `g_i = esp_i − t_i = −p_i` (segundos). Positiva = mejor que el
+  rendimiento habitual. Una pérdida de 0 da ganancia 0 (no −0).
+- **Ganancia acumulada** hasta *i*: suma de las `g_j` conocidas con j ≤ i. Un tramo sin pérdida
+  (sin split o sin referencia) no tiene ganancia ni acumulada y no suma a los siguientes. Como la
+  pérdida, cuenta **todos** los tramos, con error o sin él: es "voy tantos segundos por delante o
+  por detrás de lo que me tocaba con mi rendimiento habitual".
+- **Racha perdiendo**: dos o más tramos seguidos con `g_i < 0` estricto. Un tramo sin dato o con
+  `g_i = 0` la corta. De cada racha se da el primer y el último tramo y los segundos perdidos
+  (`Σ −g_i`, positivo).
+
+Ejemplo: pérdidas 8, −2, 1,5, 20, 0,5, −4, 3 y 6 s → ganancias −8, 2, −1,5, −20, −0,5, 4, −3 y
+−6 s; acumulada final −33 s; rachas 3–5 (22 s) y 7–8 (9 s). El tramo 1 pierde solo y no es racha.
+
+Va en el informe del corredor (`tramos_core::runner_report`, el de `tramos analizar` y la app),
+no en `analyze_event`: por tramo `gain_s` y `cumulative_gain_s`, y en los totales
+`losing_streaks[]` con `first_leg`, `last_leg` y `loss_s`.
+
 ## Salida (`tramos_core::lost_time`)
 
 `analyze_event(&Event, &LostTimeConfig) -> LostTimeReport` (o `analyze_course` para un

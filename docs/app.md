@@ -105,6 +105,29 @@ Los números salen de `tramos_core::runner_report::runner_report`, la misma func
 `tramos analizar` (`docs/cli.md`), sobre la carrera guardada: la tabla coincide con la de la CLI.
 Los umbrales son los de los ajustes.
 
+## Diseño
+
+Base visual común a todas las pantallas (#88), en CSS propio y sin librerías de componentes. La
+CSP no deja inyectar estilos en tiempo de ejecución y no hay fuentes externas: se usan las del
+sistema.
+
+- **Variables** (`app/src/styles/tokens.css`): colores, tipografía, espaciado (múltiplos de 4),
+  radios y sombras, con modo claro y oscuro según el sistema (`prefers-color-scheme`). Ninguna
+  pantalla usa colores ni medidas sueltas.
+- **Paleta** inspirada en el mapa de orientación: el **magenta** de los recorridos es el acento
+  (navegación, botón principal, selección) y el **naranja** de la baliza marca los errores (filas
+  de tramo con error, pérdidas, cifras). Las ganancias van en verde.
+- **Estilos base** (`styles/base.css`): documento, títulos, botones (`btn`, `btn-primary`,
+  `btn-ghost`, `btn-lg`), campos (`field`, `field-label`, `field-hint`, `input`) y utilidades.
+- **Componentes** (`styles/components.css` y `src/ui.tsx`): estructura con barra lateral, tarjetas,
+  avisos (`Notice`: información, aviso, error, éxito), píldoras, cifras destacadas (`Stat`),
+  tablas (números tabulares a la derecha, filas clicables, tramos con error resaltados), zona para
+  soltar ficheros, lista de opciones, control segmentado, secciones de formulario y estado vacío.
+  Los iconos son SVG en línea en `ui.tsx`; el de la app es una baliza.
+- **Estructura**: barra lateral con Carreras, Importar y Ajustes; el contenido, centrado hasta
+  1080 px. Por debajo de 860 px de ancho la barra lateral pasa arriba. La ventana abre a
+  1180 × 780 (mínimo 760 × 520).
+
 ## Seguridad
 
 La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permisos de la ventana

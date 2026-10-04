@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   FORMAT_LABELS,
+  LegReport,
   RaceDetail,
   clock,
   codeLabel,
@@ -9,6 +10,7 @@ import {
   signed,
   statusLabel,
 } from "./api";
+import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
 
 /** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
 function RaceView({ resultId, onBack }: { resultId: number; onBack: () => void }) {
@@ -24,21 +26,17 @@ function RaceView({ resultId, onBack }: { resultId: number; onBack: () => void }
   }, [resultId]);
 
   return (
-    <section className="panel">
-      <button type="button" onClick={onBack}>
-        ← Tus carreras
+    <>
+      <button type="button" className="btn btn-ghost back" onClick={onBack}>
+        <ChevronLeft size={16} /> Tus carreras
       </button>
-      {error !== null && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
+      {error !== null && <Notice kind="error">{error}</Notice>}
       {detail === null ? (
         error === null && <p className="muted">Cargando…</p>
       ) : (
         <Detail detail={detail} />
       )}
-    </section>
+    </>
   );
 }
 
@@ -46,101 +44,115 @@ function Detail({ detail }: { detail: RaceDetail }) {
   const lost = detail.report.lost_time;
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
+  const shared = course.classes.length > 1 ? course.classes.map((c) => c.name).join(", ") : null;
   return (
     <>
-      <h2>
-        {detail.name ?? "Carrera sin nombre"} · {detail.date}
-      </h2>
-      <p className="muted">
-        {detail.class_name} · {name} · {statusLabel(detail.status, detail.place)}
-        {detail.format !== null && ` · ${FORMAT_LABELS[detail.format]}`} ·{" "}
-        {course.controls.length} balizas · {course.valid_runners} clasificados en el recorrido
-        {course.classes.length > 1 &&
-          ` (${course.classes.map((c) => c.name).join(", ")})`}
-      </p>
+      <PageHeader
+        title={detail.name ?? "Carrera sin nombre"}
+        subtitle={
+          <>
+            <span className="num">{detail.date}</span>
+            {detail.format !== null && (
+              <span className="pill pill-accent">{FORMAT_LABELS[detail.format]}</span>
+            )}
+            <span className="pill">{detail.class_name}</span>
+            <span>
+              {name} · {statusLabel(detail.status, detail.place)}
+            </span>
+          </>
+        }
+      />
 
-      <dl className="totals">
-        <div>
-          <dt>Tiempo</dt>
-          <dd>{clock(lost.total_s)}</dd>
-        </div>
-        <div>
-          <dt>Tiempo perdido</dt>
-          <dd>{clock(lost.lost_time_s)}</dd>
-        </div>
-        <div>
-          <dt>Sin errores</dt>
-          <dd>{clock(lost.time_without_errors_s)}</dd>
-        </div>
-        <div>
-          <dt>Errores</dt>
-          <dd>{lost.error_count}</dd>
-        </div>
-        <div>
-          <dt>Rendimiento habitual</dt>
-          <dd>
-            {lost.usual_performance === null
-              ? "—"
-              : `${decimal(lost.usual_performance * 100, 1)} %`}
-          </dd>
-        </div>
-      </dl>
+      <div className="stats">
+        <Stat label="Tiempo" value={clock(lost.total_s)} />
+        <Stat
+          label="Tiempo perdido"
+          value={clock(lost.lost_time_s)}
+          tone={lost.error_count > 0 ? "error" : undefined}
+        />
+        <Stat label="Sin errores" value={clock(lost.time_without_errors_s)} />
+        <Stat label="Errores" value={lost.error_count} tone={lost.error_count > 0 ? "error" : undefined} />
+        <Stat
+          label="Rendimiento"
+          value={
+            lost.usual_performance === null ? "—" : `${decimal(lost.usual_performance * 100, 0)} %`
+          }
+        />
+      </div>
+
       {course.weak_reference && (
-        <p className="note">
-          Referencia débil: solo {course.valid_runners} clasificados en el recorrido.
-        </p>
+        <Notice kind="warning">
+          Referencia débil: solo {course.valid_runners} clasificados en el recorrido. Las pérdidas
+          son poco fiables.
+        </Notice>
       )}
-      <p className="muted">
-        Un tramo es error si pierdes más de {decimal(detail.config.error_threshold_s, 0)} s y más
-        del {decimal(detail.config.error_threshold_pct, 0)} % de lo esperado.
-      </p>
 
-      <table className="legs">
-        <thead>
-          <tr>
-            <th className="num">Tramo</th>
-            <th>Balizas</th>
-            <th className="num">Split</th>
-            <th className="num">Puesto</th>
-            <th className="num">Referencia</th>
-            <th className="num">IR</th>
-            <th className="num">Pérdida</th>
-            <th className="num">%</th>
-            <th>Notas</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lost.legs.map((leg) => {
-            const notes = [
-              leg.is_error ? "error" : null,
-              leg.is_last ? "último" : null,
-              leg.short_reference ? "ref. corta" : null,
-            ].filter((n) => n !== null);
-            return (
-              <tr key={leg.index} className={leg.is_error ? "error-leg" : undefined}>
-                <td className="num">{leg.index}</td>
-                <td>
-                  {codeLabel(leg.from)}→{codeLabel(leg.to)}
-                </td>
-                <td className="num">{clock(leg.split_s)}</td>
-                <td className="num">{leg.place ?? "—"}</td>
-                <td className="num">{clock(leg.reference_s)}</td>
-                <td className="num">
-                  {leg.performance_index === null
-                    ? "—"
-                    : `${decimal(leg.performance_index * 100, 1)} %`}
-                </td>
-                <td className="num">{leg.loss_s === null ? "—" : `${signed(leg.loss_s)} s`}</td>
-                <td className="num">
-                  {leg.loss_pct === null ? "—" : `${signed(leg.loss_pct)} %`}
-                </td>
-                <td>{notes.join(", ")}</td>
+      <div className="card card-flush">
+        <div className="card-title card-head">
+          <h3>Tramos</h3>
+          <span className="small muted">
+            {course.controls.length} balizas · {course.valid_runners} clasificados
+            {shared !== null && ` (${shared})`} · error si pierdes más de{" "}
+            {decimal(detail.config.error_threshold_s, 0)} s y del{" "}
+            {decimal(detail.config.error_threshold_pct, 0)} %
+          </span>
+        </div>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="num">Tramo</th>
+                <th>Balizas</th>
+                <th className="num">Split</th>
+                <th className="num">Puesto</th>
+                <th className="num">Referencia</th>
+                <th className="num">IR</th>
+                <th className="num">Pérdida</th>
+                <th className="num">%</th>
+                <th>Notas</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {lost.legs.map((leg) => (
+                <LegRow key={leg.index} leg={leg} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </>
+  );
+}
+
+function LegRow({ leg }: { leg: LegReport }) {
+  const lossClass =
+    leg.loss_s === null ? undefined : leg.is_error ? "loss-bad" : leg.loss_s < 0 ? "loss-good" : undefined;
+  return (
+    <tr className={leg.is_error ? "is-error" : undefined}>
+      <td className="num strong">{leg.index}</td>
+      <td className="num">
+        {codeLabel(leg.from)} → {codeLabel(leg.to)}
+      </td>
+      <td className="num strong">{clock(leg.split_s)}</td>
+      <td className="num">{leg.place ?? "—"}</td>
+      <td className="num muted">{clock(leg.reference_s)}</td>
+      <td className="num">
+        {leg.performance_index === null ? "—" : `${decimal(leg.performance_index * 100, 0)} %`}
+      </td>
+      <td className={`num ${lossClass ?? ""}`}>
+        {leg.loss_s === null ? "—" : `${signed(leg.loss_s)} s`}
+      </td>
+      <td className={`num ${lossClass ?? ""}`}>
+        {leg.loss_pct === null ? "—" : `${signed(leg.loss_pct)} %`}
+      </td>
+      <td>
+        <div className="meta">
+          {leg.is_error && <span className="pill pill-error">Error</span>}
+          {leg.is_last && <span className="pill">Último</span>}
+          {leg.short_reference && <span className="pill">Ref. corta</span>}
+        </div>
+      </td>
+    </tr>
   );
 }
 

@@ -1,0 +1,105 @@
+/*
+ * Variables de diseño de la app (docs/app.md, "Diseño"). Todas las pantallas usan estas
+ * variables, nunca colores ni medidas sueltas.
+ *
+ * Paleta inspirada en el mapa de orientación: el magenta de los recorridos es el acento y el
+ * naranja de la baliza marca los errores.
+ */
+:root {
+  color-scheme: light;
+
+  /* Superficies y texto */
+  --bg: #f4f2ee;
+  --surface: #ffffff;
+  --surface-sunken: #f9f8f5;
+  --surface-hover: #f1eee8;
+  --border: #e3dfd7;
+  --border-strong: #cfc9bd;
+  --text: #1f1c18;
+  --text-muted: #6b655c;
+  --text-faint: #9a948a;
+
+  /* Acento: magenta de recorrido */
+  --accent: #a8236f;
+  --accent-hover: #8e1d5e;
+  --accent-soft: #f7e7f0;
+  --accent-text: #ffffff;
+
+  /* Estados */
+  --error: #d4580b;
+  --error-strong: #b44a08;
+  --error-soft: #fdeee2;
+  --error-text: #ffffff;
+  --warning: #9a6b00;
+  --warning-soft: #fbf3dc;
+  --success: #2c7a4b;
+  --success-soft: #e5f3ea;
+  --info: #2f5f8f;
+  --info-soft: #e8f0f8;
+
+  /* Tipografía (fuentes del sistema: nada externo) */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+
+  /* Espaciado (múltiplos de 4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Formas */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgb(31 28 24 / 6%), 0 1px 1px rgb(31 28 24 / 4%);
+  --shadow-raised: 0 6px 20px rgb(31 28 24 / 10%);
+  --focus: 0 0 0 3px rgb(168 35 111 / 30%);
+
+  --sidebar-width: 216px;
+  --content-max: 1080px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --bg: #141312;
+    --surface: #1d1c1a;
+    --surface-sunken: #181716;
+    --surface-hover: #262422;
+    --border: #312e2a;
+    --border-strong: #45413b;
+    --text: #edeae4;
+    --text-muted: #a8a197;
+    --text-faint: #777168;
+
+    --accent: #e66db5;
+    --accent-hover: #f08cc7;
+    --accent-soft: #3a1f30;
+    --accent-text: #1d0d17;
+
+    --error: #f28a45;
+    --error-strong: #ffa366;
+    --error-soft: #3a2416;
+    --error-text: #1f1006;
+    --warning: #e0b23e;
+    --warning-soft: #352b14;
+    --success: #6cc690;
+    --success-soft: #1a3324;
+    --info: #86b4e3;
+    --info-soft: #1b2a3a;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-raised: 0 6px 20px rgb(0 0 0 / 45%);
+    --focus: 0 0 0 3px rgb(230 109 181 / 35%);
+  }
+}

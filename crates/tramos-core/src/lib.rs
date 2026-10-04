@@ -2,6 +2,7 @@
 //! métricas y análisis. Sin dependencias de interfaz.
 
 pub mod courses;
+pub mod identify;
 pub mod importers;
 pub mod model;
 

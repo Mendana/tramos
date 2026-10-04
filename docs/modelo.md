@@ -66,3 +66,10 @@ corren el mismo recorrido, que es la unidad sobre la que se calcula el tiempo pe
   pasar el mismo `Event` que se agrupó (se busca por `index`; los índices fuera de rango se
   ignoran).
 - En JSON: `{"course": {"controls": [31, 45]}, "classes": [{"index": 0, "id": 7, "name": "F21A"}]}`.
+
+## Identificación del corredor
+
+`tramos_core::identify::identify_runner(&Event, &RunnerIdentity) -> Identification` propone qué
+resultado de la carrera es del usuario a partir de su tarjeta SI y su nombre. Señala los
+resultados con `ResultRef` (`class_index`, `result_index`), nunca con `Runner::id`. Reglas,
+normalización de nombres y formato JSON en `docs/identificacion.md`.

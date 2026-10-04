@@ -109,7 +109,8 @@ reloj (`track_time = punch_time + offset_s`), su posición en el track (`locatio
 `points[index]` y `points[index + 1]` a la fracción `fraction`, e `in_gap` si esos dos puntos
 están separados más de `max_gap_s`), su papel (`usage`: `used`, `start`, `no_time` o
 `no_signal`) y su desfase propio. Las picadas sin hora no tienen `track_time` ni `location`. La
-posición geográfica de cada baliza la interpola #11 a partir de `location`.
+posición geográfica de cada baliza y el corte en tramos salen de `location`
+(`docs/segmentacion.md`).
 
 En JSON (campos en `snake_case`, instantes en RFC 3339):
 

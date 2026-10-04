@@ -898,7 +898,8 @@ impl Signal {
     }
 }
 
-fn median(values: impl Iterator<Item = f64>) -> Option<f64> {
+/// Mediana de los valores finitos; `None` si no hay ninguno.
+pub(crate) fn median(values: impl Iterator<Item = f64>) -> Option<f64> {
     let mut v: Vec<f64> = values.filter(|x| x.is_finite()).collect();
     if v.is_empty() {
         return None;

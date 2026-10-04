@@ -73,3 +73,11 @@ corren el mismo recorrido, que es la unidad sobre la que se calcula el tiempo pe
 resultado de la carrera es del usuario a partir de su tarjeta SI y su nombre. Señala los
 resultados con `ResultRef` (`class_index`, `result_index`), nunca con `Runner::id`. Reglas,
 normalización de nombres y formato JSON en `docs/identificacion.md`.
+
+## Tramos y posición de las balizas
+
+`tramos_core::segmentation::segment(&Track, &Alignment) -> Result<Segmentation, _>` corta el
+track en un sub-track por tramo (límites interpolados en cada picada y compartidos por los dos
+tramos contiguos) y sitúa cada baliza en la posición del corredor en el instante de su picada.
+`median_control_positions` combina las balizas de varios corredores del mismo recorrido con la
+mediana. Algoritmo, casos borde y formato JSON en `docs/segmentacion.md`.

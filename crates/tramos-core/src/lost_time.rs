@@ -10,7 +10,7 @@
 //!    [`LostTimeConfig`].
 //!
 //! Los corredores se identifican por su posición en el `Event` (índice de categoría e índice de
-//! resultado), nunca por `Runner::id`, que no es único.
+//! resultado): el .spl no trae id de corredor.
 
 use std::iter;
 

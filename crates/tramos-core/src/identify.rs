@@ -13,8 +13,8 @@
 //!   interfaz pida confirmación (tarjeta prestada o reutilizada); si además el nombre casa con
 //!   otro resultado, se devuelven los dos como candidatos.
 //!
-//! Los resultados se señalan por su posición en el `Event` ([`ResultRef`]), nunca por
-//! `Runner::id`, que no es único (`docs/formato-spl.md`).
+//! Los resultados se señalan por su posición en el `Event` ([`ResultRef`]): el .spl no trae id
+//! de corredor (`docs/formato-spl.md`).
 
 use serde::{Deserialize, Serialize};
 

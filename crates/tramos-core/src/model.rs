@@ -123,6 +123,9 @@ pub struct Leg {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     pub points: Vec<TrackPoint>,
+    /// Deporte de la actividad tal y como lo nombra el FIT (`running`, `cycling`…), si lo trae.
+    #[serde(default)]
+    pub sport: Option<String>,
 }
 
 /// Punto del track. Solo existe si hay posición; el resto de magnitudes son opcionales.
@@ -258,6 +261,7 @@ mod tests {
                 cadence_spm: None,
                 distance_m: Some(0.0),
             }],
+            sport: Some("running".into()),
         };
         let leg_back: Leg = serde_json::from_str(&serde_json::to_string(&leg).unwrap()).unwrap();
         let track_back: Track =

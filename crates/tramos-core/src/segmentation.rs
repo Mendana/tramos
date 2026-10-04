@@ -350,7 +350,10 @@ fn cut(track: &Track, start: &Boundary, end: &Boundary) -> Result<Track, Missing
             .cloned(),
     );
     points.push(end.point.clone());
-    Ok(Track { points })
+    Ok(Track {
+        points,
+        sport: track.sport.clone(),
+    })
 }
 
 #[cfg(test)]
@@ -389,6 +392,7 @@ mod tests {
                 point(20.0, 40.001, -3.002, None),
                 point(30.0, 40.000, -3.002, Some(130.0)),
             ],
+            sport: None,
         }
     }
 
@@ -588,6 +592,7 @@ mod tests {
                 point(10.0, 40.001, -3.000, None),
                 point(50.0, 40.001, -3.004, None),
             ],
+            sport: None,
         };
         let mut gap = punch(31, Some(20.0), Some((1, 0.25)));
         if let Some(l) = gap.location.as_mut() {

@@ -57,8 +57,13 @@ Los demás campos de `record` (velocidad, potencia, dinámica de carrera…) no 
 - **Cadencia × 2.** En carrera el FIT guarda la cadencia en rpm de un pie (zancadas de una
   pierna por minuto, unas 85–95 corriendo). El modelo la quiere en pasos por minuto contando
   los dos pies (unas 170–190), así que se suma `fractional_cadence` (si viene) y se multiplica
-  por 2. Un `fractional_cadence` sin `cadence` no da cadencia. Se supone siempre deporte a pie:
-  no se mira el deporte de la sesión.
+  por 2. Un `fractional_cadence` sin `cadence` no da cadencia.
+- **Deporte.** `Track::sport` es el campo `sport` del primer mensaje `session` que lo traiga
+  o, si no hay ninguno, el del mensaje `sport`. Va con el nombre del perfil FIT que da
+  `fitparser` (`running`, `cycling`…) o, si no lo conoce, con el número del enum. La cadencia
+  solo se multiplica por 2 en los deportes a pie (`generic`, `running`, `walking`, `hiking` y
+  `mountaineering`) o si el FIT no trae deporte, que es lo normal en orientación a pie. En los
+  demás (por ejemplo, `cycling`, donde la cadencia ya son rpm de pedal) se guarda tal cual.
 - **Orden.** Los puntos se ordenan por instante con un orden estable: si dos `record` comparten
   instante, se conservan los dos en el orden del fichero.
 - **Sin `record` con posición.** El resultado es un `Track` vacío, no un error.

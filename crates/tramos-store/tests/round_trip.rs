@@ -166,6 +166,7 @@ fn sample_track() -> Track {
                 distance_m: Some(7.25),
             },
         ],
+        sport: Some("running".into()),
     }
 }
 
@@ -290,6 +291,7 @@ fn saving_a_track_again_replaces_it() {
 
     let shorter = Track {
         points: sample_track().points[1..2].to_vec(),
+        sport: None,
     };
     store.save_track(ana, &shorter, None).unwrap();
     assert_eq!(store.load_track(ana).unwrap(), Some(shorter));

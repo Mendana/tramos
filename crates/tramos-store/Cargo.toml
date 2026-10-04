@@ -1,0 +1,21 @@
+[package]
+name = "tramos-store"
+description = "Almacenamiento local de Tramos en SQLite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tramos-core.workspace = true
+chrono.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -121,8 +121,9 @@ sabe que son de la misma persona (él mismo y, más adelante, sus compañeros).
 - **Qué guarda una persona**: el nombre visible y unas notas, ambos escritos por el usuario, y el
   instante de creación. No se rellena con datos del .spl y no tiene fecha de nacimiento
   (`docs/datos-y-privacidad.md`). El nombre se guarda tal cual; solo se rechaza vacío o en blanco.
-- Decidir automáticamente quién es quién queda fuera de esta API (#9, #17): aquí el vínculo lo
-  decide siempre quien llama.
+- Decidir automáticamente quién es quién queda fuera de esta API: el núcleo propone qué
+  resultado de una carrera es del usuario (`tramos_core::identify`, `docs/identificacion.md`),
+  pero aquí el vínculo lo decide siempre quien llama.
 
 ## Ficheros originales
 

@@ -22,8 +22,8 @@ referencias de cada tramo). Usa solo splits públicos.
 más la línea acumulada. Se resaltan las rachas de dos o más tramos seguidos perdiendo.
 
 **P6. ¿En qué formato rindo peor?** Por formato (sprint, media, larga): IR medio, tasa de error,
-pérdida media por tramo y número de carreras. El formato se sugiere al importar (por duración del
-ganador) y el corredor lo confirma.
+pérdida media por tramo y número de carreras. El formato se sugiere al importar (por la mediana de
+los tiempos de los ganadores de las categorías, `docs/modelo.md`) y el corredor lo confirma.
 
 **P10. ¿Soy consistente?** Desviación típica de `IR_i` en la carrera ponderada por `ref_i`
 (menor = más consistente). Por carrera y como serie a lo largo del histórico.

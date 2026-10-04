@@ -11,10 +11,13 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `Store::open(ruta)` / `Store::open_in_memory()` | Abre o crea la base, activa las claves foráneas y aplica las migraciones pendientes. |
 | `save_source_file(tipo, ruta, &[u8]) -> SourceFileId` | Guarda un fichero original con su contenido y su SHA-256. Si ya hay uno con la misma huella, devuelve su id sin duplicarlo. |
 | `load_source_file(SourceFileId) -> SourceFile` | Tipo, ruta de origen, SHA-256, contenido e instante de importación. |
+| `find_source_file(&[u8]) -> Option<SourceFileId>` | Fichero ya guardado con el mismo contenido (mismo SHA-256), sin guardar nada. |
 | `save_event(&Event, Option<SourceFileId>) -> SavedEvent` | Guarda una carrera completa en una transacción, enlazada a su .spl si se indica. Devuelve su `EventId` y los `ResultId` por categoría y en orden. |
 | `load_event(EventId) -> Event` | Carga la carrera exactamente como se guardó. |
 | `result_ids(EventId)` | Los `ResultId` de una carrera ya guardada, como en `SavedEvent`. |
 | `event_source_file(EventId)` | El fichero original enlazado a la carrera, si lo tiene. |
+| `event_by_source_file(SourceFileId) -> Option<EventId>` | La primera carrera guardada (menor id) enlazada a ese fichero. Sirve para no duplicar una carrera al reimportar su .spl (`docs/app.md`). |
+| `event_format(EventId)` / `set_event_format(EventId, Option<RaceFormat>)` | Formato de la carrera (`sprint`, `middle`, `long`); `None` si no se ha fijado o para borrarlo. Carrera inexistente: `EventNotFound`. |
 | `event_start(EventId) -> Option<DateTime<Utc>>` | Inicio de la carrera para ordenar las del mismo día: la primera picada con hora de cualquiera de sus resultados (ver [Personas](#personas)). |
 | `save_track(ResultId, &Track, Option<SourceFileId>)` / `load_track(ResultId)` | Track del reloj de un resultado, enlazado a su FIT si se indica. Guardar otra vez sustituye el anterior. |
 | `track_source_file(ResultId)` | El fichero original enlazado al track, si lo tiene. |
@@ -25,7 +28,7 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `delete_person(PersonId)` | Borra una persona y desvincula sus resultados; no borra ninguno. |
 | `link_result(ResultId, PersonId)` / `unlink_result(ResultId)` | Vincula un resultado con una persona o lo desvincula. Un resultado ya vinculado a otra persona da `ResultAlreadyLinked`. |
 | `result_person(ResultId) -> Option<PersonId>` | Persona a la que está vinculado un resultado, si lo está. |
-| `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre de la carrera (si lo hay), categoría, estado y puesto. |
+| `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre, inicio y formato de la carrera (si los hay), categoría, estado, puesto y si el resultado tiene track. |
 
 Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 
@@ -52,7 +55,7 @@ Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
 
 | Tabla | Qué guarda | Columnas clave |
 | --- | --- | --- |
-| `events` | Carreras. | `name`, `date`, `source_file_id` (el .spl, opcional). |
+| `events` | Carreras. | `name`, `date`, `source_file_id` (el .spl, opcional), `format` (`sprint`, `middle`, `long` u opcional). |
 | `courses` | Recorridos: uno por secuencia de balizas distinta dentro de la carrera. Las categorías con el mismo recorrido comparten fila, porque el tiempo perdido se calcula por recorrido. | `event_id`. |
 | `course_controls` | Balizas de cada recorrido, sin salida ni meta. | `course_id`, `position`, `code`. |
 | `classes` | Categorías. | `event_id`, `position`, `source_id` (id del fichero), `name`, `short_name`, `course_id`. |
@@ -102,6 +105,7 @@ Notas:
 | 2 | `0002_people.sql` | Tabla `people` y columna `results.person_id` (nula en los resultados que ya había). |
 | 3 | `0003_track_sport.sql` | Columna `tracks.sport` (nula en los tracks que ya había). |
 | 4 | `0004_drop_runner_source_id.sql` | Quita `runners.source_id` (el `0x80` del .spl, que no es un id). El resto de cada corredor se conserva. |
+| 5 | `0005_event_format.sql` | Columna `events.format` (nula en las carreras que ya había). |
 
 ## Personas
 

@@ -6,8 +6,10 @@
 use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use rusqlite::Connection;
 use tramos_core::model::{
-    Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE,
+    Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE, Track,
+    TrackPoint,
 };
+use tramos_core::race_format::RaceFormat;
 use tramos_store::{
     EventId, PersonId, PersonResult, ResultId, SCHEMA_VERSION, SavedEvent, Store, StoreError,
 };
@@ -106,9 +108,11 @@ fn person_results_come_back_in_race_date_order() {
                 event_date: NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
                 event_name: Some("Sintética de Otoño".into()),
                 event_start: None,
+                event_format: None,
                 class_name: "F21A".into(),
                 status: RaceStatus::Ok,
                 place: Some(2),
+                has_track: false,
             },
             PersonResult {
                 result: november.results[0][0],
@@ -116,9 +120,11 @@ fn person_results_come_back_in_race_date_order() {
                 event_date: NaiveDate::from_ymd_opt(2026, 11, 8).unwrap(),
                 event_name: None,
                 event_start: None,
+                event_format: None,
                 class_name: "F21A".into(),
                 status: RaceStatus::NotClassified,
                 place: None,
+                has_track: false,
             },
         ]
     );
@@ -492,4 +498,39 @@ fn version_1_database_is_migrated_and_can_link_people() {
     // Reabrir no vuelve a migrar y conserva los vínculos.
     let store = Store::open(&path).unwrap();
     assert_eq!(store.result_person(ResultId(5)).unwrap(), Some(ana));
+}
+
+#[test]
+fn person_results_show_format_and_track() {
+    let mut store = Store::open_in_memory().unwrap();
+    let saved = store
+        .save_event(&event(None, (2026, 10, 3), RaceStatus::Ok, Some(1)), None)
+        .unwrap();
+    let ana = store.create_person("Ana", None).unwrap();
+    store.link_result(saved.results[0][0], ana).unwrap();
+    let before = &store.person_results(ana).unwrap()[0];
+    assert_eq!((before.event_format, before.has_track), (None, false));
+
+    store
+        .set_event_format(saved.id, Some(RaceFormat::Middle))
+        .unwrap();
+    let point = TrackPoint {
+        time: Utc.with_ymd_and_hms(2026, 10, 3, 9, 0, 0).unwrap(),
+        lat: 40.0,
+        lon: -4.0,
+        altitude_m: None,
+        heart_rate_bpm: None,
+        cadence_spm: None,
+        distance_m: None,
+    };
+    let track = Track {
+        points: vec![point],
+        sport: None,
+    };
+    store.save_track(saved.results[0][0], &track, None).unwrap();
+    let after = &store.person_results(ana).unwrap()[0];
+    assert_eq!(
+        (after.event_format, after.has_track),
+        (Some(RaceFormat::Middle), true)
+    );
 }

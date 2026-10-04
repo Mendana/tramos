@@ -5,10 +5,11 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use tramos_core::model::{Class, Course, Event, Punch, RaceResult, Runner};
+use tramos_core::race_format::RaceFormat;
 
 use crate::convert::{
-    date_to_text, instant_to_ms, ms_to_instant, position, sex_to_sql, sql_to_sex, sql_to_status,
-    status_to_sql, text_to_date,
+    date_to_text, format_to_sql, instant_to_ms, ms_to_instant, position, sex_to_sql, sql_to_format,
+    sql_to_sex, sql_to_status, status_to_sql, text_to_date,
 };
 use crate::source::ensure_source_file;
 use crate::{EventId, ResultId, SourceFileId, Store, StoreError};
@@ -58,6 +59,50 @@ impl Store {
             .optional()?
             .ok_or(StoreError::EventNotFound(id.0))?;
         Ok(source.map(SourceFileId))
+    }
+
+    /// Primera carrera guardada (la de menor id) enlazada a un .spl, si hay alguna. Sirve para no
+    /// duplicar una carrera al reimportar el mismo fichero.
+    pub fn event_by_source_file(
+        &self,
+        source: SourceFileId,
+    ) -> Result<Option<EventId>, StoreError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT MIN(id) FROM events WHERE source_file_id = ?1",
+                [source.0],
+                |row| row.get::<_, Option<i64>>(0),
+            )?
+            .map(EventId))
+    }
+
+    /// Formato de una carrera; `None` si no se ha fijado.
+    pub fn event_format(&self, id: EventId) -> Result<Option<RaceFormat>, StoreError> {
+        let format: Option<String> = self
+            .conn
+            .query_row("SELECT format FROM events WHERE id = ?1", [id.0], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .ok_or(StoreError::EventNotFound(id.0))?;
+        format.as_deref().map(sql_to_format).transpose()
+    }
+
+    /// Fija el formato de una carrera; `None` lo borra.
+    pub fn set_event_format(
+        &mut self,
+        id: EventId,
+        format: Option<RaceFormat>,
+    ) -> Result<(), StoreError> {
+        let updated = self.conn.execute(
+            "UPDATE events SET format = ?1 WHERE id = ?2",
+            params![format.map(format_to_sql), id.0],
+        )?;
+        if updated == 0 {
+            return Err(StoreError::EventNotFound(id.0));
+        }
+        Ok(())
     }
 
     /// Inicio de una carrera para ordenar las del mismo día: la primera picada con hora de

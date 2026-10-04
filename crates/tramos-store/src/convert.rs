@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use tramos_core::model::{RaceStatus, Sex};
+use tramos_core::race_format::RaceFormat;
 
 use crate::StoreError;
 
@@ -48,6 +49,25 @@ pub(crate) fn sql_to_status(status: &str, code: Option<u8>) -> Result<RaceStatus
         ("unknown", Some(code)) => Ok(RaceStatus::Unknown(code)),
         _ => Err(StoreError::InvalidData(format!(
             "estado inválido: {status:?} con código {code:?}"
+        ))),
+    }
+}
+
+pub(crate) fn format_to_sql(format: RaceFormat) -> &'static str {
+    match format {
+        RaceFormat::Sprint => "sprint",
+        RaceFormat::Middle => "middle",
+        RaceFormat::Long => "long",
+    }
+}
+
+pub(crate) fn sql_to_format(text: &str) -> Result<RaceFormat, StoreError> {
+    match text {
+        "sprint" => Ok(RaceFormat::Sprint),
+        "middle" => Ok(RaceFormat::Middle),
+        "long" => Ok(RaceFormat::Long),
+        _ => Err(StoreError::InvalidData(format!(
+            "formato inválido: {text:?}"
         ))),
     }
 }

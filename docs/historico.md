@@ -103,6 +103,18 @@ propio IR medio sobre esos tramos.
 - `races_without_data`: carreras que pasan el filtro sin rendimiento habitual.
 - `filter`: el filtro aplicado.
 
+## Una fila por carrera (`race_stats`)
+
+`race_stats(&RunnerLostTime) -> Option<HistoryStats>` da los números de una carrera sola, con las
+mismas definiciones que un grupo (`races` = 1, el IR medio es su rendimiento habitual). `None` si
+no tiene rendimiento habitual: tampoco cuenta en ningún grupo. Sumadas las filas de un grupo dan
+sus carreras, tramos y errores, y la pérdida media del grupo es la media de las de sus filas
+ponderada por sus tramos.
+
+El comando `history` de la app devuelve, además del agregado, una fila por carrera que pasa el
+filtro (`races`), de la más reciente a la más antigua, con su `result_id` para abrirla (#98).
+Es la base de las series por carrera de P10 y P11.
+
 ## Ejemplo de test
 
 Cinco carreras (tramos que cuentan / errores / suma de `p_i` y de `loss_pct` de los errores):

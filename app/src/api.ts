@@ -245,6 +245,24 @@ export interface HistoryView {
   };
   /** Las carreras que pasan el filtro, de la más reciente a la más antigua. */
   races: HistoryRaceRow[];
+  /** Pérdida según duración del tramo (P7): los seis cubos, con el mismo filtro. */
+  by_leg_length: LegLengthStats[];
+}
+
+/** Un cubo de duración de tramo (P7, `docs/historico.md`): referencia en `[from_s, to_s)`. */
+export interface LegLengthStats {
+  from_s: number;
+  /** `null` en el último cubo (sin final). */
+  to_s: number | null;
+  /** Tramos que cuentan con la referencia en el cubo (n). */
+  legs: number;
+  errors: number;
+  /** Errores / tramos (0–1). */
+  error_rate: number | null;
+  /** Pérdida de los errores repartida entre los tramos (s). */
+  mean_loss_s: number | null;
+  /** Lo mismo en % del tiempo esperado. */
+  mean_loss_pct: number | null;
 }
 
 export const FORMAT_LABELS: Record<RaceFormat, string> = {

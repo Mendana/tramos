@@ -144,3 +144,41 @@ histórico sale de los mismos números que la vista de carrera, en `app/src-taur
 P7, P10, P11 y P13 se apoyan en este histórico: mismas carreras, mismo filtro y, cuando cuentan
 tramos, los mismos `pattern_legs`. Cada uno añade sus números al resultado del comando y sus
 paneles a la pantalla.
+
+## Pérdida según duración del tramo (P7)
+
+«¿Tramos largos o cortos?» (`docs/preguntas.md`, P7). Implementado en `tramos_core::leg_length`
+(#28); el comando `history` lo devuelve en `by_leg_length` y la pantalla lo dibuja en el panel
+«Pérdida según duración del tramo» (`docs/app.md`, "Vista histórica").
+
+- **Mismas carreras y tramos**: las del histórico con el mismo filtro (fechas y formato) y, de
+  cada una, sus tramos que cuentan (`pattern_legs`): ni el último ni los de referencia menor de
+  20 s. Las carreras sin rendimiento habitual no aportan nada. Cada tramo que cuenta cae en un
+  cubo y solo en uno, así que la suma de tramos y errores de los cubos es la del total.
+- **Cubos por `ref_i`**, no por el split del corredor: un error alarga el split y movería el
+  tramo a un cubo más largo. Escala logarítmica, cada cubo el doble que el anterior (salvo el
+  primero). El **inicio entra y el final no**:
+
+  | Cubo | `ref_i` (s) |
+  | --- | --- |
+  | 20–30 s | `[20, 30)` |
+  | 30–60 s | `[30, 60)` |
+  | 1–2 min | `[60, 120)` |
+  | 2–4 min | `[120, 240)` |
+  | 4–8 min | `[240, 480)` |
+  | ≥ 8 min | `[480, ∞)` |
+
+  Así el primer cubo empieza justo donde acaba la exclusión de referencia corta (`ref_i < 20`
+  estricto, `docs/tiempo-perdido.md`) y un tramo de exactamente 1 min es de 1–2 min.
+- **Por cubo** (`LegLengthStats`), con `n` tramos que cuentan en el cubo y `E` errores:
+  `from_s` y `to_s` (el final, `null` en el último), `legs` = `n`, `errors` = `E`,
+  `error_rate` = `E / n`, `mean_loss_s` y `mean_loss_pct` con la misma definición que en
+  `HistoryStats`: la pérdida de los errores (`p_i` o `loss_pct`) entre `n`, y los tramos sin
+  error suman 0. Siempre salen los seis cubos, en orden; uno vacío tiene `n = 0` y las medias a
+  `null`.
+- **n importa**: un cubo con pocos tramos es poco fiable, y la pantalla enseña `n` en cada uno.
+
+Ejemplo de test (`crates/tramos-core/src/leg_length.rs`): un sprint con tramos que cuentan de 25 s
+(error, 15 s y 60 %), 28 s, 45 s (error, 20 s y 40 %) y 50 s da en 20–30 s una tasa de 1 / 2 =
+**50 %**, 15 / 2 = **7,5 s** y 60 / 2 = **30 %**, y en 30–60 s, 50 %, 10 s y 20 %. Su tramo de
+15 s con error y el último (300 s, error) no cuentan en ningún cubo.

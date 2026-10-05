@@ -30,7 +30,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`) y la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
 `app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
@@ -252,6 +252,15 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   primer tercio frente a la del total («Tu media»). Son dos paneles porque son dos medidas de
   escala distinta (nada de dos ejes). Comparten la tabla, con todas las cifras y sus `n`. El
   contador del panel dice cuántas carreras no tienen anterior.
+- **Por desnivel (P13)** (`SlopePanel.tsx`): una línea con cuántas carreras aportan tramos (las
+  que tienen FIT, de las que pasan el filtro), cuántos tramos se han clasificado, cuántos no se
+  pueden clasificar y cuántos son de carreras sin FIT (`by_slope`, `docs/historico.md`). Debajo,
+  dos paneles con una columna por clase (subida, llano y bajada) y `n` bajo cada etiqueta:
+  «IR medio según desnivel», con la línea del 100 % de la referencia, porque es la respuesta
+  directa a «¿me frena el desnivel?», y «Tasa de error según desnivel». Las descripciones dan la
+  regla de clasificación con el umbral aplicado. Las dos tablas dan, por clase, tramos, errores,
+  IR medio y tasa de error. Una clase vacía sale sin columna y con `n = 0`. El umbral aún no se
+  puede cambiar desde Ajustes: se usa el valor por defecto del núcleo (4 m por cada 100 m).
 
 ## Diseño
 

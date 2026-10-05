@@ -70,6 +70,10 @@ Calibración con el FIT sintético: frente al desnivel del terreno sin ruido, el
 ±5 s el peor es el tramo de la parada, donde 30 s de ruido sin moverse se suavizan peor. Hay que
 revisarlo con altitud barométrica real, que tiene escalones y deriva en lugar de ruido blanco.
 
+P13 (`tramos_core::slope`, `docs/historico.md`) usa la subida y la bajada de cada tramo divididas
+entre su distancia recorrida (m por cada 100 m) para clasificarlo en subida, llano o bajada; no
+clasifica los tramos de menos de 50 m recorridos, donde este error ya pesa demasiado.
+
 ## Opciones (`MetricsOptions`, valores por defecto)
 
 | Opción | Valor | Qué es |

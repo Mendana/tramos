@@ -147,7 +147,7 @@ histórico sale de los mismos números que la vista de carrera, en `app/src-taur
 
 P7, P10, P11 y P13 se apoyan en este histórico: mismas carreras, mismo filtro y, cuando cuentan
 tramos, los mismos `pattern_legs`. Cada uno añade sus números al resultado del comando y sus
-paneles a la pantalla.
+paneles a la pantalla. P13 necesita además el FIT: solo aportan tramos las carreras con track.
 
 ## Pérdida según duración del tramo (P7)
 
@@ -229,3 +229,114 @@ Ejemplo de test (`crates/tramos-core/src/days_off.rs`): A 1-mar, X 4-mar (no pre
 corrió); D, a 10; E, a 30 (marzo tiene 31 días); F, a 35. En ≤ 7 días, los tres primeros tramos
 de B (0,7, 0,9 y 1,1) y C (0,8 y 1,0, porque su tramo 2 es corto) dan un IR de 4,5 / 5 =
 **90 %**. Filtrando solo sprint, F sigue a 35 días de E aunque E sea una larga.
+
+## Pérdida según desnivel (P13)
+
+«¿Me frena el desnivel?» (`docs/preguntas.md`, P13). Implementado en `tramos_core::slope` (#29);
+el comando `history` lo devuelve en `by_slope` y la pantalla lo dibuja en la sección «Por
+desnivel» (`docs/app.md`, "Vista histórica").
+
+### Clasificación de un tramo
+
+Con las métricas del FIT del tramo (`tramos_core::metrics::leg_metrics`, `docs/metricas.md`):
+subida `S` y bajada `B` acumuladas con la altitud suavizada y distancia recorrida `d`, y un
+umbral `U` (4 m por cada 100 m por defecto):
+
+- `s = S / d · 100` y `b = B / d · 100` (m por cada 100 m recorridos);
+- **subida** si `s ≥ U`, **bajada** si `b ≥ U` y **llano** en otro caso. El umbral **entra**:
+  un tramo que sube justo 4 m/100 m es de subida.
+- **Si cumple las dos** (sube y baja mucho, un tramo «rompepiernas»), **gana la mayor**; a
+  igualdad, **subida**. Se descartó una cuarta clase «mixto»: con 5–10 corredores y tramos de
+  P13 solo en las carreras con FIT, una clase más dejaría muy pocos tramos en cada una. Y la que
+  más pesa es la que más define el tramo: si sube 6 y baja 5, el corredor ha pasado más tiempo
+  subiendo. El empate va a subida porque subir cuesta más que bajar lo mismo.
+- Se compara cada sentido por separado, no el desnivel neto (`s − b`): un tramo que sube 30 m y
+  baja 30 m no es llano.
+
+**No se clasifican** (y no entran en ninguna clase):
+
+- los tramos de carreras **sin track** (importadas sin FIT) o cuyo track ya no se puede alinear
+  ni trocear: se cuentan aparte (`races_without_track`, `legs_without_track`);
+- dentro de una carrera con track, los tramos **sin sub-track** (picada sin hora o fuera del
+  track, `docs/segmentacion.md`), **sin altitud** (`ascent_m` o `descent_m` nulos) o con una
+  **distancia recorrida menor de 50 m** (`MIN_DISTANCE_M`): ahí un metro de error de la altitud
+  suavizada ya son 2 m/100 m, la mitad del umbral. Los tramos que cuentan rara vez son tan
+  cortos (la referencia mínima es 20 s). Van en `unclassified_legs`;
+- los tramos cuyo número y balizas no casan con los de la segmentación (picadas que no casan con
+  el recorrido: la tabla de tramos sigue el recorrido y la segmentación, las picadas). También
+  van en `unclassified_legs`.
+
+**Umbral configurable**: `SlopeConfig { threshold_m_per_100m }`, con el valor por defecto en un
+solo sitio (`DEFAULT_THRESHOLD_M_PER_100M` = 4). Tiene que ser un número finito mayor que 0; si
+no, `slope` devuelve un error y `classify` no clasifica. La app usa el valor por defecto (aún no
+hay ajuste en la pantalla de ajustes) y lo devuelve en `by_slope.config`.
+
+### Mismas carreras y tramos
+
+Las del histórico con el mismo filtro (fechas y formato) y, de cada una, sus tramos que cuentan
+(`pattern_legs`): ni el último ni los de referencia menor de 20 s. Las carreras sin rendimiento
+habitual no aportan nada, ni siquiera a los recuentos. Cada tramo que cuenta acaba en una clase,
+en `unclassified_legs` o en `legs_without_track`, así que esas cifras suman los tramos del total
+del histórico.
+
+### Por clase (`SlopeStats`)
+
+Subida, llano y bajada, **siempre y en ese orden**. Con `n` tramos de la clase y `E` errores:
+`legs` = `n`, `errors` = `E`, `error_rate` = `E / n` y
+
+| Campo | Definición |
+| --- | --- |
+| `mean_performance` | **IR medio de la clase**: `Σ ref_i · IR_i / Σ ref_i` sobre los tramos de la clase (1 = 100 %). |
+
+Una clase vacía tiene `n = 0` y las medias a `null`.
+
+### Por qué el IR medio aquí es la media de `IR_i` ponderada por `ref_i`
+
+Aquí no sirve el IR medio del histórico (la media de los rendimientos habituales): el habitual es
+de toda la carrera, y P13 pregunta por un subconjunto de tramos. Había dos opciones:
+
+- **Media simple de `IR_i`**: cada tramo pesa lo mismo. Un tramo de 25 s pesaría como uno de
+  5 min, y en los tramos cortos unos pocos segundos mueven mucho `IR_i`.
+- **Media ponderada por `ref_i`** (la elegida): cada tramo pesa según lo que dura para la
+  referencia, que no depende de lo que haya hecho el corredor. Es la misma ponderación que el
+  rendimiento habitual y la consistencia (`docs/tiempo-perdido.md`), así que un tramo pesa lo
+  mismo en P13 que en el resto de la app, y los tramos cortos y ruidosos pesan menos.
+
+Entran **todos** los tramos de la clase, también los errores. A diferencia del IR medio del
+histórico, aquí no se separan velocidad y errores: la pregunta es si el desnivel frena, y una
+cuesta que hunde el ritmo puede pasar del umbral de error (el tipo «Físico» de
+`docs/taxonomia.md`). Sacar los errores escondería justo lo que se busca. La tasa de error de la
+clase, al lado, deja ver cuánto de un IR bajo viene de los errores.
+
+**Limitación**: los `IR_i` de carreras distintas se mezclan sin normalizar por el habitual de cada
+carrera. Si las subidas salen sobre todo de carreras en las que el corredor rinde menos (monte
+frente a sprint urbano), la clase subida sale peor también por eso. El filtro de formato lo
+atenúa.
+
+### Resultado (`SlopeHistory`)
+
+`config` (el umbral aplicado), `by_class` (las tres clases), `races_with_track` (carreras con
+números y track: las que aportan tramos), `races_without_track`, `legs_without_track` y
+`unclassified_legs`.
+
+### Ejemplo de test
+
+`crates/tramos-core/src/slope.rs`. Clasificación con perfiles sintéticos (distancia, subida,
+bajada): 200 m, +2 −3 → llano; 200 m, +8 −1 (justo 4 m/100 m) → subida; 200 m, +7,98 → llano;
+250 m, −10 → bajada; 200 m, +12 −10 → subida (6 frente a 5); +10 −12 → bajada; +10 −10 →
+subida (empate); 1000 m, +39 −39 → llano; 50 m, +2 → subida; 49,9 m → sin clasificar. Y un
+track sintético de punta a punta (track → métricas → clase) con un tramo en subida, uno llano,
+uno en bajada, uno que sube 18 m y baja 14 m en 240 m (subida) y uno sin sub-track.
+
+Agregado con dos carreras con track (referencia, `IR_i`, error):
+
+- Subida: 40 s (1,0), 60 s (0,5, error) y 200 s (0,6, error): `n = 3`, tasa 2 / 3, IR
+  (40 + 30 + 120) / 300 = **63,3 %**.
+- Llano: 30 s (0,9) y 100 s (0,8): `n = 2`, tasa 0, IR 107 / 130 = **82,3 %**.
+- Bajada: 50 s (0,8, error) y 120 s (1,2): `n = 2`, tasa 1 / 2, IR 184 / 170 = **108,2 %**.
+- Tres tramos sin clasificar (uno sin altitud, uno sin sub-track y uno con las balizas
+  cambiadas); una carrera sin track con 2 tramos que cuentan, y una sin habitual que no cuenta.
+
+El test del comando (`app/src-tauri/src/history.rs`) comprueba con el FIT sintético que cada
+clase sale de los tramos de la vista de carrera y que los tramos claramente lejos del umbral caen
+en la clase que da el desnivel real (sin ruido) del generador.

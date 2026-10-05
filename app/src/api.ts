@@ -258,6 +258,8 @@ export interface HistoryView {
     /** Carreras que pasan el filtro sin ninguna anterior. */
     without_previous: number;
   };
+  /** Pérdida según desnivel (P13): subida, llano y bajada, con el mismo filtro. */
+  by_slope: SlopeHistory;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -275,6 +277,42 @@ export interface DaysOffStats {
   first_third_errors: number;
   /** Errores / tramos del primer tercio (0–1). */
   first_third_error_rate: number | null;
+}
+
+/** Clase de desnivel de un tramo (P13, `docs/historico.md`). */
+export type SlopeClass = "uphill" | "flat" | "downhill";
+
+export const SLOPE_LABELS: Record<SlopeClass, string> = {
+  uphill: "Subida",
+  flat: "Llano",
+  downhill: "Bajada",
+};
+
+/** Números de una clase de desnivel (P13). */
+export interface SlopeStats {
+  class: SlopeClass;
+  /** Tramos que cuentan de la clase (n). */
+  legs: number;
+  errors: number;
+  /** Errores / tramos (0–1). */
+  error_rate: number | null;
+  /** IR medio de los tramos de la clase, ponderado por la referencia (1 = 100 %). */
+  mean_performance: number | null;
+}
+
+/** P13 con los filtros del histórico: las tres clases y de dónde salen los tramos. */
+export interface SlopeHistory {
+  config: { threshold_m_per_100m: number };
+  /** Subida, llano y bajada, siempre y en ese orden. */
+  by_class: SlopeStats[];
+  /** Carreras con números y track: las que aportan tramos. */
+  races_with_track: number;
+  /** Carreras con números sin track: no aportan tramos. */
+  races_without_track: number;
+  /** Tramos que cuentan de las carreras sin track. */
+  legs_without_track: number;
+  /** Tramos que cuentan de carreras con track que no se pueden clasificar. */
+  unclassified_legs: number;
 }
 
 /** Un cubo de duración de tramo (P7, `docs/historico.md`): referencia en `[from_s, to_s)`. */

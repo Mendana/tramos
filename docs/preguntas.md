@@ -53,7 +53,8 @@ mueva el tramo de cubo), en escala logarítmica: 20–30 s, 30–60 s, 1–2 min
 recorridos. La altitud se suaviza con una media móvil de ±5 s en el tiempo, que no cruza huecos
 del track, y la subida es la suma de sus aumentos, sin umbral (`docs/metricas.md`, "Altitud
 suavizada"). Clasificación inicial: subida si sube ≥ 4 m/100 m, bajada si baja
-≥ 4 m/100 m, llano en otro caso (umbral configurable). Por clase: IR medio, tasa de error y n.
+≥ 4 m/100 m, llano en otro caso (umbral configurable); si cumple las dos, la mayor. Por clase: IR
+medio (ponderado por `ref_i`), tasa de error y n. Definiciones en `docs/historico.md`.
 
 ## Tanda 3: comportamiento y etiquetas
 

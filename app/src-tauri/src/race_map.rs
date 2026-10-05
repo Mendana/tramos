@@ -18,10 +18,12 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use thiserror::Error;
-use tramos_core::alignment::{AlignmentOptions, align};
+use tramos_core::alignment::{Alignment, AlignmentOptions, align};
 use tramos_core::metrics::{MetricsOptions, interval_distance_m};
-use tramos_core::model::{ControlCode, Track, TrackPoint};
-use tramos_core::segmentation::{ControlRole, MissingLegTrack, MissingPosition, segment};
+use tramos_core::model::{ControlCode, RaceResult, Track, TrackPoint};
+use tramos_core::segmentation::{
+    ControlRole, MissingLegTrack, MissingPosition, Segmentation, segment,
+};
 use tramos_store::{ResultId, Store, StoreError};
 
 /// Número de clases de la escala de color.
@@ -131,6 +133,21 @@ pub struct ColorScale {
     pub edges: Vec<f64>,
 }
 
+/// Alinea el track guardado de un resultado con sus picadas
+/// (`tramos_core::alignment::align`, opciones por defecto) y lo trocea en tramos
+/// (`tramos_core::segmentation::segment`). Lo usan el mapa y el histórico (P13). Si no se puede,
+/// el motivo en español.
+pub(crate) fn aligned_legs(
+    track: &Track,
+    result: &RaceResult,
+) -> Result<(Alignment, Segmentation), String> {
+    let alignment = align(track, result, &AlignmentOptions::default())
+        .map_err(|err| format!("No se puede situar la carrera en el track: {err}"))?;
+    let segmentation = segment(track, &alignment)
+        .map_err(|err| format!("No se puede cortar el track en tramos: {err}"))?;
+    Ok((alignment, segmentation))
+}
+
 /// Mapa del resultado `result_id`.
 pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> {
     let result = ResultId(result_id);
@@ -142,21 +159,9 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
     let race_result = at
         .get(&event)
         .ok_or(RaceMapError::NoSuchResult(result_id))?;
-    let alignment = match align(&track, race_result, &AlignmentOptions::default()) {
-        Ok(alignment) => alignment,
-        Err(err) => {
-            return Ok(RaceMap::NotAligned {
-                message: format!("No se puede situar la carrera en el track: {err}"),
-            });
-        }
-    };
-    let segmentation = match segment(&track, &alignment) {
-        Ok(segmentation) => segmentation,
-        Err(err) => {
-            return Ok(RaceMap::NotAligned {
-                message: format!("No se puede cortar el track en tramos: {err}"),
-            });
-        }
+    let (alignment, segmentation) = match aligned_legs(&track, race_result) {
+        Ok(done) => done,
+        Err(message) => return Ok(RaceMap::NotAligned { message }),
     };
 
     let mut warnings: Vec<String> = alignment.warnings.into_iter().map(|w| w.message).collect();

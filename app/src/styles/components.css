@@ -558,3 +558,10 @@
 .empty-icon {
   color: var(--text-faint);
 }
+
+/* --- Formato de la carrera (vista de carrera) --- */
+
+.format-picker {
+  width: 140px;
+  flex-shrink: 0;
+}

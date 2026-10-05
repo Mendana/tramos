@@ -131,6 +131,18 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
     })
 }
 
+/// Cambia el formato de la carrera del resultado `result_id`; `None` lo deja sin asignar. Vale
+/// para toda la carrera (el formato es de la carrera, no del resultado).
+pub fn set_race_format(
+    store: &mut Store,
+    result_id: i64,
+    format: Option<RaceFormat>,
+) -> Result<(), RaceError> {
+    let (event_id, _) = store.result_ref(ResultId(result_id))?;
+    store.set_event_format(event_id, format)?;
+    Ok(())
+}
+
 /// Corredores del recorrido del resultado `result_id`, para compararse con ellos (P4).
 pub fn race_comparison(store: &Store, result_id: i64) -> Result<CourseComparison, RaceError> {
     let (event_id, at) = store.result_ref(ResultId(result_id))?;
@@ -284,6 +296,44 @@ mod tests {
         assert_eq!(comparison.runners[0].course_place, Some(1));
     }
 
+    /// Criterio de aceptación de #97: cambiar el formato mueve la carrera de grupo en el
+    /// histórico, y se ve en la lista y en la vista de carrera.
+    #[test]
+    fn changing_the_format_moves_the_race_in_the_history() {
+        use crate::history::history_view;
+        use tramos_core::history::HistoryFilter;
+
+        let (mut store, result_id) = imported();
+        let races_in = |store: &Store, format: Option<RaceFormat>| {
+            history_view(store, &HistoryFilter::default())
+                .unwrap()
+                .history
+                .by_format
+                .iter()
+                .find(|g| g.format == format)
+                .map_or(0, |g| g.stats.races)
+        };
+        assert_eq!(races_in(&store, Some(RaceFormat::Sprint)), 1);
+
+        set_race_format(&mut store, result_id, Some(RaceFormat::Long)).unwrap();
+        assert_eq!(races_in(&store, Some(RaceFormat::Sprint)), 0);
+        assert_eq!(races_in(&store, Some(RaceFormat::Long)), 1);
+        assert_eq!(
+            race_detail(&store, result_id).unwrap().format,
+            Some(RaceFormat::Long)
+        );
+        assert_eq!(
+            list_races(&store).unwrap()[0].format,
+            Some(RaceFormat::Long)
+        );
+
+        // Sin formato: va al grupo de las carreras sin formato.
+        set_race_format(&mut store, result_id, None).unwrap();
+        assert_eq!(races_in(&store, Some(RaceFormat::Long)), 0);
+        assert_eq!(races_in(&store, None), 1);
+        assert_eq!(race_detail(&store, result_id).unwrap().format, None);
+    }
+
     #[test]
     fn missing_result_is_an_error() {
         let store = Store::open_in_memory().unwrap();
@@ -293,6 +343,11 @@ mod tests {
         ));
         assert!(matches!(
             race_comparison(&store, 42),
+            Err(RaceError::Store(StoreError::ResultNotFound(42)))
+        ));
+        let mut store = store;
+        assert!(matches!(
+            set_race_format(&mut store, 42, None),
             Err(RaceError::Store(StoreError::ResultNotFound(42)))
         ));
         assert!(list_races(&store).unwrap().is_empty());

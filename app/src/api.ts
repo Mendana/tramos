@@ -273,6 +273,9 @@ export const listRaces = () => invoke<RaceRow[]>("list_races");
 export const raceDetail = (resultId: number) =>
   invoke<RaceDetail>("race_detail", { resultId });
 
+export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
+  invoke<void>("set_race_format", { resultId, format });
+
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });
 

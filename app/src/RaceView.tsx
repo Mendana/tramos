@@ -7,6 +7,8 @@ import {
   codeLabel,
   decimal,
   raceDetail,
+  RaceFormat,
+  setRaceFormat,
   signed,
   statusLabel,
 } from "./api";
@@ -18,7 +20,16 @@ import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
 const MapView = lazy(() => import("./MapView"));
 
 /** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
-function RaceView({ resultId, onBack }: { resultId: number; onBack: () => void }) {
+function RaceView({
+  resultId,
+  onBack,
+  onChanged,
+}: {
+  resultId: number;
+  onBack: () => void;
+  /** La carrera ha cambiado (p. ej. su formato): la lista tiene que volver a cargarse. */
+  onChanged: () => void;
+}) {
   const [detail, setDetail] = useState<RaceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,13 +50,30 @@ function RaceView({ resultId, onBack }: { resultId: number; onBack: () => void }
       {detail === null ? (
         error === null && <p className="muted">Cargando…</p>
       ) : (
-        <Detail detail={detail} />
+        <Detail
+          detail={detail}
+          onFormatChange={(format) => {
+            setError(null);
+            setRaceFormat(resultId, format)
+              .then(() => {
+                setDetail({ ...detail, format });
+                onChanged();
+              })
+              .catch((err: unknown) => setError(String(err)));
+          }}
+        />
       )}
     </>
   );
 }
 
-function Detail({ detail }: { detail: RaceDetail }) {
+function Detail({
+  detail,
+  onFormatChange,
+}: {
+  detail: RaceDetail;
+  onFormatChange: (format: RaceFormat | null) => void;
+}) {
   // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
@@ -60,15 +88,13 @@ function Detail({ detail }: { detail: RaceDetail }) {
         subtitle={
           <>
             <span className="num">{detail.date}</span>
-            {detail.format !== null && (
-              <span className="pill pill-accent">{FORMAT_LABELS[detail.format]}</span>
-            )}
             <span className="pill">{detail.class_name}</span>
             <span>
               {name} · {statusLabel(detail.status, detail.place)}
             </span>
           </>
         }
+        actions={<FormatPicker format={detail.format} onChange={onFormatChange} />}
       />
 
       <div className="stats">
@@ -154,6 +180,33 @@ function Detail({ detail }: { detail: RaceDetail }) {
       </div>
 
     </>
+  );
+}
+
+/** Formato de la carrera, que se puede corregir después de importarla (cuenta en el histórico). */
+function FormatPicker({
+  format,
+  onChange,
+}: {
+  format: RaceFormat | null;
+  onChange: (format: RaceFormat | null) => void;
+}) {
+  return (
+    <label className="field format-picker">
+      <span className="field-label">Formato</span>
+      <select
+        className="select"
+        value={format ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? null : (e.target.value as RaceFormat))}
+      >
+        {(Object.keys(FORMAT_LABELS) as RaceFormat[]).map((f) => (
+          <option key={f} value={f}>
+            {FORMAT_LABELS[f]}
+          </option>
+        ))}
+        <option value="">Sin formato</option>
+      </select>
+    </label>
   );
 }
 

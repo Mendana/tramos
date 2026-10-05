@@ -10,6 +10,7 @@ use std::collections::hash_map::Entry;
 
 use chrono::NaiveDate;
 use serde::Serialize;
+use tramos_core::days_off::{DaysOff, days_off};
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, history, race_stats,
 };
@@ -39,6 +40,9 @@ pub struct HistoryView {
     pub by_leg_length: Vec<LegLengthStats>,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
+    /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
+    /// filtro. La anterior puede ser cualquier carrera del usuario, pase o no el filtro.
+    pub days_off: DaysOff,
 }
 
 /// Una carrera del histórico con sus números.
@@ -95,6 +99,13 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         });
     }
     rows.reverse();
+    // Carreras en las que el usuario tomó la salida, sin filtrar: sirven de «carrera anterior»
+    // (P11) sin tener que analizarlas.
+    let competed: Vec<NaiveDate> = results
+        .iter()
+        .filter(|r| r.status != RaceStatus::DidNotStart)
+        .map(|r| r.event_date)
+        .collect();
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
@@ -104,6 +115,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         history: history(&races, filter),
         races: rows,
         by_leg_length: leg_length(&races, filter),
+        days_off: days_off(&races, &competed, filter),
     })
 }
 
@@ -379,5 +391,27 @@ mod tests {
         let view = history_view(&store, &HistoryFilter::default()).unwrap();
         assert_eq!(view.by_leg_length.len(), 6);
         assert!(view.by_leg_length.iter().all(|b| b.legs == 0));
+    }
+
+    #[test]
+    fn days_off_count_against_races_outside_the_filter() {
+        let (store, _) = two_races();
+        let races = |format| {
+            let view = history_view(
+                &store,
+                &HistoryFilter {
+                    format,
+                    ..HistoryFilter::default()
+                },
+            )
+            .unwrap();
+            let counts: Vec<_> = view.days_off.buckets.iter().map(|b| b.races).collect();
+            (counts, view.days_off.without_previous)
+        };
+        // 1-jun (media) es la primera; 3-oct (sprint) va 124 días después: más de 30.
+        assert_eq!(races(None), (vec![0, 0, 0, 1], 1));
+        // Solo sprint: la del 3-oct sigue teniendo de anterior la media del 1-jun.
+        assert_eq!(races(Some(RaceFormat::Sprint)), (vec![0, 0, 0, 1], 0));
+        assert_eq!(races(Some(RaceFormat::Middle)), (vec![0, 0, 0, 0], 1));
     }
 }

@@ -186,3 +186,46 @@ Ejemplo de test (`crates/tramos-core/src/leg_length.rs`): un sprint con tramos q
 (error, 15 s y 60 %), 28 s, 45 s (error, 20 s y 40 %) y 50 s da en 20–30 s una tasa de 1 / 2 =
 **50 %**, 15 / 2 = **7,5 s** y 60 / 2 = **30 %**, y en 30–60 s, 50 %, 10 s y 20 %. Su tramo de
 15 s con error y el último (300 s, error) no cuentan en ningún cubo.
+
+## Días sin competir (P11)
+
+«¿Entro peor en mapa tras días sin competir?» (`docs/preguntas.md`, P11). Implementado en
+`tramos_core::days_off` (#33); el comando `history` lo devuelve en `days_off` y la pantalla lo
+dibuja en la sección «Días sin competir» (`docs/app.md`, "Vista histórica").
+
+- **Mismas carreras**: las del histórico con el mismo filtro (fechas y formato) y con
+  rendimiento habitual.
+- **Días desde la carrera anterior**: `fecha − fecha de la anterior`, en días. La anterior es la
+  carrera de fecha más reciente **estrictamente anterior** entre **todas** las del usuario en
+  las que tomó la salida (estado distinto de no presentado), **pasen o no el filtro**: competir
+  es competir, sea del formato que sea, y filtrar por fechas no borra la carrera de la semana
+  anterior. Un no presentado no cuenta como anterior. Dos carreras del mismo día tienen la misma
+  anterior (sin horas, no se sabe cuál fue antes). Una carrera sin anterior (la primera
+  importada) no cae en ningún cubo y se cuenta en `without_previous`.
+- **Cubos**, con los dos extremos incluidos:
+
+  | Cubo | Días |
+  | --- | --- |
+  | ≤ 7 días | 1–7 |
+  | 8–14 días | 8–14 |
+  | 15–30 días | 15–30 |
+  | > 30 días | 31 o más |
+
+- **Por cubo** (`DaysOffStats`): `from_days` y `to_days` (`null` en el último), `races` y:
+  - **IR de entrada en mapa**: `first_legs_performance` = media de los `IR_i` de los tramos 1, 2
+    y 3 de cada carrera que cuentan (`pattern_legs`: con pérdida y sin referencia corta), todos
+    juntos; `first_legs` = cuántos son. Un tramo corto o sin split entre los tres primeros no se
+    sustituye por el cuarto: la pregunta es por el principio de la carrera.
+  - **Errores del primer tercio**: los tramos que cuentan con `index ≤ ⌈L / 3⌉`, siendo `L` el
+    número de tramos del recorrido (con el último): 21 tramos → los 7 primeros. Por número de
+    tramos y no por tiempo, que con picadas que faltan no se sabe. `first_third_legs`,
+    `first_third_errors` y `first_third_error_rate` = errores / tramos.
+  - Siempre salen los cuatro cubos, en orden; uno vacío tiene las medias a `null`.
+- **Referencias**: la pantalla compara el IR de entrada con el IR medio del total y la tasa del
+  primer tercio con la tasa de error del total, con los mismos filtros.
+
+Ejemplo de test (`crates/tramos-core/src/days_off.rs`): A 1-mar, X 4-mar (no presentado), B y C
+6-mar, D 16-mar, E 15-abr y F 20-may. A no tiene anterior; B y C van a 5 días (de A: X no
+corrió); D, a 10; E, a 30 (marzo tiene 31 días); F, a 35. En ≤ 7 días, los tres primeros tramos
+de B (0,7, 0,9 y 1,1) y C (0,8 y 1,0, porque su tramo 2 es corto) dan un IR de 4,5 / 5 =
+**90 %**. Filtrando solo sprint, F sigue a 35 días de E aunque E sea una larga.

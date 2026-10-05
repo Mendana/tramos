@@ -26,6 +26,8 @@ pub enum RaceError {
     Store(#[from] StoreError),
     #[error("el resultado {0} no aparece en el análisis de su recorrido")]
     NotAnalyzed(i64),
+    #[error(transparent)]
+    Slope(#[from] tramos_core::slope::SlopeError),
 }
 
 /// Una carrera del usuario en la lista.

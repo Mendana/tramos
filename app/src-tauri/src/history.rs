@@ -4,6 +4,10 @@
 //! Como en [`crate::races`], el tiempo perdido de cada carrera se calcula al pedirlo con
 //! [`runner_report`] y los umbrales de los ajustes; el agregado es el de
 //! [`tramos_core::history`] (`docs/historico.md`).
+//!
+//! Para P13 (pérdida según desnivel) hacen falta además las métricas del FIT de cada tramo: el
+//! track guardado se alinea y se trocea como en el mapa ([`crate::race_map::aligned_legs`]) y
+//! las métricas son las de [`tramos_core::metrics::leg_metrics`].
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -16,12 +20,15 @@ use tramos_core::history::{
 };
 use tramos_core::leg_length::{LegLengthStats, leg_length};
 use tramos_core::lost_time::LostTimeConfig;
-use tramos_core::model::{Event, RaceStatus};
+use tramos_core::metrics::{LegMetrics, MetricsOptions, leg_metrics};
+use tramos_core::model::{Event, RaceResult, RaceStatus};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::runner_report;
-use tramos_store::{EventId, Store};
+use tramos_core::slope::{SlopeConfig, SlopeHistory, SlopeRace, slope};
+use tramos_store::{EventId, ResultId, Store, StoreError};
 
 use crate::import::stored_self_person;
+use crate::race_map::aligned_legs;
 use crate::races::RaceError;
 use crate::settings;
 
@@ -38,6 +45,9 @@ pub struct HistoryView {
     pub history: History,
     /// Pérdida según duración del tramo (P7): los seis cubos de referencia, con el mismo filtro.
     pub by_leg_length: Vec<LegLengthStats>,
+    /// Pérdida según desnivel (P13): subida, llano y bajada, con el mismo filtro. Solo aportan
+    /// tramos las carreras con track.
+    pub by_slope: SlopeHistory,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
     /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
@@ -70,6 +80,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
     };
     let mut events: HashMap<EventId, Event> = HashMap::new();
     let mut races = Vec::new();
+    let mut metrics = Vec::new();
     let mut rows = Vec::new();
     // Solo se cargan y analizan las carreras que pasan el filtro.
     for r in results
@@ -82,6 +93,10 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
             Entry::Vacant(entry) => entry.insert(store.load_event(event_id)?),
         };
         let report = runner_report(event, at, &config).ok_or(RaceError::NotAnalyzed(r.result.0))?;
+        metrics.push(match at.get(event) {
+            Some(race_result) if r.has_track => track_leg_metrics(store, r.result, race_result)?,
+            _ => None,
+        });
         rows.push(HistoryRaceRow {
             result_id: r.result.0,
             date: r.event_date,
@@ -106,6 +121,15 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         .filter(|r| r.status != RaceStatus::DidNotStart)
         .map(|r| r.event_date)
         .collect();
+    let slope_races: Vec<SlopeRace<'_>> = races
+        .iter()
+        .zip(&metrics)
+        .map(|(race, legs)| SlopeRace {
+            race,
+            leg_metrics: legs.as_deref(),
+        })
+        .collect();
+    let by_slope = slope(&slope_races, filter, &SlopeConfig::default())?;
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
@@ -116,7 +140,24 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         races: rows,
         by_leg_length: leg_length(&races, filter),
         days_off: days_off(&races, &competed, filter),
+        by_slope,
     })
+}
+
+/// Métricas del FIT de cada tramo del resultado `result` (`race_result` en su carrera). `None` si
+/// no tiene track o ya no se puede alinear ni trocear: la carrera no aporta tramos a P13.
+fn track_leg_metrics(
+    store: &Store,
+    result: ResultId,
+    race_result: &RaceResult,
+) -> Result<Option<Vec<LegMetrics>>, StoreError> {
+    let Some(track) = store.load_track(result)? else {
+        return Ok(None);
+    };
+    let Ok((_, segmentation)) = aligned_legs(&track, race_result) else {
+        return Ok(None);
+    };
+    Ok(leg_metrics(&track, &segmentation, &MetricsOptions::default()).ok())
 }
 
 #[cfg(test)]
@@ -128,7 +169,8 @@ mod tests {
     use tramos_core::identify::RunnerIdentity;
     use tramos_core::importers::spl;
     use tramos_core::race_format::RaceFormat;
-    use tramos_core::runner_report::RunnerLostTime;
+    use tramos_core::runner_report::{LegReport, RunnerLostTime};
+    use tramos_core::slope::{CLASSES, SlopeClass, classify_leg};
     use tramos_store::PersonId;
 
     fn spl_path() -> String {
@@ -149,18 +191,32 @@ mod tests {
         s.parse().unwrap()
     }
 
+    fn fit_path() -> String {
+        format!(
+            "{}/../../fixtures/fit/baltanas-sintetico.fit",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
+
     /// Importa el fixture de Baltanás (3-oct-2026, sprint) como el corredor de la tarjeta 143 y
     /// guarda una copia de la carrera el 1-jun-2026, como media, con el mismo resultado
     /// vinculado a su persona: dos carreras con los mismos números.
     fn two_races() -> (Store, i64) {
+        two_races_with(false)
+    }
+
+    /// Como [`two_races`]; con `with_fit`, la carrera del 3-oct se importa con el FIT sintético
+    /// (la copia del 1-jun nunca tiene track).
+    fn two_races_with(with_fit: bool) -> (Store, i64) {
         let mut store = Store::open_in_memory().unwrap();
-        let p = preview(&store, &spl_path(), None, &identity()).unwrap();
+        let fit = with_fit.then(fit_path);
+        let p = preview(&store, &spl_path(), fit.as_deref(), &identity()).unwrap();
         let at = p.candidates[0].result;
         let outcome = import(
             &mut store,
             &ImportRequest {
                 spl_path: spl_path(),
-                fit_path: None,
+                fit_path: fit,
                 result: at,
                 format: p.suggested_format,
                 identity: identity(),
@@ -413,5 +469,147 @@ mod tests {
         // Solo sprint: la del 3-oct sigue teniendo de anterior la media del 1-jun.
         assert_eq!(races(Some(RaceFormat::Sprint)), (vec![0, 0, 0, 1], 0));
         assert_eq!(races(Some(RaceFormat::Middle)), (vec![0, 0, 0, 0], 1));
+    }
+
+    /// P13: la carrera con FIT reparte sus tramos que cuentan entre las tres clases (o sin
+    /// clasificar); la copia sin track no aporta ninguno. Los números de cada clase salen de
+    /// los tramos de la vista de carrera y de las métricas del track.
+    #[test]
+    fn slope_classes_split_the_legs_with_track() {
+        let (store, result_id) = two_races_with(true);
+        let lost = race_detail(&store, result_id).unwrap().report.lost_time;
+        let counted: Vec<&LegReport> = pattern_legs(&lost).collect();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let s = &view.by_slope;
+        let config = SlopeConfig::default();
+        assert_eq!(s.config, config);
+        assert_eq!((s.races_with_track, s.races_without_track), (1, 1));
+        assert_eq!(s.legs_without_track, counted.len());
+        let classified: usize = s.by_class.iter().map(|c| c.legs).sum();
+        assert_eq!(classified + s.unclassified_legs, counted.len());
+        assert_eq!(
+            classified + s.unclassified_legs + s.legs_without_track,
+            view.history.total.legs
+        );
+        let classes: Vec<_> = s.by_class.iter().map(|c| c.class).collect();
+        assert_eq!(classes, CLASSES);
+
+        // Cada clase, recalculada tramo a tramo.
+        let result = ResultId(result_id);
+        let (event_id, at) = store.result_ref(result).unwrap();
+        let event = store.load_event(event_id).unwrap();
+        let metrics = track_leg_metrics(&store, result, at.get(&event).unwrap())
+            .unwrap()
+            .unwrap();
+        for stats in &s.by_class {
+            let legs: Vec<_> = counted
+                .iter()
+                .filter(|l| classify_leg(l, &metrics, &config) == Some(stats.class))
+                .collect();
+            let errors = legs.iter().filter(|l| l.is_error).count();
+            assert_eq!((stats.legs, stats.errors), (legs.len(), errors));
+            let weight: f64 = legs.iter().filter_map(|l| l.reference_s).sum();
+            let weighted: f64 = legs
+                .iter()
+                .filter_map(|l| Some(l.reference_s? * l.performance_index?))
+                .sum();
+            let ir = (weight > 0.0).then(|| weighted / weight);
+            match (stats.mean_performance, ir) {
+                (Some(a), Some(b)) => assert!((a - b).abs() < 1e-9, "{a} != {b}"),
+                (a, b) => assert_eq!(a, b),
+            }
+        }
+        // El FIT sintético tiene altitud: se clasifican todos y hay de las tres clases.
+        assert_eq!(s.unclassified_legs, 0);
+        assert!(s.by_class.iter().all(|c| c.legs > 0), "{s:?}");
+
+        // Contra la verdad del FIT sintético (desnivel sin ruido): los tramos claramente por
+        // encima o por debajo del umbral (a más de 1,5 m/100 m) caen en su clase.
+        let text = std::fs::read_to_string(format!(
+            "{}/../../fixtures/fit/baltanas-sintetico.truth.json",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        let truth: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let mut checked = 0;
+        for leg in &counted {
+            let Some(t) = truth["legs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|t| t["leg"].as_u64() == Some(leg.index as u64))
+            else {
+                continue;
+            };
+            let path = t["path_m"].as_f64().unwrap();
+            let up = t["ascent_m"].as_f64().unwrap() / path * 100.0;
+            let down = t["descent_m"].as_f64().unwrap() / path * 100.0;
+            let threshold = config.threshold_m_per_100m;
+            if (up - threshold).abs() < 1.5 || (down - threshold).abs() < 1.5 {
+                continue;
+            }
+            let expected = match (up >= threshold, down >= threshold) {
+                (true, true) if down > up => SlopeClass::Downhill,
+                (true, _) => SlopeClass::Uphill,
+                (false, true) => SlopeClass::Downhill,
+                (false, false) => SlopeClass::Flat,
+            };
+            assert_eq!(
+                classify_leg(leg, &metrics, &config),
+                Some(expected),
+                "tramo {}: +{up:.2} −{down:.2} m/100 m",
+                leg.index
+            );
+            checked += 1;
+        }
+        assert!(checked >= counted.len() / 2, "solo {checked} tramos claros");
+
+        // Con filtro de formato, la media (la copia sin track) no aporta tramos.
+        let middle = history_view(
+            &store,
+            &HistoryFilter {
+                format: Some(RaceFormat::Middle),
+                ..HistoryFilter::default()
+            },
+        )
+        .unwrap();
+        let m = &middle.by_slope;
+        assert_eq!((m.races_with_track, m.races_without_track), (0, 1));
+        assert!(
+            m.by_class
+                .iter()
+                .all(|c| c.legs == 0 && c.mean_performance.is_none())
+        );
+    }
+
+    /// Sin FIT no hay tramos de P13; sin carreras, tres clases vacías.
+    #[test]
+    fn slope_without_tracks_is_empty() {
+        let (store, _) = two_races();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let s = &view.by_slope;
+        assert_eq!((s.races_with_track, s.races_without_track), (0, 2));
+        assert_eq!(s.legs_without_track, view.history.total.legs);
+        assert_eq!(s.unclassified_legs, 0);
+        assert!(
+            s.by_class
+                .iter()
+                .all(|c| c.legs == 0 && c.error_rate.is_none())
+        );
+
+        let store = Store::open_in_memory().unwrap();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        assert_eq!(view.by_slope.by_class.len(), 3);
+        assert_eq!(view.by_slope.races_with_track, 0);
+    }
+
+    #[test]
+    fn slope_json_uses_snake_case() {
+        let (store, _) = two_races_with(true);
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let json = serde_json::to_value(&view).unwrap();
+        assert_eq!(json["by_slope"]["by_class"][0]["class"], "uphill");
+        assert_eq!(json["by_slope"]["config"]["threshold_m_per_100m"], 4.0);
+        assert_eq!(json["by_slope"]["races_with_track"], 1);
     }
 }

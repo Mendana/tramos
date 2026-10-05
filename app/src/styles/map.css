@@ -19,7 +19,9 @@
   background: var(--map-paper);
 }
 
-.map-canvas {
+/* Más específico que `.maplibregl-map { position: relative }` de MapLibre, cuya CSS llega después
+   (con `MapView`): si gana la suya, el contenedor se queda con 0 px de alto y el mapa no se ve. */
+.map-frame > .map-canvas {
   position: absolute;
   inset: 0;
 }

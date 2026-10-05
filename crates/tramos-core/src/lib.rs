@@ -1,6 +1,7 @@
 //! Núcleo de Tramos: modelos, importadores (.spl, FIT), alineación, segmentación,
 //! métricas y análisis. Sin dependencias de interfaz.
 
+pub mod after_error;
 pub mod alignment;
 pub mod comparison;
 pub mod consistency;

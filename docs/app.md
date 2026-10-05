@@ -267,6 +267,13 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   los errores repartidos (`loss_breakdown`, `docs/historico.md`); el tooltip y la tabla dan los
   segundos. La descripción dice cuántos errores no se pueden repartir (sin FIT o sin datos
   suficientes).
+- **Después de fallar (P8)** (`AfterErrorPanel.tsx`). Dos paneles, los dos con la tasa de error
+  del total como referencia («Tu media») y `n` bajo cada columna:
+  - «¿Un error trae otro?»: la tasa de error del tramo siguiente a uno limpio, a un error, a un
+    error acelerando y a un error sin acelerar.
+  - «Rachas limpias»: la tasa de error según los tramos limpios seguidos previos.
+
+  Las definiciones están en `docs/historico.md`. Las tablas dan tramos, errores y tasa.
 
 ## Diseño
 

@@ -90,7 +90,7 @@ fn metrics_of<'a>(leg: &LegReport, metrics: &'a [LegMetrics]) -> Option<&'a LegM
 }
 
 /// Mediana simple (con un número par de valores, la media de los dos centrales).
-fn median(values: &mut [f64]) -> Option<f64> {
+pub(crate) fn median(values: &mut [f64]) -> Option<f64> {
     values.sort_by(f64::total_cmp);
     let n = values.len();
     let mid = n / 2;

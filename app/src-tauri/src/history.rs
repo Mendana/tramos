@@ -14,6 +14,7 @@ use std::collections::hash_map::Entry;
 
 use chrono::NaiveDate;
 use serde::Serialize;
+use tramos_core::after_error::{AfterError, after_error};
 use tramos_core::days_off::{DaysOff, days_off};
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, TrackedRace, history, race_stats,
@@ -51,6 +52,9 @@ pub struct HistoryView {
     /// ¿Lento o desorientado? (P2): la pérdida de los errores repartida en desvío, paradas y
     /// ritmo, con el mismo filtro. Solo aportan las carreras con track.
     pub loss_breakdown: BreakdownHistory,
+    /// Después de fallar (P8): encadenamiento, recuperación y rachas limpias, con el mismo
+    /// filtro. La recuperación solo con las carreras con track.
+    pub after_error: AfterError,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
     /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
@@ -145,6 +149,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         days_off: days_off(&races, &competed, filter),
         by_slope,
         loss_breakdown: breakdown_history(&tracked, filter),
+        after_error: after_error(&tracked, filter),
     })
 }
 
@@ -617,5 +622,35 @@ mod tests {
             b.errors.legs + b.errors_without_breakdown,
             view.history.total.errors
         );
+    }
+
+    /// P8: cada tramo que cuenta salvo el primero de cada carrera es «tras error» o «tras
+    /// limpio», y la recuperación solo sale de la carrera con FIT.
+    #[test]
+    fn after_error_splits_the_legs_after_the_first() {
+        let (store, result_id) = two_races_with(true);
+        let lost = race_detail(&store, result_id).unwrap().report.lost_time;
+        let counted: Vec<_> = pattern_legs(&lost).collect();
+        let errors_before_last = counted[..counted.len() - 1]
+            .iter()
+            .filter(|l| l.is_error)
+            .count();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let a = &view.after_error;
+        // Dos carreras iguales: dos veces los tramos menos el primero.
+        assert_eq!(
+            a.after_error.legs + a.after_clean.legs,
+            2 * (counted.len() - 1)
+        );
+        assert_eq!(a.after_error.legs, 2 * errors_before_last);
+        // La copia sin track no tiene velocidad.
+        assert_eq!(
+            a.accelerated.legs + a.not_accelerated.legs,
+            errors_before_last
+        );
+        assert_eq!(a.after_error_without_speed, errors_before_last);
+        assert_eq!(a.streaks[0].rate, a.after_error);
+        let streak_legs: usize = a.streaks.iter().map(|s| s.rate.legs).sum();
+        assert_eq!(streak_legs, 2 * (counted.len() - 1));
     }
 }

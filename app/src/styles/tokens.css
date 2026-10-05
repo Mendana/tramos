@@ -66,6 +66,9 @@
 
   /* Gráficas (validadas con la guía de visualización: banda de luminosidad y contraste) */
   --chart-series-1: #a8236f;
+  --chart-series-2: #2a78d6;
+  --chart-series-3: #199e70;
+  --chart-series-4: #c98500;
   --chart-error: #d4580b;
   --chart-muted: #8a8479;
   --chart-grid: #ebe8e2;
@@ -111,6 +114,9 @@
     --info-soft: #1b2a3a;
 
     --chart-series-1: #d45ca3;
+    --chart-series-2: #3987e5;
+    --chart-series-3: #0f8f62;
+    --chart-series-4: #c98500;
     --chart-error: #dc7430;
     --chart-muted: #7a756c;
     --chart-grid: #2a2826;

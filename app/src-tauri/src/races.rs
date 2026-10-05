@@ -9,6 +9,7 @@ use std::collections::hash_map::Entry;
 use chrono::NaiveDate;
 use serde::Serialize;
 use thiserror::Error;
+use tramos_core::comparison::{CourseComparison, course_comparison};
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
@@ -130,6 +131,14 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
     })
 }
 
+/// Corredores del recorrido del resultado `result_id`, para compararse con ellos (P4).
+pub fn race_comparison(store: &Store, result_id: i64) -> Result<CourseComparison, RaceError> {
+    let (event_id, at) = store.result_ref(ResultId(result_id))?;
+    let event = store.load_event(event_id)?;
+    let config = settings::lost_time_config(store)?;
+    course_comparison(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,11 +255,44 @@ mod tests {
         assert!(errors(&store).0 > before);
     }
 
+    /// La comparación sale del mismo análisis que la vista de carrera: el propio corredor
+    /// aparece con los mismos números, junto al resto de su recorrido.
+    #[test]
+    fn comparison_includes_self_with_the_detail_numbers() {
+        let (store, result_id) = imported();
+        let detail = race_detail(&store, result_id).unwrap();
+        let comparison = race_comparison(&store, result_id).unwrap();
+        let selves: Vec<_> = comparison.runners.iter().filter(|r| r.is_self).collect();
+        assert_eq!(selves.len(), 1);
+        let me = selves[0];
+        let legs = &detail.report.lost_time.legs;
+        assert_eq!(me.total_s, detail.report.lost_time.total_s);
+        assert_eq!(
+            me.behind_ideal_s,
+            legs.iter().map(|l| l.behind_ideal_s).collect::<Vec<_>>()
+        );
+        assert_eq!(comparison.legs.len(), legs.len());
+        assert_eq!(
+            comparison.runners.len(),
+            detail.report.course.valid_runners
+                + comparison
+                    .runners
+                    .iter()
+                    .filter(|r| r.course_place.is_none())
+                    .count()
+        );
+        assert_eq!(comparison.runners[0].course_place, Some(1));
+    }
+
     #[test]
     fn missing_result_is_an_error() {
         let store = Store::open_in_memory().unwrap();
         assert!(matches!(
             race_detail(&store, 42),
+            Err(RaceError::Store(StoreError::ResultNotFound(42)))
+        ));
+        assert!(matches!(
+            race_comparison(&store, 42),
             Err(RaceError::Store(StoreError::ResultNotFound(42)))
         ));
         assert!(list_races(&store).unwrap().is_empty());

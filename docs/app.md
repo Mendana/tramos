@@ -27,6 +27,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
+| `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
 `app/src-tauri/src/import.rs`, `races.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
@@ -158,6 +159,9 @@ Piezas:
   de fondo resaltadas (p. ej. rachas).
 - `LineChart`: una línea de 2 px con un velo del 10 % hasta el 0, marcadores opcionales con un
   anillo del color de la superficie y un cursor vertical que se ajusta al punto más cercano.
+- `MultiLineChart`: varias líneas sobre los mismos puntos, la destacada (el corredor) más
+  gruesa, etiqueta directa al final de cada línea y tooltip con el valor de cada serie.
+- `GroupedColumnChart`: columnas agrupadas, una por serie y punto, con 2 px de separación.
 - `common.tsx`: tamaño, rejilla con marcas, tooltip (al lado de la marca, para no taparla) y
   leyenda (cuadrado para barras, raya para líneas). Con dos o más series siempre hay leyenda.
 - Dos medidas de escala distinta nunca comparten eje: van en paneles separados.
@@ -169,7 +173,9 @@ la interfaz para quedar en la banda de luminosidad). `--chart-grid`, `--chart-ax
 (naranja de baliza) marca los tramos con error y `--chart-muted` (gris) el resto; validados igual,
 se distinguen también con daltonismo. Para ganar o perder (P5), el par divergente `--chart-gain` (azul)
 y `--chart-loss` (el mismo naranja), validado igual; la dirección de la columna también lo dice.
-`--chart-line-neutral` es una línea de datos en tinta neutra y `--chart-highlight` el fondo de una
+Para varios corredores (P4), la paleta categórica `--chart-series-1` a `--chart-series-4`
+(magenta para el corredor; azul, verde y ámbar para los compañeros, en ese orden fijo), validada
+en los dos modos entre todas las parejas. `--chart-line-neutral` es una línea de datos en tinta neutra y `--chart-highlight` el fondo de una
 franja resaltada.
 
 Paneles de la vista de carrera:
@@ -180,6 +186,15 @@ Paneles de la vista de carrera:
 | Pérdida acumulada (P3) | Tiempo perdido sumado tramo a tramo desde la salida: solo suben los tramos con error, marcados con un punto. Acaba en el tiempo perdido de la carrera. | Errores y tramos. |
 | Dónde gano y dónde pierdo (P5) | Ganancia de cada tramo frente a lo esperado (`gain_s`, arriba gano en azul, abajo pierdo en naranja), la línea del acumulado (`cumulative_gain_s`) y una franja por cada racha de dos o más tramos seguidos perdiendo (`losing_streaks`). Todo sale del núcleo (`docs/tiempo-perdido.md`). | Tramos con ganancia y rachas. |
 | Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
+
+Bajo «Frente al grupo» (P4, `GroupComparison.tsx`), el corredor junto a compañeros elegidos de
+su mismo recorrido (hasta 3, de entrada el ganador del recorrido). Las fichas de arriba eligen a
+los compañeros y hacen de leyenda; la elección vale para los dos paneles:
+
+| Panel | Qué enseña | Casos |
+| --- | --- | --- |
+| Diferencia con el tiempo ideal | Diferencia acumulada respecto al tiempo ideal tras cada tramo, una línea por corredor; hacia abajo es por detrás, como en la gráfica clásica de WinSplits. | Corredores. |
+| Pérdida por tramo comparada | Pérdida de cada tramo frente a lo esperado con el rendimiento habitual de cada uno, en columnas agrupadas. | Corredores. |
 
 Los paneles van entre las cifras destacadas y la tabla de tramos, y salen de los mismos tramos que
 la tabla: sus valores coinciden con ella.

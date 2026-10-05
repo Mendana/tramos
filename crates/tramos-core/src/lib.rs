@@ -2,6 +2,7 @@
 //! métricas y análisis. Sin dependencias de interfaz.
 
 pub mod alignment;
+pub mod comparison;
 pub mod courses;
 pub mod gain_loss;
 pub mod identify;

@@ -340,3 +340,20 @@ Agregado con dos carreras con track (referencia, `IR_i`, error):
 El test del comando (`app/src-tauri/src/history.rs`) comprueba con el FIT sintético que cada
 clase sale de los tramos de la vista de carrera y que los tramos claramente lejos del umbral caen
 en la clase que da el desnivel real (sin ruido) del generador.
+
+## ¿Lento o desorientado? (P2)
+
+El reparto de la pérdida de cada tramo en desvío, paradas y ritmo está en
+`docs/tiempo-perdido.md`, "¿Lento o desorientado? (P2)". En el histórico
+(`tramos_core::loss_breakdown::breakdown_history`, #27), el comando `history` devuelve en
+`loss_breakdown`:
+
+- `errors`: la suma, en todas las carreras que pasan el filtro con rendimiento habitual y track,
+  de los errores repartidos (`legs`, `loss_s`, `detour_s`, `stopped_s` y `pace_s`). La pantalla
+  enseña cada parte en % de `loss_s`.
+- `races_with_track` y `races_without_track`.
+- `errors_without_breakdown`: errores que cuentan pero no se reparten (carreras sin track, sin
+  `r0` o tramos sin sub-track). Con `errors.legs`, suman los errores del total del histórico.
+
+Solo los errores, como la pérdida del resto del histórico: la pregunta es de qué está hecho lo
+que se pierde al fallar.

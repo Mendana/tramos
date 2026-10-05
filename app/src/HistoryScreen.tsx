@@ -27,6 +27,7 @@ import {
 import { ChartIcon, EmptyState, Notice, PageHeader, Stat } from "./ui";
 import { LegLengthPanel } from "./LegLengthPanel";
 import { SlopePanel } from "./SlopePanel";
+import { HistoryBreakdownPanel } from "./BreakdownPanel";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
@@ -246,6 +247,7 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
           total={total}
         />
         <SlopePanel slope={view.by_slope} />
+        <HistoryBreakdownPanel breakdown={view.loss_breakdown} />
       </div>
     </>
   );

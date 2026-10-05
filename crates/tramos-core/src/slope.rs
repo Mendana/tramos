@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::history::{HistoryFilter, HistoryRace, pattern_legs};
+use crate::history::{HistoryFilter, TrackedRace, pattern_legs};
 use crate::metrics::{LegMetrics, TrackMetrics};
 use crate::runner_report::LegReport;
 
@@ -116,14 +116,6 @@ pub fn classify_leg(
     classify(m.track.as_ref()?, config)
 }
 
-/// Una carrera del histórico con las métricas del FIT de cada tramo.
-#[derive(Debug, Clone, Copy)]
-pub struct SlopeRace<'a> {
-    pub race: &'a HistoryRace,
-    /// `None` si la carrera no tiene track (o no se puede alinear ni trocear).
-    pub leg_metrics: Option<&'a [LegMetrics]>,
-}
-
 /// Números de una clase.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SlopeStats {
@@ -168,7 +160,7 @@ struct Accumulator {
 /// Agrega por clase de desnivel los tramos que cuentan de las carreras que pasan `filter` (el
 /// mismo filtro y las mismas carreras que [`crate::history::history`]).
 pub fn slope(
-    races: &[SlopeRace<'_>],
+    races: &[TrackedRace<'_>],
     filter: &HistoryFilter,
     config: &SlopeConfig,
 ) -> Result<SlopeHistory, SlopeError> {
@@ -230,6 +222,7 @@ pub fn slope(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::history::HistoryRace;
     use crate::metrics::{MetricsOptions, leg_metrics};
     use crate::model::{Track, TrackPoint};
     use crate::race_format::RaceFormat;
@@ -615,9 +608,9 @@ mod tests {
 
     fn run(filter: &HistoryFilter, config: &SlopeConfig) -> SlopeHistory {
         let data = races();
-        let input: Vec<SlopeRace<'_>> = data
+        let input: Vec<TrackedRace<'_>> = data
             .iter()
-            .map(|(race, metrics)| SlopeRace {
+            .map(|(race, metrics)| TrackedRace {
                 race,
                 leg_metrics: metrics.as_deref(),
             })

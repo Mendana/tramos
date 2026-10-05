@@ -16,19 +16,19 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use tramos_core::days_off::{DaysOff, days_off};
 use tramos_core::history::{
-    History, HistoryFilter, HistoryRace, HistoryStats, history, race_stats,
+    History, HistoryFilter, HistoryRace, HistoryStats, TrackedRace, history, race_stats,
 };
 use tramos_core::leg_length::{LegLengthStats, leg_length};
+use tramos_core::loss_breakdown::{BreakdownHistory, breakdown_history};
 use tramos_core::lost_time::LostTimeConfig;
-use tramos_core::metrics::{LegMetrics, MetricsOptions, leg_metrics};
-use tramos_core::model::{Event, RaceResult, RaceStatus};
+use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::runner_report;
-use tramos_core::slope::{SlopeConfig, SlopeHistory, SlopeRace, slope};
-use tramos_store::{EventId, ResultId, Store, StoreError};
+use tramos_core::slope::{SlopeConfig, SlopeHistory, slope};
+use tramos_store::{EventId, Store};
 
 use crate::import::stored_self_person;
-use crate::race_map::aligned_legs;
+use crate::race_map::stored_leg_metrics;
 use crate::races::RaceError;
 use crate::settings;
 
@@ -48,6 +48,9 @@ pub struct HistoryView {
     /// Pérdida según desnivel (P13): subida, llano y bajada, con el mismo filtro. Solo aportan
     /// tramos las carreras con track.
     pub by_slope: SlopeHistory,
+    /// ¿Lento o desorientado? (P2): la pérdida de los errores repartida en desvío, paradas y
+    /// ritmo, con el mismo filtro. Solo aportan las carreras con track.
+    pub loss_breakdown: BreakdownHistory,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
     /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
@@ -94,7 +97,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         };
         let report = runner_report(event, at, &config).ok_or(RaceError::NotAnalyzed(r.result.0))?;
         metrics.push(match at.get(event) {
-            Some(race_result) if r.has_track => track_leg_metrics(store, r.result, race_result)?,
+            Some(race_result) if r.has_track => stored_leg_metrics(store, r.result, race_result)?,
             _ => None,
         });
         rows.push(HistoryRaceRow {
@@ -121,15 +124,15 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         .filter(|r| r.status != RaceStatus::DidNotStart)
         .map(|r| r.event_date)
         .collect();
-    let slope_races: Vec<SlopeRace<'_>> = races
+    let tracked: Vec<TrackedRace<'_>> = races
         .iter()
         .zip(&metrics)
-        .map(|(race, legs)| SlopeRace {
+        .map(|(race, legs)| TrackedRace {
             race,
             leg_metrics: legs.as_deref(),
         })
         .collect();
-    let by_slope = slope(&slope_races, filter, &SlopeConfig::default())?;
+    let by_slope = slope(&tracked, filter, &SlopeConfig::default())?;
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
@@ -141,23 +144,8 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         by_leg_length: leg_length(&races, filter),
         days_off: days_off(&races, &competed, filter),
         by_slope,
+        loss_breakdown: breakdown_history(&tracked, filter),
     })
-}
-
-/// Métricas del FIT de cada tramo del resultado `result` (`race_result` en su carrera). `None` si
-/// no tiene track o ya no se puede alinear ni trocear: la carrera no aporta tramos a P13.
-fn track_leg_metrics(
-    store: &Store,
-    result: ResultId,
-    race_result: &RaceResult,
-) -> Result<Option<Vec<LegMetrics>>, StoreError> {
-    let Some(track) = store.load_track(result)? else {
-        return Ok(None);
-    };
-    let Ok((_, segmentation)) = aligned_legs(&track, race_result) else {
-        return Ok(None);
-    };
-    Ok(leg_metrics(&track, &segmentation, &MetricsOptions::default()).ok())
 }
 
 #[cfg(test)]
@@ -171,7 +159,7 @@ mod tests {
     use tramos_core::race_format::RaceFormat;
     use tramos_core::runner_report::{LegReport, RunnerLostTime};
     use tramos_core::slope::{CLASSES, SlopeClass, classify_leg};
-    use tramos_store::PersonId;
+    use tramos_store::{PersonId, ResultId};
 
     fn spl_path() -> String {
         format!(
@@ -498,7 +486,7 @@ mod tests {
         let result = ResultId(result_id);
         let (event_id, at) = store.result_ref(result).unwrap();
         let event = store.load_event(event_id).unwrap();
-        let metrics = track_leg_metrics(&store, result, at.get(&event).unwrap())
+        let metrics = stored_leg_metrics(&store, result, at.get(&event).unwrap())
             .unwrap()
             .unwrap();
         for stats in &s.by_class {
@@ -611,5 +599,23 @@ mod tests {
         assert_eq!(json["by_slope"]["by_class"][0]["class"], "uphill");
         assert_eq!(json["by_slope"]["config"]["threshold_m_per_100m"], 4.0);
         assert_eq!(json["by_slope"]["races_with_track"], 1);
+    }
+
+    /// P2: el agregado son los errores repartidos de la carrera con FIT, que son los de su vista
+    /// de carrera; los de la copia sin track quedan sin reparto.
+    #[test]
+    fn loss_breakdown_adds_the_races_with_track() {
+        let (store, result_id) = two_races_with(true);
+        let race = crate::races::race_breakdown(&store, result_id)
+            .unwrap()
+            .unwrap();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let b = &view.loss_breakdown;
+        assert_eq!((b.races_with_track, b.races_without_track), (1, 1));
+        assert_eq!(b.errors, race.errors);
+        assert_eq!(
+            b.errors.legs + b.errors_without_breakdown,
+            view.history.total.errors
+        );
     }
 }

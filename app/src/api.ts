@@ -260,6 +260,8 @@ export interface HistoryView {
   };
   /** Pérdida según desnivel (P13): subida, llano y bajada, con el mismo filtro. */
   by_slope: SlopeHistory;
+  /** ¿Lento o desorientado? (P2): la pérdida de los errores repartida, con el mismo filtro. */
+  loss_breakdown: BreakdownHistory;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -377,6 +379,49 @@ export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
 
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });
+
+/** Reparto de la pérdida de un tramo (P2, `docs/tiempo-perdido.md`): pérdida = desvío + paradas + ritmo. */
+export interface LegBreakdown {
+  index: number;
+  loss_s: number;
+  is_error: boolean;
+  detour_s: number;
+  stopped_s: number;
+  pace_s: number;
+}
+
+/** Sumas del reparto de varios tramos. */
+export interface BreakdownTotals {
+  legs: number;
+  loss_s: number;
+  detour_s: number;
+  stopped_s: number;
+  pace_s: number;
+}
+
+/** ¿Lento o desorientado? (P2) de una carrera. */
+export interface RaceBreakdown {
+  /** Relación habitual distancia / línea recta (r0); `null` con pocos tramos sin error. */
+  usual_ratio: number | null;
+  clean_legs: number;
+  /** Tramos que cuentan con reparto. */
+  legs: LegBreakdown[];
+  /** Suma de los errores de `legs`. */
+  errors: BreakdownTotals;
+  errors_without_breakdown: number;
+}
+
+/** P2 en el histórico. */
+export interface BreakdownHistory {
+  errors: BreakdownTotals;
+  races_with_track: number;
+  races_without_track: number;
+  errors_without_breakdown: number;
+}
+
+/** `null` si la carrera no tiene el FIT del reloj. */
+export const raceBreakdown = (resultId: number) =>
+  invoke<RaceBreakdown | null>("race_breakdown", { resultId });
 
 export const getHistory = (filter: HistoryFilter) =>
   invoke<HistoryView>("history", { filter });

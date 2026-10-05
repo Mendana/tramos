@@ -10,6 +10,7 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use thiserror::Error;
 use tramos_core::comparison::{CourseComparison, course_comparison};
+use tramos_core::loss_breakdown::{RaceBreakdown, race_breakdown as breakdown};
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
@@ -17,6 +18,7 @@ use tramos_core::runner_report::{RunnerReport, runner_report};
 use tramos_store::{EventId, ResultId, Store, StoreError};
 
 use crate::import::stored_self_person;
+use crate::race_map::stored_leg_metrics;
 use crate::settings;
 
 /// Errores al consultar las carreras. Los mensajes van a la interfaz, en español.
@@ -151,6 +153,19 @@ pub fn race_comparison(store: &Store, result_id: i64) -> Result<CourseComparison
     let event = store.load_event(event_id)?;
     let config = settings::lost_time_config(store)?;
     course_comparison(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))
+}
+
+/// ¿Lento o desorientado? (P2) del resultado `result_id`: la pérdida de sus tramos repartida en
+/// desvío, paradas y ritmo. `None` sin track (o si ya no se puede alinear ni trocear).
+pub fn race_breakdown(store: &Store, result_id: i64) -> Result<Option<RaceBreakdown>, RaceError> {
+    let result = ResultId(result_id);
+    let (event_id, at) = store.result_ref(result)?;
+    let event = store.load_event(event_id)?;
+    let config = settings::lost_time_config(store)?;
+    let report = runner_report(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))?;
+    let race_result = at.get(&event).ok_or(RaceError::NotAnalyzed(result_id))?;
+    let metrics = stored_leg_metrics(store, result, race_result)?;
+    Ok(metrics.map(|m| breakdown(&report.lost_time, &m)))
 }
 
 #[cfg(test)]
@@ -353,5 +368,42 @@ mod tests {
             Err(RaceError::Store(StoreError::ResultNotFound(42)))
         ));
         assert!(list_races(&store).unwrap().is_empty());
+    }
+
+    /// P2: con el FIT sintético, el tramo del rodeo es sobre todo desvío y parada; sin FIT, no
+    /// hay reparto.
+    #[test]
+    fn breakdown_needs_the_track() {
+        let (store, result_id) = imported();
+        assert_eq!(race_breakdown(&store, result_id).unwrap(), None);
+
+        let mut store = Store::open_in_memory().unwrap();
+        let fit = format!(
+            "{}/../../fixtures/fit/baltanas-sintetico.fit",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let p = preview(&store, &spl_path(), Some(&fit), &identity()).unwrap();
+        let outcome = import(
+            &mut store,
+            &ImportRequest {
+                spl_path: spl_path(),
+                fit_path: Some(fit),
+                result: p.candidates[0].result,
+                format: p.suggested_format,
+                identity: identity(),
+            },
+        )
+        .unwrap();
+        let b = race_breakdown(&store, outcome.result_id).unwrap().unwrap();
+        assert!(b.usual_ratio.is_some());
+        let leg = b.legs.iter().find(|l| l.index == 9).unwrap();
+        assert!(leg.is_error);
+        assert!(leg.detour_s + leg.stopped_s > 0.5 * leg.loss_s, "{leg:?}");
+        // Los errores sumados son los de la tabla de tramos que cuentan.
+        let detail = race_detail(&store, outcome.result_id).unwrap();
+        let errors = tramos_core::history::pattern_legs(&detail.report.lost_time)
+            .filter(|l| l.is_error)
+            .count();
+        assert_eq!(b.errors.legs + b.errors_without_breakdown, errors);
     }
 }

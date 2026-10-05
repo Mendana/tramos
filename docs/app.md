@@ -29,6 +29,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
+| `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado (`docs/tiempo-perdido.md`). `null` sin track o si ya no se puede alinear ni trocear. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`). |
 
@@ -261,6 +262,11 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   regla de clasificación con el umbral aplicado. Las dos tablas dan, por clase, tramos, errores,
   IR medio y tasa de error. Una clase vacía sale sin columna y con `n = 0`. El umbral aún no se
   puede cambiar desde Ajustes: se usa el valor por defecto del núcleo (4 m por cada 100 m).
+- **¿Lento o desorientado? (P2)** (`BreakdownPanel.tsx`): panel «De qué está hecha la pérdida de
+  tus errores». Una columna por parte (desvío, paradas y ritmo) con su % de la pérdida de todos
+  los errores repartidos (`loss_breakdown`, `docs/historico.md`); el tooltip y la tabla dan los
+  segundos. La descripción dice cuántos errores no se pueden repartir (sin FIT o sin datos
+  suficientes).
 
 ## Diseño
 
@@ -343,6 +349,7 @@ Paneles de la vista de carrera:
 | Pérdida acumulada (P3) | Tiempo perdido sumado tramo a tramo desde la salida: solo suben los tramos con error, marcados con un punto. Acaba en el tiempo perdido de la carrera. | Errores y tramos. |
 | Dónde gano y dónde pierdo (P5) | Ganancia de cada tramo frente a lo esperado (`gain_s`, arriba gano en azul, abajo pierdo en naranja), la línea del acumulado (`cumulative_gain_s`) y una franja por cada racha de dos o más tramos seguidos perdiendo (`losing_streaks`). Todo sale del núcleo (`docs/tiempo-perdido.md`). | Tramos con ganancia y rachas. |
 | Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
+| ¿Lento o desorientado? (P2) | Cada error de los tramos que cuentan con tres columnas, desvío, paradas y ritmo (colores de serie 1–3, en ese orden), que suman su pérdida; la descripción resume el total de los errores en segundos y en %. La tabla da todos los tramos repartidos y la relación habitual `r0`. Sin FIT, o con menos de 3 tramos sin error con track, el panel lo dice en lugar de la gráfica. Lo pide aparte (`race_breakdown`). | Errores repartidos. |
 
 Bajo «Frente al grupo» (P4, `GroupComparison.tsx`), el corredor junto a compañeros elegidos de
 su mismo recorrido (hasta 3, de entrada el ganador del recorrido). Las fichas de arriba eligen a

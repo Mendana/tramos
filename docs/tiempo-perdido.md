@@ -162,6 +162,53 @@ Ejemplo: IR 1,0 (ref 60 s), 0,8 (ref 120 s) y 1,2 (ref 60 s). `m = (60 + 96 + 72
 Va en los totales del informe del corredor (`consistency`). En el histórico, cada grupo da la
 media de la consistencia de sus carreras (`docs/historico.md`).
 
+## ¿Lento o desorientado? (P2)
+
+Versión inicial, heurística (`tramos_core::loss_breakdown`, P2 de `docs/preguntas.md`): reparte
+la pérdida `p_i` de un tramo en **desvío**, **paradas** y **ritmo** con las métricas del FIT del
+tramo (`docs/metricas.md`). Es la pregunta más interpretativa: los números son una estimación.
+
+- `d_run` = distancia recorrida en el tramo (`distance_m`); `d_line` = línea recta entre las
+  posiciones de las balizas (`straight_m`); `v_mov` = velocidad en movimiento
+  (`moving_speed_mps`).
+- **Relación habitual** `r0`: mediana simple de `d_run / d_line` (`distance_ratio`) en los
+  tramos **sin error** de la carrera que cuentan (`pattern_legs`) y tienen relación. Nadie va en
+  línea recta: `r0` es cuánto rodea el corredor normalmente en esa carrera. Con menos de 3 de
+  esos tramos no hay `r0` y no se reparte nada.
+- **Desvío** = `(d_run − r0 · d_line) / v_mov`: el tiempo que cuestan, a su velocidad en
+  movimiento del tramo, los metros de más respecto a lo habitual. Negativo si el tramo fue más
+  directo de lo habitual.
+- **Paradas** = tiempo parado del tramo (`stopped_s`): velocidad < 0,5 m/s, sin los 5 s
+  siguientes a la picada.
+- **Ritmo** = el resto, `p_i − desvío − paradas`. Así las tres partes suman siempre `p_i`.
+- **Tramos**: los que cuentan (`pattern_legs`), con pérdida, con sub-track cuyo número y balizas
+  casan con la tabla de tramos y con `v_mov`. Los totales de la carrera (`errors`) suman solo los
+  errores; los errores que no se pueden repartir se cuentan aparte (`errors_without_breakdown`).
+
+**Las partes pueden salir negativas.** La pérdida se mide contra lo esperado con el rendimiento
+habitual de toda la carrera, y el desvío, con la velocidad del propio tramo: si un rodeo se corre
+más rápido de lo habitual, el desvío puede pasar de la pérdida y el ritmo sale negativo. En el
+FIT sintético, el tramo 9 (rodeo de 1215 m frente a 250 m en línea recta y 30 s parado) pierde
+284 s: desvío 297 s, paradas 30 s y ritmo −43 s. La lectura es «el rodeo y la parada explican
+toda la pérdida».
+
+**Parámetros**, todos aquí:
+
+| Parámetro | Valor | Dónde |
+| --- | --- | --- |
+| Tramos sin error mínimos para `r0` | 3 | `loss_breakdown::MIN_CLEAN_LEGS` |
+| Velocidad de parado | 0,5 m/s | `MetricsOptions::stop_speed_mps` |
+| Segundos tras la picada que no son parada | 5 s | `MetricsOptions::punch_grace_s` |
+| Hueco del track (su tiempo no es parada ni movimiento, y queda en el ritmo) | 10 s | `MetricsOptions::max_gap_s` |
+
+Ejemplo (test de `crates/tramos-core/src/loss_breakdown.rs`): tramos sin error con relación 1,2,
+1,1 y 1,4 → `r0 = 1,2`. Un error de 150 s con 600 m recorridos frente a 200 m en línea recta, a
+3 m/s y 20 s parado: desvío (600 − 1,2 · 200) / 3 = **120 s**, paradas **20 s**, ritmo 150 − 140
+= **10 s**. Un error de 40 s por la línea habitual y sin parar es todo ritmo.
+
+Criterio de aceptación de #27 (`crates/tramos-core/tests/loss_breakdown.rs`): con el FIT
+sintético, el tramo del rodeo atribuye más de la mitad de su pérdida a desvío y parada.
+
 ## Salida (`tramos_core::lost_time`)
 
 `analyze_event(&Event, &LostTimeConfig) -> LostTimeReport` (o `analyze_course` para un

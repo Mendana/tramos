@@ -309,8 +309,9 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   línea con cuántas carreras aportan pulso (las que tienen FIT con pulso). Tres paneles, todos
   por tercio de carrera y con `n` bajo cada columna o grupo:
   - «Deriva del pulso»: una columna por tercio con pulso / velocidad de los tramos limpios
-    frente a lo habitual en cada carrera (línea del 100 %, «Lo habitual»). La tabla añade el
-    pulso medio y el ritmo en movimiento.
+    frente a lo habitual en cada carrera, como diferencia en % (0 = lo habitual; con el 100 % de
+    base, una deriva de unos pocos % no se vería). La tabla da el cociente en % (100 % = lo
+    habitual), el pulso medio y el ritmo en movimiento.
   - «Pulso antes del error»: columnas agrupadas (antes de un error y antes de un tramo limpio)
     con el pulso del tramo anterior en ppm sobre la mediana de su carrera; debajo, `n` de cada
     serie. La descripción dice cuántos errores no tienen pulso del anterior. La tabla da también

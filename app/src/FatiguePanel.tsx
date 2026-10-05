@@ -22,6 +22,7 @@ const showRatio = (v: number | null) => (v === null ? "—" : percent(v));
 const effortValue = (v: number | null) => (v === null ? "—" : decimal(v, 1));
 /** Marca del eje con decimales solo si los tiene. */
 const tick = (v: number) => String(Number(v.toFixed(1))).replace(".", ",");
+const tickSignedPercent = (v: number) => `${v > 0 ? "+" : ""}${tickPercent(v)}`;
 const tickBpm = (v: number) => `${v > 0 ? "+" : ""}${tick(v)} ppm`;
 
 const BEFORE = [
@@ -158,22 +159,23 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
       </p>
       <ChartPanel
         title="Deriva del pulso"
-        description="Pulso dividido entre la velocidad en movimiento de tus tramos limpios, en cada tercio de la carrera, frente a lo habitual en esa carrera (100 %: la mediana de sus tramos limpios). Si sube al final, necesitas más pulso para ir igual de rápido: cansancio. Debajo de cada tercio, sus tramos (n)."
+        description="Pulso dividido entre la velocidad en movimiento de tus tramos limpios, en cada tercio de la carrera, frente a lo habitual en esa carrera (0: la mediana de sus tramos limpios). Si sube al final, necesitas más pulso para ir igual de rápido: cansancio. Debajo de cada tercio, sus tramos (n)."
         cases={legsLabel(driftLegs)}
         chart={
           <ColumnChart
             label="Pulso entre velocidad de los tramos limpios por tercio de carrera, frente a lo habitual en cada carrera"
-            formatTick={tickPercent}
-            reference={{ value: 100, label: "Lo habitual" }}
+            formatTick={tickSignedPercent}
             columns={thirds.map((t) => {
-              const v = ratio(t.drift.mean_relative_ratio);
+              // Diferencia con lo habitual: con el 100 % como base, un 6 % de deriva no se ve.
+              const r = ratio(t.drift.mean_relative_ratio);
+              const v = r === null ? null : r - 100;
               return {
                 key: t.third,
                 label: thirdLabel(t),
                 sublabel: `n = ${t.drift.legs}`,
                 value: v,
                 tooltip: {
-                  value: v === null ? "Sin tramos" : percent(v),
+                  value: v === null ? "Sin tramos" : `${signed(v)} % sobre lo habitual`,
                   detail: `${thirdLabel(t)} · ${legsLabel(t.drift.legs)} · ${bpm(t.drift.mean_heart_rate_bpm)} · ${pace(t.drift.mean_speed_mps)}`,
                 },
               };

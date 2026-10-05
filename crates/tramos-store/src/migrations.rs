@@ -15,6 +15,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0003_track_sport.sql"),
     include_str!("../migrations/0004_drop_runner_source_id.sql"),
     include_str!("../migrations/0005_event_format.sql"),
+    include_str!("../migrations/0006_track_manual_offset.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -91,8 +92,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 5);
-        assert_eq!(user_version(&conn).unwrap(), 5);
+        assert_eq!(SCHEMA_VERSION, 6);
+        assert_eq!(user_version(&conn).unwrap(), 6);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -162,6 +163,37 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap()
+    }
+
+    #[test]
+    fn version_5_tracks_stay_automatic() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        migrate_to(&conn, 5);
+        conn.execute_batch(
+            "INSERT INTO events (id, name, date) VALUES (1, 'Vieja', '2025-05-04');
+             INSERT INTO courses (id, event_id) VALUES (1, 1);
+             INSERT INTO classes (id, event_id, position, source_id, name, course_id)
+                 VALUES (1, 1, 0, 1, 'F21A', 1);
+             INSERT INTO runners (id, event_id, given_name, family_name)
+                 VALUES (1, 1, 'Ana', 'Pérez');
+             INSERT INTO results (id, class_id, position, runner_id, status, place)
+                 VALUES (1, 1, 0, 1, 'ok', 3);
+             INSERT INTO tracks (id, result_id, sport) VALUES (1, 1, 'running');",
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        assert_eq!(user_version(&conn).unwrap(), SCHEMA_VERSION);
+        let (sport, offset): (Option<String>, Option<f64>) = conn
+            .query_row(
+                "SELECT sport, manual_offset_s FROM tracks WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((sport.as_deref(), offset), (Some("running"), None));
     }
 
     #[test]

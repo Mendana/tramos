@@ -5,7 +5,8 @@
 //! "Mapa"):
 //!
 //! 1. Se alinea el track guardado con las picadas del resultado
-//!    (`tramos_core::alignment::align`) y se trocea en tramos
+//!    (`tramos_core::alignment::align`, o con el desfase fijado a mano si lo tiene) y se trocea
+//!    en tramos
 //!    (`tramos_core::segmentation::segment`). Las balizas son las posiciones de la
 //!    segmentación: dónde estaba el corredor en el instante de cada picada.
 //! 2. Cada intervalo entre dos puntos de un tramo lleva su ritmo, suavizado con la distancia
@@ -18,7 +19,9 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use thiserror::Error;
-use tramos_core::alignment::{Alignment, AlignmentOptions, align};
+use tramos_core::alignment::{
+    Alignment, AlignmentError, AlignmentOptions, align, align_with_offset,
+};
 use tramos_core::metrics::{LegMetrics, MetricsOptions, interval_distance_m, leg_metrics};
 use tramos_core::model::{ControlCode, RaceResult, Track, TrackPoint};
 use tramos_core::segmentation::{
@@ -52,8 +55,9 @@ pub enum RaceMapError {
 pub enum RaceMap {
     /// La carrera se importó sin FIT: no hay mapa.
     NoTrack,
-    /// Hay track, pero ya no se puede alinear con las picadas (no debería pasar: solo se guarda
-    /// si se alinea). `message` dice por qué, en español.
+    /// Hay track, pero no se puede alinear con las picadas: la hora está mal convertida (al
+    /// importar se guarda con la sugerencia de desplazamiento) y aún no se ha corregido el
+    /// desfase. `message` dice por qué, en español.
     NotAligned { message: String },
     /// Track, tramos y balizas listos para dibujar.
     Ready(MapTrack),
@@ -144,21 +148,37 @@ pub(crate) fn stored_leg_metrics(
     let Some(track) = store.load_track(result)? else {
         return Ok(None);
     };
-    let Ok((_, segmentation)) = aligned_legs(&track, race_result) else {
+    let manual_offset_s = store.manual_offset(result)?;
+    let Ok((_, segmentation)) = aligned_legs(&track, race_result, manual_offset_s) else {
         return Ok(None);
     };
     Ok(leg_metrics(&track, &segmentation, &MetricsOptions::default()).ok())
 }
 
-/// Alinea el track guardado de un resultado con sus picadas
-/// (`tramos_core::alignment::align`, opciones por defecto) y lo trocea en tramos
-/// (`tramos_core::segmentation::segment`). Lo usan el mapa y el histórico (P13). Si no se puede,
-/// el motivo en español.
+/// Alineación del track de un resultado con sus picadas (opciones por defecto): con el desfase
+/// fijado a mano si lo tiene (`align_with_offset`, #68) o estimándolo (`align`).
+pub(crate) fn alignment(
+    track: &Track,
+    result: &RaceResult,
+    manual_offset_s: Option<f64>,
+) -> Result<Alignment, AlignmentError> {
+    let options = AlignmentOptions::default();
+    match manual_offset_s {
+        Some(offset_s) => align_with_offset(track, result, offset_s, &options),
+        None => align(track, result, &options),
+    }
+}
+
+/// Alinea el track guardado de un resultado con sus picadas ([`alignment`], así que con su
+/// desfase manual si lo tiene) y lo trocea en tramos (`tramos_core::segmentation::segment`). Es
+/// el punto común del mapa, P2 y el histórico (P13, P2, P8): todos ven los mismos tramos. Si no
+/// se puede, el motivo en español.
 pub(crate) fn aligned_legs(
     track: &Track,
     result: &RaceResult,
+    manual_offset_s: Option<f64>,
 ) -> Result<(Alignment, Segmentation), String> {
-    let alignment = align(track, result, &AlignmentOptions::default())
+    let alignment = alignment(track, result, manual_offset_s)
         .map_err(|err| format!("No se puede situar la carrera en el track: {err}"))?;
     let segmentation = segment(track, &alignment)
         .map_err(|err| format!("No se puede cortar el track en tramos: {err}"))?;
@@ -176,7 +196,8 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
     let race_result = at
         .get(&event)
         .ok_or(RaceMapError::NoSuchResult(result_id))?;
-    let (alignment, segmentation) = match aligned_legs(&track, race_result) {
+    let manual_offset_s = store.manual_offset(result)?;
+    let (alignment, segmentation) = match aligned_legs(&track, race_result, manual_offset_s) {
         Ok(done) => done,
         Err(message) => return Ok(RaceMap::NotAligned { message }),
     };

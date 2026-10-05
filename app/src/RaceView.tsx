@@ -14,6 +14,7 @@ import {
   statusLabel,
 } from "./api";
 import { RaceBreakdownPanel } from "./BreakdownPanel";
+import { ClockOffset } from "./ClockOffset";
 import { GroupComparison } from "./GroupComparison";
 import { LegTagsState, TagControls, TagEditor, typeLabel, useLegTags } from "./LegTags";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
@@ -81,6 +82,8 @@ function Detail({
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
   const tagging = useLegTags(detail.result_id);
+  // Sube cada vez que cambia el desfase del reloj: el mapa y P2 lo vuelven a pedir.
+  const [trackRevision, setTrackRevision] = useState(0);
   // Tramo con el formulario de etiqueta abierto; al abrirlo se selecciona en el mapa.
   const [editing, setEditing] = useState<number | null>(null);
   const toggleEditing = (leg: number) => {
@@ -141,14 +144,17 @@ function Detail({
         <CumulativeLossPanel legs={lost.legs} />
         <GainLossPanel legs={lost.legs} streaks={lost.losing_streaks} />
         <PerformancePanel legs={lost.legs} />
-        <RaceBreakdownPanel resultId={detail.result_id} />
+        <RaceBreakdownPanel resultId={detail.result_id} revision={trackRevision} />
         <h3 className="section-title">Frente al grupo</h3>
         <GroupComparison resultId={detail.result_id} />
       </div>
 
+      <ClockOffset resultId={detail.result_id} onChange={() => setTrackRevision((r) => r + 1)} />
+
       <Suspense fallback={<p className="muted">Cargando el mapa…</p>}>
         <MapView
           resultId={detail.result_id}
+          revision={trackRevision}
           legs={lost.legs}
           selected={selectedLeg}
           onSelect={toggleLeg}

@@ -30,8 +30,8 @@ fracción `fraction`):
 - Con `fraction = 0` (también en el último punto del track) es el propio punto.
 
 Se usa `location`, no `usage`: una picada `near_edge` (cerca del borde del track, como la meta
-cuando el reloj se para al picarla) o `no_signal` con `location` (todas si el desfase no se pudo
-estimar y es 0) se sitúa igual. Sin `location`
+cuando el reloj se para al picarla), `no_signal` con `location` (todas si el desfase no se pudo
+estimar y es 0) o `fixed` (desfase fijado a mano, `align_with_offset`) se sitúa igual. Sin `location`
 no hay posición y `missing` dice por qué:
 
 | `missing` | Cuándo |

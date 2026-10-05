@@ -492,6 +492,72 @@ fn events_and_tracks_link_to_their_source_files() {
 }
 
 #[test]
+fn manual_offset_is_set_read_and_cleared() {
+    let mut store = Store::open_in_memory().unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
+    let ana = saved.results[0][0];
+    let berta = saved.results[0][1];
+    store.save_track(ana, &sample_track(), None).unwrap();
+    // Automático de entrada, y también sin track.
+    assert_eq!(store.manual_offset(ana).unwrap(), None);
+    assert_eq!(store.manual_offset(berta).unwrap(), None);
+
+    store.set_manual_offset(ana, Some(-3592.75)).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), Some(-3592.75));
+    // El track no cambia por tener un desfase manual.
+    assert_eq!(store.load_track(ana).unwrap(), Some(sample_track()));
+    store.set_manual_offset(ana, Some(0.0)).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), Some(0.0));
+    store.set_manual_offset(ana, None).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), None);
+
+    assert!(matches!(
+        store.set_manual_offset(ana, Some(f64::NAN)),
+        Err(StoreError::NotANumber("manual_offset_s"))
+    ));
+    assert!(matches!(
+        store.set_manual_offset(berta, Some(7.0)),
+        Err(StoreError::TrackNotFound(id)) if id == berta.0
+    ));
+    assert!(matches!(
+        store.set_manual_offset(ResultId(9_999), Some(7.0)),
+        Err(StoreError::ResultNotFound(9_999))
+    ));
+    assert_eq!(store.manual_offset(ResultId(9_999)).unwrap(), None);
+}
+
+/// El desfase manual es del reloj de un FIT: se conserva si se vuelve a guardar el track del
+/// mismo fichero y se pierde con otro.
+#[test]
+fn manual_offset_survives_only_the_same_fit() {
+    let mut store = Store::open_in_memory().unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
+    let ana = saved.results[0][0];
+    let fit = store
+        .save_source_file(SourceFileKind::Fit, "ana.fit", b"fit sintetico")
+        .unwrap();
+    let other = store
+        .save_source_file(SourceFileKind::Fit, "otro.fit", b"otro fit sintetico")
+        .unwrap();
+
+    store.save_track(ana, &sample_track(), Some(fit)).unwrap();
+    store.set_manual_offset(ana, Some(12.5)).unwrap();
+    store.save_track(ana, &sample_track(), Some(fit)).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), Some(12.5));
+
+    store.save_track(ana, &sample_track(), Some(other)).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), None);
+
+    // Sin fichero no se sabe de qué reloj es: vuelve al automático.
+    store.set_manual_offset(ana, Some(12.5)).unwrap();
+    store.save_track(ana, &sample_track(), None).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), None);
+    store.set_manual_offset(ana, Some(12.5)).unwrap();
+    store.save_track(ana, &sample_track(), None).unwrap();
+    assert_eq!(store.manual_offset(ana).unwrap(), None);
+}
+
+#[test]
 fn event_format_is_set_read_and_cleared() {
     let mut store = Store::open_in_memory().unwrap();
     let saved = store.save_event(&sample_event(), None).unwrap();

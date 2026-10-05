@@ -784,6 +784,16 @@
   gap: var(--space-2);
 }
 
+/* --- Desfase entre el reloj y el cronometraje (#68) --- */
+
+.offset-card .card-title {
+  align-items: center;
+}
+
+.offset-field {
+  width: 200px;
+}
+
 /* --- Controles dentro de un panel de gráfica (P9) --- */
 
 .panel-controls {

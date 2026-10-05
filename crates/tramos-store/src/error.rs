@@ -26,6 +26,10 @@ pub enum StoreError {
     #[error("no existe el resultado {0}")]
     ResultNotFound(i64),
 
+    /// El resultado existe, pero no tiene track del reloj.
+    #[error("el resultado {0} no tiene track del reloj")]
+    TrackNotFound(i64),
+
     #[error("no existe el fichero original {0}")]
     SourceFileNotFound(i64),
 

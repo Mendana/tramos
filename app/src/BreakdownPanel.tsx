@@ -38,8 +38,11 @@ function summary(t: BreakdownTotals): string {
   return `${d}, ${s} y ${p}`;
 }
 
-/** Panel de la vista de carrera: cada error, repartido. */
-export function RaceBreakdownPanel({ resultId }: { resultId: number }) {
+/**
+ * Panel de la vista de carrera: cada error, repartido. `revision` cambia cuando cambian los tramos
+ * del track (el desfase del reloj): entonces se vuelve a pedir.
+ */
+export function RaceBreakdownPanel({ resultId, revision = 0 }: { resultId: number; revision?: number }) {
   const [data, setData] = useState<RaceBreakdown | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +60,7 @@ export function RaceBreakdownPanel({ resultId }: { resultId: number }) {
     return () => {
       current = false;
     };
-  }, [resultId]);
+  }, [resultId, revision]);
 
   const title = "¿Lento o desorientado?";
   if (error !== null || data === undefined || data === null || data.usual_ratio === null) {
@@ -66,7 +69,7 @@ export function RaceBreakdownPanel({ resultId }: { resultId: number }) {
       (data === undefined
         ? "Cargando…"
         : data === null
-          ? "Necesita el FIT del reloj: importa la carrera con él para verlo."
+          ? "Necesita el FIT del reloj situado en la carrera: impórtala con él o, si ya lo tiene, corrige el desfase en «Reloj y cronometraje»."
           : `Hacen falta al menos 3 tramos sin error con track para saber cuánto rodeas normalmente (hay ${data.clean_legs}).`);
     return (
       <ChartPanel

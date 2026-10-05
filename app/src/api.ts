@@ -431,6 +431,36 @@ export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });
 
+/**
+ * Desfase entre el reloj y el cronometraje (#68, `clock_offset.rs`). Convenio: instante en el
+ * track = picada + desfase; un reloj adelantado da un desfase positivo.
+ */
+export interface OffsetView {
+  /** El que calcula la alineación; `null` si no se puede alinear (`automatic_error`). */
+  automatic_offset_s: number | null;
+  /** `false` si no había picadas útiles y el automático es 0 por defecto. */
+  automatic_estimated: boolean;
+  /** 0–1. */
+  confidence: number | null;
+  low_confidence: boolean;
+  automatic_warnings: string[];
+  automatic_error: string | null;
+  /** ±3600 o ±7200 si la hora parece mal convertida. */
+  suggested_shift_s: number | null;
+  /** El desplazamiento sugerido más el desfase fino que queda con él. */
+  suggested_offset_s: number | null;
+  /** Fijado a mano; `null` = automático. */
+  manual_offset_s: number | null;
+  max_manual_offset_s: number;
+}
+
+export const raceOffset = (resultId: number) =>
+  invoke<OffsetView | null>("race_offset", { resultId });
+
+/** `null` vuelve al automático. */
+export const setRaceOffset = (resultId: number, offsetS: number | null) =>
+  invoke<OffsetView>("set_race_offset", { resultId, offsetS });
+
 /** Reparto de la pérdida de un tramo (P2, `docs/tiempo-perdido.md`): pérdida = desvío + paradas + ritmo. */
 export interface LegBreakdown {
   index: number;

@@ -12,7 +12,11 @@
   un nombre visible y notas. No llevan fecha de nacimiento ni se rellenan desde el .spl
   (ver `docs/almacenamiento.md`).
 - Pulso y GPS se tratan como datos sensibles: cada corredor decide, carrera a carrera, qué comparte
-  con la entrenadora (nada, agregados, tramos o track completo).
+  con la entrenadora (nada, agregados, tramos o track completo). Lo que lleva cada nivel está en
+  `docs/paquete.md`. El paquete nunca lleva el .spl: con «tramos» va una copia reducida del
+  recorrido (solo las categorías del corredor) sin nombres, clubes, dorsales, tarjetas ni sexo de
+  nadie, tampoco del propio corredor, que va con el nombre visible que escribió en la app y un
+  identificador al azar.
 - La entrenadora solo lee; los datos de un corredor solo cambian desde su propia app.
 - Cuando llegue el LLM, a proveedores externos solo se envían agregados anónimos.
 - La ventana de la app tiene una CSP restrictiva (`app/src-tauri/tauri.conf.json`), porque va a

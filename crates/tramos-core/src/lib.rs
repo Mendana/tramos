@@ -18,6 +18,7 @@ pub mod loss_breakdown;
 pub mod lost_time;
 pub mod metrics;
 pub mod model;
+pub mod package;
 pub mod race_format;
 pub mod runner_report;
 pub mod segmentation;

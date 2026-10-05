@@ -500,7 +500,7 @@ fn seconds_between(a: DateTime<Utc>, b: DateTime<Utc>) -> f64 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::import::{ImportRequest, import, preview};
     use chrono::TimeZone;
@@ -519,7 +519,7 @@ mod tests {
 
     /// Importa el fixture de Baltanás como el corredor de la tarjeta 143, con o sin el FIT
     /// sintético.
-    fn imported(with_fit: bool) -> (Store, i64) {
+    pub(crate) fn imported(with_fit: bool) -> (Store, i64) {
         let mut store = Store::open_in_memory().unwrap();
         let spl = fixture("spl/baltanas-anon.spl");
         let fit = with_fit.then(|| fixture("fit/baltanas-sintetico.fit"));

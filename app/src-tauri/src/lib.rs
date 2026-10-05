@@ -13,6 +13,7 @@ use tauri::Manager;
 use tramos_core::comparison::CourseComparison;
 use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
+use tramos_core::loss_breakdown::RaceBreakdown;
 use tramos_core::race_format::RaceFormat;
 use tramos_store::Store;
 
@@ -108,6 +109,15 @@ fn set_race_format(
     races::set_race_format(&mut *state.store()?, result_id, format).map_err(|e| e.to_string())
 }
 
+/// ¿Lento o desorientado? (P2) de un resultado; `null` sin track.
+#[tauri::command]
+fn race_breakdown(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<Option<RaceBreakdown>, String> {
+    races::race_breakdown(&*state.store()?, result_id).map_err(|e| e.to_string())
+}
+
 /// Mapa de un resultado: track coloreado por ritmo o pulso, tramos y balizas.
 #[tauri::command]
 fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap, String> {
@@ -146,6 +156,7 @@ pub fn run() -> tauri::Result<()> {
             list_races,
             race_detail,
             race_comparison,
+            race_breakdown,
             set_race_format,
             race_map,
             history

@@ -9,6 +9,7 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
+use crate::metrics::LegMetrics;
 use crate::race_format::RaceFormat;
 use crate::runner_report::{LegReport, RunnerLostTime};
 
@@ -24,6 +25,15 @@ pub struct HistoryRace {
     pub format: Option<RaceFormat>,
     /// Tiempo perdido del corredor en la carrera ([`crate::runner_report`]).
     pub lost_time: RunnerLostTime,
+}
+
+/// Una carrera del histórico con las métricas del FIT de cada tramo, para los análisis que las
+/// necesitan (P2, P13).
+#[derive(Debug, Clone, Copy)]
+pub struct TrackedRace<'a> {
+    pub race: &'a HistoryRace,
+    /// `None` si la carrera no tiene track (o no se puede alinear ni trocear).
+    pub leg_metrics: Option<&'a [LegMetrics]>,
 }
 
 /// Qué carreras entran. Los campos ausentes no filtran.

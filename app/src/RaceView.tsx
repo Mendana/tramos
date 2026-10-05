@@ -13,6 +13,7 @@ import {
   signed,
   statusLabel,
 } from "./api";
+import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { GroupComparison } from "./GroupComparison";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
 import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
@@ -130,6 +131,7 @@ function Detail({
         <CumulativeLossPanel legs={lost.legs} />
         <GainLossPanel legs={lost.legs} streaks={lost.losing_streaks} />
         <PerformancePanel legs={lost.legs} />
+        <RaceBreakdownPanel resultId={detail.result_id} />
         <h3 className="section-title">Frente al grupo</h3>
         <GroupComparison resultId={detail.result_id} />
       </div>

@@ -19,7 +19,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use thiserror::Error;
 use tramos_core::alignment::{Alignment, AlignmentOptions, align};
-use tramos_core::metrics::{MetricsOptions, interval_distance_m};
+use tramos_core::metrics::{LegMetrics, MetricsOptions, interval_distance_m, leg_metrics};
 use tramos_core::model::{ControlCode, RaceResult, Track, TrackPoint};
 use tramos_core::segmentation::{
     ControlRole, MissingLegTrack, MissingPosition, Segmentation, segment,
@@ -131,6 +131,23 @@ pub struct ColorScale {
     /// Límites de las clases, de menor a mayor: `CLASSES + 1` valores. La clase `k` va de
     /// `edges[k]` a `edges[k + 1]`; el primero es el mínimo y el último el máximo.
     pub edges: Vec<f64>,
+}
+
+/// Métricas del FIT de cada tramo del resultado `result` (`race_result` en su carrera). `None` si
+/// no tiene track o ya no se puede alinear ni trocear: la carrera no aporta tramos a los análisis
+/// que las usan (P2, P13).
+pub(crate) fn stored_leg_metrics(
+    store: &Store,
+    result: ResultId,
+    race_result: &RaceResult,
+) -> Result<Option<Vec<LegMetrics>>, StoreError> {
+    let Some(track) = store.load_track(result)? else {
+        return Ok(None);
+    };
+    let Ok((_, segmentation)) = aligned_legs(&track, race_result) else {
+        return Ok(None);
+    };
+    Ok(leg_metrics(&track, &segmentation, &MetricsOptions::default()).ok())
 }
 
 /// Alinea el track guardado de un resultado con sus picadas

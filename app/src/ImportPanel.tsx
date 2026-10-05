@@ -9,12 +9,13 @@ import {
   RunnerChoice,
   RunnerIdentity,
   decimal,
+  fileName,
   getSettings,
   importRace,
   previewImport,
   statusLabel,
 } from "./api";
-import { FileIcon, Notice, PageHeader, UploadIcon, WatchIcon } from "./ui";
+import { FileIcon, Notice, UploadIcon, WatchIcon } from "./ui";
 
 /** Con más candidatos que esto, la lista pide filtrar. */
 const MAX_LISTED = 50;
@@ -33,10 +34,6 @@ function classify(paths: string[], current: Files): Files {
     else if (lower.endsWith(".fit")) next.fit = path;
   }
   return next;
-}
-
-function fileName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
 }
 
 function runnerName(c: RunnerChoice): string {
@@ -62,7 +59,8 @@ function sameResult(a: RunnerChoice, b: RunnerChoice | null): boolean {
   );
 }
 
-/** Importar una carrera: ficheros, identidad, corredor y formato (ver `docs/app.md`). */
+/** Importar una carrera: ficheros, identidad, corredor y formato (ver `docs/app.md`). La cabecera
+ * la pone `ImportScreen`. */
 function ImportPanel({
   onImported,
   onOpen,
@@ -185,11 +183,6 @@ function ImportPanel({
 
   return (
     <>
-      <PageHeader
-        title="Importar una carrera"
-        subtitle="El .spl de WinSplits y, si lo tienes, el FIT de tu reloj."
-      />
-
       {outcome !== null && <Outcome outcome={outcome} onOpen={onOpen} />}
 
       <section className="card">

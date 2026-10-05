@@ -82,6 +82,14 @@ export function FileIcon(props: IconProps) {
   );
 }
 
+export function FolderIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />
+    </Svg>
+  );
+}
+
 export function WatchIcon(props: IconProps) {
   return (
     <Svg {...props}>

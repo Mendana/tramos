@@ -66,6 +66,43 @@ export interface ImportOutcome {
   warnings: string[];
 }
 
+/** Qué se ha hecho con un .spl de la carpeta (`docs/app.md`, "Importar una carpeta"). */
+export type BatchRaceStatus = "imported" | "already_imported" | "not_imported";
+
+export interface PairedFit {
+  path: string;
+  track_saved: boolean;
+  offset_s: number | null;
+  confidence: number | null;
+}
+
+export interface BatchRace {
+  spl_path: string;
+  /** `null` si el .spl no se ha podido leer. */
+  event_name: string | null;
+  event_date: string | null;
+  status: BatchRaceStatus;
+  result_id: number | null;
+  fit: PairedFit | null;
+  /** Avisos o el motivo de no importarla. */
+  messages: string[];
+}
+
+export type UnpairedReason = "no_race" | "invalid" | "duplicate";
+
+export interface UnpairedFit {
+  path: string;
+  reason: UnpairedReason;
+  message: string;
+}
+
+export interface BatchSummary {
+  /** De la carrera más antigua a la más reciente; los .spl ilegibles, al final. */
+  races: BatchRace[];
+  unpaired_fits: UnpairedFit[];
+  warnings: string[];
+}
+
 export interface RaceRow {
   event_id: number;
   result_id: number;
@@ -345,6 +382,11 @@ export const FORMAT_LABELS: Record<RaceFormat, string> = {
   long: "Larga",
 };
 
+/** Nombre del fichero de una ruta (con `/` o `\\`). */
+export function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path;
+}
+
 export function statusLabel(status: RaceStatus, place: number | null): string {
   if (status === "ok") return place === null ? "Clasificado" : `${place}.º`;
   if (status === "not_classified") return "No clasificado";
@@ -374,6 +416,9 @@ export const previewImport = (
 
 export const importRace = (request: ImportRequest) =>
   invoke<ImportOutcome>("import_race", { request });
+
+export const importFolder = (folderPath: string) =>
+  invoke<BatchSummary>("import_folder", { folderPath });
 
 export const listRaces = () => invoke<RaceRow[]>("list_races");
 

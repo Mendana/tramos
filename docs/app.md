@@ -25,6 +25,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
+| `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
@@ -37,7 +38,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera) y el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -73,6 +74,76 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
 
 El análisis (tiempo perdido, tramos, métricas) no se guarda al importar: se calcula al mostrarlo
 a partir de la carrera y el track guardados.
+
+## Importar una carpeta
+
+Para cargar de una vez la temporada pasada (#41). En la pantalla **Importar**, el control
+*Una carrera / Una carpeta* de la cabecera (`ImportScreen.tsx`; la carpeta, en
+`BatchImportPanel.tsx`). La lógica está en `app/src-tauri/src/batch.rs` y reutiliza la de
+importar una carrera: no calcula nada por su cuenta.
+
+1. **Carpeta**: el usuario la elige con el diálogo del sistema. Se buscan los `.spl` y los `.fit`
+   (por la extensión, sin distinguir mayúsculas) en ella y en sus subcarpetas, sin las ocultas
+   (las que empiezan por `.`) ni seguir enlaces a carpetas. El resto de ficheros se ignora.
+2. **Identidad**: la de los ajustes (tarjeta SI y nombre). Sin ninguna de las dos (o con un
+   nombre que se queda vacío al normalizar) no se importa nada y se pide rellenarla en Ajustes.
+3. **Cada .spl** se lee con la zona horaria de los ajustes y se busca al corredor
+   (`docs/identificacion.md`). **Solo se importa si sale un único resultado que casa** (por
+   tarjeta y nombre, o por lo que haya configurado). Si casa por tarjeta pero no por nombre, si
+   hay varios o si no hay ninguno, la carrera **no se importa** y el resumen dice que se importe
+   sola, donde se puede elegir: en la importación por lotes no se adivina, y aún no se puede
+   borrar una carrera desde la app. Un .spl ilegible tampoco se importa, y una copia exacta de
+   otro de la carpeta se importa una sola vez.
+4. **Cada .fit** se lee entero. Su **intervalo** va del primer al último punto con posición. Un
+   FIT que no se puede leer o sin puntos con posición, o una copia exacta de otro, no se usa.
+5. **Emparejar por fecha y hora** (`batch::pair_fits`):
+   - La **ventana** de una carrera es la de la alineación (`docs/alineacion.md`, "Ventana de la
+     carrera", `tramos_core::alignment::race_window`): de la salida a la meta del corredor (o su
+     primera y última picada con hora), en UTC, ampliada **60 s por cada lado**, el desfase
+     máximo que busca la alineación. Un FIT que no la toca no se podría alinear. Si el resultado
+     no tiene horas, la carrera se importa sin FIT.
+   - Un FIT **coincide** con una carrera si su intervalo se solapa con la ventana (más de 0 s).
+   - Cada carrera se queda con el FIT **que más se solapa** con ella y cada FIT va a una sola
+     carrera: se reparten de mayor a menor solape (a igual solape, primero la carrera y el FIT
+     que van antes en el orden de la carpeta). Así, un rodaje de calentamiento grabado aparte,
+     que solo toca el principio de la ventana, pierde frente al FIT de la carrera.
+   - **Empate**: si al tocarle a una carrera hay otro FIT libre que se solapa con ella lo mismo
+     (menos de 1 s de diferencia, por ejemplo el mismo entrenamiento exportado dos veces), la
+     carrera se importa **sin FIT** y se avisa: se importa sola eligiendo el FIT. Esos FIT
+     pueden ir aún a otra carrera.
+   - Los FIT que se quedan sin carrera salen en el resumen: «coincide con X, pero otro FIT
+     encajaba mejor», «hay otro FIT de la misma hora que X» o «no coincide con ninguna carrera
+     en la que te haya encontrado».
+6. **Importar** cada carrera, de la más antigua a la más reciente, con `import::import`, como en
+   "Importar una carrera": se vincula a la persona del usuario y, con FIT, se alinea con sus
+   picadas; si no se alinea, el track no se guarda y se dice por qué. El formato es el
+   sugerido. Si una carrera no se puede importar (por ejemplo, el fichero ha desaparecido entre
+   medias), se dice y se sigue con las demás.
+   - **Reimportar no duplica**: un .spl ya importado reutiliza su carrera (sale como «ya estaba
+     importada»), no cambia el formato (el usuario lo puede haber corregido) y, si ahora tiene
+     FIT, se lo añade o sustituye, como al reimportar una a una. Importar dos veces la misma
+     carpeta deja lo mismo.
+   - Si el FIT emparejado no es de un deporte a pie (`Track::sport`, `docs/formato-fit.md`), se
+     importa igual pero se avisa: el reloj pudo quedarse en otro modo.
+
+**Resumen** (`BatchSummary`):
+
+| Campo | Qué es |
+| --- | --- |
+| `races` | Un elemento por .spl, de la carrera más antigua a la más reciente (los ilegibles, al final): ruta, nombre y fecha de la carrera, `status` (`imported`, `already_imported` o `not_imported`), `result_id` si se ha importado, el FIT emparejado (`fit`: ruta, `track_saved`, desfase y confianza) y `messages`, los avisos o el motivo de no importarla. |
+| `unpaired_fits` | Los FIT sin carrera: ruta, `reason` (`no_race`: válido pero sin carrera; `invalid`: ilegible o sin posiciones; `duplicate`: copia de otro) y `message`. |
+| `warnings` | Problemas de la carpeta: subcarpetas que no se pueden leer, nombres de fichero ilegibles. |
+
+La interfaz lo enseña en tres bloques, pensados para quien no es de datos, con cuatro cifras
+arriba (importadas, con reloj, sin pareja y con avisos):
+
+- **Importadas**: las carreras nuevas, con su fecha, su nombre y el FIT con el que se han
+  emparejado (o «Sin FIT»). Una fila abre la carrera.
+- **Sin pareja**: las carreras importadas sin FIT y los FIT válidos que no se han usado, con el
+  motivo.
+- **Con avisos**: las carreras con algún aviso (no importadas, ya importadas, FIT que no se ha
+  podido alinear o de otro deporte, empate de FIT), los FIT ilegibles o repetidos y los
+  problemas de la carpeta.
 
 ## Ajustes
 
@@ -421,7 +492,8 @@ la tabla: sus valores coinciden con ella.
 
 La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permisos de la ventana
 (`app/src-tauri/capabilities/default.json`) son los de `core:default`, `dialog:allow-open`, este
-solo para el diálogo de abrir ficheros, y `opener:allow-open-url` limitado a
+solo para el diálogo de abrir ficheros o elegir una carpeta (la carpeta la recorre Rust: la
+ventana no tiene permisos de sistema de ficheros), y `opener:allow-open-url` limitado a
 `https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa.
 
 MapLibre y la CSP:

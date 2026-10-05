@@ -6,6 +6,14 @@ busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de 
 
 > Estado: en construcción. El trabajo se organiza en issues por milestone.
 
+## Instalar
+
+Descarga el instalador de Windows de la última versión en
+[Releases](https://github.com/Mendana/tramos/releases) y ábrelo. Aún no está firmado, así que
+Windows SmartScreen avisará de que no es de un editor reconocido: pulsa «Más información» y
+«Ejecutar de todas formas». Más detalles, y cómo se publica una versión, en
+[docs/distribucion.md](docs/distribucion.md).
+
 ## Documentación
 
 - [Visión y decisiones](docs/vision.md)
@@ -17,6 +25,7 @@ busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de 
 - [CLI de desarrollo (`tramos analizar`)](docs/cli.md)
 - [Taxonomía de errores](docs/taxonomia.md)
 - [Datos y privacidad](docs/datos-y-privacidad.md)
+- [Distribución: instalador y versiones](docs/distribucion.md)
 - [Paquete por carrera (corredor → entrenadora)](docs/paquete.md)
 - [Cómo trabajamos con agentes](docs/trabajo-con-agentes.md)
 

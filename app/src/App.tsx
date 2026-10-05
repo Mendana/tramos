@@ -109,7 +109,9 @@ function App() {
           {screen.kind === "races" && (
             <RaceList races={races} onOpen={openRace} onImport={showImport} />
           )}
-          {screen.kind === "race" && <RaceView resultId={screen.resultId} onBack={showRaces} />}
+          {screen.kind === "race" && (
+            <RaceView resultId={screen.resultId} onBack={showRaces} onChanged={refresh} />
+          )}
           {screen.kind === "history" && <HistoryScreen onImport={showImport} />}
           {screen.kind === "import" && <ImportPanel onImported={refresh} onOpen={openRace} />}
           {screen.kind === "settings" && <SettingsView onSaved={refresh} />}

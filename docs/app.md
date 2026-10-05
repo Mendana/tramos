@@ -27,6 +27,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
+| `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar y la fecha de la primera y la última. |
@@ -96,8 +97,10 @@ número de errores) y si tiene track del reloj. Una fila abre la vista de la car
 
 ## Vista de carrera (P1)
 
-- **Cabecera**: carrera, fecha, categoría, corredor, resultado, formato, balizas y clasificados
-  del recorrido (con las categorías que lo comparten, si son varias).
+- **Cabecera**: carrera, fecha, categoría, corredor y resultado. A la derecha, el **formato**
+  en un desplegable (sprint, media, larga o sin formato): se sugiere al importar y aquí se
+  puede corregir (#97). El cambio se guarda al momento y mueve la carrera de grupo en la vista
+  histórica.
 - **Totales**: tiempo, tiempo perdido, tiempo sin errores, número de errores y rendimiento
   habitual. Aviso si la referencia es débil.
 - **Tabla de tramos**: tramo, balizas (S = salida, M = meta), split, puesto en el tramo,

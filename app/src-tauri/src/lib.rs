@@ -13,6 +13,7 @@ use tauri::Manager;
 use tramos_core::comparison::CourseComparison;
 use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
+use tramos_core::race_format::RaceFormat;
 use tramos_store::Store;
 
 use crate::history::HistoryView;
@@ -97,6 +98,16 @@ fn race_comparison(
     races::race_comparison(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Cambia el formato de la carrera de un resultado (`null` = sin formato).
+#[tauri::command]
+fn set_race_format(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    format: Option<RaceFormat>,
+) -> Result<(), String> {
+    races::set_race_format(&mut *state.store()?, result_id, format).map_err(|e| e.to_string())
+}
+
 /// Mapa de un resultado: track coloreado por ritmo o pulso, tramos y balizas.
 #[tauri::command]
 fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap, String> {
@@ -135,6 +146,7 @@ pub fn run() -> tauri::Result<()> {
             list_races,
             race_detail,
             race_comparison,
+            set_race_format,
             race_map,
             history
         ])

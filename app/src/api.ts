@@ -252,6 +252,29 @@ export interface HistoryView {
   races: HistoryRaceRow[];
   /** Pérdida según duración del tramo (P7): los seis cubos, con el mismo filtro. */
   by_leg_length: LegLengthStats[];
+  /** Días sin competir (P11): cubos por días desde la carrera anterior, con el mismo filtro. */
+  days_off: {
+    buckets: DaysOffStats[];
+    /** Carreras que pasan el filtro sin ninguna anterior. */
+    without_previous: number;
+  };
+}
+
+/** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
+export interface DaysOffStats {
+  from_days: number;
+  /** `null` en el último cubo (sin final). */
+  to_days: number | null;
+  races: number;
+  /** Tramos con IR entre los tres primeros de esas carreras. */
+  first_legs: number;
+  /** Media de su IR (1 = 100 %). */
+  first_legs_performance: number | null;
+  /** Tramos que cuentan del primer tercio. */
+  first_third_legs: number;
+  first_third_errors: number;
+  /** Errores / tramos del primer tercio (0–1). */
+  first_third_error_rate: number | null;
 }
 
 /** Un cubo de duración de tramo (P7, `docs/historico.md`): referencia en `[from_s, to_s)`. */

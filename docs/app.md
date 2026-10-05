@@ -245,6 +245,13 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   la consistencia de cada carrera que la tiene (`races[].stats.mean_consistency`), de la más
   antigua a la más reciente, con un marcador por carrera; la descripción da la media con esos
   filtros y la tabla, fecha, carrera, formato y consistencia. Las carreras sin valor no salen.
+- **Días sin competir (P11)** (`DaysOffPanel.tsx`): dos paneles con los cuatro cubos de días
+  desde la carrera anterior (≤ 7, 8–14, 15–30 y > 30, `docs/historico.md`) y, bajo cada
+  etiqueta, sus carreras. «IR al entrar en mapa»: IR medio de los tres primeros tramos frente al
+  IR medio del total («Tu IR medio»). «Errores al principio de la carrera»: tasa de error del
+  primer tercio frente a la del total («Tu media»). Son dos paneles porque son dos medidas de
+  escala distinta (nada de dos ejes). Comparten la tabla, con todas las cifras y sus `n`. El
+  contador del panel dice cuántas carreras no tienen anterior.
 
 ## Diseño
 

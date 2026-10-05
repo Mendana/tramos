@@ -14,6 +14,7 @@ import {
   spread,
 } from "./api";
 import { ConsistencyPanel } from "./ConsistencyPanel";
+import { DaysOffPanel } from "./DaysOffPanel";
 import {
   FormatErrorRatePanel,
   FormatLossPanel,
@@ -238,6 +239,11 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
         {/* P7, P10, P11 y P13: sus secciones de paneles van aquí, con los mismos filtros. */}
         <LegLengthPanel buckets={view.by_leg_length} total={total} />
         <ConsistencyPanel races={view.races} total={total} />
+        <DaysOffPanel
+          buckets={view.days_off.buckets}
+          withoutPrevious={view.days_off.without_previous}
+          total={total}
+        />
       </div>
     </>
   );

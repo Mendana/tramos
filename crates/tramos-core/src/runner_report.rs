@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::consistency::race_consistency;
 use crate::courses::{ClassRef, group_by_course};
 use crate::gain_loss::{LosingStreak, leg_gains, losing_streaks};
 use crate::identify::ResultRef;
@@ -45,6 +46,9 @@ pub struct RunnerLostTime {
     pub behind_ideal_s: Option<f64>,
     /// Rachas de dos o más tramos seguidos perdiendo (P5, [`crate::gain_loss`]).
     pub losing_streaks: Vec<LosingStreak>,
+    /// Desviación típica de `IR_i` ponderada por `ref_i` en los tramos de patrones (P10,
+    /// [`crate::consistency`]); 1 = 100 puntos de IR.
+    pub consistency: Option<f64>,
     pub legs: Vec<LegReport>,
 }
 
@@ -127,6 +131,20 @@ pub fn runner_report(
         })
         .collect();
 
+    let mut lost_time = RunnerLostTime {
+        total_s: runner.total_s,
+        usual_performance: runner.usual_performance,
+        lost_time_s: runner.lost_time_s,
+        error_count: runner.error_count,
+        time_without_errors_s: runner.time_without_errors_s,
+        ideal_time_s: course.legs.last().and_then(|l| l.ideal_elapsed_s),
+        behind_ideal_s: runner.legs.last().and_then(|l| l.behind_ideal_s),
+        losing_streaks: losing_streaks(&gains),
+        consistency: None,
+        legs,
+    };
+    lost_time.consistency = race_consistency(&lost_time);
+
     Some(RunnerReport {
         course: CourseSummary {
             controls: course.course.controls.clone(),
@@ -134,17 +152,7 @@ pub fn runner_report(
             valid_runners: course.valid_runners,
             weak_reference: course.weak_reference,
         },
-        lost_time: RunnerLostTime {
-            total_s: runner.total_s,
-            usual_performance: runner.usual_performance,
-            lost_time_s: runner.lost_time_s,
-            error_count: runner.error_count,
-            time_without_errors_s: runner.time_without_errors_s,
-            ideal_time_s: course.legs.last().and_then(|l| l.ideal_elapsed_s),
-            behind_ideal_s: runner.legs.last().and_then(|l| l.behind_ideal_s),
-            losing_streaks: losing_streaks(&gains),
-            legs,
-        },
+        lost_time,
     })
 }
 
@@ -263,6 +271,8 @@ mod tests {
         }
         assert_eq!(report.lost_time.legs[1].to, FINISH_CODE);
         assert!(report.lost_time.legs[1].is_last);
+        // Sin el último tramo queda uno solo: no hay consistencia.
+        assert_eq!(report.lost_time.consistency, None);
     }
 
     #[test]

@@ -153,15 +153,22 @@ export function Stat({
   label,
   value,
   tone,
+  detail,
+  hint,
 }: {
   label: string;
   value: ReactNode;
   tone?: "error";
+  /** Línea secundaria bajo el valor. */
+  detail?: ReactNode;
+  /** Explicación al pasar el ratón. */
+  hint?: string;
 }) {
   return (
-    <div className={tone === "error" ? "stat stat-error" : "stat"}>
+    <div className={tone === "error" ? "stat stat-error" : "stat"} title={hint}>
       <span className="stat-label">{label}</span>
       <span className="stat-value">{value}</span>
+      {detail !== undefined && <span className="stat-detail">{detail}</span>}
     </div>
   );
 }

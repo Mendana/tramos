@@ -135,6 +135,9 @@ export interface RunnerReport {
     ideal_time_s: number | null;
     behind_ideal_s: number | null;
     losing_streaks: LosingStreak[];
+    /** Consistencia (P10): desviación típica del IR por tramo, ponderada por la referencia (1 =
+     * 100 puntos). `null` con menos de dos tramos que cuenten. */
+    consistency: number | null;
     legs: LegReport[];
   };
 }
@@ -209,6 +212,8 @@ export interface HistoryStats {
   mean_loss_s: number | null;
   /** Lo mismo en % del tiempo esperado. */
   mean_loss_pct: number | null;
+  /** Media de la consistencia de las carreras que la tienen (P10, 1 = 100 puntos). */
+  mean_consistency: number | null;
 }
 
 export interface FormatHistory {
@@ -329,6 +334,11 @@ export function clock(seconds: number | null): string {
 /** Número con coma decimal. */
 export function decimal(value: number, decimals: number): string {
   return value.toFixed(decimals).replace(".", ",");
+}
+
+/** Consistencia (P10) en puntos de IR: `± 8,3 %`. Menor = más consistente. */
+export function spread(consistency: number | null, decimals = 1): string {
+  return consistency === null ? "—" : `± ${decimal(consistency * 100, decimals)} %`;
 }
 
 /** Con signo y un decimal: `+5,3`, `-2,0`. */

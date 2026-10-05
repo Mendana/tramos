@@ -6,6 +6,7 @@ import {
   clock,
   codeLabel,
   decimal,
+  spread,
   raceDetail,
   RaceFormat,
   setRaceFormat,
@@ -111,6 +112,8 @@ function Detail({
           value={
             lost.usual_performance === null ? "—" : `${decimal(lost.usual_performance * 100, 0)} %`
           }
+          detail={`Consistencia ${spread(lost.consistency, 0)}`}
+          hint="Consistencia: cuánto varía tu IR de un tramo a otro (desviación típica, ponderada por la referencia). Menor = más consistente."
         />
       </div>
 

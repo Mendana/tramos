@@ -56,6 +56,7 @@ tramos que cuentan, `E` de ellos con error:
 | `error_rate` | **Tasa de error**: `E / N` (0–1). |
 | `mean_loss_s` | **Pérdida media por tramo**: `Σ p_i` de los tramos con error, entre `N` (s). Los tramos sin error suman 0. |
 | `mean_loss_pct` | Lo mismo en %: `Σ loss_pct_i` de los tramos con error, entre `N`. |
+| `mean_consistency` | **Consistencia media** (P10): media aritmética de la consistencia de cada carrera que la tiene (`docs/tiempo-perdido.md`, "Consistencia"; 1 = 100 puntos de IR). Una carrera con menos de 2 tramos que cuenten no tiene consistencia y no entra en esta media, aunque sí en las demás. |
 
 Sin carreras (o sin tramos), las medias van a `null`; los recuentos, a 0.
 
@@ -135,6 +136,9 @@ Cinco carreras (tramos que cuentan / errores / suma de `p_i` y de `loss_pct` de 
 - Total: 4 carreras, IR 3,4 / 4 = **85 %**, 5 / 10 = **50 %**, 175 / 10 = **17,5 s** y
   207,5 / 10 = **20,75 %**; una carrera sin datos (E).
 - Del 10-abr al 20-may (incluidos): B y C; total 2 carreras, 90 %, 3 / 6 y 125 / 6 s.
+- Consistencia, con A 0,10, B 0,20, C sin valor, D 0,30 y E 0,50: sprint (0,10 + 0,20) / 2 =
+  **0,15**; media sin valor; sin formato 0,30; total (0,10 + 0,20 + 0,30) / 3 = **0,20** (C no
+  tiene y E no cuenta).
 
 Los tests están en `crates/tramos-core/src/history.rs`; los del comando, que comprueban que el
 histórico sale de los mismos números que la vista de carrera, en `app/src-tauri/src/history.rs`.

@@ -11,7 +11,9 @@ import {
   RaceFormat,
   decimal,
   getHistory,
+  spread,
 } from "./api";
+import { ConsistencyPanel } from "./ConsistencyPanel";
 import {
   FormatErrorRatePanel,
   FormatLossPanel,
@@ -176,7 +178,12 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
     <>
       <div className="stats">
         <Stat label="Carreras" value={total.races} />
-        <Stat label="IR medio" value={performance(total)} />
+        <Stat
+          label="IR medio"
+          value={performance(total)}
+          detail={`Consistencia ${spread(total.mean_consistency, 0)}`}
+          hint="Consistencia media: la de cada carrera es cuánto varía tu IR de un tramo a otro. Menor = más consistente."
+        />
         <Stat label="Tasa de error" value={errorRate(total)} />
         <Stat label="Pérdida por tramo" value={lossS(total)} />
       </div>
@@ -208,6 +215,7 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
                 <th className="num">IR medio</th>
                 <th className="num">Tasa de error</th>
                 <th className="num">Pérdida por tramo</th>
+                <th className="num">Consistencia</th>
               </tr>
             </thead>
             <tbody>
@@ -229,6 +237,7 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
         <FormatLossPanel groups={groups} total={total} />
         {/* P7, P10, P11 y P13: sus secciones de paneles van aquí, con los mismos filtros. */}
         <LegLengthPanel buckets={view.by_leg_length} total={total} />
+        <ConsistencyPanel races={view.races} total={total} />
       </div>
     </>
   );
@@ -254,6 +263,7 @@ function StatsRow({ label, stats, strong }: { label: string; stats: HistoryStats
           <span className="muted"> · {percent1(stats.mean_loss_pct)}</span>
         )}
       </td>
+      <td className="num">{spread(stats.mean_consistency)}</td>
     </tr>
   );
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Fragment, lazy, Suspense, useEffect, useState } from "react";
 import {
   FORMAT_LABELS,
   LegReport,
@@ -15,6 +15,7 @@ import {
 } from "./api";
 import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { GroupComparison } from "./GroupComparison";
+import { LegTagsState, TagControls, TagEditor, typeLabel, useLegTags } from "./LegTags";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
 import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
 
@@ -79,10 +80,19 @@ function Detail({
   // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
+  const tagging = useLegTags(detail.result_id);
+  // Tramo con el formulario de etiqueta abierto; al abrirlo se selecciona en el mapa.
+  const [editing, setEditing] = useState<number | null>(null);
+  const toggleEditing = (leg: number) => {
+    if (editing !== leg) setSelectedLeg(leg);
+    setEditing((e) => (e === leg ? null : leg));
+  };
   const lost = detail.report.lost_time;
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
   const shared = course.classes.length > 1 ? course.classes.map((c) => c.name).join(", ") : null;
+  const proposed = lost.legs.filter((leg) => leg.is_error);
+  const confirmed = proposed.filter((leg) => tagging.tags.get(leg.index)?.tag.confirmation != null).length;
   return (
     <>
       <PageHeader
@@ -155,6 +165,19 @@ function Detail({
             {decimal(detail.config.error_threshold_pct, 0)} %
           </span>
         </div>
+        <div className="tag-intro">
+          <p className="small muted">
+            ¿Fue un error? Responde en cada tramo propuesto con un clic: Sí, No o Físico (perdiste
+            tiempo sin fallar en la orientación). Con el lápiz añades el tipo de error y el
+            contexto, también en cualquier otro tramo.
+          </p>
+          <span className="small strong num">
+            {proposed.length === 0
+              ? "Ningún error propuesto"
+              : `${confirmed} de ${proposed.length} propuestos revisados`}
+          </span>
+        </div>
+        {tagging.error !== null && <Notice kind="error">{tagging.error}</Notice>}
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -172,12 +195,23 @@ function Detail({
             </thead>
             <tbody>
               {lost.legs.map((leg) => (
-                <LegRow
-                  key={leg.index}
-                  leg={leg}
-                  selected={leg.index === selectedLeg}
-                  onSelect={toggleLeg}
-                />
+                <Fragment key={leg.index}>
+                  <LegRow
+                    leg={leg}
+                    selected={leg.index === selectedLeg}
+                    onSelect={toggleLeg}
+                    tagging={tagging}
+                    editing={editing === leg.index}
+                    onToggleEditing={() => toggleEditing(leg.index)}
+                  />
+                  {editing === leg.index && (
+                    <tr className="tag-editor-row">
+                      <td colSpan={9}>
+                        <TagEditor leg={leg.index} state={tagging} onClose={() => setEditing(null)} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -219,11 +253,19 @@ function LegRow({
   leg,
   selected,
   onSelect,
+  tagging,
+  editing,
+  onToggleEditing,
 }: {
   leg: LegReport;
   selected: boolean;
   onSelect: (leg: number) => void;
+  tagging: LegTagsState;
+  editing: boolean;
+  onToggleEditing: () => void;
 }) {
+  const tag = tagging.tags.get(leg.index)?.tag ?? null;
+  const type = tag === null ? null : typeLabel(tagging.taxonomy, tag);
   const lossClass =
     leg.loss_s === null ? undefined : leg.is_error ? "loss-bad" : leg.loss_s < 0 ? "loss-good" : undefined;
   return (
@@ -256,10 +298,20 @@ function LegRow({
         {leg.loss_pct === null ? "—" : `${signed(leg.loss_pct)} %`}
       </td>
       <td>
-        <div className="meta">
-          {leg.is_error && <span className="pill pill-error">Error</span>}
-          {leg.is_last && <span className="pill">Último</span>}
-          {leg.short_reference && <span className="pill">Ref. corta</span>}
+        {/* Los errores propuestos ya se ven en la fila; sus botones de confirmar hacen de aviso. */}
+        <div className="notes-cell">
+          <div className="meta">
+            {leg.is_last && <span className="pill">Último</span>}
+            {leg.short_reference && <span className="pill">Ref. corta</span>}
+            {type !== null && <span className="pill pill-accent">{type}</span>}
+          </div>
+          <TagControls
+            leg={leg.index}
+            proposed={leg.is_error}
+            state={tagging}
+            open={editing}
+            onToggleOpen={onToggleEditing}
+          />
         </div>
       </td>
     </tr>

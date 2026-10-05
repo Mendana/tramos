@@ -11,6 +11,7 @@ mod migrations;
 mod person;
 mod settings;
 mod source;
+mod tag;
 mod track;
 
 use std::path::Path;
@@ -22,6 +23,7 @@ pub use event::SavedEvent;
 pub use migrations::SCHEMA_VERSION;
 pub use person::{Person, PersonId, PersonResult};
 pub use source::{SourceFile, SourceFileId, SourceFileKind};
+pub use tag::StoredTag;
 
 /// Identificador de una carrera guardada.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

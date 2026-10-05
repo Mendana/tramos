@@ -4202,6 +4202,7 @@ dependencies = [
  "chrono-tz",
  "fitparser",
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 

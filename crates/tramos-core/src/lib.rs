@@ -20,6 +20,7 @@ pub mod race_format;
 pub mod runner_report;
 pub mod segmentation;
 pub mod slope;
+pub mod taxonomy;
 
 /// Versión del núcleo, tomada de `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

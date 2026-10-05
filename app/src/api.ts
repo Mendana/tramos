@@ -448,6 +448,77 @@ export const raceBreakdown = (resultId: number) =>
 export const getHistory = (filter: HistoryFilter) =>
   invoke<HistoryView>("history", { filter });
 
+// Etiquetado de errores (docs/taxonomia.md).
+export interface TaxonomyEntry {
+  key: string;
+  label: string;
+}
+
+export interface ErrorType extends TaxonomyEntry {
+  description?: string;
+  subtypes: TaxonomyEntry[];
+}
+
+export interface Taxonomy {
+  version: string;
+  types: ErrorType[];
+  causes: TaxonomyEntry[];
+}
+
+export type Confirmation = "error" | "no_error" | "physical";
+export type LegPart = "start" | "middle" | "attack";
+
+export const CONFIRMATION_LABELS: Record<Confirmation, string> = {
+  error: "Sí",
+  no_error: "No",
+  physical: "Físico",
+};
+
+export const LEG_PART_LABELS: Record<LegPart, string> = {
+  start: "Salida",
+  middle: "Mitad",
+  attack: "Ataque",
+};
+
+/** Etiqueta de un tramo; todo es opcional. */
+export interface LegTag {
+  confirmation: Confirmation | null;
+  error_type: string | null;
+  error_subtype: string | null;
+  causes: string[];
+  leg_part: LegPart | null;
+  perceived_loss_s: number | null;
+  effort: number | null;
+  note: string | null;
+}
+
+export const EMPTY_TAG: LegTag = {
+  confirmation: null,
+  error_type: null,
+  error_subtype: null,
+  causes: [],
+  leg_part: null,
+  perceived_loss_s: null,
+  effort: null,
+  note: null,
+};
+
+export interface TagView {
+  leg_index: number;
+  taxonomy_version: string;
+  tag: LegTag;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getTaxonomy = () => invoke<Taxonomy>("taxonomy");
+
+export const legTags = (resultId: number) => invoke<TagView[]>("leg_tags", { resultId });
+
+/** Guarda la etiqueta de un tramo; vacía, la borra y devuelve `null`. */
+export const saveLegTag = (resultId: number, legIndex: number, tag: LegTag) =>
+  invoke<TagView | null>("save_leg_tag", { resultId, legIndex, tag });
+
 /** Duración redondeada al segundo: `m:ss`, o `h:mm:ss` desde una hora (como la CLI). */
 export function clock(seconds: number | null): string {
   if (seconds === null) return "—";

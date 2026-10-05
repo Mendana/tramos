@@ -29,9 +29,12 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `delete_person(PersonId)` | Borra una persona y desvincula sus resultados; no borra ninguno. |
 | `link_result(ResultId, PersonId)` / `unlink_result(ResultId)` | Vincula un resultado con una persona o lo desvincula. Un resultado ya vinculado a otra persona da `ResultAlreadyLinked`. |
 | `result_person(ResultId) -> Option<PersonId>` | Persona a la que está vinculado un resultado, si lo está. |
+| `tags(ResultId) -> Vec<StoredTag>` | Etiquetas de los tramos de un resultado, por tramo: el contenido (`tramos_core::taxonomy::LegTag`, con las causas ordenadas por clave), la versión de la taxonomía y los instantes de creación y última modificación. Resultado inexistente: `ResultNotFound`. |
+| `save_tag(ResultId, tramo, versión, &LegTag) -> Option<StoredTag>` | Guarda la etiqueta de un tramo (desde 1; 0 es `InvalidLegIndex`), sustituyendo la anterior con sus causas pero conservando su instante de creación. Una etiqueta vacía borra la del tramo y devuelve `None`. No comprueba las claves contra la taxonomía ni que el tramo exista: eso lo hace quien llama (`docs/taxonomia.md`). |
+| `delete_tag(ResultId, tramo)` | Borra la etiqueta de un tramo; si no la tenía no hace nada. |
 | `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre, inicio y formato de la carrera (si los hay), categoría, estado, puesto y si el resultado tiene track. |
 
-Análisis y etiquetado aún no tienen API: de momento solo existen sus tablas.
+El análisis guardado (`legs`) aún no tiene API: de momento solo existe su tabla.
 
 ## Convenciones
 
@@ -85,7 +88,8 @@ Notas:
 - `tags` apunta a `(result_id, leg_index)` y no a `legs.id`, para que las etiquetas sobrevivan a un
   recálculo de los tramos. Hay como mucho una etiqueta por tramo y ningún nivel es obligatorio.
   Tipos, subtipos y causas son claves del fichero de taxonomía, que vive fuera del código; por eso
-  no tienen `CHECK`, y cada etiqueta guarda la `taxonomy_version` con la que se creó.
+  no tienen `CHECK`, y cada etiqueta guarda la `taxonomy_version` con la que se escribió por
+  última vez (las claves que lleva son de esa versión).
 
 ## Migraciones
 

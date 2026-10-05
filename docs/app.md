@@ -30,11 +30,14 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado (`docs/tiempo-perdido.md`). `null` sin track o si ya no se puede alinear ni trocear. |
+| `taxonomy` | La taxonomía de errores con la que se etiqueta (`tramos_core::taxonomy`, `docs/taxonomia.md`). |
+| `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
+| `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -107,8 +110,8 @@ número de errores) y si tiene track del reloj. Una fila abre la vista de la car
   `docs/tiempo-perdido.md`): van juntos porque son el centro y la dispersión del IR. Aviso si la
   referencia es débil.
 - **Tabla de tramos**: tramo, balizas (S = salida, M = meta), split, puesto en el tramo,
-  referencia, IR, pérdida en segundos y en % y notas (error, último tramo, referencia corta). Los
-  tramos con error van resaltados.
+  referencia, IR, pérdida en segundos y en % y notas (último tramo, referencia corta, tipo de
+  error etiquetado) con la etiqueta del tramo. Los tramos con error van resaltados.
 
 Los números salen de `tramos_core::runner_report::runner_report`, la misma función que usa
 `tramos analizar` (`docs/cli.md`), sobre la carrera guardada: la tabla coincide con la de la CLI.
@@ -116,6 +119,24 @@ Los umbrales son los de los ajustes.
 
 Las filas de la tabla se pueden seleccionar (clic, o Intro o espacio con el foco): el tramo
 seleccionado se resalta a la vez en la tabla y en el mapa. Otro clic en el mismo lo quita.
+
+### Etiquetar errores (#30)
+
+Los tres niveles de `docs/taxonomia.md`, sin ninguno obligatorio:
+
+- **Confirmar (nivel 1)**: en la columna de notas de cada tramo propuesto (los que el cálculo
+  marca como error) hay tres botones, **Sí**, **No** y **Físico**. Un clic guarda la respuesta;
+  otro clic en la marcada la quita. Los tramos ya etiquetados también los muestran. Encima de la
+  tabla, una frase explica qué hacer y un contador dice cuántos propuestos están revisados.
+- **Tipo y contexto (niveles 2 y 3)**: el lápiz de cada fila abre, debajo de ella, el formulario
+  completo: ¿hubo error?, tipo y subtipo, causas (varias), parte del tramo, segundos que cree haber
+  perdido, esfuerzo (1–10) y nota. Se guarda con «Guardar»; «Quitar etiqueta» la borra. Con
+  «No» se ocultan el tipo y el subtipo y no se guardan. El lápiz está en todos los tramos, así que
+  sirve también para añadir un error en un tramo no propuesto. Abrirlo selecciona el tramo en el
+  mapa.
+- El tipo y el subtipo etiquetados salen en las notas de la fila. Una clave que ya no esté en la
+  taxonomía se muestra tal cual.
+- Los botones de la fila no la seleccionan (ni con clic ni con teclado).
 
 ## Mapa
 

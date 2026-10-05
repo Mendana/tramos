@@ -169,7 +169,7 @@ pub fn race_breakdown(store: &Store, result_id: i64) -> Result<Option<RaceBreakd
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::import::{ImportRequest, import, preview};
     use tramos_core::identify::{ResultRef, RunnerIdentity};
@@ -190,7 +190,7 @@ mod tests {
     }
 
     /// Importa el fixture de Baltanás como el corredor de la tarjeta 143.
-    fn imported() -> (Store, i64) {
+    pub(crate) fn imported() -> (Store, i64) {
         let mut store = Store::open_in_memory().unwrap();
         let p = preview(&store, &spl_path(), None, &identity()).unwrap();
         let outcome = import(

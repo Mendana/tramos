@@ -10,9 +10,12 @@ use std::collections::hash_map::Entry;
 
 use chrono::NaiveDate;
 use serde::Serialize;
-use tramos_core::history::{History, HistoryFilter, HistoryRace, history};
+use tramos_core::history::{
+    History, HistoryFilter, HistoryRace, HistoryStats, history, race_stats,
+};
 use tramos_core::lost_time::LostTimeConfig;
-use tramos_core::model::Event;
+use tramos_core::model::{Event, RaceStatus};
+use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::runner_report;
 use tramos_store::{EventId, Store};
 
@@ -31,6 +34,23 @@ pub struct HistoryView {
     /// Umbrales y tiempo ideal con los que se ha calculado.
     pub config: LostTimeConfig,
     pub history: History,
+    /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
+    pub races: Vec<HistoryRaceRow>,
+}
+
+/// Una carrera del histórico con sus números.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct HistoryRaceRow {
+    /// Para abrir la carrera (`race_detail`).
+    pub result_id: i64,
+    pub date: NaiveDate,
+    pub name: Option<String>,
+    pub format: Option<RaceFormat>,
+    pub class_name: String,
+    pub status: RaceStatus,
+    pub place: Option<u16>,
+    /// Con las definiciones del histórico; `None` sin rendimiento habitual (no cuenta).
+    pub stats: Option<HistoryStats>,
 }
 
 /// El histórico de las carreras del usuario (los resultados vinculados a su persona) que pasan
@@ -43,6 +63,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
     };
     let mut events: HashMap<EventId, Event> = HashMap::new();
     let mut races = Vec::new();
+    let mut rows = Vec::new();
     // Solo se cargan y analizan las carreras que pasan el filtro.
     for r in results
         .iter()
@@ -54,12 +75,23 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
             Entry::Vacant(entry) => entry.insert(store.load_event(event_id)?),
         };
         let report = runner_report(event, at, &config).ok_or(RaceError::NotAnalyzed(r.result.0))?;
+        rows.push(HistoryRaceRow {
+            result_id: r.result.0,
+            date: r.event_date,
+            name: r.event_name.clone(),
+            format: r.event_format,
+            class_name: r.class_name.clone(),
+            status: r.status,
+            place: r.place,
+            stats: race_stats(&report.lost_time),
+        });
         races.push(HistoryRace {
             date: r.event_date,
             format: r.event_format,
             lost_time: report.lost_time,
         });
     }
+    rows.reverse();
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
@@ -67,6 +99,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         last_date: results.last().map(|r| r.event_date),
         config,
         history: history(&races, filter),
+        races: rows,
     })
 }
 
@@ -266,6 +299,41 @@ mod tests {
         assert_eq!(after.config.error_threshold_s, 600.0);
     }
 
+    /// Criterio de aceptación de #98: una fila por carrera que pasa el filtro, de la más reciente
+    /// a la más antigua, y sus números suman los del total.
+    #[test]
+    fn rows_are_the_filtered_races_and_add_up_to_the_total() {
+        let (store, result_id) = two_races();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let dates: Vec<_> = view.races.iter().map(|r| r.date).collect();
+        assert_eq!(dates, [date("2026-10-03"), date("2026-06-01")]);
+        assert_eq!(view.races[0].result_id, result_id);
+        assert_eq!(view.races[0].format, Some(RaceFormat::Sprint));
+        assert_eq!(view.races[1].format, Some(RaceFormat::Middle));
+        assert_eq!(view.races[0].class_name, "M-SEN");
+
+        let rows: Vec<HistoryStats> = view.races.iter().filter_map(|r| r.stats).collect();
+        let total = view.history.total;
+        assert_eq!(rows.iter().map(|r| r.races).sum::<usize>(), total.races);
+        assert_eq!(rows.iter().map(|r| r.legs).sum::<usize>(), total.legs);
+        assert_eq!(rows.iter().map(|r| r.errors).sum::<usize>(), total.errors);
+        // Cada fila es su carrera sola: la de la vista de carrera.
+        let lost = race_detail(&store, result_id).unwrap().report.lost_time;
+        assert_eq!(rows[0].mean_performance, lost.usual_performance);
+
+        // Con filtro, solo las que lo pasan.
+        let view = history_view(
+            &store,
+            &HistoryFilter {
+                format: Some(RaceFormat::Middle),
+                ..HistoryFilter::default()
+            },
+        )
+        .unwrap();
+        let dates: Vec<_> = view.races.iter().map(|r| r.date).collect();
+        assert_eq!(dates, [date("2026-06-01")]);
+    }
+
     #[test]
     fn empty_store_has_no_races() {
         let store = Store::open_in_memory().unwrap();
@@ -274,5 +342,6 @@ mod tests {
         assert_eq!((view.first_date, view.last_date), (None, None));
         assert_eq!(view.history.total, HistoryStats::default());
         assert_eq!(view.history.by_format.len(), 3);
+        assert!(view.races.is_empty());
     }
 }

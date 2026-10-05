@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   FORMAT_LABELS,
   HistoryFilter,
+  HistoryRaceRow,
   HistoryStats,
   HistoryView,
   RaceFormat,
@@ -25,7 +26,14 @@ import { ChartIcon, EmptyState, Notice, PageHeader, Stat } from "./ui";
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
 
-function HistoryScreen({ onImport }: { onImport: () => void }) {
+function HistoryScreen({
+  onImport,
+  onOpen,
+}: {
+  onImport: () => void;
+  /** Abre una carrera de la lista. */
+  onOpen: (resultId: number) => void;
+}) {
   const [filter, setFilter] = useState<HistoryFilter>(NO_FILTER);
   const [view, setView] = useState<HistoryView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +98,7 @@ function HistoryScreen({ onImport }: { onImport: () => void }) {
               </div>
             )
           ) : (
-            <Summary view={view} />
+            <Summary view={view} onOpen={onOpen} />
           )}
         </>
       )}
@@ -160,7 +168,7 @@ function Filters({
 }
 
 /** Cifras del total, tabla por formato y paneles. */
-function Summary({ view }: { view: HistoryView }) {
+function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: number) => void }) {
   const { total, by_format: groups, races_without_data: withoutData } = view.history;
   const config = view.config;
   return (
@@ -211,6 +219,8 @@ function Summary({ view }: { view: HistoryView }) {
         </div>
       </div>
 
+      <RaceRows races={view.races} onOpen={onOpen} />
+
       <div className="chart-panels">
         <h3 className="section-title">Gráficas por formato</h3>
         <FormatPerformancePanel groups={groups} total={total} />
@@ -243,6 +253,82 @@ function StatsRow({ label, stats, strong }: { label: string; stats: HistoryStats
         )}
       </td>
     </tr>
+  );
+}
+
+/** Las carreras que entran con estos filtros, cada una con sus números (#98). */
+function RaceRows({
+  races,
+  onOpen,
+}: {
+  races: HistoryRaceRow[];
+  onOpen: (resultId: number) => void;
+}) {
+  return (
+    <div className="card card-flush">
+      <div className="card-title card-head">
+        <h3>Carreras</h3>
+        <span className="small muted">Las que entran con estos filtros. Abre una para verla.</span>
+      </div>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="num">Fecha</th>
+              <th>Carrera</th>
+              <th>Categoría</th>
+              <th className="num">IR</th>
+              <th className="num">Tramos</th>
+              <th className="num">Errores</th>
+              <th className="num">Tasa de error</th>
+              <th className="num">Pérdida por tramo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {races.map((race) => (
+              <tr
+                key={race.result_id}
+                className="clickable"
+                tabIndex={0}
+                onClick={() => onOpen(race.result_id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onOpen(race.result_id);
+                }}
+              >
+                <td className="num muted">{race.date}</td>
+                <td>
+                  <div className="strong">{race.name ?? "Sin nombre"}</div>
+                  <div className="meta">
+                    <span className={race.format === null ? "pill" : "pill pill-accent"}>
+                      {race.format === null ? "Sin formato" : FORMAT_LABELS[race.format]}
+                    </span>
+                  </div>
+                </td>
+                <td>{race.class_name}</td>
+                {race.stats === null ? (
+                  <td className="muted" colSpan={5}>
+                    No cuenta: sin tramos con split y referencia
+                  </td>
+                ) : (
+                  <>
+                    <td className="num">{performance(race.stats)}</td>
+                    <td className="num muted">{race.stats.legs}</td>
+                    <td className="num">{race.stats.errors}</td>
+                    <td className="num">{errorRate(race.stats)}</td>
+                    <td className="num">
+                      {lossS(race.stats)}
+                      {race.stats.mean_loss_pct !== null && (
+                        <span className="muted"> · {percent1(race.stats.mean_loss_pct)}</span>
+                      )}
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

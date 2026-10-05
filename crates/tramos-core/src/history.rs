@@ -140,6 +140,16 @@ impl Accumulator {
     }
 }
 
+/// Números de una sola carrera, con las mismas definiciones que los grupos (`races` = 1). `None`
+/// si no tiene rendimiento habitual: tampoco cuenta en ningún grupo. Sumadas las de las carreras
+/// de un grupo (carreras, tramos, errores y pérdida × tramos) dan las del grupo.
+pub fn race_stats(lost_time: &RunnerLostTime) -> Option<HistoryStats> {
+    let usual = lost_time.usual_performance?;
+    let mut acc = Accumulator::default();
+    acc.add(usual, lost_time);
+    Some(acc.stats())
+}
+
 /// Agrega las carreras que pasan `filter` por formato y en total.
 pub fn history(races: &[HistoryRace], filter: &HistoryFilter) -> History {
     let mut formats: [Accumulator; 3] = Default::default();
@@ -383,6 +393,36 @@ mod tests {
         // Total: A, B, C y D. IR (0,9 + 0,8 + 1 + 0,7) / 4; 5 de 10; 175 / 10 s; 207,5 / 10 %.
         check(h.total, (4, 10, 5), [0.85, 0.5, 17.5, 20.75]);
         assert_eq!(h.races_without_data, 1);
+    }
+
+    #[test]
+    fn race_stats_use_the_same_definitions_and_add_up_to_the_total() {
+        let all = races();
+        let rows: Vec<_> = all.iter().map(|r| race_stats(&r.lost_time)).collect();
+        // A: 1 error en 3 tramos; 30 / 3 s; 50 / 3 %.
+        check(
+            rows[0].unwrap(),
+            (1, 3, 1),
+            [0.90, 1.0 / 3.0, 10.0, 50.0 / 3.0],
+        );
+        // B: 1 de 2 (sin el corto, el sin split ni el último); 60 / 2 s; 100 / 2 %.
+        check(rows[1].unwrap(), (1, 2, 1), [0.80, 0.5, 30.0, 50.0]);
+        // E no tiene rendimiento habitual.
+        assert_eq!(rows[4], None);
+
+        let total = history(&all, &HistoryFilter::default()).total;
+        let counted: Vec<_> = rows.iter().flatten().collect();
+        assert_eq!(counted.iter().map(|r| r.races).sum::<usize>(), total.races);
+        assert_eq!(counted.iter().map(|r| r.legs).sum::<usize>(), total.legs);
+        assert_eq!(
+            counted.iter().map(|r| r.errors).sum::<usize>(),
+            total.errors
+        );
+        let loss: f64 = counted
+            .iter()
+            .map(|r| r.mean_loss_s.unwrap() * r.legs as f64)
+            .sum();
+        close(total.mean_loss_s, loss / total.legs as f64);
     }
 
     #[test]

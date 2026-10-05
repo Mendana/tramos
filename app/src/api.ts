@@ -217,6 +217,19 @@ export interface FormatHistory {
   stats: HistoryStats;
 }
 
+/** Una carrera del histórico con sus números (#98). */
+export interface HistoryRaceRow {
+  result_id: number;
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  class_name: string;
+  status: RaceStatus;
+  place: number | null;
+  /** `null` sin rendimiento habitual: no cuenta. */
+  stats: HistoryStats | null;
+}
+
 export interface HistoryView {
   /** Carreras del usuario sin filtrar. */
   all_races: number;
@@ -230,6 +243,8 @@ export interface HistoryView {
     total: HistoryStats;
     races_without_data: number;
   };
+  /** Las carreras que pasan el filtro, de la más reciente a la más antigua. */
+  races: HistoryRaceRow[];
 }
 
 export const FORMAT_LABELS: Record<RaceFormat, string> = {

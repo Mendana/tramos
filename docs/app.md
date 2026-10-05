@@ -30,7 +30,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar y la fecha de la primera y la última. |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última y una fila por carrera que pasa el filtro (`races`). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
 `app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
@@ -217,6 +217,9 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
   carreras sin formato, más la fila del total: carreras, tramos que cuentan, errores, IR medio,
   tasa de error y pérdida media por tramo en segundos y en %. Debajo del título, qué tramos
   cuentan y los umbrales de error.
+- **Carreras** (#98): las que entran con los filtros, de la más reciente a la más antigua, con
+  fecha, nombre, formato, categoría y sus números (IR, tramos que cuentan, errores, tasa de error
+  y pérdida por tramo). Las que no cuentan lo dicen. Una fila abre la carrera.
 - **Gráficas por formato**: paneles de IR medio (con la línea del 100 %), tasa de error y pérdida
   media por tramo en % (los segundos no se comparan entre formatos; la tabla del panel da los
   dos).

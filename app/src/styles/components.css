@@ -157,6 +157,12 @@
   gap: var(--space-3);
 }
 
+/* El título no se parte aunque el texto de al lado sea largo: el que se ajusta es el texto. */
+.card-title > h3 {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .section-title {
   font-size: var(--text-sm);
   font-weight: 650;

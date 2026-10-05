@@ -732,7 +732,11 @@ mod tests {
     }
 
     fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
-        let path = dir.join(name);
+        // Componente a componente: `join("a/b")` deja la `/` tal cual en Windows, y la ruta no
+        // coincidiría con la que da el recorrido de la carpeta.
+        let path = name
+            .split('/')
+            .fold(dir.to_path_buf(), |p, part| p.join(part));
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, bytes).unwrap();
         path.to_str().unwrap().to_string()

@@ -8,6 +8,7 @@ pub mod comparison;
 pub mod consistency;
 pub mod courses;
 pub mod days_off;
+pub mod fatigue;
 pub mod gain_loss;
 pub mod history;
 pub mod identify;

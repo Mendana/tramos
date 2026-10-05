@@ -8,7 +8,7 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-use crate::history::{HistoryFilter, HistoryRace, pattern_legs};
+use crate::history::{HistoryFilter, HistoryRace, pattern_legs, race_third};
 
 /// Último día (incluido) de cada cubo salvo el último: hasta 7, 8–14, 15–30 y más de 30 días.
 pub const BUCKET_LAST_DAYS: [i64; 3] = [7, 14, 30];
@@ -78,7 +78,7 @@ impl Accumulator {
         self.races += 1;
         let lost = &race.lost_time;
         // Primer tercio por número de tramos del recorrido (con el último): 21 tramos → 7.
-        let third = lost.legs.len().div_ceil(3);
+        let course_legs = lost.legs.len();
         for leg in pattern_legs(lost) {
             if leg.index <= FIRST_LEGS {
                 if let Some(ir) = leg.performance_index {
@@ -86,7 +86,7 @@ impl Accumulator {
                     self.first_legs_ir_sum += ir;
                 }
             }
-            if leg.index <= third {
+            if race_third(leg.index, course_legs) == 0 {
                 self.first_third_legs += 1;
                 if leg.is_error {
                     self.first_third_errors += 1;

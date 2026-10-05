@@ -266,6 +266,8 @@ export interface HistoryView {
   after_error: AfterError;
   /** Errores más comunes (P9): por tipo, en total, por formato y por duración del tramo. */
   common_errors: CommonErrors;
+  /** ¿El cansancio anticipa el error? (P14): por tercio de carrera, con el mismo filtro. */
+  fatigue: Fatigue;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -441,6 +443,53 @@ export interface AfterError {
   after_error_without_speed: number;
   /** Tramos limpios seguidos justo antes: de `from` a `to` (`null` = sin fin). */
   streaks: { from: number; to: number | null; rate: Rate }[];
+}
+
+/** Deriva de un tercio (P14): pulso frente a velocidad en los tramos limpios. */
+export interface Drift {
+  /** Tramos limpios con pulso y velocidad (n). */
+  legs: number;
+  mean_heart_rate_bpm: number | null;
+  mean_speed_mps: number | null;
+  /** Pulso / velocidad frente a la mediana de los tramos limpios de su carrera (1 = lo habitual). */
+  mean_relative_ratio: number | null;
+}
+
+/** Pulso del tramo anterior de un grupo de tramos (P14). */
+export interface HeartRateBefore {
+  /** Tramos cuyo anterior tiene pulso (n). */
+  legs: number;
+  mean_heart_rate_bpm: number | null;
+  /** Pulso del anterior menos la mediana de pulso de su carrera (ppm). */
+  mean_relative_bpm: number | null;
+}
+
+/** Esfuerzo percibido (1–10) apuntado en las etiquetas. */
+export interface Effort {
+  legs: number;
+  mean_effort: number | null;
+}
+
+/** P14 en un tercio de carrera. */
+export interface ThirdFatigue {
+  /** 1, 2 o 3. */
+  third: number;
+  drift: Drift;
+  before_error: HeartRateBefore;
+  before_clean: HeartRateBefore;
+  effort_error: Effort;
+  effort_clean: Effort;
+  effort_physical: Effort;
+}
+
+/** ¿El cansancio anticipa el error? (P14, `docs/historico.md`). */
+export interface Fatigue {
+  /** Los tres tercios, en orden. */
+  by_third: ThirdFatigue[];
+  races_with_heart_rate: number;
+  races_without_heart_rate: number;
+  /** Errores sin pulso del tramo anterior para comparar. */
+  errors_without_heart_rate: number;
 }
 
 /** `null` si la carrera no tiene el FIT del reloj. */

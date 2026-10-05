@@ -1,5 +1,5 @@
 // Vista histórica (P6, docs/app.md): todas las carreras del usuario agregadas por formato, con
-// filtros de fechas y formato. Los análisis que se apoyan en el histórico (P7, P10, P11, P13)
+// filtros de fechas y formato. Los análisis que se apoyan en el histórico (P7, P10, P11, P13…)
 // añaden sus secciones de paneles al final, con los mismos filtros.
 import { useEffect, useState } from "react";
 import {
@@ -30,6 +30,7 @@ import { SlopePanel } from "./SlopePanel";
 import { HistoryBreakdownPanel } from "./BreakdownPanel";
 import { AfterErrorPanel } from "./AfterErrorPanel";
 import { CommonErrorsPanel } from "./CommonErrorsPanel";
+import { FatiguePanel } from "./FatiguePanel";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
@@ -252,6 +253,7 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
         <SlopePanel slope={view.by_slope} />
         <HistoryBreakdownPanel breakdown={view.loss_breakdown} />
         <AfterErrorPanel data={view.after_error} total={total} />
+        <FatiguePanel data={view.fatigue} />
       </div>
     </>
   );

@@ -25,8 +25,9 @@
         "default-src": "'self'",
         "script-src": "'self'",
         "style-src": "'self'",
-        "img-src": "'self'",
-        "connect-src": "'self' ipc: http://ipc.localhost",
+        "img-src": "'self' https://tile.openstreetmap.org",
+        "connect-src": "'self' ipc: http://ipc.localhost https://tile.openstreetmap.org",
+        "worker-src": "'self'",
         "object-src": "'none'",
         "base-uri": "'none'",
         "form-action": "'none'"

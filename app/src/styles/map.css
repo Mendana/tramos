@@ -1,0 +1,257 @@
+/*
+ * Mapa de la carrera (docs/app.md, "Mapa"). La CSS de MapLibre va en el bundle
+ * (`MapView.tsx`); aquí, lo propio. Sin estilos en línea: la CSP no los permite.
+ */
+
+.map-card {
+  gap: 0;
+}
+
+.map-card .card-head {
+  align-items: center;
+}
+
+.map-frame {
+  position: relative;
+  height: 440px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--map-paper);
+}
+
+/* Más específico que `.maplibregl-map { position: relative }` de MapLibre, cuya CSS llega después
+   (con `MapView`): si gana la suya, el contenedor se queda con 0 px de alto y el mapa no se ve. */
+.map-frame > .map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-canvas canvas.is-pointer {
+  cursor: pointer;
+}
+
+/* Botones propios (los de MapLibre traen iconos en `data:` que la CSP no deja cargar). */
+.map-buttons {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.map-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.map-button:last-child {
+  border-bottom: 0;
+}
+
+.map-button:hover {
+  background: var(--surface-hover);
+}
+
+.map-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.map-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+}
+
+.map-foot p {
+  margin: 0;
+}
+
+.map-notes {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* --- Leyenda --- */
+
+.map-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.map-legend-scale {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.map-legend-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-legend-ramp,
+.map-legend-ticks {
+  display: grid;
+  grid-template-columns: repeat(5, 36px);
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.map-legend-ramp {
+  padding: 2px;
+  border-radius: 4px;
+  background: var(--map-paper);
+}
+
+.map-swatch {
+  height: 10px;
+}
+
+.map-swatch:first-child {
+  border-radius: 2px 0 0 2px;
+}
+
+.map-swatch:last-child {
+  border-radius: 0 2px 2px 0;
+}
+
+.map-swatch-0 {
+  background: var(--map-seq-1);
+}
+
+.map-swatch-1 {
+  background: var(--map-seq-2);
+}
+
+.map-swatch-2 {
+  background: var(--map-seq-3);
+}
+
+.map-swatch-3 {
+  background: var(--map-seq-4);
+}
+
+.map-swatch-4 {
+  background: var(--map-seq-5);
+}
+
+/* Cada límite, centrado en la junta entre dos tonos. */
+.map-legend-ticks span {
+  color: var(--text-muted);
+  text-align: right;
+  transform: translateX(calc(50% + 1px));
+  font-variant-numeric: tabular-nums;
+}
+
+.map-legend-nodata {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.map-swatch-nodata {
+  width: 24px;
+  border-top: 3px dashed var(--map-nodata);
+}
+
+/* --- Balizas (marcadores de MapLibre con un elemento propio) --- */
+
+.map-control {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  /* Los clics pasan al track que hay debajo. */
+  pointer-events: none;
+}
+
+.map-control-shape {
+  display: block;
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+  filter: drop-shadow(0 0 1px var(--map-casing)) drop-shadow(0 0 1px var(--map-casing));
+}
+
+.map-control-shape * {
+  fill: none;
+  stroke: var(--map-course);
+  stroke-width: 2.25;
+}
+
+.map-control-label {
+  position: absolute;
+  left: 24px;
+  bottom: 20px;
+  color: var(--map-course);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  /* Halo blanco para leerse sobre cualquier tesela. */
+  text-shadow:
+    -1px -1px 0 var(--map-casing),
+    1px -1px 0 var(--map-casing),
+    -1px 1px 0 var(--map-casing),
+    1px 1px 0 var(--map-casing);
+}
+
+.map-control.is-selected .map-control-shape * {
+  stroke-width: 3.5;
+}
+
+.map-control.is-selected .map-control-label {
+  font-size: var(--text-lg);
+}
+
+/* En los hijos: MapLibre pone la opacidad del propio marcador. */
+.map-control.is-dimmed > * {
+  opacity: 0.55;
+}
+
+/* Picada en un hueco del track: posición poco fiable. */
+.map-control.is-uncertain .map-control-shape * {
+  stroke-dasharray: 3 2;
+}
+
+@media (max-width: 860px) {
+  .map-frame {
+    height: 340px;
+  }
+}
+
+/* Fila de la tabla de tramos seleccionada, sincronizada con el mapa (en magenta, como el
+   tramo resaltado en el mapa). */
+.table tr.is-selected td,
+.table tr.clickable.is-selected:hover td {
+  background: var(--accent-soft);
+}
+
+.table tr.is-selected td:first-child {
+  box-shadow: inset 4px 0 0 var(--accent);
+}

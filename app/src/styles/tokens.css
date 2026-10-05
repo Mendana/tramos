@@ -79,6 +79,25 @@
   --chart-line-neutral: #4a453e;
   --chart-highlight: #fdeee2;
 
+  /*
+   * Mapa (docs/app.md, "Mapa"). Se dibuja sobre las teselas de OpenStreetMap, que son claras
+   * también en modo oscuro, así que estos colores no cambian con el modo: están validados con
+   * la guía de visualización contra el fondo del mapa (--map-paper) y contra el blanco.
+   * Escala secuencial de un solo tono (azul), de rápido/bajo (claro) a lento/alto (oscuro).
+   */
+  --map-seq-1: #6da7ec;
+  --map-seq-2: #3987e5;
+  --map-seq-3: #256abf;
+  --map-seq-4: #184f95;
+  --map-seq-5: #0d366b;
+  --map-nodata: #8a8479;
+  --map-casing: #ffffff;
+  /* Magenta de recorrido: tramo seleccionado y balizas. */
+  --map-selection: #a8236f;
+  --map-course: #a8236f;
+  /* Fondo de tierra de OSM: la leyenda se pinta sobre él para que los tonos se vean igual. */
+  --map-paper: #f2efe9;
+
   --sidebar-width: 216px;
   --content-max: 1080px;
 }

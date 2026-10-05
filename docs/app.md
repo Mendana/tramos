@@ -28,9 +28,10 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
+| `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `races.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -105,6 +106,99 @@ número de errores) y si tiene track del reloj. Una fila abre la vista de la car
 Los números salen de `tramos_core::runner_report::runner_report`, la misma función que usa
 `tramos analizar` (`docs/cli.md`), sobre la carrera guardada: la tabla coincide con la de la CLI.
 Los umbrales son los de los ajustes.
+
+Las filas de la tabla se pueden seleccionar (clic, o Intro o espacio con el foco): el tramo
+seleccionado se resalta a la vez en la tabla y en el mapa. Otro clic en el mismo lo quita.
+
+## Mapa
+
+Entre las gráficas y la tabla de tramos (#20). Sin mapa de orientación en el MVP: la ruta se
+pinta sobre OpenStreetMap con **MapLibre GL JS** (BSD-3), que se carga aparte (`lazy`) al abrir
+una carrera. Componente: `app/src/MapView.tsx`; tipos: `app/src/mapApi.ts`; estilos:
+`app/src/styles/map.css`.
+
+**Comando `race_map(resultId)`** (`app/src-tauri/src/race_map.rs`). La interfaz no calcula
+nada: recibe el track ya troceado y clasificado. Devuelve, según `status`:
+
+| `status` | Cuándo | La vista enseña |
+| --- | --- | --- |
+| `no_track` | La carrera se importó sin FIT. | Un estado vacío: «Sin track del reloj», con la sugerencia de reimportarla con el FIT. |
+| `not_aligned` | Hay track, pero no se puede alinear o segmentar (no debería pasar: solo se guarda si se alinea). | El error, en `message`. |
+| `ready` | Lo normal. | El mapa. |
+
+Con `ready`:
+
+| Campo | Qué es |
+| --- | --- |
+| `bounds` | `[oeste, sur, este, norte]` de todos los tramos, para encuadrar. |
+| `legs` | Un tramo por par de picadas consecutivas (`docs/segmentacion.md`): `index`, `from`, `to`, `coordinates` (de baliza a baliza), `bounds` y `missing`. |
+| `pieces` | Trozos del track en orden, con su tramo (`leg`), `coordinates`, `pace_class` y `heart_rate_class`. |
+| `controls` | Balizas situadas: `position` (0 = salida; el tramo *n* acaba en la baliza *n*), `code`, `role` (`start`, `control`, `finish`), `coordinate` e `in_gap`. |
+| `pace` / `heart_rate` | Escalas: `edges`, los 6 límites de las 5 clases, de menor a mayor (s/km y ppm). `heart_rate` es `null` si el track no trae pulso en al menos la mitad del tiempo de carrera. |
+| `warnings` | Avisos de la alineación y balizas que no se pueden situar, en español. |
+
+Coordenadas `[longitud, latitud]` como en GeoJSON, redondeadas a 6 decimales (~10 cm).
+
+Cómo se calcula:
+
+1. Se alinea el track guardado con las picadas (`docs/alineacion.md`) y se trocea en tramos
+   (`docs/segmentacion.md`), con las opciones por defecto. Solo se pinta de la salida a la meta.
+2. **Balizas**: la posición de la segmentación, es decir, dónde estaba el corredor en el instante
+   de cada picada alineada. Las que no tienen posición (picada sin hora o fuera del track) no
+   salen y lo dice un aviso; las que caen en un hueco del track salen con trazo discontinuo.
+3. **Ritmo** de cada intervalo entre dos puntos de un tramo: distancia recorrida en la ventana
+   del intervalo ampliada 5 s a cada lado (recortada al track), entre la duración de la ventana.
+   La distancia es la de `tramos_core::metrics::interval_distance_m` (la del reloj o, si no, la
+   del GPS, `docs/metricas.md`) acumulada sobre el track entero, así que la ventana cruza sin
+   saltos el límite entre tramos. Por debajo de 0,5 m/s (parado) o más lento de 20:00 min/km, el
+   ritmo es 20:00 min/km. Un intervalo de más de 10 s es un **hueco**: sin ritmo ni pulso.
+4. **Pulso** de un intervalo: la media de sus dos extremos, si los dos lo tienen.
+5. **Clases**: 5, por cuantiles ponderados por la duración de los intervalos (cada tono ocupa más
+   o menos el mismo tiempo de carrera). La clase de un valor es el número de límites interiores
+   que supera: 0 es lo más rápido (o el pulso más bajo) y 4 lo más lento (o el más alto). Con
+   cuantiles, el mapa enseña dónde fue el corredor más despacio *en esa carrera*, sin depender
+   de su forma ni del terreno.
+6. Los intervalos seguidos del mismo tramo con las mismas clases se juntan en un trozo: con el
+   FIT sintético, 376 trozos para unos 1 500 puntos (unos 100 kB de JSON).
+
+Lo que se ve:
+
+- **Track** con un borde blanco, coloreado por **ritmo** o, si hay pulso, por **pulso** (control
+  segmentado *Ritmo / Pulso*; de entrada, ritmo). Escala secuencial de un solo tono (azul, de
+  claro a oscuro, `--map-seq-1…5`), validada con la guía de visualización: luminosidad monótona,
+  saltos visibles entre tonos y el más claro a más de 2:1 sobre el fondo del mapa. Las teselas
+  de OSM son claras también en modo oscuro, así que estos colores no cambian con el modo; la
+  leyenda se pinta sobre una tira del color del mapa (`--map-paper`) para que los tonos se vean
+  igual. Los huecos (y, con pulso, los trozos sin pulso) van en gris discontinuo.
+- **Leyenda** bajo el mapa: los cinco tonos, los cuatro límites entre clases (min/km o ppm) y
+  los extremos «Más rápido / Más lento» (o «Más bajo / Más alto»).
+- **Balizas** como en un mapa de orientación, en el magenta del recorrido: triángulo en la
+  salida, círculo con el número de orden en cada baliza (el código, en la etiqueta accesible) y
+  doble círculo en la meta.
+- **Tramo seleccionado**: halo magenta, el resto del track atenuado, sus dos balizas más
+  marcadas y, bajo el mapa, su resumen (balizas, split y pérdida). Si no se ve entero, el mapa se
+  encuadra en él (sin animación con `prefers-reduced-motion`). Clic en un tramo del mapa (la zona
+  de clic es más ancha que la línea) lo selecciona y resalta su fila; otro clic lo quita.
+- **Botones** propios para acercar, alejar y ver toda la carrera (los de MapLibre traen iconos en
+  `data:`, que la CSP no deja cargar). Sin rotación ni inclinación.
+
+Los tramos del mapa y los de la tabla se emparejan por número. Para un corredor clasificado son
+los mismos; con picadas que no casan con el recorrido (baliza fallida) el mapa sigue las picadas
+y la tabla el recorrido (`docs/segmentacion.md`).
+
+**Teselas de OpenStreetMap** (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`), según su
+[política de uso](https://operations.osmfoundation.org/policies/tiles/):
+
+- Atribución siempre visible, «© OpenStreetMap contributors», con enlace a
+  `https://www.openstreetmap.org/copyright`. El enlace se abre en el navegador del sistema con
+  `tauri-plugin-opener`, al que la ventana solo deja abrir URL de `https://www.openstreetmap.org/`.
+- Solo se piden las teselas de lo que se mira, al moverse por el mapa: nada de descargas
+  masivas ni de precarga. Zoom máximo 19 (el de OSM). MapLibre no vuelve a pedir las teselas
+  caducadas mientras el mapa está abierto (`refreshExpiredTiles: false`) y la caché del
+  navegador respeta las cabeceras del servidor.
+- Es un servicio gratuito para un uso moderado. Si el grupo creciera mucho, habría que pasar a
+  un proveedor de teselas con clave o a uno propio.
+- Pedir teselas revela la zona que se mira (`docs/datos-y-privacidad.md`).
 
 ## Diseño
 
@@ -202,5 +296,19 @@ la tabla: sus valores coinciden con ella.
 ## Seguridad
 
 La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permisos de la ventana
-(`app/src-tauri/capabilities/default.json`) son los de `core:default` y `dialog:allow-open`, este
-último solo para el diálogo de abrir ficheros.
+(`app/src-tauri/capabilities/default.json`) son los de `core:default`, `dialog:allow-open`, este
+solo para el diálogo de abrir ficheros, y `opener:allow-open-url` limitado a
+`https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa.
+
+MapLibre y la CSP:
+
+- La CSS de MapLibre va en el bundle (`import` en `MapView.tsx`), así que `style-src 'self'`
+  basta. MapLibre no inserta hojas de estilo: solo cambia propiedades de estilo de sus elementos
+  desde JavaScript (posición de los marcadores, tamaño del lienzo), que la CSP no bloquea. Las
+  balizas son elementos propios con clases de `map.css`, sin estilos en línea.
+- Su worker se empaqueta como un fichero más de la app (`?worker&url` de Vite, en formato ES) y
+  se le pasa con `setWorkerUrl`: `worker-src 'self'`, sin `blob:`.
+- Las teselas: `img-src` y `connect-src` admiten `https://tile.openstreetmap.org` (MapLibre las
+  descarga con `fetch` y las decodifica en un `ImageBitmap`).
+- No se usan los controles de MapLibre con iconos en `data:` (zoom, brújula): `img-src` no
+  admite `data:`.

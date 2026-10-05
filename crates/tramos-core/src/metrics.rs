@@ -223,8 +223,8 @@ fn track_metrics(
 }
 
 /// Distancia de un intervalo: la del reloj si la tienen los dos puntos y no retrocede; si no,
-/// la del GPS.
-fn interval_distance_m(a: &TrackPoint, b: &TrackPoint) -> f64 {
+/// la del GPS (ver "Intervalos" en `docs/metricas.md`).
+pub fn interval_distance_m(a: &TrackPoint, b: &TrackPoint) -> f64 {
     match (a.distance_m, b.distance_m) {
         (Some(u), Some(v)) if v >= u => v - u,
         _ => haversine_m(a, b),

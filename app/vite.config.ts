@@ -8,6 +8,16 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(() => ({
   plugins: [react()],
 
+  // El worker de MapLibre (`MapView.tsx`) es un módulo ES: MapLibre lo crea con
+  // `new Worker(url, { type: "module" })`.
+  worker: {
+    format: "es" as const,
+  },
+  // MapLibre (~1 MB minificado) va en su propio trozo, que solo se carga al abrir una carrera.
+  build: {
+    chunkSizeWarningLimit: 1100,
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

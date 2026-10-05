@@ -10,7 +10,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use serde_json::{Value, json};
 use tramos_core::alignment::{
     Alignment, AlignmentError, AlignmentOptions, EDGE_SNAP_S, PunchUsage, RaceWindow, WarningKind,
-    align, race_window,
+    align, align_with_offset, race_window,
 };
 use tramos_core::importers::{fit, spl};
 use tramos_core::model::{Event, FINISH_CODE, RaceResult, RaceStatus, START_CODE, Track};
@@ -659,6 +659,105 @@ fn invalid_options_are_rejected() {
             Err(AlignmentError::InvalidOptions(_))
         ));
     }
+}
+
+/// Desfase fijado a mano (#68): con la hora mal convertida (track desplazado 1 h), fijar 1 h más
+/// el desfase fino sitúa cada picada donde la sitúa la alineación automática con el track bien
+/// puesto, y el track se corta en los mismos tramos.
+#[test]
+fn fixed_offset_places_punches_without_estimating() {
+    let (track, mut result) = load();
+    let auto = align(&track, &result, &AlignmentOptions::default()).unwrap();
+    let wrong_hour = shifted(&track, TimeDelta::hours(1));
+    let offset_s = 3600.0 + auto.offset_s;
+    let a =
+        align_with_offset(&wrong_hour, &result, offset_s, &AlignmentOptions::default()).unwrap();
+
+    assert_eq!(a.offset_s, offset_s);
+    assert!(!a.offset_estimated);
+    assert_eq!(a.confidence, 0.0);
+    assert_eq!(a.quality.controls_used, 0);
+    assert!(a.warnings.is_empty(), "{:?}", a.warnings);
+    assert_eq!(a.punches.len(), auto.punches.len());
+    for (fixed, estimated) in a.punches.iter().zip(&auto.punches) {
+        assert_eq!(fixed.usage, PunchUsage::Fixed);
+        assert_eq!(fixed.local_offset_s, None);
+        let (f, e) = (fixed.location.unwrap(), estimated.location.unwrap());
+        assert_eq!(f.index, e.index, "baliza {}", fixed.code);
+        assert!(
+            (f.fraction - e.fraction).abs() < 1e-3,
+            "baliza {}",
+            fixed.code
+        );
+        let gap = fixed.track_time.unwrap() - estimated.track_time.unwrap();
+        assert_eq!(gap.num_milliseconds(), 3_600_000);
+    }
+    assert_eq!(
+        a.coverage.race_start - auto.coverage.race_start,
+        TimeDelta::hours(1)
+    );
+    let legs = segment(&wrong_hour, &a).unwrap().legs;
+    assert_eq!(legs.len(), 21);
+    assert!(legs.iter().all(|l| l.track.is_some()));
+
+    // Otro desfase mueve las picadas: con 30 s más, cada una (salvo la meta, que se sale del
+    // track) cae unos 30 puntos después: el track va a 1 Hz.
+    let later = align_with_offset(
+        &wrong_hour,
+        &result,
+        offset_s + 30.0,
+        &AlignmentOptions::default(),
+    )
+    .unwrap();
+    for (moved, fixed) in later.punches[..21].iter().zip(&a.punches) {
+        let moved_by = moved.location.unwrap().index - fixed.location.unwrap().index;
+        assert!((29..=31).contains(&moved_by), "{moved_by}");
+    }
+
+    // Una picada sin hora sigue sin sitio.
+    result.punches[4].time = None;
+    let a = align_with_offset(&track, &result, 0.0, &AlignmentOptions::default()).unwrap();
+    assert_eq!(a.punches[4].usage, PunchUsage::NoTime);
+    assert_eq!(
+        (a.punches[4].track_time, a.punches[4].location),
+        (None, None)
+    );
+    assert_eq!(kinds(&a), [&WarningKind::PunchesWithoutTime { count: 1 }]);
+    let value = serde_json::to_value(&a).unwrap();
+    assert_eq!(value["punches"][0]["usage"], json!("fixed"));
+    assert_eq!(value["offset_estimated"], json!(false));
+}
+
+#[test]
+fn fixed_offset_outside_the_track_is_an_error() {
+    let (track, result) = load();
+    let options = AlignmentOptions::default();
+    // La carrera dura unos 27 min: con 1 h de desfase cae entera después del track.
+    let err = align_with_offset(&track, &result, 3600.0, &options).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            AlignmentError::TrackOutsideFixedOffset { offset_s, .. } if offset_s == 3600.0
+        ),
+        "{err}"
+    );
+    assert!(err.to_string().contains("no se solapa"), "{err}");
+    // Con un desfase que deja parte de la carrera en el track, avisa de lo que falta.
+    let a = align_with_offset(&track, &result, 600.0, &options).unwrap();
+    assert!(
+        kinds(&a)
+            .iter()
+            .any(|k| matches!(k, WarningKind::TrackEndsEarly { .. })),
+        "{:?}",
+        a.warnings
+    );
+    for bad in [f64::NAN, f64::INFINITY, 86_401.0, -86_401.0] {
+        assert!(matches!(
+            align_with_offset(&track, &result, bad, &options),
+            Err(AlignmentError::InvalidOffset { .. })
+        ));
+    }
+    assert!(align_with_offset(&Track::default(), &result, 0.0, &options).is_err());
 }
 
 /// Par real de `fixtures/private/` (fuera del repositorio): `soria-intermedia.fit` y

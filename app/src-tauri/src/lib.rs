@@ -2,6 +2,7 @@
 //! no reimplementa cálculos.
 
 pub mod batch;
+pub mod clock_offset;
 pub mod history;
 pub mod import;
 pub mod race_map;
@@ -21,6 +22,7 @@ use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::Store;
 
 use crate::batch::BatchSummary;
+use crate::clock_offset::OffsetView;
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
@@ -133,6 +135,27 @@ fn race_breakdown(
     races::race_breakdown(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Desfase entre el reloj y el cronometraje de un resultado: el calculado, su confianza, la
+/// sugerencia de ±1/2 h y el fijado a mano; `null` sin track.
+#[tauri::command]
+fn race_offset(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<Option<OffsetView>, String> {
+    clock_offset::race_offset(&*state.store()?, result_id).map_err(|e| e.to_string())
+}
+
+/// Fija el desfase de un resultado a mano (`null` = automático) y devuelve cómo queda.
+#[tauri::command]
+fn set_race_offset(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    offset_s: Option<f64>,
+) -> Result<OffsetView, String> {
+    clock_offset::set_race_offset(&mut *state.store()?, result_id, offset_s)
+        .map_err(|e| e.to_string())
+}
+
 /// Mapa de un resultado: track coloreado por ritmo o pulso, tramos y balizas.
 #[tauri::command]
 fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap, String> {
@@ -197,6 +220,8 @@ pub fn run() -> tauri::Result<()> {
             race_comparison,
             race_breakdown,
             set_race_format,
+            race_offset,
+            set_race_offset,
             race_map,
             taxonomy,
             leg_tags,

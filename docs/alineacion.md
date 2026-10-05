@@ -3,7 +3,9 @@
 `tramos_core::alignment::align(&Track, &RaceResult, &AlignmentOptions) -> Result<Alignment,
 AlignmentError>` comprueba que el track del reloj cubre la carrera de un corredor, estima el
 desfase fino entre el reloj y el cronometraje y sitúa cada picada en el track. Lo consume el
-corte del track en tramos (#11). Los tests están en `crates/tramos-core/tests/alignment.rs`.
+corte del track en tramos (#11). `align_with_offset` hace lo mismo con un desfase fijado a mano,
+sin estimarlo (ver [Desfase fijado a mano](#desfase-fijado-a-mano)). Los tests están en
+`crates/tramos-core/tests/alignment.rs`.
 
 ## Tiempos
 
@@ -119,8 +121,8 @@ Con el FIT sintético recortado a 2 s después de la meta o justo en ella (y des
 | Campo | Qué es |
 | --- | --- |
 | `offset_s` | Desfase reloj − cronometraje (s). |
-| `offset_estimated` | `false` si no había picadas útiles suficientes y el desfase es 0. |
-| `confidence` | 0–1 (ver arriba). |
+| `offset_estimated` | `false` si no se ha estimado: no había picadas útiles suficientes (el desfase es 0) o se ha fijado a mano. |
+| `confidence` | 0–1 (ver arriba); 0 si no se ha estimado. |
 | `quality` | `controls_used`, `support`, `margin`, `runner_up_offset_s`. |
 | `coverage` | Ver arriba; instantes en hora del reloj. |
 | `punches` | Una entrada por picada, en el orden de `RaceResult::punches`. |
@@ -130,7 +132,8 @@ Cada `AlignedPunch` lleva el código, la hora de la picada (`punch_time`, UTC), 
 reloj (`track_time = punch_time + offset_s`), su posición en el track (`location`: entre
 `points[index]` y `points[index + 1]` a la fracción `fraction`, e `in_gap` si esos dos puntos
 están separados más de `max_gap_s`), su papel (`usage`: `used`, `start`, `no_time`,
-`near_edge` o `no_signal`; ver "Picadas en el borde del track") y su desfase propio. Las picadas sin hora no tienen `track_time` ni `location`. La
+`near_edge` o `no_signal`, ver "Picadas en el borde del track"; o `fixed` con el desfase fijado a
+mano) y su desfase propio. Las picadas sin hora no tienen `track_time` ni `location`. La
 posición geográfica de cada baliza y el corte en tramos salen de `location`
 (`docs/segmentacion.md`).
 
@@ -180,7 +183,37 @@ Con `TrackOutsideRace` se prueban desplazamientos de +1 h, −1 h, +2 h y −2 h
 elegida). El primero con el que el track sí se solaparía va en `suggested_shift_s`, con el
 convenio de `offset_s` (hora del track = hora de la picada + desplazamiento), y el mensaje lo
 explica en español. Si ninguno solapa, `suggested_shift_s` es `None` y el mensaje pregunta si el
-FIT es de otra carrera. El desplazamiento **no se aplica**: decide el usuario (#68).
+FIT es de otra carrera. El desplazamiento **no se aplica**: decide el usuario. En la app, la
+vista de carrera lo ofrece como botón (#68, `docs/app.md`).
+
+Con el desfase fijado a mano: `InvalidOffset` (no es finito o pasa de `MAX_FIXED_OFFSET_S`, un
+día) y `TrackOutsideFixedOffset` (con ese desfase, `[salida + δ, meta + δ]` no se solapa con el
+track; sin margen de búsqueda).
+
+## Desfase fijado a mano
+
+`align_with_offset(&Track, &RaceResult, offset_s, &AlignmentOptions)` (#68) es para cuando la
+estimación falla o no convence (track con huecos, reloj parado, hora mal convertida): el usuario
+fija el desfase y las picadas se sitúan con él, con el mismo convenio
+(`track_time = punch_time + offset_s`).
+
+- No se calcula la señal ni se estima nada: `offset_estimated = false`, `confidence = 0`,
+  `quality` vacía (0 picadas usadas, sin alternativa) y `local_offset_s` nulo.
+- Ventana, cobertura y posición de cada picada (`location`, también el ajuste al borde del
+  track de `EDGE_SNAP_S`) se calculan igual que en `align`, así que el corte en tramos y las
+  métricas no cambian de forma: solo el instante de cada picada.
+- `usage` es `fixed` para toda picada con hora y `no_time` para las demás.
+- Avisos: solo los de la ventana y la cobertura (salida o meta sin hora, picadas sin hora, track
+  que empieza tarde o acaba pronto, huecos). Los del desfase (`large_offset`, `low_confidence`…)
+  no salen: el desfase lo ha elegido el usuario.
+
+Aplicar la sugerencia de ±1/2 h de `TrackOutsideRace` no es fijar solo esas horas: la app
+desplaza las picadas esas horas, vuelve a estimar con `align` el desfase fino que queda y fija la
+suma (`docs/app.md`).
+
+Con el FIT sintético desplazado 1 h, fijar 1 h más el desfase estimado sin desplazar sitúa cada
+picada en el mismo punto del track que la alineación automática sin desplazar, y el corte da los
+mismos 21 tramos. Con 30 s más, cada picada cae unos 30 puntos más allá.
 
 ## Opciones (`AlignmentOptions`, valores por defecto)
 
@@ -212,6 +245,9 @@ En JSON se pueden pasar parcialmente: los campos que faltan toman el valor por d
   mismas horas locales, 1 h de diferencia en UTC y el mismo desfase; convertido con la hora de
   verano, el track no se solapa.
 - Picadas de otros corredores: confianza < 0,5 y aviso.
+- Desfase fijado a mano: con el track desplazado 1 h y el desfase fijado a 1 h más el estimado,
+  las picadas caen donde las sitúa la alineación automática del track sin desplazar; un desfase
+  que deja la carrera fuera del track es un error, y uno no finito o de más de un día también.
 - Par real opcional (`private_alignment`): `fixtures/private/soria-intermedia.fit` y `.spl`; la
   categoría (nombre, nombre corto o id) y la posición del resultado en ella van en
   `TRAMOS_PRIVATE_CLASS` y `TRAMOS_PRIVATE_RESULT_INDEX`. Si falta algo, se salta. Solo imprime

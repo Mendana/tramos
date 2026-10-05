@@ -380,16 +380,20 @@ function Outcome({
   const messages = [...outcome.warnings, ...(alignment?.messages ?? [])];
   return (
     <div className="card">
-      <Notice kind={alignment !== null && !alignment.track_saved ? "warning" : "success"}>
+      <Notice
+        kind={alignment !== null && (!alignment.track_saved || alignment.offset_s === null) ? "warning" : "success"}
+      >
         <strong>
           {outcome.already_imported
             ? "Carrera actualizada (ya estaba importada)."
             : "Carrera importada."}
         </strong>{" "}
         {alignment !== null &&
-          (alignment.track_saved
-            ? `Reloj alineado: desfase ${decimal(alignment.offset_s ?? 0, 1)} s, confianza ${Math.round((alignment.confidence ?? 0) * 100)} %.`
-            : "El reloj no se ha guardado.")}
+          (!alignment.track_saved
+            ? "El reloj no se ha guardado."
+            : alignment.offset_s === null
+              ? "El reloj se ha guardado, pero sin situar en la carrera: corrige el desfase en la vista de la carrera."
+              : `Reloj alineado: desfase ${decimal(alignment.offset_s, 1)} s, confianza ${Math.round((alignment.confidence ?? 0) * 100)} %.`)}
       </Notice>
       {messages.map((m) => (
         <Notice key={m} kind="warning">

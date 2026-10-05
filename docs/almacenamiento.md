@@ -20,7 +20,8 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `event_by_source_file(SourceFileId) -> Option<EventId>` | La primera carrera guardada (menor id) enlazada a ese fichero. Sirve para no duplicar una carrera al reimportar su .spl (`docs/app.md`). |
 | `event_format(EventId)` / `set_event_format(EventId, Option<RaceFormat>)` | Formato de la carrera (`sprint`, `middle`, `long`); `None` si no se ha fijado o para borrarlo. Carrera inexistente: `EventNotFound`. |
 | `event_start(EventId) -> Option<DateTime<Utc>>` | Inicio de la carrera para ordenar las del mismo día: la primera picada con hora de cualquiera de sus resultados (ver [Personas](#personas)). |
-| `save_track(ResultId, &Track, Option<SourceFileId>)` / `load_track(ResultId)` | Track del reloj de un resultado, enlazado a su FIT si se indica. Guardar otra vez sustituye el anterior. |
+| `save_track(ResultId, &Track, Option<SourceFileId>)` / `load_track(ResultId)` | Track del reloj de un resultado, enlazado a su FIT si se indica. Guardar otra vez sustituye el anterior; su desfase manual solo se conserva si el nuevo sale del mismo fichero original (ver abajo). |
+| `manual_offset(ResultId) -> Option<f64>` / `set_manual_offset(ResultId, Option<f64>)` | Desfase entre el reloj y el cronometraje fijado a mano para el track (s, convenio de `docs/alineacion.md`: instante en el track = picada + desfase); `None` = automático (también sin track, al leer). Fijarlo no comprueba que encaje con el track: eso lo hace quien llama. Resultado inexistente: `ResultNotFound`; sin track: `TrackNotFound`; NaN: `NotANumber`. |
 | `track_source_file(ResultId)` | El fichero original enlazado al track, si lo tiene. |
 | `setting(clave)` / `set_setting(clave, valor)` | Ajustes clave-valor. |
 | `create_person(nombre, notas) -> PersonId` | Crea una persona (ver [Personas](#personas)). El nombre no puede estar vacío (`EmptyPersonName`). |
@@ -67,7 +68,7 @@ El análisis guardado (`legs`) aún no tiene API: de momento solo existe su tabl
 | `results` | Resultado de un corredor en una categoría. | `class_id`, `position`, `runner_id`, `status`, `status_code` (solo para `unknown`), `place`, `person_id` (opcional). |
 | `people` | Personas: identidad de un corredor entre carreras. Solo lo que escribe el usuario; **sin fecha de nacimiento**. | `display_name`, `notes` (opcional), `created_at_epoch_ms`. |
 | `punches` | Picadas en orden, de la salida a la meta. | `result_id`, `position`, `code`, `time_epoch_ms` (`NULL` si no hay hora). |
-| `tracks` | Track del reloj: como mucho uno por resultado. | `result_id`, `source_file_id` (el FIT, opcional), `sport` (`Track::sport`, opcional). |
+| `tracks` | Track del reloj: como mucho uno por resultado. | `result_id`, `source_file_id` (el FIT, opcional), `sport` (`Track::sport`, opcional), `manual_offset_s` (desfase fijado a mano; `NULL` = automático). |
 | `track_points` | Puntos del track. | `track_id`, `position`, `time_epoch_ms`, `lat`, `lon`, `altitude_m`, `heart_rate_bpm`, `cadence_spm`, `distance_m`. |
 | `legs` | Tramos de un resultado con lo que calcula el análisis (`docs/tiempo-perdido.md`). | `result_id`, `leg_index` (desde 1), `from_code`, `to_code`, `split_s`, `reference_s`, `performance_index`, `expected_s`, `loss_s`, `loss_ratio`, `is_error`, `algorithm_version`. |
 | `tags` | Etiqueta del corredor sobre un tramo (`docs/taxonomia.md`). | `result_id`, `leg_index`, `taxonomy_version`; nivel 1 `confirmation` (`error`, `no_error`, `physical`); nivel 2 `error_type`, `error_subtype`; nivel 3 `leg_part` (`start`, `middle`, `attack`), `perceived_loss_s`, `effort` (1–10), `note`; `created_at_epoch_ms`, `updated_at_epoch_ms`. |
@@ -85,6 +86,10 @@ Notas:
   un extremo no tiene split ni pérdida. `algorithm_version` es obligatoria: cuando cambia, los
   tramos de la carrera se recalculan enteros. La referencia está repetida en cada corredor del
   recorrido; a cambio, las consultas de patrones no necesitan uniones.
+- `tracks.manual_offset_s` (#68) va en el track y no en el resultado porque es del reloj que grabó
+  ese FIT: guardar el track de otro FIT (o sin fichero enlazado) lo devuelve al automático;
+  guardar otra vez el del mismo fichero (mismo `source_file_id`, por ejemplo al reimportar) lo
+  conserva. Lo aplica la app al alinear (`docs/app.md`, "Reloj y cronometraje").
 - `tags` apunta a `(result_id, leg_index)` y no a `legs.id`, para que las etiquetas sobrevivan a un
   recálculo de los tramos. Hay como mucho una etiqueta por tramo y ningún nivel es obligatorio.
   Tipos, subtipos y causas son claves del fichero de taxonomía, que vive fuera del código; por eso
@@ -111,6 +116,7 @@ Notas:
 | 3 | `0003_track_sport.sql` | Columna `tracks.sport` (nula en los tracks que ya había). |
 | 4 | `0004_drop_runner_source_id.sql` | Quita `runners.source_id` (el `0x80` del .spl, que no es un id). El resto de cada corredor se conserva. |
 | 5 | `0005_event_format.sql` | Columna `events.format` (nula en las carreras que ya había). |
+| 6 | `0006_track_manual_offset.sql` | Columna `tracks.manual_offset_s` (nula, es decir, automático, en los tracks que ya había). |
 
 ## Personas
 

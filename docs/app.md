@@ -30,15 +30,17 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
-| `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado (`docs/tiempo-perdido.md`). `null` sin track o si ya no se puede alinear ni trocear. |
+| `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
+| `race_offset(resultId)` | Desfase entre el reloj y el cronometraje del resultado (abajo, "Reloj y cronometraje"): el calculado con su confianza y avisos, el error si no se puede alinear, la sugerencia de ±1/2 h y el fijado a mano. `null` sin track. |
+| `set_race_offset(resultId, offsetS)` | Fija el desfase a mano (segundos; `null` vuelve al automático) y devuelve lo mismo que `race_offset`. Antes comprueba que con él la carrera cae en el track (`align_with_offset`); si no, da el error y no guarda nada. Sin track, error. |
 | `taxonomy` | La taxonomía de errores con la que se etiqueta (`tramos_core::taxonomy`, `docs/taxonomia.md`). |
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera) y el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -67,9 +69,12 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
      borra el que había).
    - Con FIT, se alinea con las picadas del resultado (`docs/alineacion.md`). Si se puede, se
      guardan el FIT original y el track, y se muestran el desfase, la confianza y los avisos. Si
-     no (track de otra hora o de otra carrera), **no se guarda el track** y se muestra el error,
-     con la sugerencia de desplazamiento si la hay. La carrera sí queda importada. Reimportar con
-     otro FIT sustituye el track.
+     el track no se solapa pero lo haría desplazado ±1 o ±2 h (hora mal convertida), **también se
+     guarda**, sin desfase, y el aviso dice que el desplazamiento se aplica en la vista de la
+     carrera ("Reloj y cronometraje"). Si no se solapa de ninguna manera (FIT de otra carrera),
+     **no se guarda el track** y se muestra el error. La carrera sí queda importada. Reimportar
+     con otro FIT sustituye el track y vuelve al desfase automático; con el mismo FIT, conserva
+     el desfase manual.
 5. La lista de carreras se actualiza.
 
 El análisis (tiempo perdido, tramos, métricas) no se guarda al importar: se calcula al mostrarlo
@@ -191,6 +196,33 @@ Los umbrales son los de los ajustes.
 Las filas de la tabla se pueden seleccionar (clic, o Intro o espacio con el foco): el tramo
 seleccionado se resalta a la vez en la tabla y en el mapa. Otro clic en el mismo lo quita.
 
+### Reloj y cronometraje (#68)
+
+Tarjeta encima del mapa, solo si la carrera tiene track (`ClockOffset.tsx`, comandos
+`race_offset` y `set_race_offset`, lógica en `clock_offset.rs`). Una frase explica qué es el
+desfase (la diferencia de hora entre el reloj y el cronometraje, con la que se sabe dónde estaba
+el corredor al picar cada baliza) y cuándo tocarlo: si en el mapa las balizas no caen donde
+estaban.
+
+- **Cifras**: el desfase calculado (`align`) con su confianza (o «pocas balizas útiles: se toma
+  0», o «no se ha podido calcular») y el **en uso**, explicado en palabras («tu reloj va 7,1 s
+  adelantado»). Una píldora dice si es automático o fijado a mano. Con confianza baja (< 0,5)
+  sale un aviso que invita a revisarlo en el mapa; los avisos de la alineación, debajo.
+- **Sugerencia de ±1/2 h**: si la alineación automática no encaja porque el track se solaparía
+  desplazado horas enteras (`suggested_shift_s`, `docs/alineacion.md`), se explica (cambio de
+  horario o zona horaria mal elegida) y un botón «Aplicar -1 h» fija el desfase sugerido: las
+  picadas se desplazan esas horas, se estima con `align` el desfase fino que queda y se fija la
+  suma (`suggested_offset_s`), así que no hace falta afinarlo a mano.
+- **A mano**: un campo en segundos (con coma o punto; positivo si el reloj va adelantado),
+  relleno con el desfase en uso, y «Aplicar». Si con ese desfase la carrera no cae en el track,
+  o no es un número de un día como mucho, sale el error y no se guarda.
+- **Volver al automático** (solo con uno fijado): borra el manual.
+
+Se guarda con el track (`tracks.manual_offset_s`, `docs/almacenamiento.md`). Todo lo que sale del
+track lo usa, porque pasa por el mismo sitio (`race_map::aligned_legs`): las balizas y los tramos
+del mapa, P2 en la vista de carrera y P13, P2 y P8 en el histórico. Al cambiarlo, la vista vuelve
+a pedir el mapa y P2. La tabla de tramos no cambia: sale de los splits del .spl, no del track.
+
 ### Etiquetar errores (#30)
 
 Los tres niveles de `docs/taxonomia.md`, sin ninguno obligatorio:
@@ -222,7 +254,7 @@ nada: recibe el track ya troceado y clasificado. Devuelve, según `status`:
 | `status` | Cuándo | La vista enseña |
 | --- | --- | --- |
 | `no_track` | La carrera se importó sin FIT. | Un estado vacío: «Sin track del reloj», con la sugerencia de reimportarla con el FIT. |
-| `not_aligned` | Hay track, pero no se puede alinear o segmentar (no debería pasar: solo se guarda si se alinea). | El error, en `message`. |
+| `not_aligned` | Hay track, pero no se puede alinear o segmentar: la hora estaba mal convertida al importar (se guarda con la sugerencia de desplazamiento) y aún no se ha corregido el desfase. | El error, en `message`, y que se corrige en «Reloj y cronometraje». |
 | `ready` | Lo normal. | El mapa. |
 
 Con `ready`:
@@ -240,8 +272,9 @@ Coordenadas `[longitud, latitud]` como en GeoJSON, redondeadas a 6 decimales (~1
 
 Cómo se calcula:
 
-1. Se alinea el track guardado con las picadas (`docs/alineacion.md`) y se trocea en tramos
-   (`docs/segmentacion.md`), con las opciones por defecto. Solo se pinta de la salida a la meta.
+1. Se alinea el track guardado con las picadas (`docs/alineacion.md`), con el desfase fijado a
+   mano si lo tiene (`align_with_offset`), y se trocea en tramos (`docs/segmentacion.md`), con
+   las opciones por defecto. Solo se pinta de la salida a la meta.
 2. **Balizas**: la posición de la segmentación, es decir, dónde estaba el corredor en el instante
    de cada picada alineada. Las que no tienen posición (picada sin hora o fuera del track) no
    salen y lo dice un aviso; las que caen en un hueco del track salen con trazo discontinuo.

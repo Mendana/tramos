@@ -6,7 +6,8 @@
 //!    (`tramos_core::identify`) y sugiere el formato (`tramos_core::race_format`).
 //! 2. [`import`] guarda el .spl original y la carrera (si ese .spl ya estaba importado, reutiliza
 //!    la carrera en vez de duplicarla), fija el formato, vincula el resultado elegido con la
-//!    persona del usuario y, con FIT, lo alinea y guarda el track.
+//!    persona del usuario y, con FIT, lo alinea y guarda el track (también si la hora parece mal
+//!    convertida, para corregir el desfase en la vista de carrera: [`crate::clock_offset`]).
 //!
 //! Todo es Rust sin Tauri, para probarlo con los fixtures. El flujo está en `docs/app.md`; la
 //! lista de carreras, en [`crate::races`].
@@ -16,7 +17,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tramos_core::alignment::{AlignmentOptions, align};
+use tramos_core::alignment::{AlignmentError, AlignmentOptions, align};
 use tramos_core::identify::{Identification, ResultRef, RunnerIdentity, identify_runner};
 use tramos_core::importers::fit::{self, FitError};
 use tramos_core::importers::spl::{self, SplError};
@@ -125,9 +126,12 @@ pub struct ImportOutcome {
 /// Alineación del FIT con las picadas, resumida para la interfaz.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AlignmentReport {
-    /// El track se ha guardado. Si no se pudo alinear (FIT de otra carrera u hora mal
-    /// convertida), no se guarda y `messages` dice por qué.
+    /// El track se ha guardado. Si no se pudo alinear porque es de otra carrera, no se guarda y
+    /// `messages` dice por qué. Si la hora parece mal convertida (la alineación sugiere un
+    /// desplazamiento de horas enteras), se guarda sin desfase para corregirlo en la vista de
+    /// carrera.
     pub track_saved: bool,
+    /// Desfase y confianza de la alineación; `None` si no se ha podido alinear.
     pub offset_s: Option<f64>,
     pub confidence: Option<f64>,
     /// Avisos de la alineación o el error, en español.
@@ -234,6 +238,26 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
                         offset_s: Some(a.offset_s),
                         confidence: Some(a.confidence),
                         messages: a.warnings.into_iter().map(|w| w.message).collect(),
+                    }
+                }
+                // Hora mal convertida (el track se solaparía desplazado ±1 o ±2 h): se guarda
+                // para que el usuario aplique el desplazamiento en la vista de carrera (#68).
+                Err(
+                    err @ AlignmentError::TrackOutsideRace {
+                        suggested_shift_s: Some(_),
+                        ..
+                    },
+                ) => {
+                    let source = store.save_source_file(SourceFileKind::Fit, path, &bytes)?;
+                    store.save_track(result_id, &track, Some(source))?;
+                    AlignmentReport {
+                        track_saved: true,
+                        offset_s: None,
+                        confidence: None,
+                        messages: vec![format!(
+                            "El FIT no encaja con la carrera: {err} Se ha guardado igualmente: \
+                             en la vista de la carrera puedes aplicar ese desplazamiento."
+                        )],
                     }
                 }
                 Err(err) => AlignmentReport {
@@ -466,20 +490,40 @@ mod tests {
         assert_eq!(store.people().unwrap().len(), 1);
     }
 
+    /// Cambia la fecha (etiqueta `0x19`, días OLE) de la cabecera del .spl, como en los tests
+    /// de la alineación del núcleo.
+    fn with_event_date(spl: &[u8], from_ole: f64, to_ole: f64) -> Vec<u8> {
+        let mut pattern = vec![0x19];
+        pattern.extend(from_ole.to_le_bytes());
+        let at = spl
+            .windows(pattern.len())
+            .position(|w| w == pattern.as_slice())
+            .unwrap();
+        let mut out = spl.to_vec();
+        out[at + 1..at + 9].copy_from_slice(&to_ole.to_le_bytes());
+        out
+    }
+
     #[test]
-    fn a_fit_from_another_time_is_not_saved() {
+    fn a_fit_from_another_race_is_not_saved() {
         let mut store = Store::open_in_memory().unwrap();
-        let p = preview(&store, &spl(), None, &identity()).unwrap();
-        // Otro corredor de la misma carrera, que salió a otra hora: el FIT no es suyo.
-        let other = all_results(&spl::read(&std::fs::read(spl()).unwrap()).unwrap())[0];
+        // La misma carrera, un día después (46298 = 2026-10-03): el FIT no se solapa ni
+        // desplazándolo horas enteras, así que no es de esta carrera.
+        let next_day = with_event_date(&std::fs::read(spl()).unwrap(), 46298.0, 46299.0);
+        let path =
+            std::env::temp_dir().join(format!("tramos-test-otro-dia-{}.spl", std::process::id()));
+        std::fs::write(&path, next_day).unwrap();
+        let path = path.to_string_lossy().into_owned();
+        let p = preview(&store, &path, None, &identity()).unwrap();
         let mut req = request(&p, Some(fit()));
-        req.result = other;
-        let outcome = import(&mut store, &req).unwrap();
-        let alignment = outcome.alignment.unwrap();
-        // Salió más de media hora antes que el corredor del FIT: el track no solapa su carrera.
+        req.spl_path = path.clone();
+        let outcome = import(&mut store, &req);
+        std::fs::remove_file(&path).unwrap();
+        let alignment = outcome.unwrap().alignment.unwrap();
         assert!(!alignment.track_saved);
         assert!(
-            alignment.messages[0].starts_with("No se ha guardado el FIT"),
+            alignment.messages[0].starts_with("No se ha guardado el FIT")
+                && alignment.messages[0].contains("¿es el FIT de otra carrera"),
             "{:?}",
             alignment.messages
         );
@@ -492,18 +536,22 @@ mod tests {
         let mut store = Store::open_in_memory().unwrap();
         let mut s = settings::load(&store).unwrap();
         // Baltanás está en la península: leído como si fuera en Canarias, las picadas quedan una
-        // hora más tarde en UTC y el FIT no solapa. La alineación lo explica y no lo guarda.
+        // hora más tarde en UTC y el FIT no solapa. La alineación lo explica y sugiere −1 h, así
+        // que el track se guarda para corregir el desfase en la vista de carrera (#68).
         s.time_zone = "Atlantic/Canary".into();
         settings::save(&mut store, &s).unwrap();
         let p = preview(&store, &spl(), Some(&fit()), &identity()).unwrap();
         let outcome = import(&mut store, &request(&p, Some(fit()))).unwrap();
         let alignment = outcome.alignment.unwrap();
-        assert!(!alignment.track_saved);
+        assert!(alignment.track_saved);
+        assert_eq!((alignment.offset_s, alignment.confidence), (None, None));
         assert!(
-            alignment.messages[0].contains("1 h"),
+            alignment.messages[0].contains("1 h")
+                && alignment.messages[0].contains("desplazamiento"),
             "{:?}",
             alignment.messages
         );
+        assert!(list_races(&store).unwrap()[0].has_track);
     }
 
     #[test]

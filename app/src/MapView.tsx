@@ -37,6 +37,8 @@ const METRIC_PROPERTY: Record<Metric, string> = { pace: "pace", heart_rate: "hr"
 
 interface Props {
   resultId: number;
+  /** Cambia cuando cambia el desfase del reloj: el mapa se vuelve a pedir y a pintar. */
+  revision?: number;
   /** Tramos de la tabla, para describir el seleccionado. */
   legs: LegReport[];
   selected: number | null;
@@ -44,17 +46,25 @@ interface Props {
 }
 
 /** Tarjeta del mapa: carga `race_map` y enseña el mapa o por qué no lo hay. */
-function MapView({ resultId, legs, selected, onSelect }: Props) {
+function MapView({ resultId, revision = 0, legs, selected, onSelect }: Props) {
   const [data, setData] = useState<RaceMap | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let current = true;
     setData(null);
     setError(null);
     raceMap(resultId)
-      .then(setData)
-      .catch((err: unknown) => setError(String(err)));
-  }, [resultId]);
+      .then((d) => {
+        if (current) setData(d);
+      })
+      .catch((err: unknown) => {
+        if (current) setError(String(err));
+      });
+    return () => {
+      current = false;
+    };
+  }, [resultId, revision]);
 
   if (error !== null) {
     return (
@@ -81,7 +91,9 @@ function MapView({ resultId, legs, selected, onSelect }: Props) {
   if (data.status === "not_aligned") {
     return (
       <MapCard>
-        <Notice kind="error">{data.message}</Notice>
+        <Notice kind="error">
+          {data.message} Corrige el desfase en «Reloj y cronometraje», encima del mapa.
+        </Notice>
       </MapCard>
     );
   }

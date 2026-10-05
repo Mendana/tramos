@@ -15,6 +15,7 @@
 //!   ±`max_offset_s` y se refina con una parábola.
 //! - La salida no se usa para estimar el desfase (en el .spl suele ser la hora asignada, no una
 //!   marca física) y las picadas sin hora se ignoran.
+//! - [`align_with_offset`] no estima nada: sitúa las picadas con un desfase fijado a mano (#68).
 
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
@@ -58,6 +59,9 @@ const MAX_SEARCH_S: u32 = 600;
 pub const EDGE_SNAP_S: f64 = 2.0;
 /// Mayor ventana de giro o de suavizado aceptada (s).
 const MAX_WINDOW_S: u32 = 60;
+/// Mayor desfase fijado a mano que acepta [`align_with_offset`], en valor absoluto (s): un día.
+/// Más allá no es un reloj mal puesto, es otra carrera.
+pub const MAX_FIXED_OFFSET_S: f64 = 86_400.0;
 
 /// Parámetros de la alineación. Los valores por defecto son los de `docs/alineacion.md`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -161,6 +165,25 @@ pub enum AlignmentError {
         /// desplazamiento). Es solo una pista: no se aplica.
         suggested_shift_s: Option<i64>,
     },
+
+    #[error(
+        "el desfase fijado ({offset_s} s) tiene que ser un número finito de segundos, de un día \
+         como mucho"
+    )]
+    InvalidOffset { offset_s: f64 },
+
+    #[error(
+        "con el desfase fijado ({offset_s} s), la carrera ({race_start} – {race_finish}, en hora \
+         del reloj) no se solapa con el track ({track_start} – {track_end})"
+    )]
+    TrackOutsideFixedOffset {
+        offset_s: f64,
+        track_start: DateTime<Utc>,
+        track_end: DateTime<Utc>,
+        /// Salida y meta con el desfase aplicado.
+        race_start: DateTime<Utc>,
+        race_finish: DateTime<Utc>,
+    },
 }
 
 /// Resultado de la alineación de un track con las picadas de un corredor.
@@ -168,9 +191,11 @@ pub enum AlignmentError {
 pub struct Alignment {
     /// Desfase reloj − cronometraje en segundos: `instante en el track = picada + offset_s`.
     pub offset_s: f64,
-    /// `false` si no había picadas útiles suficientes y `offset_s` es 0 por defecto.
+    /// `false` si no se ha estimado: no había picadas útiles suficientes (`offset_s` es 0 por
+    /// defecto) o lo ha fijado quien llama ([`align_with_offset`]).
     pub offset_estimated: bool,
-    /// Confianza en el desfase, de 0 (ninguna) a 1. Ver `docs/alineacion.md`.
+    /// Confianza en el desfase, de 0 (ninguna) a 1. Ver `docs/alineacion.md`. Si no se ha
+    /// estimado, 0.
     pub confidence: f64,
     /// Detalle de la estimación, para depurar y para la interfaz.
     pub quality: AlignmentQuality,
@@ -195,6 +220,18 @@ pub struct AlignmentQuality {
     pub margin: f64,
     /// Mejor desfase alternativo (a más de 10 s del elegido), si lo hay.
     pub runner_up_offset_s: Option<f64>,
+}
+
+impl AlignmentQuality {
+    /// Sin estimación: ninguna picada usada.
+    fn none() -> Self {
+        Self {
+            controls_used: 0,
+            support: 0.0,
+            margin: 0.0,
+            runner_up_offset_s: None,
+        }
+    }
 }
 
 /// Cobertura del track sobre la ventana salida–meta, en hora del reloj (picadas + desfase).
@@ -265,6 +302,9 @@ pub enum PunchUsage {
     NearEdge,
     /// Su instante cae fuera del track o en un hueco: no hay señal.
     NoSignal,
+    /// Con el desfase fijado a mano ([`align_with_offset`]) no se estima nada: toda picada con
+    /// hora se sitúa con él.
+    Fixed,
 }
 
 /// Aviso de la alineación: tipo con sus datos y mensaje legible en español.
@@ -405,6 +445,36 @@ pub fn align(
     result: &RaceResult,
     options: &AlignmentOptions,
 ) -> Result<Alignment, AlignmentError> {
+    align_impl(track, result, options, None)
+}
+
+/// Como [`align`], pero sin estimar el desfase: sitúa las picadas con `offset_s`, el desfase que
+/// ha fijado el usuario a mano (#68), con el mismo convenio (`instante en el track = picada +
+/// offset_s`).
+///
+/// El resultado sale con `offset_estimated = false`, confianza 0, las picadas con hora con
+/// `usage: fixed` y solo los avisos de la ventana y la cobertura. Falla con `InvalidOffset` si el
+/// desfase no es finito o pasa de [`MAX_FIXED_OFFSET_S`], y con `TrackOutsideFixedOffset` si con
+/// él la carrera no se solapa con el track.
+pub fn align_with_offset(
+    track: &Track,
+    result: &RaceResult,
+    offset_s: f64,
+    options: &AlignmentOptions,
+) -> Result<Alignment, AlignmentError> {
+    if !(offset_s.is_finite() && offset_s.abs() <= MAX_FIXED_OFFSET_S) {
+        return Err(AlignmentError::InvalidOffset { offset_s });
+    }
+    align_impl(track, result, options, Some(offset_s))
+}
+
+/// [`align`] (`fixed_offset_s = None`) o [`align_with_offset`].
+fn align_impl(
+    track: &Track,
+    result: &RaceResult,
+    options: &AlignmentOptions,
+    fixed_offset_s: Option<f64>,
+) -> Result<Alignment, AlignmentError> {
     validate(options)?;
     let (first_point, last_point) = match (track.points.first(), track.points.last()) {
         (Some(first), Some(last)) => (first.time, last.time),
@@ -415,8 +485,54 @@ pub fn align(
     let window = race_window_with_warnings(result, &mut warnings)?;
     let origin = window.start;
     let rel = |t: DateTime<Utc>| seconds_between(origin, t);
-    let max_offset = f64::from(options.max_offset_s);
+    let point_times: Vec<f64> = track.points.iter().map(|p| rel(p.time)).collect();
 
+    if let Some(offset_s) = fixed_offset_s {
+        // Con el desfase fijado, la carrera tiene que solaparse con el track tal cual, sin margen
+        // de búsqueda.
+        let offset = seconds_to_delta(offset_s);
+        if last_point < window.start + offset || first_point > window.finish + offset {
+            return Err(AlignmentError::TrackOutsideFixedOffset {
+                offset_s,
+                track_start: first_point,
+                track_end: last_point,
+                race_start: window.start + offset,
+                race_finish: window.finish + offset,
+            });
+        }
+        let coverage = coverage(track, &window, offset, options, &mut warnings);
+        let punches = result
+            .punches
+            .iter()
+            .map(|punch| {
+                let track_time = punch.time.map(|t| t + offset);
+                AlignedPunch {
+                    code: punch.code,
+                    punch_time: punch.time,
+                    track_time,
+                    location: track_time
+                        .and_then(|t| locate_near_edge(&point_times, rel(t), options)),
+                    usage: if punch.time.is_some() {
+                        PunchUsage::Fixed
+                    } else {
+                        PunchUsage::NoTime
+                    },
+                    local_offset_s: None,
+                }
+            })
+            .collect();
+        return Ok(Alignment {
+            offset_s,
+            offset_estimated: false,
+            confidence: 0.0,
+            quality: AlignmentQuality::none(),
+            coverage,
+            punches,
+            warnings,
+        });
+    }
+
+    let max_offset = f64::from(options.max_offset_s);
     let race_finish_rel = rel(window.finish);
     let overlaps = |shift: f64| {
         rel(last_point) >= shift - max_offset
@@ -435,7 +551,6 @@ pub fn align(
         });
     }
 
-    let point_times: Vec<f64> = track.points.iter().map(|p| rel(p.time)).collect();
     let signal = Signal::build(track, &point_times, race_finish_rel, options);
 
     // Picadas candidatas a estimar el desfase: con hora y, salvo que se pida, sin la salida.
@@ -540,15 +655,7 @@ pub fn align(
         offset_s,
         offset_estimated: estimate.is_some(),
         confidence,
-        quality: estimate.map_or(
-            AlignmentQuality {
-                controls_used: 0,
-                support: 0.0,
-                margin: 0.0,
-                runner_up_offset_s: None,
-            },
-            |e| e.quality,
-        ),
+        quality: estimate.map_or_else(AlignmentQuality::none, |e| e.quality),
         coverage,
         punches,
         warnings,

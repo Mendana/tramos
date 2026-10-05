@@ -112,6 +112,20 @@ pub fn pattern_legs(lost_time: &RunnerLostTime) -> impl Iterator<Item = &LegRepo
         .filter(|leg| !leg.excluded_from_patterns && leg.loss_s.is_some())
 }
 
+/// Tercio de la carrera (0, 1 o 2) del tramo `index` (desde 1) en un recorrido de `course_legs`
+/// tramos contando el último: primer tercio hasta `⌈L / 3⌉`, segundo hasta `⌈2L / 3⌉` y tercero
+/// el resto. Por número de tramos y no por tiempo, que con picadas que faltan no se sabe: 21
+/// tramos → 1–7, 8–14 y 15–21; 10 → 1–4, 5–7 y 8–10. Lo usan P11 y P14.
+pub fn race_third(index: usize, course_legs: usize) -> usize {
+    if index <= course_legs.div_ceil(3) {
+        0
+    } else if index <= (2 * course_legs).div_ceil(3) {
+        1
+    } else {
+        2
+    }
+}
+
 /// Sumas de un grupo, de las que salen las medias.
 #[derive(Debug, Default)]
 struct Accumulator {
@@ -570,6 +584,24 @@ mod tests {
             serde_json::from_str(r#"{"from": null, "to": "2026-12-31", "format": "middle"}"#)
                 .unwrap();
         assert_eq!(f.format, Some(RaceFormat::Middle));
+    }
+
+    #[test]
+    fn race_thirds_split_the_course_by_number_of_legs() {
+        let thirds = |legs: usize| -> Vec<usize> {
+            (1..=legs).map(|index| race_third(index, legs)).collect()
+        };
+        // 21 tramos: 1–7, 8–14 y 15–21.
+        let mut expected = vec![0; 7];
+        expected.extend([1; 7]);
+        expected.extend([2; 7]);
+        assert_eq!(thirds(21), expected);
+        // 10: 1–4, 5–7 y 8–10. 8: 1–3, 4–6 y 7–8.
+        assert_eq!(thirds(10), [0, 0, 0, 0, 1, 1, 1, 2, 2, 2]);
+        assert_eq!(thirds(8), [0, 0, 0, 1, 1, 1, 2, 2]);
+        // Con muy pocos tramos, algún tercio queda vacío.
+        assert_eq!(thirds(2), [0, 1]);
+        assert_eq!(thirds(1), [0]);
     }
 
     #[test]

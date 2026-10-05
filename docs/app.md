@@ -34,7 +34,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera) y el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
 `app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
@@ -304,6 +304,21 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   tramos de cada carrera) y, aparte, los tramos marcados como físico con su pérdida, que no
   cuentan como error. La tabla da tipos y subtipos con errores, % y pérdida, la fila de sin tipo,
   el total y la de físico.
+- **Cansancio (P14)** (`FatiguePanel.tsx`), la última. Empieza con un **aviso de dato débil**
+  (el pulso de muñeca llega con retraso, da saltos y en un tramo corto apenas reacciona) y una
+  línea con cuántas carreras aportan pulso (las que tienen FIT con pulso). Tres paneles, todos
+  por tercio de carrera y con `n` bajo cada columna o grupo:
+  - «Deriva del pulso»: una columna por tercio con pulso / velocidad de los tramos limpios
+    frente a lo habitual en cada carrera (línea del 100 %, «Lo habitual»). La tabla añade el
+    pulso medio y el ritmo en movimiento.
+  - «Pulso antes del error»: columnas agrupadas (antes de un error y antes de un tramo limpio)
+    con el pulso del tramo anterior en ppm sobre la mediana de su carrera; debajo, `n` de cada
+    serie. La descripción dice cuántos errores no tienen pulso del anterior. La tabla da también
+    el pulso en ppm.
+  - «Esfuerzo percibido»: columnas agrupadas (errores, limpios y físico) con el esfuerzo medio
+    apuntado en las etiquetas; sin ninguno, lo dice.
+
+  Las definiciones están en `docs/historico.md`, "¿El cansancio anticipa el error? (P14)".
 
 ## Diseño
 
@@ -361,7 +376,8 @@ Piezas:
   anillo del color de la superficie y un cursor vertical que se ajusta al punto más cercano.
 - `MultiLineChart`: varias líneas sobre los mismos puntos, la destacada (el corredor) más
   gruesa, etiqueta directa al final de cada línea y tooltip con el valor de cada serie.
-- `GroupedColumnChart`: columnas agrupadas, una por serie y punto, con 2 px de separación.
+- `GroupedColumnChart`: columnas agrupadas, una por serie y punto, con 2 px de separación, y
+  una segunda línea de etiqueta opcional en el eje X (p. ej. el número de casos de cada grupo).
 - `common.tsx`: tamaño, rejilla con marcas, tooltip (al lado de la marca, para no taparla) y
   leyenda (cuadrado para barras, raya para líneas). Con dos o más series siempre hay leyenda.
 - Dos medidas de escala distinta nunca comparten eje: van en paneles separados.

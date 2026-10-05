@@ -9,7 +9,8 @@
 //! track guardado se alinea y se trocea como en el mapa ([`crate::race_map::aligned_legs`]) y
 //! las métricas son las de [`tramos_core::metrics::leg_metrics`].
 //!
-//! Para P9 (errores más comunes) hacen falta las etiquetas de los tramos de cada carrera.
+//! Para P9 (errores más comunes) hacen falta las etiquetas de los tramos de cada carrera, y
+//! para P14 (cansancio), las métricas del FIT y las etiquetas a la vez.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -19,6 +20,7 @@ use serde::Serialize;
 use tramos_core::after_error::{AfterError, after_error};
 use tramos_core::common_errors::{CommonErrors, TaggedRace, common_errors};
 use tramos_core::days_off::{DaysOff, days_off};
+use tramos_core::fatigue::{Fatigue, FatigueRace, fatigue};
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, TrackedRace, history, race_stats,
 };
@@ -62,6 +64,10 @@ pub struct HistoryView {
     /// Errores más comunes (P9): reparto por tipo y subtipo de las etiquetas, en total, por
     /// formato y por duración del tramo, con el mismo filtro.
     pub common_errors: CommonErrors,
+    /// ¿El cansancio anticipa el error? (P14): deriva del pulso, pulso antes del error y
+    /// esfuerzo percibido por tercio de carrera, con el mismo filtro. El pulso solo sale de las
+    /// carreras con track (y pulso); el esfuerzo, de las etiquetas.
+    pub fatigue: Fatigue,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
     /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
@@ -157,6 +163,15 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         .zip(&tags)
         .map(|(race, tags)| TaggedRace { race, tags })
         .collect();
+    let fatigue_races: Vec<FatigueRace<'_>> = tracked
+        .iter()
+        .zip(&tags)
+        .map(|(t, tags)| FatigueRace {
+            race: t.race,
+            leg_metrics: t.leg_metrics,
+            tags,
+        })
+        .collect();
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
@@ -171,6 +186,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         loss_breakdown: breakdown_history(&tracked, filter),
         after_error: after_error(&tracked, filter),
         common_errors: common_errors(&tagged, filter),
+        fatigue: fatigue(&fatigue_races, filter),
     })
 }
 
@@ -717,5 +733,72 @@ mod tests {
         let sprint = &view.common_errors.by_format[0];
         assert_eq!(sprint.format, Some(RaceFormat::Sprint));
         assert_eq!((sprint.total.errors, sprint.total.untyped), (n - 1, n - 2));
+    }
+
+    /// P14: el pulso sale de la carrera con FIT (el sintético tiene pulso en todos los tramos);
+    /// la copia sin track solo cuenta sus errores sin pulso. El esfuerzo sale de las etiquetas.
+    #[test]
+    fn fatigue_uses_the_track_and_the_tags() {
+        use tramos_core::history::race_third;
+        use tramos_core::taxonomy::{Confirmation, LegTag};
+        let (mut store, result_id) = two_races_with(true);
+        let lost = race_detail(&store, result_id).unwrap().report.lost_time;
+        let counted: Vec<_> = pattern_legs(&lost).collect();
+        let errors: Vec<usize> = counted
+            .iter()
+            .filter(|l| l.is_error)
+            .map(|l| l.index)
+            .collect();
+        assert!(errors.len() >= 2, "el fixture tiene al menos dos errores");
+        let errors_after_first = counted[1..].iter().filter(|l| l.is_error).count();
+        let effort = LegTag {
+            effort: Some(8),
+            ..LegTag::default()
+        };
+        let physical = LegTag {
+            confirmation: Some(Confirmation::Physical),
+            ..LegTag::default()
+        };
+        crate::tags::save_leg_tag(&mut store, result_id, errors[0], effort).unwrap();
+        crate::tags::save_leg_tag(&mut store, result_id, errors[1], physical).unwrap();
+
+        let f = history_view(&store, &HistoryFilter::default())
+            .unwrap()
+            .fatigue;
+        assert_eq!(
+            (f.races_with_heart_rate, f.races_without_heart_rate),
+            (1, 1)
+        );
+        assert_eq!(f.by_third.len(), 3);
+        let sum = |get: fn(&tramos_core::fatigue::ThirdFatigue) -> usize| -> usize {
+            f.by_third.iter().map(get).sum()
+        };
+        // Cada tramo que cuenta salvo el primero, en la carrera con FIT: antes de error o de
+        // limpio, salvo el físico.
+        assert_eq!(sum(|t| t.before_error.legs), errors_after_first - 1);
+        assert_eq!(
+            sum(|t| t.before_clean.legs),
+            counted.len() - 1 - errors_after_first
+        );
+        // La copia no tiene pulso: sus errores no se comparan.
+        assert_eq!(f.errors_without_heart_rate, errors_after_first);
+        // Deriva: todos los tramos limpios de la carrera con FIT.
+        assert_eq!(sum(|t| t.drift.legs), counted.len() - errors.len());
+        for t in &f.by_third {
+            for hr in [
+                t.before_error.mean_heart_rate_bpm,
+                t.drift.mean_heart_rate_bpm,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                assert!((90.0..=200.0).contains(&hr), "pulso {hr}");
+            }
+        }
+        // Esfuerzo: el del primer error, en su tercio.
+        let third = race_third(errors[0], lost.legs.len());
+        assert_eq!(f.by_third[third].effort_error.legs, 1);
+        assert_eq!(f.by_third[third].effort_error.mean_effort, Some(8.0));
+        assert_eq!(sum(|t| t.effort_error.legs + t.effort_physical.legs), 1);
     }
 }

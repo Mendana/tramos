@@ -74,6 +74,10 @@ P13 (`tramos_core::slope`, `docs/historico.md`) usa la subida y la bajada de cad
 entre su distancia recorrida (m por cada 100 m) para clasificarlo en subida, llano o bajada; no
 clasifica los tramos de menos de 50 m recorridos, donde este error ya pesa demasiado.
 
+P14 (`tramos_core::fatigue`, `docs/historico.md`) usa el pulso medio (`heart_rate_bpm`) y la
+velocidad en movimiento (`moving_speed_mps`) de cada tramo, siempre frente a la mediana de su
+carrera: el pulso de muñeca cambia mucho de un día a otro.
+
 ## Opciones (`MetricsOptions`, valores por defecto)
 
 | Opción | Valor | Qué es |

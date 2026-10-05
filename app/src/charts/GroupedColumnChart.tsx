@@ -17,10 +17,12 @@ export interface ColumnSeries {
 
 const MAX_BAR = 16;
 const GAP = 2;
+const SUBLABEL_GAP = 14;
 
 export function GroupedColumnChart({
   series,
   xLabels,
+  xSublabels,
   tooltipTitle,
   formatValue,
   formatTick,
@@ -28,6 +30,8 @@ export function GroupedColumnChart({
 }: {
   series: ColumnSeries[];
   xLabels: string[];
+  /** Segunda línea de cada etiqueta del eje X (p. ej. el número de casos del grupo). */
+  xSublabels?: string[];
   tooltipTitle: (i: number) => { value: string; detail: string };
   formatValue: (value: number | null) => string;
   formatTick: (value: number) => string;
@@ -40,7 +44,8 @@ export function GroupedColumnChart({
   const values = series.flatMap((s) => s.values.flatMap((v) => (v === null ? [] : [v])));
   const { domain, ticks } = niceDomain(Math.min(...values, 0), Math.max(...values, 0));
   const plotW = Math.max(width - MARGIN.left - MARGIN.right, 0);
-  const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
+  // Con segunda línea de etiquetas, el eje X necesita una línea más.
+  const plotH = HEIGHT - MARGIN.top - MARGIN.bottom - (xSublabels !== undefined ? SUBLABEL_GAP : 0);
   const y = linear(domain, [MARGIN.top + plotH, MARGIN.top]);
   const n = xLabels.length;
   const band = n > 0 ? plotW / n : 0;
@@ -84,6 +89,16 @@ export function GroupedColumnChart({
                     textAnchor="middle"
                   >
                     {xl}
+                  </text>
+                )}
+                {i % labelEvery === 0 && xSublabels?.[i] !== undefined && (
+                  <text
+                    className="chart-tick"
+                    x={x(i) + band / 2}
+                    y={MARGIN.top + plotH + 18 + SUBLABEL_GAP}
+                    textAnchor="middle"
+                  >
+                    {xSublabels[i]}
                   </text>
                 )}
                 <rect

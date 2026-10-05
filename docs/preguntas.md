@@ -78,6 +78,8 @@ error del primer tercio de la carrera.
 - Antes del error: pulso medio en el tramo previo a un error frente al de tramos previos a tramos
   limpios, en la misma fase de carrera.
 - Esfuerzo percibido de las etiquetas, cuando exista.
+Fases por número de tramos (tercios del recorrido), valores relativos a cada carrera y qué es
+error según las etiquetas: `docs/historico.md`, "¿El cansancio anticipa el error? (P14)".
 
 ## Tanda 4: entrenadora
 

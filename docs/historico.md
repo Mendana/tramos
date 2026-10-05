@@ -218,7 +218,8 @@ dibuja en la sección «Días sin competir» (`docs/app.md`, "Vista histórica")
     sustituye por el cuarto: la pregunta es por el principio de la carrera.
   - **Errores del primer tercio**: los tramos que cuentan con `index ≤ ⌈L / 3⌉`, siendo `L` el
     número de tramos del recorrido (con el último): 21 tramos → los 7 primeros. Por número de
-    tramos y no por tiempo, que con picadas que faltan no se sabe. `first_third_legs`,
+    tramos y no por tiempo, que con picadas que faltan no se sabe. Es el primero de los tercios
+    de `tramos_core::history::race_third`, que usa también P14. `first_third_legs`,
     `first_third_errors` y `first_third_error_rate` = errores / tramos.
   - Siempre salen los cuatro cubos, en orden; uno vacío tiene las medias a `null`.
 - **Referencias**: la pantalla compara el IR de entrada con el IR medio del total y la tasa del
@@ -434,3 +435,100 @@ navegación 3 errores y 105 s (paralelo 2 y 45 s, pasarse 1 y 60 s) y ataque 1 y
 subtipo), porque un error marcado por el corredor puede no tener pérdida. Un error confirmado en el
 último tramo y otro en un tramo de referencia corta no cuentan, ni una carrera sin rendimiento
 habitual.
+
+## ¿El cansancio anticipa el error? (P14)
+
+«¿El cansancio anticipa el error?» (`docs/preguntas.md`, P14). Implementado en
+`tramos_core::fatigue` (#34) con las métricas del FIT de cada tramo (`docs/metricas.md`) y las
+etiquetas (`docs/taxonomia.md`). El comando `history` lo devuelve en `fatigue` y la pantalla lo
+dibuja en la sección «Cansancio» (`docs/app.md`, "Vista histórica").
+
+**Es un dato débil.** El pulso de muñeca llega con segundos de retraso, da saltos y en un tramo
+corto apenas reacciona; además se mezclan pocas carreras. La pantalla lo avisa siempre y enseña
+`n` en cada columna.
+
+- **Mismas carreras y tramos:** las del histórico con el mismo filtro y, de cada una, sus tramos
+  que cuentan (`pattern_legs`).
+- **Qué fue cada tramo:** `leg_status` de P9: manda la etiqueta («No» deja limpio un error del
+  cálculo) y lo marcado como **físico no es error ni limpio**: no entra en la deriva ni como
+  tramo siguiente en «antes del error» (sí como anterior: su pulso vale igual).
+- **Fase de carrera:** el tercio del tramo por número de tramos del recorrido (con el último):
+  primero hasta `⌈L / 3⌉`, segundo hasta `⌈2L / 3⌉` y tercero el resto
+  (`history::race_third`): 21 tramos → 1–7, 8–14 y 15–21; 10 → 1–4, 5–7 y 8–10. Generaliza el
+  primer tercio de P11; por tramos y no por tiempo, que con picadas que faltan no se sabe.
+- **Pulso de la carrera:** una carrera aporta pulso si al menos 3 (`MIN_LEGS`) de sus tramos que
+  cuentan tienen pulso medio. Las demás (sin FIT, sin pulso o con pocos tramos con pulso) se
+  cuentan en `races_without_heart_rate` y solo aportan esfuerzo.
+
+### Valores relativos a cada carrera
+
+El pulso cambia mucho de un día a otro (calor, formato, descanso) y la velocidad, con el
+terreno. Mezclar el pulso en ppm de carreras distintas compararía días, no fases. Por eso las dos
+medidas del pulso son **relativas a la mediana de su carrera**, como la velocidad de P8:
+
+- `p_c`: mediana del pulso medio de los tramos que cuentan de la carrera (con o sin error).
+- `r_c`: mediana de `pulso / velocidad en movimiento` de sus tramos **limpios**, si hay al menos
+  3; si no, la carrera no aporta deriva.
+
+Los ppm y la velocidad sin normalizar salen al lado, en la tabla, como referencia.
+
+### Deriva (`drift`)
+
+Por tercio, en los tramos limpios con pulso y velocidad de las carreras con `r_c`:
+
+| Campo | Definición |
+| --- | --- |
+| `legs` | n. |
+| `mean_relative_ratio` | Media de `(pulso / velocidad) / r_c` (1 = lo habitual en esa carrera). Si sube en el último tercio, el corredor necesita más pulso para ir igual de rápido: deriva cardiaca, cansancio. |
+| `mean_heart_rate_bpm`, `mean_speed_mps` | Medias simples del pulso y la velocidad de esos tramos. |
+
+Solo los limpios: un error baja la velocidad sin que sea cansancio. Media simple: cada tramo pesa
+lo mismo (el pulso de cada tramo ya está ponderado por el tiempo).
+
+### Antes del error (`before_error`, `before_clean`)
+
+Como en P8, el «tramo anterior» es el anterior de la secuencia de tramos que cuentan (los
+excluidos ni cuentan ni cortan) y el primero de cada carrera no tiene anterior. Cada tramo que
+sigue a otro va, en **su** tercio, a `before_error` si es error o a `before_clean` si es limpio
+(los físicos, a ninguno), con el pulso medio del tramo anterior:
+
+| Campo | Definición |
+| --- | --- |
+| `legs` | n: tramos del grupo cuyo anterior tiene pulso. |
+| `mean_relative_bpm` | Media de `pulso del anterior − p_c` (ppm; positivo = más alto de lo habitual en esa carrera). |
+| `mean_heart_rate_bpm` | Media del pulso del anterior, sin normalizar. |
+
+Se compara en la **misma fase** porque el pulso sube a lo largo de la carrera: si los errores se
+concentraran al final, comparar todo junto daría más pulso antes del error sin que el pulso dijera
+nada. Los errores sin pulso del anterior (carrera sin pulso o anterior sin sub-track) se cuentan
+en `errors_without_heart_rate`.
+
+### Esfuerzo percibido (`effort_error`, `effort_clean`, `effort_physical`)
+
+El esfuerzo (1–10) que el corredor apunta en la etiqueta de un tramo (nivel 3), por tercio y
+según el estado del tramo (error, limpio o físico): `legs` (tramos con esfuerzo, n) y
+`mean_effort`. Es el del **propio tramo**, no el del anterior: es cuando el corredor lo nota, y lo
+apunta sobre todo en los errores. No necesita FIT: cuentan todas las carreras.
+
+### Ejemplo de test
+
+`crates/tramos-core/src/fatigue.rs`, con `o` limpio y `x` error:
+
+- **A** (10 tramos: tercios 1–4, 5–7 y 8–10), con FIT. Limpios 1, 2, 4, 5, 7 y 8 con
+  pulso / velocidad 45, 50, 50, 50, 55 y 60 → `r_c` = 50; errores 3, 6 y 9. Pulsos 135, 150,
+  158, 155, 160, 170, 165, 168 y 172 → `p_c` = 160.
+- **B**, sin FIT: solo esfuerzo. **C**, con FIT: un físico, un error del cálculo marcado «No»,
+  un tramo sin sub-track y solo dos limpios con velocidad (sin deriva). Pulsos 150, 160, 155 y
+  170 → `p_c` = 157,5. **D**, sin rendimiento habitual: no cuenta.
+
+Resultados:
+
+- Deriva: 1.er tercio (0,9 + 1 + 1) / 3 = **96,7 %** (n = 3); 2.º (1,0 + 1,1) / 2 = **105 %**;
+  3.º **120 %**.
+- Antes del error / antes de limpio: 1.er tercio −10 ppm (n = 1) frente a (−25 − 2) / 2 =
+  **−13,5 ppm** (n = 2); 2.º 0 frente a (−5 + 10 + 2,5 − 2,5) / 4 = **+1,25 ppm** (n = 4, con
+  los dos de C); 3.º **+8** frente a **+5**. El tramo de C que sigue al físico no entra; su error
+  tras el tramo sin sub-track y el error de B (sin FIT) van a `errors_without_heart_rate` = 2.
+- Esfuerzo: 1.er tercio error 8, limpio 5 (marcado «No») y físico 9; 2.º errores (9 + 6) / 2 =
+  **7,5** y limpio 4 (un error del cálculo marcado «No»); 3.º error 7. No cuentan el esfuerzo
+  del último tramo ni el de un tramo de referencia corta.

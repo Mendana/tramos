@@ -157,12 +157,36 @@
   gap: var(--space-3);
 }
 
+/* El título no se parte aunque el texto de al lado sea largo: el que se ajusta es el texto. */
+.card-title > h3 {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .section-title {
   font-size: var(--text-sm);
   font-weight: 650;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* --- Filtros (vista histórica) --- */
+
+.history-filters {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: var(--space-4);
+}
+
+.history-filters .input {
+  width: 168px;
+}
+
+.table tr.total-row td {
+  border-top: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
 }
 
 /* --- Avisos --- */

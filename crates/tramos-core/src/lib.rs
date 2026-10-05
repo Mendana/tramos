@@ -5,6 +5,7 @@ pub mod alignment;
 pub mod comparison;
 pub mod courses;
 pub mod gain_loss;
+pub mod history;
 pub mod identify;
 pub mod importers;
 pub mod lost_time;

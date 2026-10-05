@@ -187,6 +187,51 @@ export interface CourseComparison {
   runners: ComparedRunner[];
 }
 
+/** Qué carreras entran en el histórico. `null` = sin filtro; fechas `AAAA-MM-DD`, incluidas. */
+export interface HistoryFilter {
+  from: string | null;
+  to: string | null;
+  format: RaceFormat | null;
+}
+
+/** Números agregados de un grupo de carreras (`docs/historico.md`). */
+export interface HistoryStats {
+  /** Carreras con números. */
+  races: number;
+  /** Tramos que cuentan: con pérdida, sin el último ni los de referencia corta. */
+  legs: number;
+  errors: number;
+  /** Media del rendimiento habitual de cada carrera (1 = 100 %). */
+  mean_performance: number | null;
+  /** Errores / tramos (0–1). */
+  error_rate: number | null;
+  /** Pérdida de los errores repartida entre los tramos (s). */
+  mean_loss_s: number | null;
+  /** Lo mismo en % del tiempo esperado. */
+  mean_loss_pct: number | null;
+}
+
+export interface FormatHistory {
+  /** `null` = carreras sin formato. */
+  format: RaceFormat | null;
+  stats: HistoryStats;
+}
+
+export interface HistoryView {
+  /** Carreras del usuario sin filtrar. */
+  all_races: number;
+  first_date: string | null;
+  last_date: string | null;
+  config: LostTimeConfig;
+  history: {
+    filter: HistoryFilter;
+    /** Sprint, media y larga (o solo el formato del filtro) y, si hay, las sin formato. */
+    by_format: FormatHistory[];
+    total: HistoryStats;
+    races_without_data: number;
+  };
+}
+
 export const FORMAT_LABELS: Record<RaceFormat, string> = {
   sprint: "Sprint",
   middle: "Media",
@@ -230,6 +275,9 @@ export const raceDetail = (resultId: number) =>
 
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });
+
+export const getHistory = (filter: HistoryFilter) =>
+  invoke<HistoryView>("history", { filter });
 
 /** Duración redondeada al segundo: `m:ss`, o `h:mm:ss` desde una hora (como la CLI). */
 export function clock(seconds: number | null): string {

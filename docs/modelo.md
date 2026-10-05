@@ -113,3 +113,11 @@ corredor lo confirma (P6 en `docs/preguntas.md`), y se guarda en la carrera.
 distancia recorrida y en línea recta, tiempo en movimiento, parado y en huecos, velocidad en
 movimiento, subida y bajada con la altitud suavizada, pulso y cadencia medios. Definiciones y
 JSON en `docs/metricas.md`.
+
+## Histórico
+
+`tramos_core::history::history(&[HistoryRace], &HistoryFilter) -> History` agrega el tiempo
+perdido de muchas carreras del corredor por formato y en total (P6): número de carreras, IR
+medio, tasa de error y pérdida media por tramo, con filtros de fechas y formato.
+`pattern_legs` da los tramos que cuentan en los análisis de patrones. Definiciones en
+`docs/historico.md`.

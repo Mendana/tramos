@@ -6,6 +6,7 @@ pub mod import;
 pub mod race_map;
 pub mod races;
 pub mod settings;
+pub mod tags;
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -15,6 +16,7 @@ use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
 use tramos_core::loss_breakdown::RaceBreakdown;
 use tramos_core::race_format::RaceFormat;
+use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::Store;
 
 use crate::history::HistoryView;
@@ -22,6 +24,7 @@ use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
 use crate::settings::Settings;
+use crate::tags::TagView;
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
 const DATABASE_FILE: &str = "tramos.sqlite";
@@ -124,6 +127,29 @@ fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap
     race_map::race_map(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Taxonomía de errores con la que se etiqueta (`docs/taxonomia.md`).
+#[tauri::command]
+fn taxonomy() -> Result<Taxonomy, String> {
+    tags::taxonomy().map_err(|e| e.to_string())
+}
+
+/// Etiquetas de los tramos de un resultado.
+#[tauri::command]
+fn leg_tags(state: tauri::State<'_, AppState>, result_id: i64) -> Result<Vec<TagView>, String> {
+    tags::leg_tags(&*state.store()?, result_id).map_err(|e| e.to_string())
+}
+
+/// Guarda la etiqueta de un tramo; vacía, la borra (`null`).
+#[tauri::command]
+fn save_leg_tag(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    leg_index: usize,
+    tag: LegTag,
+) -> Result<Option<TagView>, String> {
+    tags::save_leg_tag(&mut *state.store()?, result_id, leg_index, tag).map_err(|e| e.to_string())
+}
+
 /// Histórico de las carreras del usuario por formato (P6), con filtros de fechas y formato.
 #[tauri::command]
 fn history(
@@ -159,6 +185,9 @@ pub fn run() -> tauri::Result<()> {
             race_breakdown,
             set_race_format,
             race_map,
+            taxonomy,
+            leg_tags,
+            save_leg_tag,
             history
         ])
         .run(tauri::generate_context!())

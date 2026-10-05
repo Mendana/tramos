@@ -115,6 +115,14 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+export function PencilIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" />
+    </Svg>
+  );
+}
+
 type NoticeKind = "info" | "warning" | "error" | "success";
 
 /** Aviso con color según su tipo. Los de error se anuncian a los lectores de pantalla. */

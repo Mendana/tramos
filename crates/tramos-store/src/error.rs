@@ -41,6 +41,10 @@ pub enum StoreError {
     #[error("el resultado {result} ya está vinculado a la persona {person}")]
     ResultAlreadyLinked { result: i64, person: i64 },
 
+    /// Los tramos se numeran desde 1.
+    #[error("tramo inválido: {0} (se numeran desde 1)")]
+    InvalidLegIndex(usize),
+
     /// Un valor guardado no corresponde a ningún valor del modelo.
     #[error("dato inválido en la base de datos: {0}")]
     InvalidData(String),

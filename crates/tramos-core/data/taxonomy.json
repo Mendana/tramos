@@ -1,0 +1,68 @@
+{
+  "version": "0",
+  "types": [
+    {
+      "key": "control_exit",
+      "label": "Salida de baliza",
+      "subtypes": [
+        { "key": "wrong_direction", "label": "Salir en mala dirección" },
+        { "key": "no_plan", "label": "No planificar antes de picar" }
+      ]
+    },
+    {
+      "key": "route_choice",
+      "label": "Elección de ruta",
+      "subtypes": [
+        { "key": "slower_route", "label": "Ruta más lenta" },
+        { "key": "missed_alternative", "label": "No ver la alternativa" },
+        { "key": "terrain_misjudged", "label": "Mal cálculo de desnivel o terreno" }
+      ]
+    },
+    {
+      "key": "navigation",
+      "label": "Navegación",
+      "subtypes": [
+        { "key": "bearing", "label": "Dirección o rumbo" },
+        { "key": "parallel", "label": "Paralelo" },
+        { "key": "overshoot", "label": "Pasarse" },
+        { "key": "lost_contact", "label": "Perder contacto con el mapa" }
+      ]
+    },
+    {
+      "key": "attack",
+      "label": "Ataque",
+      "subtypes": [
+        { "key": "attack_point", "label": "Mal punto de ataque" },
+        { "key": "rushed_finish", "label": "Precipitación al final" },
+        { "key": "confusing_area", "label": "Zona confusa junto a la baliza" }
+      ]
+    },
+    {
+      "key": "physical",
+      "label": "Físico",
+      "description": "Bajada de ritmo sin error de orientación",
+      "subtypes": [
+        { "key": "fatigue", "label": "Cansancio" },
+        { "key": "terrain", "label": "Desnivel o terreno" }
+      ]
+    },
+    {
+      "key": "other",
+      "label": "Otro",
+      "subtypes": [
+        { "key": "punching", "label": "Problema con la picada" },
+        { "key": "fall", "label": "Caída" },
+        { "key": "following", "label": "Seguir a otro corredor" },
+        { "key": "distraction", "label": "Distracción" }
+      ]
+    }
+  ],
+  "causes": [
+    { "key": "rush", "label": "Precipitación" },
+    { "key": "lack_of_focus", "label": "Falta de concentración" },
+    { "key": "fatigue", "label": "Cansancio" },
+    { "key": "poor_planning", "label": "Planificación insuficiente" },
+    { "key": "other_runners", "label": "Otros corredores" },
+    { "key": "unreadable_map", "label": "Mapa poco legible" }
+  ]
+}

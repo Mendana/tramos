@@ -5,6 +5,7 @@ pub mod batch;
 pub mod clock_offset;
 pub mod history;
 pub mod import;
+pub mod package;
 pub mod race_map;
 pub mod races;
 pub mod settings;
@@ -17,9 +18,10 @@ use tramos_core::comparison::CourseComparison;
 use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
 use tramos_core::loss_breakdown::RaceBreakdown;
+use tramos_core::package::ShareLevel;
 use tramos_core::race_format::RaceFormat;
 use tramos_core::taxonomy::{LegTag, Taxonomy};
-use tramos_store::Store;
+use tramos_store::{SaveOutcome, Store};
 
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
@@ -162,6 +164,34 @@ fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap
     race_map::race_map(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Exporta el paquete de una carrera del usuario a una carpeta (`docs/paquete.md`) con el nivel
+/// de permiso elegido. Devuelve la ruta del fichero.
+#[tauri::command]
+fn export_race_package(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    level: ShareLevel,
+    folder_path: String,
+) -> Result<String, String> {
+    package::export_package(&mut *state.store()?, result_id, level, &folder_path)
+        .map_err(|e| e.to_string())
+}
+
+/// Importa el paquete de otro corredor: `created`, `replaced` o `ignored_older`.
+#[tauri::command]
+fn import_race_package(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<&'static str, String> {
+    let outcome =
+        package::import_package(&mut *state.store()?, &path).map_err(|e| e.to_string())?;
+    Ok(match outcome {
+        SaveOutcome::Created => "created",
+        SaveOutcome::Replaced => "replaced",
+        SaveOutcome::IgnoredOlder => "ignored_older",
+    })
+}
+
 /// Taxonomía de errores con la que se etiqueta (`docs/taxonomia.md`).
 #[tauri::command]
 fn taxonomy() -> Result<Taxonomy, String> {
@@ -223,6 +253,8 @@ pub fn run() -> tauri::Result<()> {
             race_offset,
             set_race_offset,
             race_map,
+            export_race_package,
+            import_race_package,
             taxonomy,
             leg_tags,
             save_leg_tag,

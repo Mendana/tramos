@@ -23,7 +23,7 @@ fitparser = "0.11"
 # `bundled` compila SQLite dentro del crate: no hace falta SQLite del sistema (Windows).
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.11"
 tempfile = "3"
 thiserror = "2"

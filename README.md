@@ -17,6 +17,7 @@ busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de 
 - [CLI de desarrollo (`tramos analizar`)](docs/cli.md)
 - [Taxonomía de errores](docs/taxonomia.md)
 - [Datos y privacidad](docs/datos-y-privacidad.md)
+- [Paquete por carrera (corredor → entrenadora)](docs/paquete.md)
 - [Cómo trabajamos con agentes](docs/trabajo-con-agentes.md)
 
 ## Desarrollo

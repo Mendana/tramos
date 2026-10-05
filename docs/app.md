@@ -102,7 +102,9 @@ número de errores) y si tiene track del reloj. Una fila abre la vista de la car
   puede corregir (#97). El cambio se guarda al momento y mueve la carrera de grupo en la vista
   histórica.
 - **Totales**: tiempo, tiempo perdido, tiempo sin errores, número de errores y rendimiento
-  habitual. Aviso si la referencia es débil.
+  habitual, con la consistencia de la carrera debajo («Consistencia ± 23 %», P10,
+  `docs/tiempo-perdido.md`): van juntos porque son el centro y la dispersión del IR. Aviso si la
+  referencia es débil.
 - **Tabla de tramos**: tramo, balizas (S = salida, M = meta), split, puesto en el tramo,
   referencia, IR, pérdida en segundos y en % y notas (error, último tramo, referencia corta). Los
   tramos con error van resaltados.
@@ -212,10 +214,11 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
 
 - **Filtros**: desde y hasta (fechas incluidas) y formato (todos, sprint, media, larga). Cambiar
   uno vuelve a pedir el histórico. «Quitar filtros» los borra.
-- **Cifras** del total: carreras, IR medio, tasa de error y pérdida media por tramo.
+- **Cifras** del total: carreras, IR medio (con la consistencia media debajo, P10), tasa de
+  error y pérdida media por tramo.
 - **Tabla por formato**: sprint, media y larga (aunque no tengan carreras) y, si hay, las
   carreras sin formato, más la fila del total: carreras, tramos que cuentan, errores, IR medio,
-  tasa de error y pérdida media por tramo en segundos y en %. Debajo del título, qué tramos
+  tasa de error, pérdida media por tramo en segundos y en % y consistencia media. Debajo del título, qué tramos
   cuentan y los umbrales de error.
 - **Carreras** (#98): las que entran con los filtros, de la más reciente a la más antigua, con
   fecha, nombre, formato, categoría y sus números (IR, tramos que cuentan, errores, tasa de error
@@ -238,6 +241,10 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   es poco fiable. Va la tasa en la gráfica porque es la respuesta directa a «¿fallo más en los
   tramos largos o en los cortos?» y `n` es su denominador; la tabla añade la pérdida media por
   tramo en % y en segundos. Los cubos vacíos salen sin columna y con `n = 0`.
+- **Consistencia (P10)** (`ConsistencyPanel.tsx`): panel «Consistencia por carrera». Línea con
+  la consistencia de cada carrera que la tiene (`races[].stats.mean_consistency`), de la más
+  antigua a la más reciente, con un marcador por carrera; la descripción da la media con esos
+  filtros y la tabla, fecha, carrera, formato y consistencia. Las carreras sin valor no salen.
 
 ## Diseño
 

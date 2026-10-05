@@ -18,6 +18,8 @@ export interface LinePoint {
 }
 
 const MARKER_R = 4;
+/** Lo que una etiqueta centrada puede salirse por la derecha antes de alinearla a su final. */
+const LABEL_OVERFLOW = 4;
 
 export function LineChart({
   points,
@@ -25,6 +27,7 @@ export function LineChart({
   label,
   color = "var(--chart-series-1)",
   markerColor = color,
+  labelSpacing = 28,
 }: {
   points: LinePoint[];
   formatTick: (value: number) => string;
@@ -32,6 +35,8 @@ export function LineChart({
   label: string;
   color?: string;
   markerColor?: string;
+  /** Separación mínima entre etiquetas del eje X (px): si no caben todas, se salta alguna. */
+  labelSpacing?: number;
 }) {
   const { ref, width } = useWidth();
   const [active, setActive] = useState<number | null>(null);
@@ -43,7 +48,7 @@ export function LineChart({
   const y = linear(domain, [MARGIN.top + plotH, MARGIN.top]);
   const step = points.length > 1 ? plotW / (points.length - 1) : 0;
   const x = (i: number) => MARGIN.left + i * step;
-  const labelEvery = Math.max(1, Math.ceil(28 / Math.max(step, 1)));
+  const labelEvery = Math.max(1, Math.ceil(labelSpacing / Math.max(step, 1)));
 
   const runs = lineRuns(
     points.map((p) => p.value),
@@ -92,7 +97,7 @@ export function LineChart({
                   className="chart-tick"
                   x={x(i)}
                   y={MARGIN.top + plotH + 18}
-                  textAnchor="middle"
+                  textAnchor={x(i) + labelSpacing / 2 > width + LABEL_OVERFLOW ? "end" : "middle"}
                 >
                   {p.label}
                 </text>

@@ -286,6 +286,14 @@
   letter-spacing: -0.01em;
 }
 
+.stat-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
 .stat-error .stat-value {
   color: var(--error);
 }

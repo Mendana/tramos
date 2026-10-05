@@ -213,6 +213,8 @@ mod tests {
             error_rate: Some(errors as f64 / legs as f64),
             mean_loss_s: Some(loss / legs as f64),
             mean_loss_pct: Some(pct / legs as f64),
+            // La misma carrera dos veces: la consistencia media es la suya.
+            mean_consistency: lost.consistency,
         };
         assert_eq!(stats(&view, Some(RaceFormat::Sprint)), expected);
         assert_eq!(stats(&view, Some(RaceFormat::Middle)), expected);
@@ -226,6 +228,8 @@ mod tests {
             (2, 2 * legs, 2 * errors)
         );
         assert_eq!(total.error_rate, expected.error_rate);
+        assert!(lost.consistency.is_some());
+        assert_eq!(total.mean_consistency, lost.consistency);
         assert_eq!(view.history.races_without_data, 0);
     }
 

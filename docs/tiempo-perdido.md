@@ -136,6 +136,32 @@ Va en el informe del corredor (`tramos_core::runner_report`, el de `tramos anali
 no en `analyze_event`: por tramo `gain_s` y `cumulative_gain_s`, y en los totales
 `losing_streaks[]` con `first_leg`, `last_leg` y `loss_s`.
 
+## Consistencia (P10)
+
+¿Soy consistente? Cuánto varía el rendimiento de un tramo a otro dentro de una carrera
+(`tramos_core::consistency`, P10 de `docs/preguntas.md`):
+
+- **Consistencia** de la carrera: desviación típica de los `IR_i` ponderada por `ref_i`.
+  Con `w_i = ref_i`, `m = Σ w_i·IR_i / Σ w_i` y `consistencia = √(Σ w_i·(IR_i − m)² / Σ w_i)`.
+  Menor = más consistente; 0 = el mismo IR en todos los tramos. Se da como fracción, igual que el
+  IR (0,083 = 8,3 puntos de IR; la app lo escribe «± 8,3 %»).
+- **Tramos**: los de los análisis de patrones (`pattern_legs`): con IR, sin el último ni los de
+  referencia corta (ver "Exclusiones"). El último tramo, un esprint hasta meta, y los muy cortos,
+  donde un par de segundos mueven mucho el IR, darían una dispersión que no habla de cómo se ha
+  corrido la carrera. Son además los mismos tramos que cuenta el histórico.
+- **Desviación de población** (dividir entre `Σ w_i`, sin corrección de Bessel): los pesos son
+  duraciones, no repeticiones, y la corrección no tiene sentido con ellos.
+- **Alrededor de la media ponderada**, no del rendimiento habitual (que es una mediana): es la
+  definición de siempre de la desviación típica y no depende de cómo se elige el habitual.
+- Con **menos de 2 tramos** que cuenten, no hay valor (`null`): con uno saldría siempre 0.
+
+Ejemplo: IR 1,0 (ref 60 s), 0,8 (ref 120 s) y 1,2 (ref 60 s). `m = (60 + 96 + 72) / 240 =
+0,95`; varianza `(60·0,05² + 120·0,15² + 60·0,25²) / 240 = 6,6 / 240 = 0,0275`; consistencia
+`√0,0275 = 0,1658` (± 16,6 %). Con pesos iguales, IR 0,9 y 1,1 dan 0,1.
+
+Va en los totales del informe del corredor (`consistency`). En el histórico, cada grupo da la
+media de la consistencia de sus carreras (`docs/historico.md`).
+
 ## Salida (`tramos_core::lost_time`)
 
 `analyze_event(&Event, &LostTimeConfig) -> LostTimeReport` (o `analyze_course` para un

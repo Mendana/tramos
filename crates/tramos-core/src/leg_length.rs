@@ -229,6 +229,7 @@ mod tests {
                 ideal_time_s: None,
                 behind_ideal_s: None,
                 losing_streaks: Vec::new(),
+                consistency: None,
                 legs,
             },
         }

@@ -66,6 +66,9 @@ pub struct HistoryStats {
     /// Lo mismo en % del tiempo esperado: media de `loss_pct` de los tramos con error y 0 en los
     /// demás. Comparable entre formatos, que tienen tramos de duraciones muy distintas.
     pub mean_loss_pct: Option<f64>,
+    /// Consistencia media (P10): media de la consistencia de cada carrera que la tiene
+    /// ([`crate::consistency`]; 1 = 100 puntos de IR). Menor = más consistente.
+    pub mean_consistency: Option<f64>,
 }
 
 /// Un formato (o las carreras sin formato, con `format: None`) y sus números.
@@ -108,6 +111,8 @@ struct Accumulator {
     errors: usize,
     loss_sum_s: f64,
     loss_sum_pct: f64,
+    consistency_races: usize,
+    consistency_sum: f64,
 }
 
 impl Accumulator {
@@ -115,6 +120,10 @@ impl Accumulator {
     fn add(&mut self, usual: f64, lost_time: &RunnerLostTime) {
         self.races += 1;
         self.performance_sum += usual;
+        if let Some(c) = lost_time.consistency {
+            self.consistency_races += 1;
+            self.consistency_sum += c;
+        }
         for leg in pattern_legs(lost_time) {
             self.legs += 1;
             if leg.is_error {
@@ -136,6 +145,8 @@ impl Accumulator {
             error_rate: per_leg(self.errors as f64),
             mean_loss_s: per_leg(self.loss_sum_s),
             mean_loss_pct: per_leg(self.loss_sum_pct),
+            mean_consistency: (self.consistency_races > 0)
+                .then(|| self.consistency_sum / self.consistency_races as f64),
         }
     }
 }
@@ -292,6 +303,7 @@ mod tests {
                 ideal_time_s: None,
                 behind_ideal_s: None,
                 losing_streaks: Vec::new(),
+                consistency: None,
                 legs,
             },
         }
@@ -548,5 +560,27 @@ mod tests {
             serde_json::from_str(r#"{"from": null, "to": "2026-12-31", "format": "middle"}"#)
                 .unwrap();
         assert_eq!(f.format, Some(RaceFormat::Middle));
+    }
+
+    #[test]
+    fn mean_consistency_averages_the_races_that_have_it() {
+        let mut all = races();
+        // A 0,10, B 0,20, C sin consistencia, D 0,30. E no cuenta (sin habitual).
+        for (race, c) in all
+            .iter_mut()
+            .zip([Some(0.10), Some(0.20), None, Some(0.30), Some(0.50)])
+        {
+            race.lost_time.consistency = c;
+        }
+        let h = history(&all, &HistoryFilter::default());
+        close(group(&h, Some(RaceFormat::Sprint)).mean_consistency, 0.15);
+        assert_eq!(group(&h, Some(RaceFormat::Middle)).mean_consistency, None);
+        close(group(&h, None).mean_consistency, 0.30);
+        // (0,10 + 0,20 + 0,30) / 3: C no tiene y E no cuenta.
+        close(h.total.mean_consistency, 0.20);
+        close(
+            race_stats(&all[0].lost_time).unwrap().mean_consistency,
+            0.10,
+        );
     }
 }

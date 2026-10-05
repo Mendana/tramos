@@ -3,6 +3,7 @@
 
 pub mod alignment;
 pub mod comparison;
+pub mod consistency;
 pub mod courses;
 pub mod gain_loss;
 pub mod history;

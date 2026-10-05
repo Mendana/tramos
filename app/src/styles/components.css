@@ -165,6 +165,24 @@
   letter-spacing: 0.04em;
 }
 
+/* --- Filtros (vista histórica) --- */
+
+.history-filters {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: var(--space-4);
+}
+
+.history-filters .input {
+  width: 168px;
+}
+
+.table tr.total-row td {
+  border-top: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+}
+
 /* --- Avisos --- */
 
 .notice {

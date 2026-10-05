@@ -29,9 +29,10 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar y la fecha de la primera y la última. |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -200,6 +201,30 @@ y la tabla el recorrido (`docs/segmentacion.md`).
   un proveedor de teselas con clave o a uno propio.
 - Pedir teselas revela la zona que se mira (`docs/datos-y-privacidad.md`).
 
+## Vista histórica (P6)
+
+Pantalla **Histórico** de la barra lateral (`HistoryScreen.tsx`): todas las carreras del usuario
+agregadas por formato. Las definiciones (qué carreras y tramos cuentan, IR medio, tasa de error,
+pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
+
+- **Filtros**: desde y hasta (fechas incluidas) y formato (todos, sprint, media, larga). Cambiar
+  uno vuelve a pedir el histórico. «Quitar filtros» los borra.
+- **Cifras** del total: carreras, IR medio, tasa de error y pérdida media por tramo.
+- **Tabla por formato**: sprint, media y larga (aunque no tengan carreras) y, si hay, las
+  carreras sin formato, más la fila del total: carreras, tramos que cuentan, errores, IR medio,
+  tasa de error y pérdida media por tramo en segundos y en %. Debajo del título, qué tramos
+  cuentan y los umbrales de error.
+- **Gráficas por formato**: paneles de IR medio (con la línea del 100 %), tasa de error y pérdida
+  media por tramo en % (los segundos no se comparan entre formatos; la tabla del panel da los
+  dos).
+- **Estados vacíos**: sin carreras importadas, invita a importar; con carreras pero ninguna con
+  esos filtros, ofrece quitarlos. Si las fechas están al revés, se avisa. Las carreras sin
+  números (`races_without_data`) se mencionan en un aviso.
+
+Los análisis que se apoyan en el histórico (P7, P10, P11 y P13) añaden su sección de paneles
+debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos, los mismos
+(`pattern_legs`).
+
 ## Diseño
 
 Base visual común a todas las pantallas (#88), en CSS propio y sin librerías de componentes. La
@@ -219,14 +244,14 @@ sistema.
   tablas (números tabulares a la derecha, filas clicables, tramos con error resaltados), zona para
   soltar ficheros, lista de opciones, control segmentado, secciones de formulario y estado vacío.
   Los iconos son SVG en línea en `ui.tsx`; el de la app es una baliza.
-- **Estructura**: barra lateral con Carreras, Importar y Ajustes; el contenido, centrado hasta
+- **Estructura**: barra lateral con Carreras, Histórico, Importar y Ajustes; el contenido, centrado hasta
   1080 px. Por debajo de 860 px de ancho la barra lateral pasa arriba. La ventana abre a
   1180 × 780 (mínimo 760 × 520).
 
 ## Gráficas
 
-Cada análisis se enseña en un **panel desplegable** (`app/src/charts/ChartPanel.tsx`) bajo la
-vista de carrera (o, más adelante, en la vista histórica): título, número de casos en los que se
+Cada análisis se enseña en un **panel desplegable** (`app/src/charts/ChartPanel.tsx`) en la
+vista de carrera o en la histórica: título, número de casos en los que se
 apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
 accesible de la gráfica: todo valor que se ve al pasar el ratón está también en ella.
 

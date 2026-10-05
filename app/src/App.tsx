@@ -1,10 +1,11 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import { RaceRow, coreVersion, listRaces } from "./api";
+import HistoryScreen from "./HistoryScreen";
 import ImportPanel from "./ImportPanel";
 import RaceList from "./RaceList";
 import RaceView from "./RaceView";
 import SettingsView from "./SettingsView";
-import { ControlFlag, ListIcon, Notice, SlidersIcon, UploadIcon } from "./ui";
+import { ChartIcon, ControlFlag, ListIcon, Notice, SlidersIcon, UploadIcon } from "./ui";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -15,6 +16,7 @@ import "./styles/map.css";
 type Screen =
   | { kind: "races" }
   | { kind: "race"; resultId: number }
+  | { kind: "history" }
   | { kind: "import" }
   | { kind: "settings" };
 
@@ -80,6 +82,12 @@ function App() {
             onClick={showRaces}
           />
           <NavItem
+            icon={<ChartIcon />}
+            label="Histórico"
+            current={screen.kind === "history"}
+            onClick={() => setScreen({ kind: "history" })}
+          />
+          <NavItem
             icon={<UploadIcon />}
             label="Importar"
             current={screen.kind === "import"}
@@ -102,6 +110,7 @@ function App() {
             <RaceList races={races} onOpen={openRace} onImport={showImport} />
           )}
           {screen.kind === "race" && <RaceView resultId={screen.resultId} onBack={showRaces} />}
+          {screen.kind === "history" && <HistoryScreen onImport={showImport} />}
           {screen.kind === "import" && <ImportPanel onImported={refresh} onOpen={openRace} />}
           {screen.kind === "settings" && <SettingsView onSaved={refresh} />}
         </div>

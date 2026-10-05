@@ -1,6 +1,7 @@
 //! App de escritorio de Tramos. Expone el núcleo a la interfaz mediante comandos Tauri;
 //! no reimplementa cálculos.
 
+pub mod history;
 pub mod import;
 pub mod race_map;
 pub mod races;
@@ -10,9 +11,11 @@ use std::sync::{Mutex, MutexGuard};
 
 use tauri::Manager;
 use tramos_core::comparison::CourseComparison;
+use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
 use tramos_store::Store;
 
+use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
@@ -100,6 +103,15 @@ fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap
     race_map::race_map(&*state.store()?, result_id).map_err(|e| e.to_string())
 }
 
+/// Histórico de las carreras del usuario por formato (P6), con filtros de fechas y formato.
+#[tauri::command]
+fn history(
+    state: tauri::State<'_, AppState>,
+    filter: HistoryFilter,
+) -> Result<HistoryView, String> {
+    history::history_view(&*state.store()?, &filter).map_err(|e| e.to_string())
+}
+
 /// Arranca la app. Devuelve el error de Tauri en lugar de abortar.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
@@ -123,7 +135,8 @@ pub fn run() -> tauri::Result<()> {
             list_races,
             race_detail,
             race_comparison,
-            race_map
+            race_map,
+            history
         ])
         .run(tauri::generate_context!())
 }

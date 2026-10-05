@@ -357,3 +357,38 @@ El reparto de la pérdida de cada tramo en desvío, paradas y ritmo está en
 
 Solo los errores, como la pérdida del resto del histórico: la pregunta es de qué está hecho lo
 que se pierde al fallar.
+
+## Después de fallar (P8)
+
+«¿Qué hago después de fallar?» (`docs/preguntas.md`, P8). Implementado en
+`tramos_core::after_error` (#32). El comando `history` lo devuelve en `after_error` y la pantalla
+lo dibuja en la sección «Después de fallar» (`docs/app.md`, "Vista histórica").
+
+- **Mismas carreras y tramos:** las del histórico con el mismo filtro y, de cada una, sus tramos
+  que cuentan (`pattern_legs`), **en orden**. El «tramo siguiente» es el siguiente de esa
+  secuencia: los excluidos (el último, los de referencia corta y los que no tienen split) ni
+  cuentan ni cortan nada, y un error en un tramo corto no cuenta como error. El primer tramo de
+  cada carrera no tiene anterior y no entra. Nada cruza de una carrera a otra.
+- **Encadenamiento:** tasa de error de los tramos cuyo anterior fue un error (`after_error`),
+  frente a la de los tramos cuyo anterior fue limpio (`after_clean`). Cada uno es un `Rate` con
+  `legs` (n), `errors` y `error_rate`.
+- **Recuperación:** de los tramos que siguen a un error, cuáles se corren **más de un 5 % más
+  rápido** (`ACCELERATION`), en velocidad en movimiento (`moving_speed_mps`, `docs/metricas.md`),
+  que la **mediana de los tramos limpios de esa carrera**. Se usa la de esa carrera porque la
+  velocidad depende mucho del terreno. Hacen falta al menos 3 tramos limpios con velocidad
+  (`MIN_CLEAN_LEGS`). Salen dos `Rate`, `accelerated` y `not_accelerated`, con su tasa de error:
+  si acelerar tras un error acaba en otro error. Los tramos tras un error sin velocidad para
+  comparar (carrera sin FIT, sin sub-track o con pocos tramos limpios) van en
+  `after_error_without_speed` y solo cuentan en el encadenamiento.
+- **Rachas limpias:** cada tramo cae en un cubo según los tramos limpios seguidos justo antes
+  (0, 1–2, 3–5, 6–10 y más de 10; `streaks[]` con `from`, `to` y `rate`). El cubo 0 es
+  exactamente «tras un error».
+
+Ejemplo de test (`crates/tramos-core/src/after_error.rs`, `x` = error, `o` = limpio):
+
+- `oxxooxo` y `xosx` (con `s` corto, que no cuenta): tras un error, 1 de 4; tras un limpio, 3 de 4.
+- `ooooxoxx` + 12 `o` + `x`: rachas 0 → 3 tramos y 1 error; 1–2 → 5 y 1; 3–5 → 5 y 1;
+  6–10 → 5 y 0; más de 10 → 2 y 1.
+- `oxooxxo` con los limpios a 3,0, 3,4, 3,2 y 3,2 m/s: mediana 3,2 y umbral 3,36. Tras los
+  errores: a 3,4 m/s acelera y es limpio; a 3,3 m/s no acelera y es error; a 3,2 m/s no acelera
+  y es limpio.

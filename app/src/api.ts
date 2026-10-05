@@ -262,6 +262,8 @@ export interface HistoryView {
   by_slope: SlopeHistory;
   /** ¿Lento o desorientado? (P2): la pérdida de los errores repartida, con el mismo filtro. */
   loss_breakdown: BreakdownHistory;
+  /** Después de fallar (P8), con el mismo filtro. */
+  after_error: AfterError;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -417,6 +419,26 @@ export interface BreakdownHistory {
   races_with_track: number;
   races_without_track: number;
   errors_without_breakdown: number;
+}
+
+/** Tramos y errores de un grupo de tramos (P8). */
+export interface Rate {
+  legs: number;
+  errors: number;
+  /** Errores / tramos (0–1). */
+  error_rate: number | null;
+}
+
+/** Después de fallar (P8, `docs/historico.md`). */
+export interface AfterError {
+  after_error: Rate;
+  after_clean: Rate;
+  /** Tras un error, yendo > 5 % más rápido que la mediana de los tramos limpios de la carrera. */
+  accelerated: Rate;
+  not_accelerated: Rate;
+  after_error_without_speed: number;
+  /** Tramos limpios seguidos justo antes: de `from` a `to` (`null` = sin fin). */
+  streaks: { from: number; to: number | null; rate: Rate }[];
 }
 
 /** `null` si la carrera no tiene el FIT del reloj. */

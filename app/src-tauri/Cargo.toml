@@ -34,6 +34,7 @@ thiserror = "2"
 
 [dev-dependencies]
 serde_json = "1"
+tempfile = "3"
 
 # Mismos lints que el workspace raíz (CLAUDE.md, regla 6). El `clippy.toml` de la raíz
 # también aplica aquí: clippy lo busca subiendo desde este directorio.

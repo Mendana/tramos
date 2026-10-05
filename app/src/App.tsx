@@ -1,7 +1,7 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import { RaceRow, coreVersion, listRaces } from "./api";
 import HistoryScreen from "./HistoryScreen";
-import ImportPanel from "./ImportPanel";
+import ImportScreen from "./ImportScreen";
 import RaceList from "./RaceList";
 import RaceView from "./RaceView";
 import SettingsView from "./SettingsView";
@@ -115,7 +115,13 @@ function App() {
           {screen.kind === "history" && (
             <HistoryScreen onImport={showImport} onOpen={openRace} />
           )}
-          {screen.kind === "import" && <ImportPanel onImported={refresh} onOpen={openRace} />}
+          {screen.kind === "import" && (
+            <ImportScreen
+              onImported={refresh}
+              onOpen={openRace}
+              onSettings={() => setScreen({ kind: "settings" })}
+            />
+          )}
           {screen.kind === "settings" && <SettingsView onSaved={refresh} />}
         </div>
       </main>

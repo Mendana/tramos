@@ -22,6 +22,10 @@ De la picada de salida (código 32736) a la de meta (32752), en hora del cronome
 salida o la meta no tienen hora, se toma la primera o la última picada con hora (con aviso). Sin
 ninguna picada con hora, o sin dos instantes distintos en orden, es un error.
 
+`race_window(&RaceResult) -> Result<RaceWindow, AlignmentError>` da esta misma ventana sin los
+avisos, para buscar el track de una carrera antes de alinearlo (importar una carpeta,
+`docs/app.md`).
+
 La **salida no se usa para estimar el desfase** (sí para la ventana): en el .spl suele ser la
 hora de salida asignada (minutos en punto), no una marca física del corredor. La meta sí es una
 marca física y cuenta como una baliza más. `use_start_punch = true` la incluye si algún día

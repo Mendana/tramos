@@ -63,7 +63,9 @@ Los demás campos de `record` (velocidad, potencia, dinámica de carrera…) no 
   `fitparser` (`running`, `cycling`…) o, si no lo conoce, con el número del enum. La cadencia
   solo se multiplica por 2 en los deportes a pie (`generic`, `running`, `walking`, `hiking` y
   `mountaineering`) o si el FIT no trae deporte, que es lo normal en orientación a pie. En los
-  demás (por ejemplo, `cycling`, donde la cadencia ya son rpm de pedal) se guarda tal cual.
+  demás (por ejemplo, `cycling`, donde la cadencia ya son rpm de pedal) se guarda tal cual. Esa
+  regla es `fit::is_on_foot(sport)`, que usa también la importación de una carpeta para avisar
+  de un FIT de otro deporte (`docs/app.md`).
 - **Orden.** Los puntos se ordenan por instante con un orden estable: si dos `record` comparten
   instante, se conservan los dos en el orden del fichero.
 - **Sin `record` con posición.** El resultado es un `Track` vacío, no un error.

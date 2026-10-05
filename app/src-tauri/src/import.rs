@@ -173,12 +173,7 @@ pub fn preview(
         median_winner_s: median_winner_time_s(&event),
         matched,
         candidates: refs.iter().filter_map(|r| choice(&event, *r)).collect(),
-        already_imported: store
-            .find_source_file(&spl_bytes)?
-            .map(|source| store.event_by_source_file(source))
-            .transpose()?
-            .flatten()
-            .is_some(),
+        already_imported: is_imported(store, &spl_bytes)?,
         fit_points,
     })
 }
@@ -259,6 +254,16 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
         alignment,
         warnings,
     })
+}
+
+/// Si ya hay una carrera guardada a partir de este mismo .spl (mismo contenido).
+pub(crate) fn is_imported(store: &Store, spl_bytes: &[u8]) -> Result<bool, StoreError> {
+    Ok(store
+        .find_source_file(spl_bytes)?
+        .map(|source| store.event_by_source_file(source))
+        .transpose()?
+        .flatten()
+        .is_some())
 }
 
 /// Persona del usuario guardada en los ajustes, si existe todavía.

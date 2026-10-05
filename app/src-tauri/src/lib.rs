@@ -1,6 +1,7 @@
 //! App de escritorio de Tramos. Expone el núcleo a la interfaz mediante comandos Tauri;
 //! no reimplementa cálculos.
 
+pub mod batch;
 pub mod history;
 pub mod import;
 pub mod race_map;
@@ -19,6 +20,7 @@ use tramos_core::race_format::RaceFormat;
 use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::Store;
 
+use crate::batch::BatchSummary;
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
@@ -79,6 +81,16 @@ fn import_race(
     request: ImportRequest,
 ) -> Result<ImportOutcome, String> {
     import::import(&mut *state.store()?, &request).map_err(|e| e.to_string())
+}
+
+/// Importa todas las carreras de una carpeta (.spl y FIT) y devuelve el resumen. Es asíncrono
+/// para no bloquear la ventana mientras alinea los FIT, que con una temporada lleva un rato.
+#[tauri::command]
+async fn import_folder(
+    state: tauri::State<'_, AppState>,
+    folder_path: String,
+) -> Result<BatchSummary, String> {
+    batch::import_folder(&mut *state.store()?, &folder_path).map_err(|e| e.to_string())
 }
 
 /// Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido.
@@ -179,6 +191,7 @@ pub fn run() -> tauri::Result<()> {
             save_settings,
             preview_import,
             import_race,
+            import_folder,
             list_races,
             race_detail,
             race_comparison,

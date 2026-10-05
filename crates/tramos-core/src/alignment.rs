@@ -412,7 +412,7 @@ pub fn align(
     };
 
     let mut warnings: Vec<AlignmentWarning> = Vec::new();
-    let window = race_window(result, &mut warnings)?;
+    let window = race_window_with_warnings(result, &mut warnings)?;
     let origin = window.start;
     let rel = |t: DateTime<Utc>| seconds_between(origin, t);
     let max_offset = f64::from(options.max_offset_s);
@@ -602,14 +602,22 @@ fn validate(options: &AlignmentOptions) -> Result<(), AlignmentError> {
     Ok(())
 }
 
-/// Ventana salida–meta en hora del cronometraje.
-struct RaceWindow {
-    start: DateTime<Utc>,
-    finish: DateTime<Utc>,
+/// Ventana salida–meta de un resultado, en hora del cronometraje.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RaceWindow {
+    pub start: DateTime<Utc>,
+    pub finish: DateTime<Utc>,
+}
+
+/// Ventana de la carrera de un resultado, la misma que usa [`align`] ("Ventana de la carrera"
+/// en `docs/alineacion.md`), sin sus avisos. Sirve para buscar el track de una carrera antes de
+/// alinearlo. Falla con [`AlignmentError::NoPunchTimes`] o [`AlignmentError::NoRaceWindow`].
+pub fn race_window(result: &RaceResult) -> Result<RaceWindow, AlignmentError> {
+    race_window_with_warnings(result, &mut Vec::new())
 }
 
 /// Salida y meta del resultado; si les falta la hora, la primera y la última picada con hora.
-fn race_window(
+fn race_window_with_warnings(
     result: &RaceResult,
     warnings: &mut Vec<AlignmentWarning>,
 ) -> Result<RaceWindow, AlignmentError> {

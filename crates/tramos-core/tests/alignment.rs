@@ -9,7 +9,8 @@ use std::path::PathBuf;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde_json::{Value, json};
 use tramos_core::alignment::{
-    Alignment, AlignmentError, AlignmentOptions, EDGE_SNAP_S, PunchUsage, WarningKind, align,
+    Alignment, AlignmentError, AlignmentOptions, EDGE_SNAP_S, PunchUsage, RaceWindow, WarningKind,
+    align, race_window,
 };
 use tramos_core::importers::{fit, spl};
 use tramos_core::model::{Event, FINISH_CODE, RaceResult, RaceStatus, START_CODE, Track};
@@ -68,6 +69,31 @@ fn kinds(alignment: &Alignment) -> Vec<&WarningKind> {
 
 fn instant(text: &str) -> DateTime<Utc> {
     text.parse().unwrap()
+}
+
+/// La ventana de la carrera es la de la salida a la meta; sin hora de salida, la primera picada
+/// con hora; sin ninguna hora, un error.
+#[test]
+fn race_window_goes_from_start_to_finish() {
+    let (_, mut result) = load();
+    let window = race_window(&result).unwrap();
+    assert_eq!(
+        window,
+        RaceWindow {
+            start: instant("2026-10-03T16:13:00Z"),
+            finish: instant("2026-10-03T16:38:40Z"),
+        }
+    );
+
+    assert_eq!(result.punches[0].code, START_CODE);
+    result.punches[0].time = None;
+    let first_control = result.punches[1].time.unwrap();
+    assert_eq!(race_window(&result).unwrap().start, first_control);
+
+    for punch in &mut result.punches {
+        punch.time = None;
+    }
+    assert_eq!(race_window(&result), Err(AlignmentError::NoPunchTimes));
 }
 
 #[test]

@@ -77,11 +77,17 @@ pub fn read(data: &[u8]) -> Result<Track, FitError> {
     Ok(track_from_messages(&records))
 }
 
+/// Si el deporte del FIT (`Track::sport`) es a pie. Sin deporte se supone a pie, que es lo normal
+/// en orientación (`docs/formato-fit.md`, "Deporte").
+pub fn is_on_foot(sport: Option<&str>) -> bool {
+    sport.is_none_or(|s| FOOT_SPORTS.contains(&s))
+}
+
 /// Convierte los mensajes decodificados en un track: un punto por cada `record` con posición
 /// e instante, ordenados por instante, y el deporte de la actividad.
 fn track_from_messages(messages: &[FitDataRecord]) -> Track {
     let sport = sport_from_messages(messages);
-    let on_foot = sport.as_deref().is_none_or(|s| FOOT_SPORTS.contains(&s));
+    let on_foot = is_on_foot(sport.as_deref());
     let mut points: Vec<TrackPoint> = messages
         .iter()
         .filter(|m| m.kind() == MesgNum::Record)
@@ -363,6 +369,16 @@ mod tests {
         let track = track_from_messages(&messages);
         assert_eq!(track.sport.as_deref(), Some("250"));
         assert_eq!(track.points[0].cadence_spm, Some(70.0));
+    }
+
+    #[test]
+    fn on_foot_sports() {
+        for sport in [None, Some("running"), Some("generic"), Some("hiking")] {
+            assert!(is_on_foot(sport), "{sport:?}");
+        }
+        for sport in [Some("cycling"), Some("swimming"), Some("250")] {
+            assert!(!is_on_foot(sport), "{sport:?}");
+        }
     }
 
     #[test]

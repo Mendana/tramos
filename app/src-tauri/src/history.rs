@@ -8,6 +8,8 @@
 //! Para P13 (pérdida según desnivel) hacen falta además las métricas del FIT de cada tramo: el
 //! track guardado se alinea y se trocea como en el mapa ([`crate::race_map::aligned_legs`]) y
 //! las métricas son las de [`tramos_core::metrics::leg_metrics`].
+//!
+//! Para P9 (errores más comunes) hacen falta las etiquetas de los tramos de cada carrera.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -15,6 +17,7 @@ use std::collections::hash_map::Entry;
 use chrono::NaiveDate;
 use serde::Serialize;
 use tramos_core::after_error::{AfterError, after_error};
+use tramos_core::common_errors::{CommonErrors, TaggedRace, common_errors};
 use tramos_core::days_off::{DaysOff, days_off};
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, TrackedRace, history, race_stats,
@@ -26,6 +29,7 @@ use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::runner_report;
 use tramos_core::slope::{SlopeConfig, SlopeHistory, slope};
+use tramos_core::taxonomy::LegTag;
 use tramos_store::{EventId, Store};
 
 use crate::import::stored_self_person;
@@ -55,6 +59,9 @@ pub struct HistoryView {
     /// Después de fallar (P8): encadenamiento, recuperación y rachas limpias, con el mismo
     /// filtro. La recuperación solo con las carreras con track.
     pub after_error: AfterError,
+    /// Errores más comunes (P9): reparto por tipo y subtipo de las etiquetas, en total, por
+    /// formato y por duración del tramo, con el mismo filtro.
+    pub common_errors: CommonErrors,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
     /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
@@ -88,6 +95,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
     let mut events: HashMap<EventId, Event> = HashMap::new();
     let mut races = Vec::new();
     let mut metrics = Vec::new();
+    let mut tags: Vec<Vec<(usize, LegTag)>> = Vec::new();
     let mut rows = Vec::new();
     // Solo se cargan y analizan las carreras que pasan el filtro.
     for r in results
@@ -104,6 +112,13 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
             Some(race_result) if r.has_track => stored_leg_metrics(store, r.result, race_result)?,
             _ => None,
         });
+        tags.push(
+            store
+                .tags(r.result)?
+                .into_iter()
+                .map(|t| (t.leg_index, t.tag))
+                .collect(),
+        );
         rows.push(HistoryRaceRow {
             result_id: r.result.0,
             date: r.event_date,
@@ -137,6 +152,11 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         })
         .collect();
     let by_slope = slope(&tracked, filter, &SlopeConfig::default())?;
+    let tagged: Vec<TaggedRace<'_>> = races
+        .iter()
+        .zip(&tags)
+        .map(|(race, tags)| TaggedRace { race, tags })
+        .collect();
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
@@ -150,6 +170,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         by_slope,
         loss_breakdown: breakdown_history(&tracked, filter),
         after_error: after_error(&tracked, filter),
+        common_errors: common_errors(&tagged, filter),
     })
 }
 
@@ -652,5 +673,49 @@ mod tests {
         assert_eq!(a.streaks[0].rate, a.after_error);
         let streak_legs: usize = a.streaks.iter().map(|s| s.rate.legs).sum();
         assert_eq!(streak_legs, 2 * (counted.len() - 1));
+    }
+
+    /// P9: las etiquetas de la carrera deciden; la copia sin etiquetar se queda con lo que dice
+    /// el cálculo, sin revisar.
+    #[test]
+    fn common_errors_use_the_tags() {
+        use tramos_core::taxonomy::{Confirmation, LegTag};
+        let (mut store, result_id) = two_races_with(false);
+        let lost = race_detail(&store, result_id).unwrap().report.lost_time;
+        let errors: Vec<_> = pattern_legs(&lost)
+            .filter(|l| l.is_error)
+            .map(|l| l.index)
+            .collect();
+        assert!(errors.len() >= 2, "el fixture tiene al menos dos errores");
+        let typed = LegTag {
+            confirmation: Some(Confirmation::Error),
+            error_type: Some("navigation".into()),
+            error_subtype: Some("parallel".into()),
+            ..LegTag::default()
+        };
+        let physical = LegTag {
+            confirmation: Some(Confirmation::Physical),
+            ..LegTag::default()
+        };
+        crate::tags::save_leg_tag(&mut store, result_id, errors[0], typed).unwrap();
+        crate::tags::save_leg_tag(&mut store, result_id, errors[1], physical).unwrap();
+
+        let total = history_view(&store, &HistoryFilter::default())
+            .unwrap()
+            .common_errors
+            .total;
+        let n = errors.len();
+        // Dos copias de la carrera: en la etiquetada, un error tiene tipo y otro es físico.
+        assert_eq!(total.errors, 2 * n - 1);
+        assert_eq!(total.physical_legs, 1);
+        assert_eq!(total.untyped, 2 * n - 2);
+        assert_eq!(total.unreviewed, 2 * n - 2);
+        assert_eq!(total.by_type.len(), 1);
+        assert_eq!(total.by_type[0].error_type, "navigation");
+        assert_eq!(total.by_type[0].errors, 1);
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        let sprint = &view.common_errors.by_format[0];
+        assert_eq!(sprint.format, Some(RaceFormat::Sprint));
+        assert_eq!((sprint.total.errors, sprint.total.untyped), (n - 1, n - 2));
     }
 }

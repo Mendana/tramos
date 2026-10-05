@@ -3,6 +3,7 @@
 
 pub mod after_error;
 pub mod alignment;
+pub mod common_errors;
 pub mod comparison;
 pub mod consistency;
 pub mod courses;

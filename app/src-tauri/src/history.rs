@@ -13,6 +13,7 @@ use serde::Serialize;
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, history, race_stats,
 };
+use tramos_core::leg_length::{LegLengthStats, leg_length};
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
@@ -34,6 +35,8 @@ pub struct HistoryView {
     /// Umbrales y tiempo ideal con los que se ha calculado.
     pub config: LostTimeConfig,
     pub history: History,
+    /// Pérdida según duración del tramo (P7): los seis cubos de referencia, con el mismo filtro.
+    pub by_leg_length: Vec<LegLengthStats>,
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
 }
@@ -100,6 +103,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
         config,
         history: history(&races, filter),
         races: rows,
+        by_leg_length: leg_length(&races, filter),
     })
 }
 
@@ -343,5 +347,33 @@ mod tests {
         assert_eq!(view.history.total, HistoryStats::default());
         assert_eq!(view.history.by_format.len(), 3);
         assert!(view.races.is_empty());
+    }
+
+    /// Los cubos de P7 reparten los mismos tramos que cuentan en el histórico, también con
+    /// filtro de formato.
+    #[test]
+    fn leg_length_buckets_split_the_counted_legs() {
+        let (store, _) = two_races();
+        for format in [None, Some(RaceFormat::Sprint), Some(RaceFormat::Long)] {
+            let view = history_view(
+                &store,
+                &HistoryFilter {
+                    format,
+                    ..HistoryFilter::default()
+                },
+            )
+            .unwrap();
+            let buckets = &view.by_leg_length;
+            assert_eq!(buckets.len(), 6);
+            let legs: usize = buckets.iter().map(|b| b.legs).sum();
+            let errors: usize = buckets.iter().map(|b| b.errors).sum();
+            assert_eq!(legs, view.history.total.legs);
+            assert_eq!(errors, view.history.total.errors);
+        }
+        // Sin carreras, los seis cubos vacíos.
+        let store = Store::open_in_memory().unwrap();
+        let view = history_view(&store, &HistoryFilter::default()).unwrap();
+        assert_eq!(view.by_leg_length.len(), 6);
+        assert!(view.by_leg_length.iter().all(|b| b.legs == 0));
     }
 }

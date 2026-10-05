@@ -30,7 +30,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última y una fila por carrera que pasa el filtro (`races`). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`) y la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
 `app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs` y `settings.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
@@ -231,6 +231,14 @@ Los análisis que se apoyan en el histórico (P7, P10, P11 y P13) añaden su sec
 debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos, los mismos
 (`pattern_legs`).
 
+- **Por duración del tramo (P7)** (`LegLengthPanel.tsx`): panel «Pérdida según duración del
+  tramo». Una columna por cubo de referencia (20–30 s, 30–60 s, 1–2 min, 2–4 min, 4–8 min y
+  ≥ 8 min, `docs/historico.md`) con la **tasa de error**, la línea de la tasa de error del total
+  («Tu media») y, bajo cada etiqueta, `n` (los tramos del cubo), porque un cubo con pocos tramos
+  es poco fiable. Va la tasa en la gráfica porque es la respuesta directa a «¿fallo más en los
+  tramos largos o en los cortos?» y `n` es su denominador; la tabla añade la pérdida media por
+  tramo en % y en segundos. Los cubos vacíos salen sin columna y con `n = 0`.
+
 ## Diseño
 
 Base visual común a todas las pantallas (#88), en CSS propio y sin librerías de componentes. La
@@ -280,8 +288,9 @@ Piezas:
 - `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0.
 - `ColumnChart`: una serie de columnas (también negativas), línea de referencia opcional, color por
   columna opcional y tooltip con el valor delante y el detalle detrás. Opcionalmente, una línea de
-  datos en la **misma unidad y escala** (p. ej. un acumulado; sigue siendo un solo eje) y franjas
-  de fondo resaltadas (p. ej. rachas).
+  datos en la **misma unidad y escala** (p. ej. un acumulado; sigue siendo un solo eje), franjas
+  de fondo resaltadas (p. ej. rachas) y una segunda línea de etiqueta en el eje X (p. ej. el
+  número de casos de cada columna).
 - `LineChart`: una línea de 2 px con un velo del 10 % hasta el 0, marcadores opcionales con un
   anillo del color de la superficie y un cursor vertical que se ajusta al punto más cercano.
 - `MultiLineChart`: varias líneas sobre los mismos puntos, la destacada (el corredor) más

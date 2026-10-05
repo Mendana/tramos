@@ -12,7 +12,7 @@ export function groupLabel(group: FormatHistory): string {
 export const percent = (v: number) => `${decimal(v, 0)} %`;
 export const percent1 = (v: number) => `${decimal(v, 1)} %`;
 /** Marca del eje en %, con decimales solo si los tiene (0,5 %). */
-const tickPercent = (v: number) => `${String(Number(v.toFixed(2))).replace(".", ",")} %`;
+export const tickPercent = (v: number) => `${String(Number(v.toFixed(2))).replace(".", ",")} %`;
 
 export function racesLabel(n: number): string {
   return `${n} ${n === 1 ? "carrera" : "carreras"}`;

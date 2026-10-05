@@ -22,6 +22,7 @@ import {
   racesLabel,
 } from "./HistoryPanels";
 import { ChartIcon, EmptyState, Notice, PageHeader, Stat } from "./ui";
+import { LegLengthPanel } from "./LegLengthPanel";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
@@ -227,6 +228,7 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
         <FormatErrorRatePanel groups={groups} total={total} />
         <FormatLossPanel groups={groups} total={total} />
         {/* P7, P10, P11 y P13: sus secciones de paneles van aquí, con los mismos filtros. */}
+        <LegLengthPanel buckets={view.by_leg_length} total={total} />
       </div>
     </>
   );

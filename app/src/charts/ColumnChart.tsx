@@ -12,6 +12,8 @@ export interface Column {
   key: string | number;
   /** Etiqueta del eje X. */
   label: string;
+  /** Segunda línea de la etiqueta (p. ej. el número de casos de la columna). */
+  sublabel?: string;
   /** `null` = sin dato: no se dibuja columna. */
   value: number | null;
   tooltip: TooltipText;
@@ -33,6 +35,7 @@ export interface Highlight {
 }
 
 const MAX_BAR = 24;
+const SUBLABEL_GAP = 14;
 const RADIUS = 4;
 
 /** Columna con el extremo de datos redondeado y la base recta, sobre la línea del 0. */
@@ -74,7 +77,9 @@ export function ColumnChart({
   const { domain, ticks } = niceDomain(Math.min(...values, 0), Math.max(...values, 0));
 
   const plotW = Math.max(width - MARGIN.left - MARGIN.right, 0);
-  const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
+  // Con segunda línea de etiquetas, el eje X necesita una línea más.
+  const sublabels = columns.some((c) => c.sublabel !== undefined);
+  const plotH = HEIGHT - MARGIN.top - MARGIN.bottom - (sublabels ? SUBLABEL_GAP : 0);
   const y = linear(domain, [MARGIN.top + plotH, MARGIN.top]);
   const band = columns.length > 0 ? plotW / columns.length : 0;
   const barW = Math.max(Math.min(MAX_BAR, band * 0.6), 2);
@@ -154,6 +159,16 @@ export function ColumnChart({
                     textAnchor="middle"
                   >
                     {c.label}
+                  </text>
+                )}
+                {i % labelEvery === 0 && c.sublabel !== undefined && (
+                  <text
+                    className="chart-tick"
+                    x={center(i)}
+                    y={MARGIN.top + plotH + 18 + SUBLABEL_GAP}
+                    textAnchor="middle"
+                  >
+                    {c.sublabel}
                   </text>
                 )}
                 {/* Zona activa: toda la franja, más grande que la columna. */}

@@ -1,0 +1,73 @@
+name: Release
+
+# Al subir un tag `vX.Y.Z` compila la app en Windows y deja el instalador en una release en
+# borrador, para revisarla y publicarla a mano (docs/distribucion.md).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  # Crear la release y subir los instaladores.
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Instalador de Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # El instalador lleva la versión de tauri.conf.json: el tag tiene que coincidir con ella
+      # para que el nombre de la release y el del instalador digan lo mismo.
+      - name: Comprobar la versión del tag
+        run: |
+          app=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$app" != "$tag" ]; then
+            echo "::error::El tag $GITHUB_REF_NAME no coincide con la versión de la app ($app)."
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Dependencias de npm
+        working-directory: app
+        run: npm ci
+
+      # Compila el frontend (beforeBuildCommand) y la app, y genera los instaladores NSIS (.exe)
+      # y MSI de bundle.targets.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: Tramos ${{ github.ref_name }}
+          releaseBody: |
+            Instalador para Windows. Descarga el `.exe` (o el `.msi`) de abajo y ábrelo.
+
+            El instalador aún no está firmado: Windows SmartScreen avisará de que la aplicación
+            no es de un editor reconocido. Pulsa «Más información» y luego «Ejecutar de todas
+            formas».
+          releaseDraft: true
+          prerelease: false

@@ -29,6 +29,7 @@ import { LegLengthPanel } from "./LegLengthPanel";
 import { SlopePanel } from "./SlopePanel";
 import { HistoryBreakdownPanel } from "./BreakdownPanel";
 import { AfterErrorPanel } from "./AfterErrorPanel";
+import { CommonErrorsPanel } from "./CommonErrorsPanel";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
@@ -241,6 +242,7 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
         <FormatLossPanel groups={groups} total={total} />
         {/* P7, P10, P11 y P13: sus secciones de paneles van aquí, con los mismos filtros. */}
         <LegLengthPanel buckets={view.by_leg_length} total={total} />
+        <CommonErrorsPanel data={view.common_errors} />
         <ConsistencyPanel races={view.races} total={total} />
         <DaysOffPanel
           buckets={view.days_off.buckets}

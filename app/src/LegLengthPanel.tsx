@@ -7,7 +7,7 @@ import { ColumnChart } from "./charts/ColumnChart";
 import { legsLabel, percent, percent1, tickPercent } from "./HistoryPanels";
 
 /** Nombre del cubo: «20–30 s», «1–2 min» o «≥ 8 min» (el inicio entra, el final no). */
-export function bucketLabel(b: LegLengthStats): string {
+export function bucketLabel(b: { from_s: number; to_s: number | null }): string {
   if (b.to_s === null) return b.from_s < 60 ? `≥ ${b.from_s} s` : `≥ ${b.from_s / 60} min`;
   return b.to_s <= 60 ? `${b.from_s}–${b.to_s} s` : `${b.from_s / 60}–${b.to_s / 60} min`;
 }

@@ -392,3 +392,45 @@ Ejemplo de test (`crates/tramos-core/src/after_error.rs`, `x` = error, `o` = lim
 - `oxooxxo` con los limpios a 3,0, 3,4, 3,2 y 3,2 m/s: mediana 3,2 y umbral 3,36. Tras los
   errores: a 3,4 m/s acelera y es limpio; a 3,3 m/s no acelera y es error; a 3,2 m/s no acelera
   y es limpio.
+
+## Errores más comunes (P9)
+
+«¿Qué errores son los más comunes?» (`docs/preguntas.md`, P9). Implementado en
+`tramos_core::common_errors` (#31) sobre las etiquetas de `docs/taxonomia.md`. El comando
+`history` lo devuelve en `common_errors` y la pantalla lo dibuja en la sección «Errores más
+comunes» (`docs/app.md`, "Vista histórica").
+
+- **Mismas carreras y tramos:** las del histórico con el mismo filtro y, de cada una, sus tramos
+  que cuentan (`pattern_legs`). Una etiqueta en el último tramo o en uno de referencia corta no
+  entra, igual que no entra su pérdida en el resto de patrones.
+- **Qué fue cada tramo** (`leg_status`): manda la etiqueta del corredor; si no dice nada, el
+  cálculo.
+
+  | Etiqueta | Estado |
+  | --- | --- |
+  | Confirmación «Sí» | Error |
+  | Confirmación «No» | Sin error, aunque el cálculo diga que sí |
+  | Confirmación «Físico» | Físico |
+  | Sin confirmación, con tipo | Error (el corredor le ha puesto tipo) |
+  | Sin confirmación ni tipo (o sin etiqueta) | Lo que diga el cálculo; si es error, **sin revisar** |
+
+- **Físico no es error.** Es tiempo perdido por el físico (cansancio, terreno), no un fallo de
+  orientación, y no se entrena igual: no entra en el reparto ni en el número de errores, pero se
+  cuenta aparte (`physical_legs`, `physical_loss_s`) para que no se pierda. Un error confirmado
+  con tipo «Físico» de la taxonomía sí cuenta como error de ese tipo: lo ha dicho el corredor.
+- **Reparto** (`ErrorTypes`): tramos (`legs`, n), errores y su pérdida (suma de `p_i`, s);
+  errores por tipo (`by_type`, de más a menos errores, a igualdad más pérdida primero) y, dentro
+  de cada tipo, por subtipo («sin subtipo» al final); errores **sin tipo** (`untyped`, con su
+  pérdida), de los que `unreviewed` son los que solo propone el cálculo. Los tipos son claves de
+  la taxonomía; la app les pone nombre.
+- **Cruces:** el reparto sale entero (`total`), por cubo de duración del tramo de P7
+  (`by_leg_length`, los seis cubos en orden, aunque estén vacíos), por formato (`by_format`:
+  sprint, media, larga y sin formato, en ese orden) y por formato y cubo a la vez. Todo sale del
+  núcleo: la app solo elige cuál enseñar.
+
+Ejemplo de test (`crates/tramos-core/src/common_errors.rs`): tres carreras que cuentan con 9
+tramos, 6 errores (175 s), 2 sin tipo (70 s, uno sin revisar) y un tramo físico de 8 s. Por tipo:
+navegación 3 errores y 105 s (paralelo 2 y 45 s, pasarse 1 y 60 s) y ataque 1 y 0 s (sin
+subtipo), porque un error marcado por el corredor puede no tener pérdida. Un error confirmado en el
+último tramo y otro en un tramo de referencia corta no cuentan, ni una carrera sin rendimiento
+habitual.

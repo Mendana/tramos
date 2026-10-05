@@ -264,6 +264,8 @@ export interface HistoryView {
   loss_breakdown: BreakdownHistory;
   /** Después de fallar (P8), con el mismo filtro. */
   after_error: AfterError;
+  /** Errores más comunes (P9): por tipo, en total, por formato y por duración del tramo. */
+  common_errors: CommonErrors;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -509,6 +511,44 @@ export interface TagView {
   tag: LegTag;
   created_at: string;
   updated_at: string;
+}
+
+// Errores más comunes (P9).
+export interface SubtypeCount {
+  subtype: string | null;
+  errors: number;
+  loss_s: number;
+}
+
+export interface TypeCount {
+  error_type: string;
+  errors: number;
+  loss_s: number;
+  subtypes: SubtypeCount[];
+}
+
+export interface ErrorTypes {
+  legs: number;
+  errors: number;
+  loss_s: number;
+  untyped: number;
+  untyped_loss_s: number;
+  unreviewed: number;
+  by_type: TypeCount[];
+  physical_legs: number;
+  physical_loss_s: number;
+}
+
+export interface LengthErrorTypes {
+  from_s: number;
+  to_s: number | null;
+  types: ErrorTypes;
+}
+
+export interface CommonErrors {
+  total: ErrorTypes;
+  by_leg_length: LengthErrorTypes[];
+  by_format: { format: RaceFormat | null; total: ErrorTypes; by_leg_length: LengthErrorTypes[] }[];
 }
 
 export const getTaxonomy = () => invoke<Taxonomy>("taxonomy");

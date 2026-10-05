@@ -34,7 +34,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
 `app/src-tauri/src/import.rs`, `races.rs`, `race_map.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
@@ -295,6 +295,15 @@ debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos
   - «Rachas limpias»: la tasa de error según los tramos limpios seguidos previos.
 
   Las definiciones están en `docs/historico.md`. Las tablas dan tramos, errores y tasa.
+- **Errores más comunes (P9)** (`CommonErrorsPanel.tsx`), detrás de la duración del tramo
+  porque se cruza con ella: panel «Tipos de error» con dos desplegables, **formato** (todos o
+  uno de los que tienen tramos) y **duración del tramo** (todas o un cubo de P7), que eligen
+  cuál de los repartos de `common_errors` se enseña. Una columna por tipo con su % de los errores
+  y `n` debajo, de más a menos, y una gris al final con los errores sin tipo. La descripción dice
+  cuántos errores no tienen tipo, cuántos están sin revisar (y que se etiquetan en la tabla de
+  tramos de cada carrera) y, aparte, los tramos marcados como físico con su pérdida, que no
+  cuentan como error. La tabla da tipos y subtipos con errores, % y pérdida, la fila de sin tipo,
+  el total y la de físico.
 
 ## Diseño
 

@@ -66,6 +66,8 @@ medio (ponderado por `ref_i`), tasa de error y n. Definiciones en `docs/historic
 
 **P9. ¿Qué errores son los más comunes?** Reparto por tipo y subtipo (`docs/taxonomia.md`),
 cruzable con los cubos de P7 y con el formato. Se muestra qué parte de los errores no tiene tipo.
+Lo marcado como físico no es un error de orientación: no entra en el reparto, pero se cuenta
+aparte (`docs/historico.md`, "Errores más comunes (P9)").
 
 **P11. ¿Entro peor en mapa tras días sin competir?** Días desde la carrera anterior importada,
 en cubos: hasta 7, 8–14, 15–30, más de 30. Por cubo: IR medio de los tres primeros tramos y tasa de

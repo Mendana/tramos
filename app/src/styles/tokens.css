@@ -98,8 +98,22 @@
   /* Fondo de tierra de OSM: la leyenda se pinta sobre él para que los tonos se vean igual. */
   --map-paper: #f2efe9;
 
-  --sidebar-width: 216px;
-  --content-max: 1080px;
+  /*
+   * Barra lateral oscura en los dos modos (#127): separa la navegación del contenido. El acento
+   * es el magenta claro del modo oscuro, que se lee bien sobre ella.
+   */
+  --side-bg: #1b1e22;
+  --side-text: #d3d7dc;
+  --side-muted: #8a929b;
+  --side-hover: #262a30;
+  --side-active: #33212d;
+  --side-line: #2c3036;
+  --side-accent: #e66db5;
+  --side-accent-text: #1d0d17;
+
+  --sidebar-width: 232px;
+  --topbar-height: 52px;
+  --content-max: 1160px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -149,5 +163,10 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-raised: 0 6px 20px rgb(0 0 0 / 45%);
     --focus: 0 0 0 3px rgb(230 109 181 / 35%);
+
+    --side-bg: #0e0f11;
+    --side-hover: #1a1c20;
+    --side-active: #2e1b28;
+    --side-line: #22252a;
   }
 }

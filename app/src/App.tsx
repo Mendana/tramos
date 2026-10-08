@@ -18,13 +18,25 @@ import {
 } from "./api";
 import GroupScreen from "./GroupScreen";
 import HistoryScreen from "./HistoryScreen";
+import Home from "./Home";
 import ImportScreen from "./ImportScreen";
 import RaceList from "./RaceList";
 import RaceView from "./RaceView";
 import SettingsView from "./SettingsView";
 import Welcome from "./Welcome";
 import { ViewerContext } from "./viewer";
-import { ChartIcon, ControlFlag, GroupIcon, ListIcon, Notice, SlidersIcon, UploadIcon } from "./ui";
+import {
+  ChartIcon,
+  ChevronLeft,
+  ControlFlag,
+  GroupIcon,
+  HomeIcon,
+  ListIcon,
+  Notice,
+  SlidersIcon,
+  UploadIcon,
+  UserIcon,
+} from "./ui";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -78,22 +90,32 @@ function ReceiveStatus({ report, error }: { report: ReceiveReport | null; error:
 
 /** Pantalla abierta. Una carrera se abre desde la lista (o al acabar de importarla). */
 type Screen =
+  | { kind: "home" }
   | { kind: "races" }
   | { kind: "race"; resultId: number }
   | { kind: "history" }
   | { kind: "group" }
   | { kind: "import" }
+  | { kind: "profile" }
   | { kind: "settings" };
+
+/** Pantallas que se recuerdan para el botón de volver. */
+const BACK_LIMIT = 30;
 
 function NavItem({
   icon,
   label,
   current,
+  count,
+  countLabel,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
   current: boolean;
+  /** Contador a la derecha (p. ej. errores por revisar); no sale si es 0. */
+  count?: number;
+  countLabel?: string;
   onClick: () => void;
 }) {
   return (
@@ -104,8 +126,110 @@ function NavItem({
       onClick={onClick}
     >
       {icon}
-      {label}
+      <span className="nav-label">{label}</span>
+      {count !== undefined && count > 0 && (
+        <span className="nav-count" title={countLabel} aria-label={countLabel}>
+          {count}
+        </span>
+      )}
     </button>
+  );
+}
+
+function NavSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="nav-section" role="group" aria-label={label}>
+      <span className="nav-section-label">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Migas de pan: dónde se está. Las anteriores a la última llevan a su pantalla. */
+interface Crumb {
+  label: string;
+  to?: Screen;
+}
+
+function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string | null): Crumb[] {
+  const racesLabel = runnerName === null ? "Mis carreras" : "Carreras";
+  const own: Crumb[] = (() => {
+    switch (screen.kind) {
+      case "home":
+        return [{ label: "Inicio" }];
+      case "races":
+        return [{ label: racesLabel }];
+      case "race": {
+        const race = races?.find((r) => r.result_id === screen.resultId);
+        return [{ label: racesLabel, to: { kind: "races" } }, { label: race?.name ?? "Carrera" }];
+      }
+      case "history":
+        return [{ label: "Estadísticas" }];
+      case "group":
+        return [{ label: "Grupo" }];
+      case "import":
+        return [{ label: "Importar" }];
+      case "profile":
+        return [{ label: "Mi perfil" }];
+      case "settings":
+        return [{ label: "Ajustes" }];
+    }
+  })();
+  // La entrenadora ve a un corredor: su nombre va delante, salvo en lo que es de todos.
+  const general = screen.kind === "group" || screen.kind === "settings";
+  return runnerName === null || general ? own : [{ label: runnerName }, ...own];
+}
+
+function TopBar({
+  crumbs,
+  onBack,
+  onNavigate,
+}: {
+  crumbs: Crumb[];
+  onBack: (() => void) | null;
+  onNavigate: (screen: Screen) => void;
+}) {
+  return (
+    <header className="topbar">
+      {onBack !== null && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon"
+          onClick={onBack}
+          aria-label="Volver"
+          title="Volver"
+        >
+          <ChevronLeft />
+        </button>
+      )}
+      <nav className="crumbs" aria-label="Estás en">
+        {crumbs.map((crumb, i) => {
+          const last = i === crumbs.length - 1;
+          const to = crumb.to;
+          return (
+            <span key={`${i}-${crumb.label}`} className="crumb">
+              {i > 0 && (
+                <span className="crumb-sep" aria-hidden="true">
+                  /
+                </span>
+              )}
+              {last || to === undefined ? (
+                <span
+                  className={last ? "crumb-here" : undefined}
+                  aria-current={last ? "page" : undefined}
+                >
+                  {crumb.label}
+                </span>
+              ) : (
+                <button type="button" className="crumb-link" onClick={() => onNavigate(to)}>
+                  {crumb.label}
+                </button>
+              )}
+            </span>
+          );
+        })}
+      </nav>
+    </header>
   );
 }
 
@@ -113,7 +237,9 @@ function App() {
   const [version, setVersion] = useState<string | null>(null);
   const [races, setRaces] = useState<RaceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [screen, setScreen] = useState<Screen>({ kind: "races" });
+  const [screen, setScreen] = useState<Screen>({ kind: "home" });
+  // Pantallas anteriores, para volver.
+  const [previous, setPrevious] = useState<Screen[]>([]);
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [sharing, setSharing] = useState<SharingSettings | null>(null);
   // Modo entrenadora: corredores con paquetes y el que se está viendo.
@@ -157,6 +283,8 @@ function App() {
       viewRunner(runnerId)
         .then((info) => {
           setRunner(info);
+          // Las pantallas anteriores eran de otro corredor.
+          setPrevious([]);
           setScreen((s) => (s.kind === "race" ? { kind: "races" } : s));
           refresh();
         })
@@ -164,6 +292,15 @@ function App() {
     },
     [refresh],
   );
+
+  // La entrenadora no tiene Inicio, perfil ni importar: empieza en las carreras del corredor.
+  useEffect(() => {
+    if (!coach) return;
+    setPrevious([]);
+    setScreen((s) =>
+      s.kind === "home" || s.kind === "profile" || s.kind === "import" ? { kind: "races" } : s,
+    );
+  }, [coach]);
 
   // Al entrar en modo entrenadora, sus corredores; al salir, ya no se ve a nadie.
   useEffect(() => {
@@ -187,15 +324,28 @@ function App() {
       .then(() => {
         setChosen(true);
         // La entrenadora necesita la carpeta para recibir nada.
-        if (mode === "coach") setScreen({ kind: "settings" });
+        if (mode === "coach") navigate({ kind: "settings" });
         refresh();
       })
       .catch((err: unknown) => setError(String(err)));
   };
 
-  const showRaces = () => setScreen({ kind: "races" });
-  const showImport = () => setScreen({ kind: "import" });
-  const openRace = (resultId: number) => setScreen({ kind: "race", resultId });
+  const navigate = useCallback(
+    (next: Screen) => {
+      setPrevious((stack) => [...stack, screen].slice(-BACK_LIMIT));
+      setScreen(next);
+    },
+    [screen],
+  );
+  const goBack = () => {
+    const last = previous[previous.length - 1];
+    if (last === undefined) return;
+    setPrevious(previous.slice(0, -1));
+    setScreen(last);
+  };
+  const showRaces = () => navigate({ kind: "races" });
+  const showImport = () => navigate({ kind: "import" });
+  const openRace = (resultId: number) => navigate({ kind: "race", resultId });
 
   if (chosen === false) {
     return (
@@ -210,6 +360,9 @@ function App() {
     readOnly: coach,
     runnerName: coach ? (runner?.runner.display_name ?? null) : null,
   };
+  const unreviewed = coach ? 0 : (races ?? []).reduce((n, r) => n + r.unreviewed_count, 0);
+  const at = (...kinds: Screen["kind"][]) => kinds.includes(screen.kind);
+  const goTo = (kind: Exclude<Screen["kind"], "race">) => navigate({ kind });
 
   return (
     <ViewerContext.Provider value={viewer}>
@@ -219,48 +372,85 @@ function App() {
             <ControlFlag />
             Tramos
           </div>
-          {coach && (
-            <RunnerPicker
-              runners={runners}
-              current={runner?.runner.runner_id ?? null}
-              onChange={selectRunner}
-            />
-          )}
           <nav className="nav" aria-label="Secciones">
-            <NavItem
-              icon={<ListIcon />}
-              label="Carreras"
-              current={screen.kind === "races" || screen.kind === "race"}
-              onClick={showRaces}
-            />
-            <NavItem
-              icon={<ChartIcon />}
-              label="Histórico"
-              current={screen.kind === "history"}
-              onClick={() => setScreen({ kind: "history" })}
-            />
-            {coach && (
-              <NavItem
-                icon={<GroupIcon />}
-                label="Grupo"
-                current={screen.kind === "group"}
-                onClick={() => setScreen({ kind: "group" })}
-              />
-            )}
             {!coach && (
               <NavItem
-                icon={<UploadIcon />}
-                label="Importar"
-                current={screen.kind === "import"}
-                onClick={showImport}
+                icon={<HomeIcon />}
+                label="Inicio"
+                current={at("home")}
+                onClick={() => goTo("home")}
               />
             )}
-            <NavItem
-              icon={<SlidersIcon />}
-              label="Ajustes"
-              current={screen.kind === "settings"}
-              onClick={() => setScreen({ kind: "settings" })}
-            />
+            {coach ? (
+              <NavSection label="Corredor">
+                <RunnerPicker
+                  runners={runners}
+                  current={runner?.runner.runner_id ?? null}
+                  onChange={selectRunner}
+                />
+                <NavItem
+                  icon={<ListIcon />}
+                  label="Carreras"
+                  current={at("races", "race")}
+                  onClick={showRaces}
+                />
+                <NavItem
+                  icon={<ChartIcon />}
+                  label="Estadísticas"
+                  current={at("history")}
+                  onClick={() => goTo("history")}
+                />
+              </NavSection>
+            ) : (
+              <NavSection label="Lo mío">
+                <NavItem
+                  icon={<ListIcon />}
+                  label="Mis carreras"
+                  current={at("races", "race")}
+                  count={unreviewed}
+                  countLabel={`${unreviewed} ${unreviewed === 1 ? "error" : "errores"} por revisar`}
+                  onClick={showRaces}
+                />
+                <NavItem
+                  icon={<ChartIcon />}
+                  label="Estadísticas"
+                  current={at("history")}
+                  onClick={() => goTo("history")}
+                />
+                <NavItem
+                  icon={<UploadIcon />}
+                  label="Importar"
+                  current={at("import")}
+                  onClick={showImport}
+                />
+              </NavSection>
+            )}
+            {coach && (
+              <NavSection label="Todos">
+                <NavItem
+                  icon={<GroupIcon />}
+                  label="Grupo"
+                  current={at("group")}
+                  onClick={() => goTo("group")}
+                />
+              </NavSection>
+            )}
+            <NavSection label="Cuenta">
+              {!coach && (
+                <NavItem
+                  icon={<UserIcon />}
+                  label="Mi perfil"
+                  current={at("profile")}
+                  onClick={() => goTo("profile")}
+                />
+              )}
+              <NavItem
+                icon={<SlidersIcon />}
+                label="Ajustes"
+                current={at("settings")}
+                onClick={() => goTo("settings")}
+              />
+            </NavSection>
           </nav>
           <div className="sidebar-footer">
             {receiving.active && (
@@ -271,6 +461,11 @@ function App() {
         </aside>
 
         <main className="content">
+          <TopBar
+            crumbs={crumbsFor(screen, races, viewer.runnerName)}
+            onBack={previous.length > 0 ? goBack : null}
+            onNavigate={navigate}
+          />
           {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
           <div className="page" key={runner?.runner.runner_id ?? "self"}>
             {error !== null && (
@@ -282,6 +477,15 @@ function App() {
                 {runner.problems.join("; ")}
               </Notice>
             )}
+            {screen.kind === "home" && !coach && (
+              <Home
+                races={races}
+                onOpen={openRace}
+                onImport={showImport}
+                onRaces={showRaces}
+                onHistory={() => goTo("history")}
+              />
+            )}
             {screen.kind === "races" && (
               <RaceList
                 races={races}
@@ -290,15 +494,13 @@ function App() {
                 summaryOnly={coach ? (runner?.summary_only ?? []) : []}
               />
             )}
-            {screen.kind === "race" && (
-              <RaceView resultId={screen.resultId} onBack={showRaces} onChanged={refresh} />
-            )}
+            {screen.kind === "race" && <RaceView resultId={screen.resultId} onChanged={refresh} />}
             {screen.kind === "history" && <HistoryScreen onImport={showImport} onOpen={openRace} />}
             {screen.kind === "group" && coach && (
               <GroupScreen
                 onOpenRunner={(runnerId) => {
                   selectRunner(runnerId);
-                  setScreen({ kind: "races" });
+                  navigate({ kind: "races" });
                 }}
               />
             )}
@@ -306,10 +508,13 @@ function App() {
               <ImportScreen
                 onImported={refresh}
                 onOpen={openRace}
-                onSettings={() => setScreen({ kind: "settings" })}
+                onSettings={() => goTo("profile")}
               />
             )}
-            {screen.kind === "settings" && <SettingsView onSaved={refresh} />}
+            {screen.kind === "profile" && !coach && (
+              <SettingsView page="profile" onSaved={refresh} />
+            )}
+            {screen.kind === "settings" && <SettingsView page="settings" onSaved={refresh} />}
           </div>
         </main>
       </div>

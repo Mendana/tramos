@@ -1,0 +1,1474 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Boceto navegable de la navegación de la app (#105 y #119). Datos inventados: ningún nombre,
+     carrera ni número es real. Se abre en el navegador; no forma parte de la app. -->
+<title>Boceto de Tramos</title>
+<style>
+/* Layout: barra lateral oscura fija con las secciones; a la derecha, cabecera con migas y contexto
+   y el contenido sobre un fondo cálido. Las tarjetas se reservan para paneles y cifras. */
+:root {
+  --bg: #f3f1ed;
+  --surface: #ffffff;
+  --surface-2: #f8f7f4;
+  --hover: #efece6;
+  --border: #e2ded6;
+  --border-strong: #cbc5ba;
+  --text: #1d1b18;
+  --muted: #67615a;
+  --faint: #958f85;
+
+  --accent: #a8236f;
+  --accent-hover: #8e1d5e;
+  --accent-soft: #f6e6ef;
+  --on-accent: #ffffff;
+
+  --error: #c9530a;
+  --error-soft: #fdeee2;
+  --success: #2c7a4b;
+  --success-soft: #e4f2e9;
+  --info: #2f5f8f;
+  --info-soft: #e7eff8;
+  --warning: #8f6400;
+  --warning-soft: #faf1d9;
+
+  --side-bg: #1b1e22;
+  --side-text: #d3d7dc;
+  --side-muted: #8a929b;
+  --side-hover: #262a30;
+  --side-active: #33212d;
+  --side-line: #2c3036;
+
+  --chart-1: #a8236f;
+  --chart-2: #2a78d6;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-error: #d4580b;
+  --chart-muted: #8a8479;
+  --chart-grid: #ebe8e2;
+  --chart-axis: #cfc9bd;
+  --chart-ref: #6b655c;
+  --chart-gain: #2a78b8;
+
+  /* El mapa es claro en los dos modos (como las teselas de OSM). */
+  --map-paper: #f2efe9;
+  --map-forest: #d7ead0;
+  --map-open: #f6e7b4;
+  --map-contour: #c79a6b;
+  --map-water: #a9d3ee;
+  --map-casing: #ffffff;
+  --seq-1: #6da7ec;
+  --seq-2: #3987e5;
+  --seq-3: #256abf;
+  --seq-4: #184f95;
+  --seq-5: #0d366b;
+
+  --note-bg: #fff6c4;
+  --note-border: #e2cd5f;
+  --note-text: #4a4120;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgb(31 28 24 / 6%), 0 1px 1px rgb(31 28 24 / 4%);
+  --shadow-raised: 0 10px 30px rgb(31 28 24 / 16%);
+  --focus: 0 0 0 3px rgb(168 35 111 / 32%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #141312; --surface: #1d1c1a; --surface-2: #191816; --hover: #262422;
+    --border: #312e2a; --border-strong: #45413b;
+    --text: #edeae4; --muted: #a8a197; --faint: #79736a;
+    --accent: #e66db5; --accent-hover: #f08cc7; --accent-soft: #3a1f30; --on-accent: #1d0d17;
+    --error: #f28a45; --error-soft: #3a2416; --success: #6cc690; --success-soft: #1a3324;
+    --info: #86b4e3; --info-soft: #1b2a3a; --warning: #e0b23e; --warning-soft: #352b14;
+    --side-bg: #0e0f11; --side-text: #d3d7dc; --side-muted: #7d858e; --side-hover: #1a1c20;
+    --side-active: #2e1b28; --side-line: #22252a;
+    --chart-1: #d45ca3; --chart-2: #3987e5; --chart-3: #0f8f62; --chart-4: #c98500;
+    --chart-error: #dc7430; --chart-muted: #7a756c; --chart-grid: #2a2826; --chart-axis: #45413b;
+    --chart-ref: #a8a197; --chart-gain: #4f95d0;
+    --note-bg: #3a3415; --note-border: #6b5d1f; --note-text: #f1e6b0;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%); --shadow-raised: 0 10px 30px rgb(0 0 0 / 55%);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141312; --surface: #1d1c1a; --surface-2: #191816; --hover: #262422;
+  --border: #312e2a; --border-strong: #45413b;
+  --text: #edeae4; --muted: #a8a197; --faint: #79736a;
+  --accent: #e66db5; --accent-hover: #f08cc7; --accent-soft: #3a1f30; --on-accent: #1d0d17;
+  --error: #f28a45; --error-soft: #3a2416; --success: #6cc690; --success-soft: #1a3324;
+  --info: #86b4e3; --info-soft: #1b2a3a; --warning: #e0b23e; --warning-soft: #352b14;
+  --side-bg: #0e0f11; --side-text: #d3d7dc; --side-muted: #7d858e; --side-hover: #1a1c20;
+  --side-active: #2e1b28; --side-line: #22252a;
+  --chart-1: #d45ca3; --chart-2: #3987e5; --chart-3: #0f8f62; --chart-4: #c98500;
+  --chart-error: #dc7430; --chart-muted: #7a756c; --chart-grid: #2a2826; --chart-axis: #45413b;
+  --chart-ref: #a8a197; --chart-gain: #4f95d0;
+  --note-bg: #3a3415; --note-border: #6b5d1f; --note-text: #f1e6b0;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%); --shadow-raised: 0 10px 30px rgb(0 0 0 / 55%);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+button, input, select { font: inherit; color: inherit; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; line-height: 1.25; }
+h1 { font-size: 24px; font-weight: 680; letter-spacing: -0.01em; }
+h2 { font-size: 17px; font-weight: 650; }
+h3 { font-size: 15px; font-weight: 640; }
+p { margin: 0; }
+a { color: var(--accent); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.small { font-size: 12.5px; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--radius-sm); }
+
+/* ---------- Estructura ---------- */
+.shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100%; }
+.side {
+  background: var(--side-bg); color: var(--side-text); display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh; padding: 16px 12px; gap: 4px; overflow-y: auto;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
+.brand-name { font-size: 17px; font-weight: 700; letter-spacing: 0.01em; color: #fff; }
+.side-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--side-muted);
+  padding: 14px 10px 6px; display: flex; justify-content: space-between; align-items: center;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0;
+  background: none; border-radius: 8px; cursor: pointer; text-align: left; color: var(--side-text);
+}
+.nav-item:hover { background: var(--side-hover); }
+.nav-item.active { background: var(--side-active); color: #fff; box-shadow: inset 3px 0 0 #e66db5; }
+.nav-item svg { flex: none; opacity: 0.85; }
+.nav-item .count {
+  margin-left: auto; font-size: 11.5px; background: #e66db5; color: #1d0d17; border-radius: 99px;
+  padding: 0 7px; font-weight: 650;
+}
+.nav-sub { padding-left: 22px; display: grid; gap: 2px; }
+.nav-sub .nav-item { padding: 6px 10px; font-size: 13.5px; }
+.athlete-picker {
+  margin: 2px 4px 6px; display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1px solid var(--side-line); border-radius: 8px; background: var(--side-hover); cursor: pointer;
+  color: var(--side-text); width: calc(100% - 8px); text-align: left;
+}
+.side-foot { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--side-line);
+  font-size: 12px; color: var(--side-muted); display: grid; gap: 4px; }
+.sync-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #6cc690; margin-right: 6px; }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; padding: 10px 28px; min-height: 56px;
+}
+.crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-size: 13.5px; }
+.crumbs button { border: 0; background: none; padding: 2px 4px; border-radius: 6px; cursor: pointer; color: var(--muted); }
+.crumbs button:hover { background: var(--hover); color: var(--text); }
+.crumbs .here { font-weight: 600; color: var(--text); }
+.topbar .spacer { flex: 1; }
+.menu-btn { display: none; }
+.content { padding: 24px 28px 64px; max-width: 1240px; width: 100%; display: grid; gap: 20px; align-content: start; }
+
+.viewing-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--info-soft);
+  border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); color: var(--text);
+  padding: 10px 14px; border-radius: var(--radius);
+}
+.viewing-banner strong { color: var(--info); }
+
+/* ---------- Piezas ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-strong);
+  background: var(--surface); padding: 7px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { background: var(--hover); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { border-color: transparent; background: none; }
+.btn-sm { padding: 4px 9px; font-size: 13px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.stack { display: grid; gap: 12px; }
+.page-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-head .grow { flex: 1; min-width: 240px; display: grid; gap: 4px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+.card-pad { padding: 18px 20px; }
+.card-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px 0; flex-wrap: wrap; }
+.card-head h3 { flex: 1; min-width: 160px; }
+.card-body { padding: 12px 18px 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+  padding: 1px 8px; border-radius: 99px; background: var(--hover); color: var(--muted); white-space: nowrap;
+}
+.pill-sprint { background: #e7eff8; color: #2f5f8f; }
+.pill-media { background: #e4f2e9; color: #2c6b45; }
+.pill-larga { background: #f6e6ef; color: #8e1d5e; }
+.pill-error { background: var(--error-soft); color: var(--error); }
+.pill-ok { background: var(--success-soft); color: var(--success); }
+.pill-info { background: var(--info-soft); color: var(--info); }
+.pill-warn { background: var(--warning-soft); color: var(--warning); }
+:root[data-theme="dark"] .pill-sprint { background: #1b2a3a; color: #86b4e3; }
+:root[data-theme="dark"] .pill-media { background: #1a3324; color: #6cc690; }
+:root[data-theme="dark"] .pill-larga { background: #3a1f30; color: #e66db5; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pill-sprint { background: #1b2a3a; color: #86b4e3; }
+  :root:not([data-theme="light"]) .pill-media { background: #1a3324; color: #6cc690; }
+  :root:not([data-theme="light"]) .pill-larga { background: #3a1f30; color: #e66db5; }
+}
+
+.seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 5px 11px; cursor: pointer; font-size: 13px; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--border-strong); background: var(--surface); border-radius: 99px;
+  padding: 4px 12px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+}
+.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+
+.input, .select {
+  border: 1px solid var(--border-strong); background: var(--surface); border-radius: 8px; padding: 7px 10px;
+  min-width: 0;
+}
+.search { position: relative; flex: 1 1 220px; max-width: 340px; }
+.search .input { width: 100%; padding-left: 32px; }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.toolbar .grow { flex: 1; }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab {
+  border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--muted); white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 550;
+}
+.tab:hover { color: var(--text); }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.tab .badge { margin-left: 6px; font-size: 11px; background: var(--error-soft); color: var(--error); border-radius: 99px; padding: 0 6px; }
+
+/* Cifras */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; }
+.kpi .label { font-size: 12px; color: var(--muted); }
+.kpi .value { font-size: 24px; font-weight: 680; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.kpi .sub { font-size: 12px; color: var(--muted); }
+.kpi.error .value { color: var(--error); }
+.up { color: var(--success); }
+.down { color: var(--error); }
+
+/* Tablas */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--hover); }
+tr.err td { background: color-mix(in srgb, var(--error-soft) 70%, transparent); }
+tr.sel td { background: var(--accent-soft); }
+.race-name { font-weight: 600; }
+.pager { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 12px 4px 0; flex-wrap: wrap; }
+
+/* Paneles de análisis */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; }
+.panel-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 16px 4px; }
+.panel-head .t { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.panel-head .q { font-size: 12px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.panel-body { padding: 6px 16px 14px; display: grid; gap: 8px; }
+.panel-read { font-size: 13px; color: var(--muted); }
+.icon-btn { border: 0; background: none; padding: 4px; border-radius: 6px; cursor: pointer; color: var(--muted); display: inline-flex; }
+.icon-btn:hover { background: var(--hover); color: var(--text); }
+.panel.wide { grid-column: 1 / -1; }
+.panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel-menu { position: relative; }
+.menu {
+  position: absolute; right: 0; top: 30px; z-index: 30; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-raised); padding: 6px; min-width: 190px; display: grid;
+}
+.menu button { border: 0; background: none; text-align: left; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.menu button:hover { background: var(--hover); }
+
+/* Gráficas */
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .grid { stroke: var(--chart-grid); stroke-width: 1; }
+.chart .axis { stroke: var(--chart-axis); stroke-width: 1; }
+.chart .ref { stroke: var(--chart-ref); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.chart text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.chart text.strong { fill: var(--text); font-weight: 600; }
+.chart .bar { fill: var(--chart-1); }
+.chart .bar.muted { fill: var(--chart-muted); }
+.chart .bar.err { fill: var(--chart-error); }
+.chart .bar.gain { fill: var(--chart-gain); }
+.chart .bar.s2 { fill: var(--chart-2); }
+.chart .bar.s3 { fill: var(--chart-3); }
+.chart .bar.s4 { fill: var(--chart-4); }
+.chart .bar:hover { opacity: 0.8; }
+.chart .line { fill: none; stroke: var(--chart-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .line.s2 { stroke: var(--chart-2); }
+.chart .line.s3 { stroke: var(--chart-3); }
+.chart .line.s4 { stroke: var(--chart-4); }
+.chart .line.thick { stroke-width: 3; }
+.chart .area { fill: var(--chart-1); opacity: 0.1; }
+.chart .mark { fill: var(--chart-1); stroke: var(--surface); stroke-width: 2; }
+.chart .mark.err { fill: var(--chart-error); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.sw-1 { background: var(--chart-1); } .sw-2 { background: var(--chart-2); } .sw-3 { background: var(--chart-3); }
+.sw-4 { background: var(--chart-4); } .sw-err { background: var(--chart-error); } .sw-muted { background: var(--chart-muted); }
+.sw-gain { background: var(--chart-gain); }
+.spark { width: 120px; height: 34px; }
+.spark .line { stroke-width: 1.75; }
+
+/* Mapa */
+.map-box { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--map-paper); position: relative; }
+.map-box svg { display: block; width: 100%; height: auto; }
+.map-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.map-scale { display: inline-flex; border-radius: 4px; overflow: hidden; background: var(--map-paper); padding: 3px; }
+.map-scale i { width: 26px; height: 10px; display: block; }
+.map-tools { position: absolute; right: 10px; top: 10px; display: grid; gap: 4px; }
+.map-tools button { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #cfc9bd; background: #fff; color: #1d1b18; cursor: pointer; }
+.attrib { position: absolute; right: 6px; bottom: 4px; font-size: 10.5px; color: #4a453e; background: rgb(255 255 255 / 75%); padding: 0 5px; border-radius: 4px; }
+.leg-list { display: grid; gap: 2px; max-height: 420px; overflow: auto; }
+.leg-item { display: grid; grid-template-columns: 42px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; cursor: pointer; border: 0; background: none; text-align: left; }
+.leg-item:hover { background: var(--hover); }
+.leg-item.on { background: var(--accent-soft); }
+
+/* Avisos, notas y vacíos */
+.notice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: var(--radius); background: var(--info-soft); color: var(--text); }
+.notice.warn { background: var(--warning-soft); }
+.notice.err { background: var(--error-soft); }
+.notice svg { flex: none; margin-top: 2px; }
+.note {
+  background: var(--note-bg); border: 1px dashed var(--note-border); color: var(--note-text);
+  border-radius: var(--radius); padding: 10px 14px; font-size: 13px; display: flex; gap: 10px;
+}
+.note b { font-weight: 700; }
+.note::before { content: "✎"; font-weight: 700; }
+body.no-notes .note { display: none; }
+.empty { text-align: center; padding: 40px 20px; display: grid; gap: 10px; justify-items: center; color: var(--muted); }
+
+/* Tareas y listas */
+.task { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.task:last-child { border-bottom: 0; }
+.task .ico { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+.task .ico.e { background: var(--error-soft); color: var(--error); }
+.task .ico.i { background: var(--info-soft); color: var(--info); }
+.task .ico.a { background: var(--accent-soft); color: var(--accent); }
+.task .grow { flex: 1; min-width: 0; }
+
+.hero-race { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0; overflow: hidden; }
+.hero-race .info { padding: 20px; display: grid; gap: 14px; align-content: start; }
+.hero-race .mini-map { background: var(--map-paper); border-left: 1px solid var(--border); min-height: 220px; display: grid; }
+.hero-race .mini-map svg { width: 100%; height: 100%; }
+.eyebrow { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+
+.athlete-card { padding: 16px; display: grid; gap: 12px; cursor: pointer; text-align: left; border: 1px solid var(--border); }
+.athlete-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-raised); }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none; font-size: 14px; }
+.avatar.lg { width: 64px; height: 64px; font-size: 22px; }
+.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mini-stats div { display: grid; }
+.mini-stats b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.mini-stats span { font-size: 11.5px; color: var(--muted); }
+
+.h2h td.cell { text-align: center; font-variant-numeric: tabular-nums; }
+.h2h .w { color: var(--success); font-weight: 650; }
+.h2h .l { color: var(--error); font-weight: 650; }
+
+/* Estadísticas con índice lateral */
+.with-index { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 24px; align-items: start; }
+.toc { position: sticky; top: 76px; display: grid; gap: 2px; }
+.toc button { border: 0; background: none; text-align: left; padding: 7px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); border-left: 2px solid var(--border); border-radius: 0 8px 8px 0; }
+.toc button:hover { color: var(--text); background: var(--hover); }
+.toc button.on { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+.section-title { display: grid; gap: 2px; padding-top: 8px; scroll-margin-top: 80px; }
+
+.filterbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.filterbar label { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+
+/* Ajustes */
+.settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; }
+.settings-nav { display: grid; gap: 2px; position: sticky; top: 76px; }
+.settings-nav button { border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); }
+.settings-nav button.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
+.field { display: grid; gap: 4px; }
+.field label { font-weight: 600; font-size: 13.5px; }
+.field .hint { font-size: 12.5px; color: var(--muted); }
+.form-section { display: grid; gap: 16px; }
+.switch { display: flex; gap: 12px; align-items: flex-start; }
+.switch input { width: 36px; height: 20px; accent-color: var(--accent); flex: none; margin-top: 2px; }
+.zone-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.zone-sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-strong); }
+
+/* Panel del boceto */
+.mock-fab {
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; border-radius: 99px;
+  background: var(--note-bg); color: var(--note-text); border: 1px solid var(--note-border); padding: 9px 16px;
+  font-weight: 700; cursor: pointer; box-shadow: var(--shadow-raised);
+}
+.mock-panel {
+  position: fixed; right: 16px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 60; width: min(340px, calc(100vw - 32px));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-raised);
+  padding: 16px; display: grid; gap: 14px; max-height: calc(100vh - 100px); overflow: auto;
+}
+.mock-panel .field { gap: 6px; }
+
+/* Cajón de personalizar */
+.drawer-bg { position: fixed; inset: 0; background: rgb(0 0 0 / 35%); z-index: 70; }
+.drawer {
+  position: fixed; right: 0; top: 0; bottom: 0; width: min(400px, 100vw); background: var(--surface); z-index: 71;
+  box-shadow: var(--shadow-raised); padding: 20px; display: grid; gap: 16px; align-content: start; overflow: auto;
+}
+.check-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.check-row input { accent-color: var(--accent); width: 16px; height: 16px; }
+.check-row .grow { flex: 1; }
+
+/* Bienvenida */
+.onboard { min-height: 100%; display: grid; place-items: center; padding: 32px 16px; background: var(--bg); }
+.onboard-card { max-width: 760px; width: 100%; display: grid; gap: 24px; text-align: center; }
+.role-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.role { padding: 20px 16px; display: grid; gap: 8px; justify-items: center; cursor: pointer; border: 1px solid var(--border); text-align: center; }
+.role:hover { border-color: var(--accent); }
+.role .ico { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+
+@media (max-width: 980px) {
+  .panels, .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .hero-race { grid-template-columns: minmax(0, 1fr); }
+  .hero-race .mini-map { border-left: 0; border-top: 1px solid var(--border); }
+}
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { position: fixed; z-index: 50; left: 0; top: 0; bottom: 0; width: 260px; height: 100%; transform: translateX(-100%); transition: transform 0.2s; }
+  .side.open { transform: none; }
+  .menu-btn { display: inline-flex; }
+  .topbar { padding: 10px 16px; }
+  .content { padding: 18px 16px 72px; }
+  .with-index, .settings { grid-template-columns: minmax(0, 1fr); }
+  .toc, .settings-nav { position: static; display: flex; overflow-x: auto; }
+  .toc button { border-left: 0; border-bottom: 2px solid var(--border); border-radius: 0; white-space: nowrap; }
+  .toc button.on { border-bottom-color: var(--accent); }
+  .settings-nav button { white-space: nowrap; }
+  .role-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+"use strict";
+// ======================================================================
+// Datos inventados. Nada de esto sale de carreras ni corredores reales.
+// ======================================================================
+function rng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const ME = { name: "Lucía Prado", short: "Lucía", club: "Club Orientación Ejemplo", si: "8 123 456", cat: "F21A", color: "#a8236f" };
+
+const RACE_DEFS = [
+  ["Liga Norte · Sprint del casco viejo", "sprint"], ["Trofeo Pinar Alto", "media"], ["Regional de larga · Sierra del Ejemplo", "larga"],
+  ["Liga Norte · Sprint del campus", "sprint"], ["Copa de clubes · Dunas", "media"], ["Trofeo Hayedo", "media"],
+  ["Nocturna del puerto", "sprint"], ["Campeonato autonómico de media", "media"], ["Liga Norte · Sprint parque", "sprint"],
+  ["Larga del Robledal", "larga"], ["Trofeo Valle Escondido", "media"], ["Entreno con splits · Canchal", null],
+  ["Liga Norte · Sprint ribera", "sprint"], ["Copa de clubes · Peñas Rojas", "media"], ["Larga de los Tres Collados", "larga"],
+  ["Trofeo Los Abetos", "media"], ["Liga Norte · Sprint barrio alto", "sprint"], ["Media del Encinar", "media"],
+  ["Nacional · Sprint", "sprint"], ["Nacional · Media", "media"], ["Nacional · Larga", "larga"],
+  ["Trofeo Laguna Seca", "media"], ["Liga Norte · Sprint de invierno", "sprint"], ["Copa de clubes · Brezal", "media"],
+  ["Trofeo de Reyes", "media"], ["Larga de los Pinares Viejos", "larga"], ["Liga Norte · Sprint final", "sprint"],
+  ["Media del Castañar", "media"],
+];
+
+const RACES = (function () {
+  const r = rng(7);
+  const out = [];
+  let d = new Date(2026, 8, 27);
+  RACE_DEFS.forEach(function (def, i) {
+    const fmt = def[1];
+    const base = fmt === "sprint" ? 15 * 60 : fmt === "larga" ? 62 * 60 : fmt === "media" ? 38 * 60 : 30 * 60;
+    const time = Math.round(base * (0.92 + r() * 0.25));
+    const errors = Math.floor(r() * (fmt === "larga" ? 5 : 4));
+    const lost = Math.round(errors * (fmt === "sprint" ? 12 : 45) + r() * 40);
+    const ir = 0.8 + r() * 0.13 + i * 0.0012;
+    const of = 18 + Math.floor(r() * 30);
+    out.push({
+      id: "c" + (i + 1), date: new Date(d), name: def[0], format: fmt, cat: ME.cat,
+      pos: 1 + Math.floor(r() * Math.min(of, 14)), of: of, status: i === 9 ? "mp" : "ok",
+      time: time, lost: lost, errors: errors, ir: ir, cons: 0.06 + r() * 0.12,
+      track: r() > 0.18, pending: i < 3 ? Math.max(0, errors - (i === 0 ? 0 : 1)) : (i === 6 ? 2 : 0),
+      legs: fmt === "sprint" ? 19 : fmt === "larga" ? 13 : 15, share: "legs",
+    });
+    d = new Date(d.getTime() - (9 + Math.floor(r() * 18)) * 86400000);
+  });
+  return out;
+})();
+
+const GROUPS = [
+  { id: "g1", name: "Juveniles", color: "#2a78d6", desc: "Menores de 20 años de la escuela." },
+  { id: "g2", name: "Equipo de relevos", color: "#199e70", desc: "Los que corren el relevo autonómico." },
+  { id: "g3", name: "Tecnificación", color: "#c98500", desc: "Plan de técnica de esta temporada." },
+];
+const ATHLETES = [
+  { id: "a1", name: "Nora V.", groups: ["g1", "g3"], races: 21, ir: 0.873, err: 0.14, loss: 6.1, common: "Salida de baliza", last: "Trofeo Pinar Alto", lastDays: 11, fresh: 2, color: "#2a78d6" },
+  { id: "a2", name: "Iker M.", groups: ["g1"], races: 17, ir: 0.842, err: 0.19, loss: 8.4, common: "Paralelo", last: "Liga Norte · Sprint del casco viejo", lastDays: 4, fresh: 1, color: "#199e70" },
+  { id: "a3", name: "Sara L.", groups: ["g2", "g3"], races: 26, ir: 0.901, err: 0.11, loss: 4.9, common: "Ataque a baliza", last: "Liga Norte · Sprint del casco viejo", lastDays: 4, fresh: 0, color: "#c98500" },
+  { id: "a4", name: "Pablo T.", groups: ["g2"], races: 12, ir: 0.815, err: 0.23, loss: 10.2, common: "Elección de ruta", last: "Copa de clubes · Dunas", lastDays: 32, fresh: 0, color: "#7e22ce" },
+  { id: "a5", name: "Leire G.", groups: ["g1", "g2"], races: 19, ir: 0.864, err: 0.15, loss: 6.6, common: "Salida de baliza", last: "Trofeo Pinar Alto", lastDays: 11, fresh: 0, color: "#0e7490" },
+  { id: "a6", name: "Hugo B.", groups: ["g3"], races: 8, ir: 0.829, err: 0.21, loss: 9.0, common: "Paralelo", last: "Trofeo Hayedo", lastDays: 47, fresh: 0, color: "#be185d" },
+];
+
+// Tramos de una carrera, inventados a partir de su id.
+function legsOf(race) {
+  const r = rng(race.id.charCodeAt(1) * 97 + race.legs);
+  const out = [];
+  const errIdx = new Set();
+  while (errIdx.size < race.errors) errIdx.add(1 + Math.floor(r() * (race.legs - 2)));
+  const types = ["Salida de baliza", "Ataque a baliza", "Paralelo", "Elección de ruta", "Concentración"];
+  let code = 31 + Math.floor(r() * 20);
+  for (let i = 0; i < race.legs; i++) {
+    const ref = race.format === "sprint" ? 25 + r() * 70 : 60 + r() * 260;
+    const isErr = errIdx.has(i);
+    const ir = isErr ? 0.45 + r() * 0.25 : race.ir - 0.06 + r() * 0.14;
+    const split = ref / ir;
+    const expected = ref / race.ir;
+    const loss = split - expected;
+    code += 1 + Math.floor(r() * 9);
+    out.push({
+      n: i + 1, from: i === 0 ? "S" : String(code - 4), to: i === race.legs - 1 ? "M" : String(code),
+      split: split, ref: ref, ir: ir, loss: loss, lossPct: loss / expected, err: isErr,
+      rank: 1 + Math.floor(r() * (isErr ? race.of : race.of / 2)),
+      type: isErr && r() > 0.4 && race.pending === 0 ? types[Math.floor(r() * types.length)] : null,
+      label: isErr ? (race.pending > 0 && r() > 0.3 ? null : "si") : null,
+    });
+  }
+  return out;
+}
+
+// ======================================================================
+// Formato
+// ======================================================================
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+function fdate(d) { return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear(); }
+function fshort(d) { return d.getDate() + " " + MONTHS[d.getMonth()]; }
+function ftime(s) {
+  s = Math.round(Math.abs(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  const pad = function (v) { return String(v).padStart(2, "0"); };
+  return h ? h + ":" + pad(m) + ":" + pad(x) : m + ":" + pad(x);
+}
+function fpct(v, dec) { return (v * 100).toFixed(dec == null ? 1 : dec).replace(".", ",") + " %"; }
+function fnum(v, dec) { return v.toFixed(dec == null ? 1 : dec).replace(".", ","); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+const FORMAT_LABEL = { sprint: "Sprint", media: "Media", larga: "Larga" };
+function fmtPill(f) { return f ? '<span class="pill pill-' + f + '">' + FORMAT_LABEL[f] + "</span>" : '<span class="pill">Sin formato</span>'; }
+function initials(name) { return name.split(" ").map(function (w) { return w[0]; }).join("").slice(0, 2).toUpperCase(); }
+
+// ======================================================================
+// Iconos (trazo, 18 px)
+// ======================================================================
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  upload: '<path d="M12 16V4M6 10l6-6 6 6M4 20h16"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1.2-3.5 3.6-5 6.5-5s5.3 1.5 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.2 0 3.8 1.2 4.6 3.5"/>',
+  group: '<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  dots: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  alert: '<path d="M12 3 2 20h20zM12 10v4M12 17v.01"/>',
+  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
+  tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  watch: '<rect x="6" y="6" width="12" height="12" rx="3"/><path d="M9 6V3h6v3M9 18v3h6v-3"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  run: '<circle cx="14" cy="4.5" r="2"/><path d="M8 21l3-6 3 2v5M6 12l3-4 4 1 3 3 3 1M11 15l-2-3"/>',
+  whistle: '<circle cx="9" cy="14" r="5"/><path d="M13 11l8-4v4l-6 2M9 14h.01"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+};
+function icon(name, size) {
+  size = size || 18;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + "</svg>";
+}
+function baliza(size) {
+  // Icono de la app: una baliza (cuadrado partido en diagonal, blanco y naranja).
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="4" fill="#ffffff"/><path d="M22 2v16a4 4 0 0 1-4 4H2z" fill="#e8742a"/></svg>';
+}
+
+// ======================================================================
+// Gráficas (SVG a mano, como en la app)
+// ======================================================================
+function niceMax(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+}
+function columns(opts) {
+  // opts: labels, values, min (opcional), ref, refLabel, n, fmt, cls (por columna o fija)
+  const W = 560, H = 210, L = 44, R = 10, T = 14, B = opts.n ? 44 : 30;
+  const vals = opts.values;
+  const top0 = Math.max.apply(null, vals.concat(opts.ref || 0));
+  let max = top0 > 0 ? niceMax(top0 * 1.05) : 1;
+  let min = opts.min != null ? opts.min : Math.min(0, Math.min.apply(null, vals));
+  if (min < 0) min = -niceMax(-min);
+  const y = function (v) { return T + (H - T - B) * (1 - (v - min) / (max - min)); };
+  const fmt = opts.fmt || function (v) { return fnum(v, 0); };
+  let s = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(opts.title || "Gráfica") + '">';
+  for (let k = 0; k <= 4; k++) {
+    const v = min + (max - min) * k / 4;
+    s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
+    s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmt(v) + "</text>";
+  }
+  s += '<line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(0 > min ? 0 : min) + '" y2="' + y(0 > min ? 0 : min) + '"/>';
+  const n = vals.length, slot = (W - L - R) / n, bw = Math.min(26, slot * 0.6);
+  vals.forEach(function (v, i) {
+    const cx = L + slot * (i + 0.5);
+    const y0 = y(Math.max(min, 0)), y1 = y(v);
+    const top = Math.min(y0, y1), h = Math.max(1, Math.abs(y1 - y0));
+    const cls = typeof opts.cls === "function" ? opts.cls(v, i) : (opts.cls || "");
+    const rr = Math.min(4, h / 2);
+    // Columna con el extremo redondeado y la base recta.
+    let d;
+    if (v >= 0) d = "M" + (cx - bw / 2) + "," + (top + h) + "V" + (top + rr) + "Q" + (cx - bw / 2) + "," + top + " " + (cx - bw / 2 + rr) + "," + top + "H" + (cx + bw / 2 - rr) + "Q" + (cx + bw / 2) + "," + top + " " + (cx + bw / 2) + "," + (top + rr) + "V" + (top + h) + "Z";
+    else d = "M" + (cx - bw / 2) + "," + top + "V" + (top + h - rr) + "Q" + (cx - bw / 2) + "," + (top + h) + " " + (cx - bw / 2 + rr) + "," + (top + h) + "H" + (cx + bw / 2 - rr) + "Q" + (cx + bw / 2) + "," + (top + h) + " " + (cx + bw / 2) + "," + (top + h - rr) + "V" + top + "Z";
+    s += '<path class="bar ' + cls + '" d="' + d + '"><title>' + esc(opts.labels[i] + ": " + fmt(v)) + "</title></path>";
+    if (n <= 14 || i % 2 === 0) s += '<text x="' + cx + '" y="' + (H - B + 16) + '" text-anchor="middle">' + esc(opts.labels[i]) + "</text>";
+    if (opts.n) s += '<text x="' + cx + '" y="' + (H - B + 31) + '" text-anchor="middle" class="faint">n = ' + opts.n[i] + "</text>";
+  });
+  if (opts.ref != null) {
+    s += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(opts.ref) + '" y2="' + y(opts.ref) + '"/>';
+    s += '<text class="strong" x="' + (W - R) + '" y="' + (y(opts.ref) - 6) + '" text-anchor="end">' + esc(opts.refLabel || "") + "</text>";
+  }
+  return s + "</svg>";
+}
+function lines(opts) {
+  // opts: labels, series: [{values, cls, name, thick}], ref, refLabel, fmt, min, max, marks
+  const W = 560, H = 210, L = 44, R = opts.endLabels ? 70 : 12, T = 14, B = 30;
+  const all = [];
+  opts.series.forEach(function (s) { all.push.apply(all, s.values); });
+  const hi = Math.max.apply(null, all.concat(opts.ref == null ? -Infinity : opts.ref));
+  const lo = Math.min.apply(null, all.concat(opts.ref == null ? Infinity : opts.ref));
+  const pad = (hi - lo || 1) * 0.06;
+  const max = opts.max != null ? opts.max : hi + pad;
+  const min = opts.min != null ? opts.min : lo - pad;
+  const n = opts.labels.length;
+  const x = function (i) { return L + (W - L - R) * (n === 1 ? 0.5 : i / (n - 1)); };
+  const y = function (v) { return T + (H - T - B) * (1 - (v - min) / (max - min)); };
+  const fmt = opts.fmt || function (v) { return fnum(v, 0); };
+  let s = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(opts.title || "Gráfica") + '">';
+  for (let k = 0; k <= 4; k++) {
+    const v = min + (max - min) * k / 4;
+    s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
+    s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmt(v) + "</text>";
+  }
+  const step = Math.ceil(n / 8);
+  opts.labels.forEach(function (lab, i) {
+    if (i % step === 0 || i === n - 1) s += '<text x="' + x(i) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(lab) + "</text>";
+  });
+  if (opts.ref != null) {
+    s += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(opts.ref) + '" y2="' + y(opts.ref) + '"/>';
+    s += '<text class="strong" x="' + (L + 6) + '" y="' + (y(opts.ref) - 6) + '">' + esc(opts.refLabel || "") + "</text>";
+  }
+  opts.series.forEach(function (ser, si) {
+    const pts = ser.values.map(function (v, i) { return x(i) + "," + y(v); }).join(" ");
+    if (si === 0 && opts.area) s += '<polygon class="area" points="' + x(0) + "," + y(min) + " " + pts + " " + x(n - 1) + "," + y(min) + '"/>';
+    s += '<polyline class="line ' + (ser.cls || "") + (ser.thick ? " thick" : "") + '" points="' + pts + '"/>';
+    if (opts.marks && si === 0) ser.values.forEach(function (v, i) {
+      s += '<circle class="mark' + (opts.markErr && opts.markErr(i) ? " err" : "") + '" cx="' + x(i) + '" cy="' + y(v) + '" r="4"><title>' + esc(opts.labels[i] + ": " + fmt(v)) + "</title></circle>";
+    });
+    if (opts.endLabels) s += '<text class="strong" x="' + (x(n - 1) + 8) + '" y="' + (y(ser.values[n - 1]) + 4) + '">' + esc(ser.name) + "</text>";
+  });
+  return s + "</svg>";
+}
+function spark(values, cls) {
+  const W = 120, H = 34, min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  const pts = values.map(function (v, i) { return (2 + (W - 4) * i / (values.length - 1)) + "," + (3 + (H - 6) * (1 - (v - min) / ((max - min) || 1))); });
+  const last = pts[pts.length - 1].split(",");
+  return '<svg class="chart spark" viewBox="0 0 ' + W + " " + H + '" aria-hidden="true"><polyline class="line ' + (cls || "") + '" points="' + pts.join(" ") + '"/><circle class="mark" cx="' + last[0] + '" cy="' + last[1] + '" r="3"/></svg>';
+}
+
+// ======================================================================
+// Mapa inventado (curvas de nivel, bosque y el track por ritmo)
+// ======================================================================
+function fakeMap(race, opts) {
+  opts = opts || {};
+  const W = 640, H = opts.h || 400;
+  const r = rng(race.id.charCodeAt(1) * 31 + 3);
+  let s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Mapa de la carrera con el recorrido">';
+  s += '<rect width="' + W + '" height="' + H + '" fill="#f2efe9"/>';
+  for (let k = 0; k < 5; k++) {
+    const cx = r() * W, cy = r() * H, rx = 60 + r() * 140, ry = 40 + r() * 100;
+    s += '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" fill="' + (k % 3 === 2 ? "#f6e7b4" : "#d7ead0") + '"/>';
+  }
+  s += '<path d="M' + (W * 0.7) + ",0 C" + (W * 0.66) + "," + (H * 0.3) + " " + (W * 0.82) + "," + (H * 0.5) + " " + (W * 0.78) + "," + H + '" stroke="#a9d3ee" stroke-width="7" fill="none"/>';
+  for (let k = 0; k < 3; k++) {
+    const cx = 120 + r() * (W - 240), cy = 90 + r() * (H - 180);
+    for (let j = 1; j <= 4; j++) {
+      const rx = 24 * j + r() * 10, ry = 16 * j + r() * 8;
+      s += '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" transform="rotate(' + Math.round(r() * 60 - 30) + " " + cx + " " + cy + ')" fill="none" stroke="#c79a6b" stroke-width="1" opacity="0.8"/>';
+    }
+  }
+  // Balizas
+  const nCtl = opts.controls || race.legs;
+  const pts = [];
+  let px = 70 + r() * 80, py = H - 70 - r() * 60;
+  for (let i = 0; i <= nCtl; i++) {
+    pts.push([px, py]);
+    const ang = r() * Math.PI * 2;
+    const step = 55 + r() * 60;
+    px = Math.max(40, Math.min(W - 40, px + Math.cos(ang) * step));
+    py = Math.max(40, Math.min(H - 40, py + Math.sin(ang) * step));
+  }
+  const seqs = ["#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
+  const sel = opts.selected;
+  let track = "";
+  for (let i = 0; i < nCtl; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const segs = 6;
+    let prev = a;
+    for (let k = 1; k <= segs; k++) {
+      const t = k / segs;
+      const wob = (opts.errLegs && opts.errLegs.has(i + 1) && k > 1 && k < segs) ? 28 : 7;
+      const p = k === segs ? b : [a[0] + (b[0] - a[0]) * t + (r() - 0.5) * wob, a[1] + (b[1] - a[1]) * t + (r() - 0.5) * wob];
+      const cls = Math.min(4, Math.floor(r() * 3 + (opts.errLegs && opts.errLegs.has(i + 1) ? 2 : 0)));
+      const dim = sel && sel !== i + 1;
+      track += '<line x1="' + prev[0] + '" y1="' + prev[1] + '" x2="' + p[0] + '" y2="' + p[1] + '" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" opacity="' + (dim ? 0.35 : 1) + '"/>';
+      track += '<line x1="' + prev[0] + '" y1="' + prev[1] + '" x2="' + p[0] + '" y2="' + p[1] + '" stroke="' + seqs[cls] + '" stroke-width="4" stroke-linecap="round" opacity="' + (dim ? 0.3 : 1) + '"/>';
+      prev = p;
+    }
+    if (sel === i + 1) track += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="#a8236f" stroke-width="14" stroke-linecap="round" opacity="0.18"/>';
+  }
+  s += track;
+  for (let i = 0; i < nCtl; i++) {
+    const a = pts[i], b = pts[i + 1];
+    s += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="#a8236f" stroke-width="1.4" opacity="0.55"/>';
+  }
+  pts.forEach(function (p, i) {
+    const strong = sel && (i === sel || i === sel - 1);
+    if (i === 0) {
+      s += '<path d="M' + p[0] + "," + (p[1] - 13) + " L" + (p[0] + 11.5) + "," + (p[1] + 7) + " L" + (p[0] - 11.5) + "," + (p[1] + 7) + 'Z" fill="none" stroke="#a8236f" stroke-width="' + (strong ? 3 : 2) + '"/>';
+    } else if (i === nCtl) {
+      s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="9" fill="none" stroke="#a8236f" stroke-width="2"/><circle cx="' + p[0] + '" cy="' + p[1] + '" r="14" fill="none" stroke="#a8236f" stroke-width="2"/>';
+    } else {
+      s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="12" fill="none" stroke="#a8236f" stroke-width="' + (strong ? 3.2 : 2) + '"/>';
+      if (!opts.noNumbers) s += '<text x="' + (p[0] + 15) + '" y="' + (p[1] - 10) + '" fill="#a8236f" font-size="13" font-weight="700" style="font-family:var(--font)">' + i + "</text>";
+    }
+  });
+  return s + "</svg>";
+}
+
+// ======================================================================
+// Estado y navegación
+// ======================================================================
+const store = {
+  get: function (k, d) { try { const v = localStorage.getItem("tramos-boceto." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: function (k, v) { try { localStorage.setItem("tramos-boceto." + k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento: no pasa nada */ } },
+};
+const state = {
+  route: { name: "inicio" },
+  history: [],
+  role: store.get("role", "both"),
+  statsLayout: store.get("statsLayout", "tabs"),
+  notes: store.get("notes", true),
+  theme: store.get("theme", "system"),
+  onboarding: false,
+  mockOpen: store.get("mockOpen", true),
+  hidden: store.get("hidden", { "st-p8b": true, "st-p14b": true, "st-p14c": true, "rc-p5": false }),
+  list: { q: "", format: "all", season: "all", trackOnly: false, sort: "recent", page: 1 },
+  athleteFilter: { q: "", group: "all" },
+  groupSel: "all",
+  includeMe: false,
+  mapMetric: "pace",
+  selLeg: null,
+  onlyErrors: false,
+  openMenu: null,
+  drawer: null,
+  sideOpen: false,
+  settingsSection: "analisis",
+  viewTable: {},
+  groupTab: "atletas",
+  athletesTab: "todos",
+  importTab: "una",
+  coachEnabled: true,
+};
+state.coachEnabled = state.role === "both";
+
+function go(route, opts) {
+  if (!(opts && opts.replace)) state.history.push(state.route);
+  state.route = route;
+  state.openMenu = null;
+  state.sideOpen = false;
+  if (route.name !== "carrera") state.selLeg = null;
+  render();
+  if (!(opts && opts.keepScroll)) window.scrollTo(0, 0);
+}
+function back() {
+  const prev = state.history.pop();
+  if (prev) { state.route = prev; render(); window.scrollTo(0, 0); }
+}
+function viewing() { return state.route.athlete ? ATHLETES.find(function (a) { return a.id === state.route.athlete; }) : null; }
+
+// ======================================================================
+// Barra lateral y cabecera
+// ======================================================================
+function sidebar() {
+  const r = state.route, a = viewing();
+  const mine = !a;
+  const item = function (name, label, ic, extra) {
+    const on = mine && (r.name === name || (name === "carreras" && r.name === "carrera") || (name === "estadisticas" && r.name === "estadisticas"));
+    return '<button class="nav-item' + (on ? " active" : "") + '" data-go="' + name + '">' + icon(ic) + "<span>" + label + "</span>" + (extra || "") + "</button>";
+  };
+  let s = '<nav class="side' + (state.sideOpen ? " open" : "") + '" aria-label="Menú principal">';
+  s += '<div class="brand">' + baliza(26) + '<span class="brand-name">Tramos</span></div>';
+  s += item("inicio", "Inicio", "home");
+  s += '<div class="side-label">Lo mío</div>';
+  const pending = RACES.reduce(function (t, x) { return t + x.pending; }, 0);
+  s += item("carreras", "Mis carreras", "list", pending ? '<span class="count" title="Errores por revisar">' + pending + "</span>" : "");
+  s += item("estadisticas", "Estadísticas", "chart");
+  s += item("importar", "Importar", "upload");
+  if (state.coachEnabled) {
+    const fresh = ATHLETES.reduce(function (t, x) { return t + x.fresh; }, 0);
+    s += '<div class="side-label">Atletas</div>';
+    const onAth = !a && (r.name === "atletas");
+    s += '<button class="nav-item' + (onAth ? " active" : "") + '" data-go="atletas">' + icon("users") + "<span>Mis atletas</span>" + (fresh ? '<span class="count" title="Carreras nuevas">' + fresh + "</span>" : "") + "</button>";
+    s += '<button class="nav-item' + (r.name === "grupo" ? " active" : "") + '" data-go="grupo">' + icon("group") + "<span>Comparar atletas</span></button>";
+    if (a) {
+      s += '<div class="nav-sub">';
+      s += '<button class="nav-item active" data-go-athlete="' + a.id + '"><span class="avatar" style="width:20px;height:20px;font-size:10px;background:' + a.color + '">' + initials(a.name) + "</span><span>" + esc(a.name) + "</span></button>";
+      s += '<button class="nav-item' + (r.name === "carreras" || r.name === "carrera" ? " active" : "") + '" data-go="carreras" data-keep-athlete="1">' + icon("list", 16) + "<span>Carreras</span></button>";
+      s += '<button class="nav-item' + (r.name === "estadisticas" ? " active" : "") + '" data-go="estadisticas" data-keep-athlete="1">' + icon("chart", 16) + "<span>Estadísticas</span></button>";
+      s += "</div>";
+    }
+  }
+  s += '<div class="side-label">Cuenta</div>';
+  s += item("perfil", "Mi perfil", "user");
+  s += item("ajustes", "Ajustes", "gear");
+  s += item("ayuda", "Ayuda", "help");
+  s += '<div class="side-foot"><span><span class="sync-dot"></span>Carpeta compartida al día</span><span>Núcleo 0.9 · base local</span></div>';
+  return s + "</nav>";
+}
+// La nota sobre los colores en línea: el boceto usa style= solo para los colores de grupo y atleta;
+// en la app irían como atributos fill de SVG o clases, porque la CSP no deja estilos en línea.
+
+function crumbs() {
+  const r = state.route, a = viewing();
+  const parts = [];
+  if (a) { parts.push(["Mis atletas", { name: "atletas" }]); parts.push([a.name, { name: "atleta", athlete: a.id }]); }
+  const titles = { inicio: "Inicio", carreras: a ? "Carreras" : "Mis carreras", estadisticas: "Estadísticas", importar: "Importar", atletas: "Mis atletas", grupo: "Comparar atletas", perfil: "Mi perfil", ajustes: "Ajustes", ayuda: "Ayuda" };
+  if (r.name === "carrera") {
+    parts.push([a ? "Carreras" : "Mis carreras", { name: "carreras", athlete: r.athlete }]);
+    const race = RACES.find(function (x) { return x.id === r.id; });
+    parts.push([race.name, null]);
+  } else if (r.name !== "atleta" && titles[r.name]) parts.push([titles[r.name], null]);
+  return parts.map(function (p, i) {
+    const last = i === parts.length - 1;
+    return (i ? '<span class="faint">/</span>' : "") + (last || !p[1] ? '<span class="here">' + esc(p[0]) + "</span>" : '<button data-route=\'' + JSON.stringify(p[1]) + "'>" + esc(p[0]) + "</button>");
+  }).join("");
+}
+function topbar() {
+  let s = '<header class="topbar"><button class="icon-btn menu-btn" data-act="side" aria-label="Abrir menú">' + icon("menu", 20) + "</button>";
+  if (state.history.length && state.route.name !== "inicio") s += '<button class="icon-btn" data-act="back" aria-label="Volver" title="Volver">' + icon("back") + "</button>";
+  s += '<div class="crumbs">' + crumbs() + '</div><div class="spacer"></div>';
+  s += '<button class="btn btn-sm" data-go="importar">' + icon("upload", 16) + "Importar</button>";
+  return s + "</header>";
+}
+function viewingBanner() {
+  const a = viewing();
+  if (!a) return "";
+  return '<div class="viewing-banner">' + icon("eye") + '<span>Estás viendo a <strong>' + esc(a.name) + "</strong>. Solo lectura: no se puede etiquetar ni cambiar nada.</span>" +
+    '<span class="spacer" style="flex:1"></span><button class="btn btn-sm" data-go="inicio">' + icon("back", 16) + "Volver a lo mío</button></div>";
+}
+function note(html) { return '<div class="note"><span>' + html + "</span></div>"; }
+
+// ======================================================================
+// Vistas
+// ======================================================================
+function viewInicio() {
+  const last = RACES[0];
+  const legs = legsOf(last);
+  const irs = RACES.slice(0, 10).map(function (x) { return x.ir * 100; }).reverse();
+  const pending = RACES.filter(function (x) { return x.pending > 0; });
+  let s = '<div class="page-head"><div class="grow"><span class="eyebrow">' + fdate(new Date(2026, 9, 8)) + "</span><h1>Hola, " + ME.short + "</h1></div></div>";
+  s += note("<b>Inicio</b> responde a «¿qué hay nuevo y qué tengo que hacer?». Lo de cada día, a un clic: la última carrera, lo pendiente de revisar y, si entrenas, lo nuevo de tus atletas. Nada de análisis aquí: para eso está Estadísticas.");
+  // Última carrera
+  s += '<section class="card hero-race"><div class="info"><span class="eyebrow">Tu última carrera</span>';
+  s += '<div class="stack" style="gap:4px"><h2>' + esc(last.name) + '</h2><div class="row small muted">' + fdate(last.date) + " · " + last.cat + " · " + fmtPill(last.format) + "</div></div>";
+  s += '<div class="kpis">' + kpi("Tiempo", ftime(last.time), last.pos + "º de " + last.of) + kpi("Tiempo perdido", ftime(last.lost), last.errors + " errores", "error") + kpi("Rendimiento", fpct(last.ir, 0), "tu media: 86 %") + "</div>";
+  s += '<div class="row"><button class="btn btn-primary" data-race="' + last.id + '">Ver carrera ' + icon("arrow", 16) + '</button><button class="btn" data-race="' + last.id + '" data-tab="tramos">' + icon("tag", 16) + "Revisar errores</button></div></div>";
+  s += '<div class="mini-map">' + fakeMap(last, { h: 300, noNumbers: true, errLegs: new Set(legs.filter(function (l) { return l.err; }).map(function (l) { return l.n; })) }) + "</div></section>";
+  // Fila: pendiente + forma
+  s += '<div class="grid-2"><section class="card card-pad stack"><div class="row"><h3 style="flex:1">Pendiente</h3><span class="pill">' + (pending.length + 1) + "</span></div><div>";
+  pending.forEach(function (x) {
+    s += '<div class="task"><span class="ico e">' + icon("tag") + '</span><div class="grow"><div><b>' + x.pending + " errores</b> sin revisar</div><div class=\"small muted\">" + esc(x.name) + " · " + fshort(x.date) + '</div></div><button class="btn btn-sm" data-race="' + x.id + '" data-tab="tramos">Revisar</button></div>';
+  });
+  s += '<div class="task"><span class="ico i">' + icon("watch") + '</span><div class="grow"><div><b>1 carrera</b> sin el FIT del reloj</div><div class="small muted">Liga Norte · Sprint del campus</div></div><button class="btn btn-sm" data-go="importar">Añadir FIT</button></div>';
+  s += '</div></section><section class="card card-pad stack"><div class="row"><h3 style="flex:1">Tu forma</h3><button class="btn btn-ghost btn-sm" data-go="estadisticas">Ver estadísticas ' + icon("arrow", 14) + "</button></div>";
+  s += '<p class="muted small">Rendimiento en tus 10 últimas carreras (100 % = la referencia de cada tramo).</p>';
+  s += lines({ labels: RACES.slice(0, 10).map(function (x) { return fshort(x.date); }).reverse(), series: [{ values: irs }], fmt: function (v) { return fnum(v, 0) + " %"; }, marks: true, area: true, ref: 86, refLabel: "Tu media 86 %" });
+  s += '<div class="row small"><span class="pill pill-ok">▲ 2 puntos</span><span class="muted">frente a las 10 anteriores</span></div></section></div>';
+  if (state.coachEnabled) {
+    s += '<section class="card card-pad stack"><div class="row"><h3 style="flex:1">Novedades de tus atletas</h3><button class="btn btn-ghost btn-sm" data-go="atletas">Ver atletas ' + icon("arrow", 14) + "</button></div>";
+    s += '<div class="grid-auto">';
+    ATHLETES.filter(function (a) { return a.lastDays < 20; }).forEach(function (a) {
+      s += '<button class="card athlete-card" data-go-athlete="' + a.id + '"><div class="row"><span class="avatar" style="background:' + a.color + '">' + initials(a.name) + '</span><div style="flex:1;min-width:0"><b>' + esc(a.name) + '</b><div class="small muted">hace ' + a.lastDays + " días · " + esc(a.last) + "</div></div>" + (a.fresh ? '<span class="pill pill-info">' + a.fresh + " nueva" + (a.fresh > 1 ? "s" : "") + "</span>" : "") + "</div></button>";
+    });
+    s += "</div></section>";
+  }
+  return s;
+}
+function kpi(label, value, sub, cls) {
+  return '<div class="kpi ' + (cls || "") + '"><span class="label">' + label + '</span><span class="value">' + value + '</span><span class="sub">' + (sub || "&nbsp;") + "</span></div>";
+}
+
+// ---------- Lista de carreras ----------
+function filteredRaces() {
+  const f = state.list;
+  let rows = RACES.filter(function (x) {
+    if (f.q && x.name.toLowerCase().indexOf(f.q.toLowerCase()) < 0) return false;
+    if (f.format === "none" && x.format) return false;
+    if (f.format !== "all" && f.format !== "none" && x.format !== f.format) return false;
+    if (f.season !== "all" && String(x.date.getFullYear()) !== f.season) return false;
+    if (f.trackOnly && !x.track) return false;
+    return true;
+  });
+  if (f.sort === "lost") rows = rows.slice().sort(function (a, b) { return b.lost - a.lost; });
+  if (f.sort === "ir") rows = rows.slice().sort(function (a, b) { return b.ir - a.ir; });
+  return rows;
+}
+function viewCarreras() {
+  const a = viewing();
+  const f = state.list, rows = filteredRaces();
+  const per = 10, pages = Math.max(1, Math.ceil(rows.length / per));
+  if (f.page > pages) f.page = pages;
+  const pageRows = rows.slice((f.page - 1) * per, f.page * per);
+  let s = viewingBanner();
+  s += '<div class="page-head"><div class="grow"><h1>' + (a ? "Carreras de " + esc(a.name) : "Mis carreras") + '</h1><p class="muted">' + RACES.length + " carreras · " + RACES.filter(function (x) { return x.track; }).length + " con el track del reloj</p></div>";
+  if (!a) s += '<button class="btn btn-primary" data-go="importar">' + icon("plus", 16) + "Importar carrera</button>";
+  s += "</div>";
+  s += note("Lista con <b>búsqueda, filtros, orden y paginación</b>, como las actividades de Garmin Connect. La fila es la puerta a la carrera. El icono naranja avisa de errores sin revisar.");
+  s += '<div class="toolbar"><div class="search">' + icon("search", 16) + '<input id="q" class="input" placeholder="Buscar carrera" value="' + esc(f.q) + '"></div>';
+  s += '<div class="chips">' + [["all", "Todas"], ["sprint", "Sprint"], ["media", "Media"], ["larga", "Larga"], ["none", "Sin formato"]].map(function (c) {
+    return '<button class="chip' + (f.format === c[0] ? " on" : "") + '" data-format="' + c[0] + '">' + c[1] + "</button>";
+  }).join("") + "</div>";
+  s += '<select id="season" class="select" aria-label="Temporada"><option value="all">Todas las temporadas</option><option value="2026"' + (f.season === "2026" ? " selected" : "") + '>2026</option><option value="2025"' + (f.season === "2025" ? " selected" : "") + ">2025</option></select>";
+  s += '<select id="sort" class="select" aria-label="Orden"><option value="recent">Más recientes</option><option value="lost"' + (f.sort === "lost" ? " selected" : "") + '>Más tiempo perdido</option><option value="ir"' + (f.sort === "ir" ? " selected" : "") + ">Mejor rendimiento</option></select>";
+  s += '<label class="row small" style="gap:6px"><input type="checkbox" id="trackOnly"' + (f.trackOnly ? " checked" : "") + "> Solo con track</label></div>";
+  s += '<section class="card"><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Carrera</th><th>Formato</th><th class="r">Puesto</th><th class="r">Tiempo</th><th class="r">Perdido</th><th class="r">Rendimiento</th><th></th></tr></thead><tbody>';
+  if (!pageRows.length) s += '<tr><td colspan="8"><div class="empty">Ninguna carrera con estos filtros.<button class="btn btn-sm" data-act="clear-filters">Quitar filtros</button></div></td></tr>';
+  pageRows.forEach(function (x) {
+    s += '<tr tabindex="0" class="click" data-race="' + x.id + '"><td class="num muted">' + fdate(x.date) + '</td><td><div class="race-name">' + esc(x.name) + '</div><div class="small muted">' + x.cat + "</div></td><td>" + fmtPill(x.format) + '</td><td class="r">' + (x.status === "mp" ? '<span class="pill pill-error">No clasificada</span>' : x.pos + "º <span class=\"faint\">/ " + x.of + "</span>") + '</td><td class="r">' + ftime(x.time) + '</td><td class="r"><span class="down">' + ftime(x.lost) + '</span> <span class="faint small">' + x.errors + " err.</span></td><td class=\"r\">" + fpct(x.ir, 0) + "</td><td>" +
+      '<span class="row" style="gap:6px;flex-wrap:nowrap">' + (x.track ? '<span class="faint" title="Con track del reloj">' + icon("watch", 16) + "</span>" : "") + (x.pending && !a ? '<span class="down" title="' + x.pending + ' errores sin revisar">' + icon("tag", 16) + "</span>" : "") + "</span></td></tr>";
+  });
+  s += '</tbody></table></div><div class="pager" style="padding:12px 16px"><span class="muted small">' + (rows.length ? ((f.page - 1) * per + 1) + "–" + Math.min(rows.length, f.page * per) + " de " + rows.length : "0 carreras") + '</span><div class="row" style="gap:6px">';
+  s += '<button class="btn btn-sm" data-page="' + (f.page - 1) + '"' + (f.page <= 1 ? " disabled" : "") + ">Anterior</button>";
+  for (let p = 1; p <= pages; p++) s += '<button class="btn btn-sm' + (p === f.page ? " btn-primary" : "") + '" data-page="' + p + '">' + p + "</button>";
+  s += '<button class="btn btn-sm" data-page="' + (f.page + 1) + '"' + (f.page >= pages ? " disabled" : "") + ">Siguiente</button></div></div></section>";
+  return s;
+}
+
+// ---------- Paneles configurables ----------
+// Cada panel: id, pregunta corta, título, frase de lectura, gráfica y tabla.
+function panel(p) {
+  if (state.hidden[p.id]) return "";
+  const asTable = state.viewTable[p.id];
+  let s = '<article class="panel' + (p.wide ? " wide" : "") + '" id="' + p.id + '"><div class="panel-head"><div class="t">' + (p.q ? '<span class="q">' + p.q + "</span>" : "") + "<h3>" + p.title + '</h3></div>';
+  if (!p.noToggle) s += '<div class="seg" role="group" aria-label="Ver como"><button class="' + (asTable ? "" : "on") + '" data-view="' + p.id + '" data-as="chart">Gráfica</button><button class="' + (asTable ? "on" : "") + '" data-view="' + p.id + '" data-as="table">Tabla</button></div>';
+  s += '<div class="panel-menu"><button class="icon-btn" data-menu="' + p.id + '" aria-label="Opciones del panel">' + icon("dots") + "</button>";
+  if (state.openMenu === p.id) s += '<div class="menu"><button data-hide="' + p.id + '">Ocultar este panel</button><button data-act="customize">Personalizar la vista…</button><button data-go="ayuda">Cómo se calcula</button></div>';
+  s += "</div></div>";
+  s += '<div class="panel-body"><p class="panel-read">' + p.read + "</p>" + (asTable ? p.table() : p.chart()) + (p.foot ? '<div class="small muted">' + p.foot + "</div>" : "") + "</div></article>";
+  return s;
+}
+function simpleTable(head, rows) {
+  return '<div class="table-wrap"><table><thead><tr>' + head.map(function (h, i) { return "<th" + (i ? ' class="r"' : "") + ">" + h + "</th>"; }).join("") + "</tr></thead><tbody>" +
+    rows.map(function (r) { return "<tr>" + r.map(function (c, i) { return "<td" + (i ? ' class="r"' : "") + ">" + c + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>";
+}
+
+// Estadísticas (histórico) agrupadas por pregunta.
+const STAT_TABS = [
+  { id: "resumen", label: "Resumen", sub: "Cómo vas en general y por formato." },
+  { id: "donde", label: "¿Dónde fallo?", sub: "Qué tramos y qué terreno te cuestan más, y de qué tipo son tus errores." },
+  { id: "evolucion", label: "¿Cómo evoluciono?", sub: "Tu rendimiento y tu regularidad a lo largo del tiempo." },
+  { id: "cabeza", label: "Cabeza y piernas", sub: "Qué pasa después de un error y si el cansancio lo anticipa." },
+];
+function statPanels() {
+  const asc = RACES.slice().reverse();
+  return {
+    resumen: [
+      { id: "st-formato", q: "Por formato", title: "Rendimiento medio por formato", wide: false, read: "Cuánto de cerca vas de la referencia en cada formato. Más alto es mejor.",
+        chart: function () { return columns({ labels: ["Sprint", "Media", "Larga", "Sin formato"], values: [88.4, 85.9, 83.1, 86.5], n: [9, 12, 6, 1], min: 0, ref: 100, refLabel: "Referencia 100 %", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Formato", "Carreras", "Tramos", "Errores", "Rendimiento", "Tasa de error", "Pérdida/tramo"], [["Sprint", 9, 152, 18, "88,4 %", "11,8 %", "3,1 s · 5,2 %"], ["Media", 12, 166, 27, "85,9 %", "16,3 %", "9,8 s · 6,9 %"], ["Larga", 6, 72, 14, "83,1 %", "19,4 %", "18,2 s · 8,1 %"], ["Sin formato", 1, 14, 2, "86,5 %", "14,3 %", "7,0 s · 6,0 %"]]); } },
+      { id: "st-tasa", q: "Por formato", title: "Tasa de error por formato", read: "Parte de tus tramos que acaban en error. Más bajo es mejor.",
+        chart: function () { return columns({ labels: ["Sprint", "Media", "Larga", "Sin formato"], values: [11.8, 16.3, 19.4, 14.3], n: [152, 166, 72, 14], min: 0, ref: 15.1, refLabel: "Tu media 15,1 %", cls: "err", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Formato", "Tramos", "Errores", "Tasa"], [["Sprint", 152, 18, "11,8 %"], ["Media", 166, 27, "16,3 %"], ["Larga", 72, 14, "19,4 %"], ["Sin formato", 14, 2, "14,3 %"]]); } },
+      { id: "st-carreras", noToggle: true, q: "Carreras", title: "Carreras que cuentan", wide: true, read: "Las carreras que entran con estos filtros, con sus números. Un clic abre la carrera.",
+        chart: function () {
+          return '<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Carrera</th><th>Formato</th><th class="r">Rendimiento</th><th class="r">Tramos</th><th class="r">Errores</th></tr></thead><tbody>' +
+            RACES.slice(0, 6).map(function (x) { return '<tr tabindex="0" class="click" data-race="' + x.id + '"><td class="muted num">' + fshort(x.date) + "</td><td>" + esc(x.name) + "</td><td>" + fmtPill(x.format) + '</td><td class="r">' + fpct(x.ir, 0) + '</td><td class="r">' + (x.legs - 2) + '</td><td class="r">' + x.errors + "</td></tr>"; }).join("") +
+            '</tbody></table></div><button class="btn btn-ghost btn-sm" data-go="carreras">Ver las ' + RACES.length + " carreras " + icon("arrow", 14) + "</button>";
+        },
+        table: function () { return this.chart(); } },
+    ],
+    donde: [
+      { id: "st-p7", q: "Duración del tramo", title: "¿Fallo más en tramos largos o cortos?", read: "Tasa de error según lo que dura el tramo (con la referencia). Debajo, cuántos tramos hay en cada grupo: con pocos, el dato es poco fiable.",
+        chart: function () { return columns({ labels: ["20–30 s", "30–60 s", "1–2 min", "2–4 min", "4–8 min", "≥ 8 min"], values: [6.2, 9.8, 14.1, 19.6, 24.0, 33.3], n: [32, 81, 120, 98, 44, 9], min: 0, ref: 15.1, refLabel: "Tu media", cls: "err", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Duración", "Tramos", "Tasa de error", "Pérdida/tramo"], [["20–30 s", 32, "6,2 %", "1,4 s · 5,0 %"], ["30–60 s", 81, "9,8 %", "3,0 s · 6,1 %"], ["1–2 min", 120, "14,1 %", "6,9 s · 6,5 %"], ["2–4 min", 98, "19,6 %", "14,8 s · 7,9 %"], ["4–8 min", 44, "24,0 %", "29,5 s · 8,8 %"], ["≥ 8 min", 9, "33,3 %", "61,0 s · 10,2 %"]]); } },
+      { id: "st-p9", q: "Tipos de error", title: "¿Qué tipo de error cometo?", read: "Reparto de tus errores etiquetados. En gris, los que aún no tienen tipo: se etiquetan en la tabla de tramos de cada carrera.",
+        chart: function () { return columns({ labels: ["Salida", "Ataque", "Paralelo", "Ruta", "Concentr.", "Sin tipo"], values: [29, 22, 14, 11, 8, 16], n: [18, 14, 9, 7, 5, 10], min: 0, cls: function (v, i) { return i === 5 ? "muted" : ""; }, fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Tipo", "Errores", "% de errores", "Pérdida"], [["Salida de baliza", 18, "29 %", "6:12"], ["Ataque a baliza", 14, "22 %", "5:40"], ["Paralelo", 9, "14 %", "4:58"], ["Elección de ruta", 7, "11 %", "5:03"], ["Concentración", 5, "8 %", "1:47"], ["Sin tipo", 10, "16 %", "3:21"]]); } },
+      { id: "st-p13", q: "Desnivel", title: "¿Me frena el desnivel?", read: "Rendimiento medio en subida, llano y bajada. Solo cuentan las carreras con el track del reloj.",
+        chart: function () { return columns({ labels: ["Subida", "Llano", "Bajada"], values: [82.0, 87.6, 86.1], n: [96, 201, 88], min: 0, ref: 100, refLabel: "Referencia", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Clase", "Tramos", "Errores", "Rendimiento", "Tasa de error"], [["Subida", 96, 19, "82,0 %", "19,8 %"], ["Llano", 201, 26, "87,6 %", "12,9 %"], ["Bajada", 88, 13, "86,1 %", "14,8 %"]]); } },
+      { id: "st-p2", q: "Lento o desorientado", title: "¿De qué está hecha la pérdida de mis errores?", read: "La pérdida de tus errores repartida en desvío del camino, paradas y ritmo más lento.",
+        chart: function () { return columns({ labels: ["Desvío", "Paradas", "Ritmo"], values: [54, 28, 18], min: 0, cls: function (v, i) { return ["", "s2", "s3"][i]; }, fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Parte", "% de la pérdida", "Segundos"], [["Desvío", "54 %", "11:32"], ["Paradas", "28 %", "5:59"], ["Ritmo", "18 %", "3:51"]]); } },
+    ],
+    evolucion: [
+      { id: "st-ir", q: "Rendimiento", title: "Mi rendimiento carrera a carrera", wide: true, read: "Rendimiento de cada carrera, de la más antigua a la más reciente. Los puntos naranjas son carreras con 3 errores o más.",
+        chart: function () { return lines({ labels: asc.map(function (x) { return fshort(x.date); }), series: [{ values: asc.map(function (x) { return x.ir * 100; }) }], marks: true, area: true, ref: 86, refLabel: "Tu media 86 %", markErr: function (i) { return asc[i].errors >= 3; }, fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Fecha", "Carrera", "Rendimiento", "Errores"], asc.slice(-8).map(function (x) { return [fshort(x.date), esc(x.name), fpct(x.ir, 0), x.errors]; })); } },
+      { id: "st-p10", q: "Regularidad", title: "¿Soy regular dentro de una carrera?", read: "Cuánto varía tu rendimiento de un tramo a otro en cada carrera. Más bajo es más regular.",
+        chart: function () { return lines({ labels: asc.map(function (x) { return fshort(x.date); }), series: [{ values: asc.map(function (x) { return x.cons * 100; }), cls: "s2" }], marks: false, min: 0, fmt: function (v) { return "± " + fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Fecha", "Carrera", "Consistencia"], asc.slice(-8).map(function (x) { return [fshort(x.date), esc(x.name), "± " + fpct(x.cons)]; })); } },
+      { id: "st-p11", q: "Días sin competir", title: "¿Me cuesta entrar en mapa si llevo tiempo sin competir?", read: "Rendimiento en los tres primeros tramos según los días desde la carrera anterior.",
+        chart: function () { return columns({ labels: ["≤ 7 días", "8–14", "15–30", "> 30"], values: [86.0, 85.1, 81.7, 76.9], n: [6, 9, 8, 4], min: 0, ref: 86, refLabel: "Tu media", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Días", "Carreras", "Rendimiento al entrar", "Errores al principio"], [["≤ 7", 6, "86,0 %", "12 %"], ["8–14", 9, "85,1 %", "14 %"], ["15–30", 8, "81,7 %", "19 %"], ["> 30", 4, "76,9 %", "27 %"]]); } },
+    ],
+    cabeza: [
+      { id: "st-p8", q: "Después de fallar", title: "¿Un error trae otro?", read: "Tasa de error en el tramo siguiente según cómo fue el anterior.",
+        chart: function () { return columns({ labels: ["Tras limpio", "Tras error", "Acelerando", "Sin acelerar"], values: [13.2, 24.6, 31.0, 18.2], n: [341, 61, 29, 32], min: 0, ref: 15.1, refLabel: "Tu media", cls: "err", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Tramo anterior", "Tramos", "Errores", "Tasa"], [["Limpio", 341, 45, "13,2 %"], ["Error", 61, 15, "24,6 %"], ["Error acelerando", 29, 9, "31,0 %"], ["Error sin acelerar", 32, 6, "18,2 %"]]); } },
+      { id: "st-p8b", q: "Después de fallar", title: "Rachas limpias", read: "Tasa de error según los tramos limpios seguidos que llevas.",
+        chart: function () { return columns({ labels: ["0", "1", "2", "3–4", "5+"], values: [24.6, 15.0, 13.1, 11.4, 12.8], n: [61, 52, 47, 80, 162], min: 0, ref: 15.1, refLabel: "Tu media", cls: "err", fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+        table: function () { return simpleTable(["Limpios seguidos", "Tramos", "Tasa"], [["0", 61, "24,6 %"], ["1", 52, "15,0 %"], ["2", 47, "13,1 %"], ["3–4", 80, "11,4 %"], ["5+", 162, "12,8 %"]]); } },
+      { id: "st-p14", q: "Cansancio", title: "¿Sube el pulso a igual ritmo al final?", read: "Pulso por velocidad en cada tercio de la carrera frente a lo habitual (0 = lo habitual). Dato débil: el pulso de muñeca llega con retraso.",
+        chart: function () { return columns({ labels: ["1er tercio", "2º tercio", "3er tercio"], values: [-1.2, 0.8, 3.1], n: [118, 121, 116], fmt: function (v) { return fnum(v, 0) + " %"; }, cls: "s2" }); },
+        table: function () { return simpleTable(["Tercio", "Tramos", "Deriva", "Pulso medio"], [["1º", 118, "-1,2 %", "168 ppm"], ["2º", 121, "+0,8 %", "172 ppm"], ["3º", 116, "+3,1 %", "175 ppm"]]); } },
+      { id: "st-p14b", q: "Cansancio", title: "Pulso antes del error", read: "Pulso del tramo anterior sobre la mediana de la carrera, antes de un error y antes de un tramo limpio.",
+        chart: function () { return columns({ labels: ["Antes de error", "Antes de limpio"], values: [3.4, 0.6], n: [44, 301], fmt: function (v) { return "+" + fnum(v, 0) + " ppm"; }, cls: function (v, i) { return i ? "muted" : "err"; } }); },
+        table: function () { return simpleTable(["Serie", "Tramos", "Pulso sobre la mediana"], [["Antes de error", 44, "+3,4 ppm"], ["Antes de limpio", 301, "+0,6 ppm"]]); } },
+      { id: "st-p14c", q: "Cansancio", title: "Esfuerzo percibido", read: "Esfuerzo medio (1–10) que apuntaste al etiquetar.",
+        chart: function () { return columns({ labels: ["Errores", "Limpios", "Físico"], values: [7.1, 6.2, 8.4], n: [31, 40, 6], min: 0, fmt: function (v) { return fnum(v, 0); }, cls: function (v, i) { return ["err", "muted", "s2"][i]; } }); },
+        table: function () { return simpleTable(["Tramos", "Etiquetados", "Esfuerzo medio"], [["Errores", 31, "7,1"], ["Limpios", 40, "6,2"], ["Físico", 6, "8,4"]]); } },
+    ],
+  };
+}
+function statsFilterbar() {
+  return '<div class="filterbar"><label for="f-from">Desde <input id="f-from" class="input" type="date" value="2025-01-01"></label><label for="f-to">Hasta <input id="f-to" class="input" type="date" value="2026-10-08"></label>' +
+    '<label for="f-fmt">Formato <select id="f-fmt" class="select"><option>Todos</option><option>Sprint</option><option>Media</option><option>Larga</option></select></label><span style="flex:1"></span>' +
+    '<button class="btn btn-sm" data-act="customize">' + icon("sliders", 16) + "Personalizar</button></div>";
+}
+function viewEstadisticas() {
+  const a = viewing();
+  const tab = state.route.tab || "resumen";
+  const all = statPanels();
+  let s = viewingBanner();
+  s += '<div class="page-head"><div class="grow"><h1>' + (a ? "Estadísticas de " + esc(a.name) : "Estadísticas") + '</h1><p class="muted">' + RACES.length + " carreras · 404 tramos que cuentan · error a partir de 15 s y 10 %</p></div></div>";
+  s += '<div class="kpis">' + kpi("Carreras", "28", "desde mar 2025") + kpi("Rendimiento medio", "86,2 %", "± 11,4 % de consistencia") + kpi("Tasa de error", "15,1 %", "61 de 404 tramos", "error") + kpi("Pérdida por tramo", "8,6 s", "6,7 % de lo esperado") + "</div>";
+  s += statsFilterbar();
+  if (state.statsLayout === "tabs") {
+    s += note("<b>Variante pestañas.</b> Cada pestaña responde a una pregunta. Dentro, paneles ya abiertos (nada de desplegables) en rejilla de dos. «Personalizar» elige qué paneles se ven; los menos usados (rachas, pulso antes del error, esfuerzo) salen ocultos de inicio para no abrumar. Prueba la otra variante en el panel del boceto.");
+    s += '<div class="tabs" role="tablist">' + STAT_TABS.map(function (t) {
+      const hiddenCount = all[t.id].filter(function (p) { return state.hidden[p.id]; }).length;
+      return '<button class="tab' + (t.id === tab ? " on" : "") + '" role="tab" data-stab="' + t.id + '">' + t.label + (hiddenCount ? ' <span class="faint small">(' + hiddenCount + " oculto" + (hiddenCount > 1 ? "s" : "") + ")</span>" : "") + "</button>";
+    }).join("") + "</div>";
+    const t = STAT_TABS.find(function (x) { return x.id === tab; });
+    s += '<p class="muted">' + t.sub + "</p>";
+    const visible = all[tab].filter(function (p) { return !state.hidden[p.id]; });
+    s += visible.length ? '<div class="panels">' + visible.map(panel).join("") + "</div>" : '<div class="card empty">Has ocultado todos los paneles de esta pestaña.<button class="btn btn-sm" data-act="customize">Personalizar</button></div>';
+  } else {
+    s += note("<b>Variante índice lateral.</b> Todo en una página, por secciones, con un índice fijo que salta a cada una. Bueno para recorrerlo entero; peor para ir directo a una pregunta. Los paneles ocultos no salen.");
+    s += '<div class="with-index"><nav class="toc" aria-label="Secciones">' + STAT_TABS.map(function (t, i) { return '<button class="' + (i === 0 ? "on" : "") + '" data-toc="sec-' + t.id + '">' + t.label + "</button>"; }).join("") + "</nav><div class=\"stack\" style=\"gap:28px\">";
+    STAT_TABS.forEach(function (t) {
+      const visible = all[t.id].filter(function (p) { return !state.hidden[p.id]; });
+      s += '<section class="stack"><div class="section-title" id="sec-' + t.id + '"><h2>' + t.label + '</h2><p class="muted">' + t.sub + "</p></div>" + (visible.length ? '<div class="panels">' + visible.map(panel).join("") + "</div>" : '<p class="muted">Sin paneles visibles.</p>') + "</section>";
+    });
+    s += "</div></div>";
+  }
+  return s;
+}
+
+// ---------- Carrera ----------
+const RACE_TABS = [["resumen", "Resumen"], ["tramos", "Tramos"], ["mapa", "Mapa"], ["grupo", "Frente al grupo"], ["analisis", "Análisis"]];
+function viewCarrera() {
+  const a = viewing();
+  const race = RACES.find(function (x) { return x.id === state.route.id; });
+  const legs = legsOf(race);
+  const tab = state.route.tab || "resumen";
+  let s = viewingBanner();
+  s += '<div class="page-head"><div class="grow"><div class="row small muted">' + fdate(race.date) + " · " + race.cat + " · " + (a ? esc(a.name) : ME.name) + "</div><h1>" + esc(race.name) + "</h1></div>";
+  if (a) s += '<div class="row">' + fmtPill(race.format) + '<span class="pill">Comparte: tramos</span></div>';
+  else s += '<div class="row"><label class="small muted" for="fmt-sel">Formato</label><select id="fmt-sel" class="select"><option' + (race.format === "sprint" ? " selected" : "") + ">Sprint</option><option" + (race.format === "media" ? " selected" : "") + ">Media</option><option" + (race.format === "larga" ? " selected" : "") + '>Larga</option><option' + (!race.format ? " selected" : "") + '>Sin formato</option></select><label class="small muted" for="share-sel">Compartir</label><select id="share-sel" class="select"><option>Por defecto (tramos)</option><option>Nada</option><option>Solo resumen</option><option>Tramos</option><option>Track completo</option></select></div>';
+  s += "</div>";
+  s += '<div class="kpis">' + kpi("Tiempo", ftime(race.time), race.status === "mp" ? "No clasificada" : race.pos + "º de " + race.of) + kpi("Tiempo perdido", ftime(race.lost), race.errors + " errores", "error") + kpi("Sin errores", ftime(race.time - race.lost), "tiempo ideal propio") + kpi("Rendimiento", fpct(race.ir, 0), "± " + fpct(race.cons) + " de consistencia") + "</div>";
+  const pend = race.pending && !a ? race.pending : 0;
+  s += '<div class="tabs" role="tablist">' + RACE_TABS.map(function (t) {
+    return '<button class="tab' + (t[0] === tab ? " on" : "") + '" role="tab" data-rtab="' + t[0] + '">' + t[1] + (t[0] === "tramos" && pend ? '<span class="badge">' + pend + "</span>" : "") + "</button>";
+  }).join("") + "</div>";
+  if (tab === "resumen") s += raceResumen(race, legs, pend);
+  if (tab === "tramos") s += raceTramos(race, legs, a);
+  if (tab === "mapa") s += raceMapa(race, legs, a);
+  if (tab === "grupo") s += raceGrupo(race, legs);
+  if (tab === "analisis") s += raceAnalisis(race, legs);
+  return s;
+}
+function raceResumen(race, legs, pend) {
+  let s = note("La carrera pasa de una página larga a <b>pestañas</b>: Resumen (lo esencial), Tramos (la tabla y el etiquetado), Mapa, Frente al grupo y Análisis (los paneles de detalle). El Resumen enseña dónde se fue el tiempo y manda a revisar lo pendiente.");
+  if (pend) s += '<div class="notice warn">' + icon("tag") + '<div style="flex:1">Tienes <b>' + pend + " errores sin revisar</b> en esta carrera. Confirmarlos y darles tipo mejora tus estadísticas.</div><button class=\"btn btn-sm\" data-rtab=\"tramos\">Revisar ahora</button></div>";
+  const worst = legs.slice().sort(function (x, y) { return y.loss - x.loss; }).slice(0, 3);
+  s += '<div class="grid-2"><section class="panel"><div class="panel-head"><div class="t"><span class="q">Dónde se fue el tiempo</span><h3>Pérdida por tramo</h3></div></div><div class="panel-body"><p class="panel-read">Segundos perdidos (arriba) o ganados (abajo) en cada tramo frente a lo esperado. En naranja, los errores.</p>' +
+    columns({ labels: legs.map(function (l) { return String(l.n); }), values: legs.map(function (l) { return l.loss; }), cls: function (v, i) { return legs[i].err ? "err" : "muted"; }, fmt: function (v) { return fnum(v, 0) + " s"; } }) +
+    '<div class="legend"><span><i class="sw sw-err"></i>Error</span><span><i class="sw sw-muted"></i>Sin error</span></div></div></section>';
+  s += '<section class="panel"><div class="panel-head"><div class="t"><span class="q">Lo más caro</span><h3>Los tres tramos donde más perdiste</h3></div></div><div class="panel-body">';
+  worst.forEach(function (l) {
+    s += '<div class="task"><span class="ico ' + (l.err ? "e" : "i") + '"><b class="num">' + l.n + '</b></span><div class="grow"><div><b>' + l.from + " → " + l.to + '</b> <span class="muted small">' + ftime(l.split) + " (ref. " + ftime(l.ref) + ')</span></div><div class="small muted">' + (l.type ? esc(l.type) : l.err ? "Error sin tipo" : "Sin error") + '</div></div><span class="down num">+' + fnum(l.loss, 0) + ' s</span><button class="btn btn-sm" data-mapleg="' + l.n + '">' + icon("map", 14) + "Ver</button></div>";
+  });
+  s += '</div></section></div>';
+  s += '<section class="panel"><div class="panel-head"><div class="t"><span class="q">Recorrido</span><h3>Mapa</h3></div><button class="btn btn-sm" data-rtab="mapa">Abrir mapa ' + icon("arrow", 14) + '</button></div><div class="panel-body"><div class="map-box">' + fakeMap(race, { h: 260, errLegs: new Set(legs.filter(function (l) { return l.err; }).map(function (l) { return l.n; })) }) + '<span class="attrib">© OpenStreetMap contributors</span></div></div></section>';
+  return s;
+}
+function raceTramos(race, legs, a) {
+  const shown = state.onlyErrors ? legs.filter(function (l) { return l.err; }) : legs;
+  const reviewed = legs.filter(function (l) { return l.err && l.label; }).length, proposed = legs.filter(function (l) { return l.err; }).length;
+  let s = "";
+  if (!a) s += note("El <b>etiquetado</b> se queda en la tabla, pero con un filtro «Solo errores» y un contador claro. Así revisar una carrera es: abrir la pestaña, ir de error en error y pulsar Sí / No / Físico.");
+  s += '<div class="toolbar"><label class="row small" style="gap:6px"><input type="checkbox" id="onlyErrors"' + (state.onlyErrors ? " checked" : "") + '> Solo errores</label><span class="grow"></span>' + (a ? "" : '<span class="pill ' + (reviewed === proposed ? "pill-ok" : "pill-warn") + '">' + reviewed + " de " + proposed + " revisados</span>") + "</div>";
+  s += '<section class="card"><div class="table-wrap"><table><thead><tr><th>Tramo</th><th>Balizas</th><th class="r">Split</th><th class="r">Puesto</th><th class="r">Ref.</th><th class="r">Rend.</th><th class="r">Pérdida</th><th>' + (a ? "Etiqueta" : "¿Error?") + "</th></tr></thead><tbody>";
+  shown.forEach(function (l) {
+    s += '<tr tabindex="0" class="click' + (l.err ? " err" : "") + (state.selLeg === l.n ? " sel" : "") + '" data-leg="' + l.n + '"><td class="num">' + l.n + "</td><td>" + l.from + " → " + l.to + '</td><td class="r">' + ftime(l.split) + '</td><td class="r">' + l.rank + 'º</td><td class="r">' + ftime(l.ref) + '</td><td class="r">' + fpct(l.ir, 0) + '</td><td class="r ' + (l.loss > 0 ? "down" : "up") + '">' + (l.loss > 0 ? "+" : "−") + fnum(Math.abs(l.loss), 0) + " s</td><td>";
+    if (l.err) {
+      if (a) s += l.type ? '<span class="pill pill-error">' + esc(l.type) + "</span>" : '<span class="faint small">Sin etiquetar</span>';
+      else s += '<div class="seg"><button class="' + (l.label === "si" ? "on" : "") + '">Sí</button><button>No</button><button>Físico</button></div>' + (l.type ? ' <span class="small muted">' + esc(l.type) + "</span>" : "");
+    } else s += a ? "" : '<button class="icon-btn" title="Etiquetar este tramo">' + icon("tag", 16) + "</button>";
+    s += "</td></tr>";
+  });
+  s += "</tbody></table></div></section>";
+  return s;
+}
+function raceMapa(race, legs, a) {
+  const sel = state.selLeg;
+  let s = note("El mapa gana pantalla: a la izquierda el mapa grande y a la derecha la lista de tramos para saltar de uno a otro. El reloj (desfase) se queda en una línea plegada: casi nunca hay que tocarlo.");
+  s += '<div class="row"><div class="seg"><button class="' + (state.mapMetric === "pace" ? "on" : "") + '" data-metric="pace">Ritmo</button><button class="' + (state.mapMetric === "hr" ? "on" : "") + '" data-metric="hr">Pulso</button></div><span class="grow" style="flex:1"></span><details class="small"><summary class="muted">Reloj y cronometraje: automático, tu reloj va 7,1 s adelantado · confianza alta</summary><div class="stack" style="padding-top:8px">' + (a ? '<span class="muted">Solo lectura.</span>' : '<div class="row"><input class="input" style="width:110px" value="7,1"> s <button class="btn btn-sm">Aplicar</button><button class="btn btn-sm btn-ghost">Volver al automático</button></div>') + "</div></details></div>";
+  s += '<div class="grid-2" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr)"><div class="stack"><div class="map-box">' + fakeMap(race, { h: 440, selected: sel, errLegs: new Set(legs.filter(function (l) { return l.err; }).map(function (l) { return l.n; })) }) +
+    '<div class="map-tools"><button aria-label="Acercar">+</button><button aria-label="Alejar">−</button><button aria-label="Ver toda la carrera">⤢</button></div><span class="attrib">© OpenStreetMap contributors</span></div>';
+  s += '<div class="map-legend"><span>' + (state.mapMetric === "pace" ? "Más rápido" : "Más bajo") + '</span><span class="map-scale"><i style="background:var(--seq-1)"></i><i style="background:var(--seq-2)"></i><i style="background:var(--seq-3)"></i><i style="background:var(--seq-4)"></i><i style="background:var(--seq-5)"></i></span><span>' + (state.mapMetric === "pace" ? "Más lento" : "Más alto") + '</span><span class="faint">· ' + (state.mapMetric === "pace" ? "4:30 · 5:30 · 6:30 · 8:00 min/km (tus zonas)" : "140 · 155 · 168 · 178 ppm") + "</span></div></div>";
+  s += '<section class="card"><div class="card-head"><h3>Tramos</h3>' + (sel ? '<button class="btn btn-ghost btn-sm" data-leg="0">Ver todos</button>' : "") + '</div><div class="card-body"><div class="leg-list">';
+  legs.forEach(function (l) {
+    s += '<button class="leg-item' + (sel === l.n ? " on" : "") + '" data-leg="' + l.n + '"><span class="num ' + (l.err ? "down" : "muted") + '"><b>' + l.n + '</b></span><span>' + l.from + " → " + l.to + ' <span class="faint small">' + ftime(l.split) + '</span></span><span class="num small ' + (l.loss > 0 ? "down" : "up") + '">' + (l.loss > 0 ? "+" : "−") + fnum(Math.abs(l.loss), 0) + " s</span></button>";
+  });
+  s += "</div></div></section></div>";
+  return s;
+}
+function raceGrupo(race, legs) {
+  const names = ["Tú", "Ganadora", "Elena C.", "Marta F."];
+  const series = [0, 1, 2, 3].map(function (k) {
+    let acc = 0;
+    const r = rng(11 + k * 7);
+    return legs.map(function (l) { acc += k === 1 ? -r() * 4 : (k === 0 ? -Math.max(0, l.loss) - r() * 3 : -r() * 14 - (r() > 0.85 ? 30 : 0)); return acc; });
+  });
+  let s = '<div class="chips">' + names.map(function (n, i) { return '<button class="chip on"><span class="sw sw-' + (i + 1) + '"></span>' + n + "</button>"; }).join("") + '<button class="chip">' + icon("plus", 14) + "Añadir</button></div>";
+  s += '<div class="panels"><section class="panel wide"><div class="panel-head"><div class="t"><span class="q">Frente al grupo</span><h3>Diferencia con el tiempo ideal</h3></div></div><div class="panel-body"><p class="panel-read">Tiempo por detrás del ideal tras cada tramo. Hacia abajo es ir perdiendo, como en WinSplits.</p>' +
+    lines({ labels: legs.map(function (l) { return String(l.n); }), series: series.map(function (v, i) { return { values: v, cls: "s" + (i + 1), name: names[i], thick: i === 0 }; }), endLabels: true, fmt: function (v) { return fnum(v, 0) + " s"; } }) + "</div></section></div>";
+  return s;
+}
+function raceAnalisis(race, legs) {
+  let acc = 0;
+  const cum = legs.map(function (l) { if (l.err) acc += l.loss; return acc; });
+  const panels = [
+    { id: "rc-p3", q: "Acumulado", title: "Pérdida acumulada", read: "El tiempo perdido sumado tramo a tramo. Solo suben los tramos con error.",
+      chart: function () { return lines({ labels: legs.map(function (l) { return String(l.n); }), series: [{ values: cum }], marks: true, area: true, markErr: function (i) { return legs[i].err; }, min: 0, fmt: function (v) { return fnum(v, 0) + " s"; } }); },
+      table: function () { return simpleTable(["Tramo", "Acumulado"], legs.map(function (l, i) { return [l.n, fnum(cum[i], 0) + " s"]; })); } },
+    { id: "rc-p5", q: "Gano y pierdo", title: "Dónde gano y dónde pierdo", read: "Ganancia de cada tramo frente a lo esperado: arriba gano, abajo pierdo.",
+      chart: function () { return columns({ labels: legs.map(function (l) { return String(l.n); }), values: legs.map(function (l) { return -l.loss; }), cls: function (v) { return v >= 0 ? "gain" : "err"; }, fmt: function (v) { return fnum(v, 0) + " s"; } }); },
+      table: function () { return simpleTable(["Tramo", "Ganancia"], legs.map(function (l) { return [l.n, fnum(-l.loss, 0) + " s"]; })); } },
+    { id: "rc-ir", q: "Rendimiento", title: "Rendimiento por tramo", read: "Lo cerca que fuiste de la referencia en cada tramo. 100 % = la referencia.",
+      chart: function () { return columns({ labels: legs.map(function (l) { return String(l.n); }), values: legs.map(function (l) { return l.ir * 100; }), min: 0, ref: 100, refLabel: "100 %", cls: function (v, i) { return legs[i].err ? "err" : ""; }, fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+      table: function () { return simpleTable(["Tramo", "Rendimiento"], legs.map(function (l) { return [l.n, fpct(l.ir, 0)]; })); } },
+    { id: "rc-p2", q: "Lento o desorientado", title: "¿De qué está hecha la pérdida?", read: "Cada error repartido en desvío, paradas y ritmo.",
+      chart: function () { return columns({ labels: ["Desvío", "Paradas", "Ritmo"], values: [61, 22, 17], min: 0, cls: function (v, i) { return ["", "s2", "s3"][i]; }, fmt: function (v) { return fnum(v, 0) + " %"; } }); },
+      table: function () { return simpleTable(["Parte", "%"], [["Desvío", "61 %"], ["Paradas", "22 %"], ["Ritmo", "17 %"]]); } },
+  ];
+  return '<div class="row"><p class="muted" style="flex:1">Los paneles de detalle de la carrera. Los que no uses se ocultan desde «⋯» o desde Personalizar.</p><button class="btn btn-sm" data-act="customize">' + icon("sliders", 16) + "Personalizar</button></div>" + '<div class="panels">' + panels.map(panel).join("") + "</div>";
+}
+
+// ---------- Importar ----------
+function viewImportar() {
+  let s = '<div class="page-head"><div class="grow"><h1>Importar</h1><p class="muted">Los splits de WinSplits (.spl) y, si lo tienes, el FIT del reloj.</p></div></div>';
+  s += '<div class="tabs"><button class="tab' + (state.importTab === "una" ? " on" : "") + '" data-itab="una">Una carrera</button><button class="tab' + (state.importTab === "carpeta" ? " on" : "") + '" data-itab="carpeta">Una carpeta</button></div>';
+  if (state.importTab === "una") {
+    s += '<section class="card card-pad stack"><div class="grid-2"><div class="empty card" style="border-style:dashed">' + icon("upload", 28) + "<b>Suelta aquí el .spl</b><span class=\"small\">o</span><button class=\"btn btn-sm\">Elegir fichero</button></div><div class=\"empty card\" style=\"border-style:dashed\">" + icon("watch", 28) + "<b>Suelta aquí el FIT</b><span class=\"small\">opcional</span><button class=\"btn btn-sm\">Elegir fichero</button></div></div>";
+    s += '<div class="grid-3"><div class="field"><label for="i-name">Nombre como sale en los resultados</label><input id="i-name" class="input" value="' + ME.name + '"></div><div class="field"><label for="i-si">Tarjeta SI</label><input id="i-si" class="input" value="' + ME.si + '"></div><div class="field"><label for="i-fmt">Formato</label><select id="i-fmt" class="select"><option>Sugerido al leer el .spl</option></select></div></div>';
+    s += '<div class="row"><button class="btn btn-primary">Importar</button></div></section>';
+  } else {
+    s += '<section class="card card-pad stack"><p>Elige una carpeta con varios .spl y FIT. Se emparejan solos por hora y se enseña qué ha entrado, qué no tiene pareja y qué tiene avisos.</p><div class="row"><button class="btn btn-primary">' + icon("folder", 16) + "Elegir carpeta</button></div></section>";
+  }
+  return s;
+}
+
+// ---------- Atletas ----------
+function viewAtletas() {
+  const f = state.athleteFilter;
+  const list = ATHLETES.filter(function (a) {
+    if (f.q && a.name.toLowerCase().indexOf(f.q.toLowerCase()) < 0) return false;
+    if (f.group !== "all" && a.groups.indexOf(f.group) < 0) return false;
+    return true;
+  });
+  let s = '<div class="page-head"><div class="grow"><h1>Mis atletas</h1><p class="muted">' + ATHLETES.length + " atletas comparten contigo por la carpeta compartida.</p></div></div>";
+  s += note("Sección propia de entrenador (#119), sin cambiar de modo. Al entrar en un atleta, todo se ve igual que lo tuyo pero con una franja azul de <b>solo lectura</b> y «Volver a lo mío». Los grupos (#120) son filtros aquí y se gestionan en su pestaña.");
+  s += '<div class="tabs"><button class="tab' + (state.athletesTab === "todos" ? " on" : "") + '" data-atab="todos">Atletas</button><button class="tab' + (state.athletesTab === "grupos" ? " on" : "") + '" data-atab="grupos">Grupos</button></div>';
+  if (state.athletesTab === "grupos") {
+    s += '<div class="grid-auto">';
+    GROUPS.forEach(function (g) {
+      const members = ATHLETES.filter(function (a) { return a.groups.indexOf(g.id) >= 0; });
+      s += '<section class="card card-pad stack"><div class="row"><span class="dot" style="background:' + g.color + ';width:12px;height:12px"></span><h3 style="flex:1">' + g.name + '</h3><button class="icon-btn" aria-label="Editar grupo">' + icon("dots") + '</button></div><p class="small muted">' + g.desc + '</p><div class="row" style="gap:4px">' + members.map(function (a) { return '<span class="avatar" title="' + esc(a.name) + '" style="width:30px;height:30px;font-size:11px;background:' + a.color + '">' + initials(a.name) + "</span>"; }).join("") + '</div><div class="row"><button class="btn btn-sm" data-group-stats="' + g.id + '">' + icon("chart", 14) + 'Estadísticas del grupo</button></div></section>';
+    });
+    s += '<button class="card card-pad empty" style="border-style:dashed;cursor:pointer">' + icon("plus", 24) + "<b>Nuevo grupo</b><span class=\"small\">Nombre, descripción y color</span></button></div>";
+    return s;
+  }
+  s += '<div class="toolbar"><div class="search">' + icon("search", 16) + '<input id="aq" class="input" placeholder="Buscar atleta" value="' + esc(f.q) + '"></div><div class="chips"><button class="chip' + (f.group === "all" ? " on" : "") + '" data-agroup="all">Todos</button>' +
+    GROUPS.map(function (g) { return '<button class="chip' + (f.group === g.id ? " on" : "") + '" data-agroup="' + g.id + '"><span class="dot" style="background:' + g.color + '"></span>' + g.name + "</button>"; }).join("") + "</div></div>";
+  s += '<div class="grid-auto">';
+  list.forEach(function (a) {
+    const r = rng(a.id.charCodeAt(1) * 13);
+    const sp = []; let v = a.ir * 100; for (let i = 0; i < 10; i++) { v += (r() - 0.45) * 3; sp.push(v); }
+    s += '<button class="card athlete-card" data-go-athlete="' + a.id + '"><div class="row"><span class="avatar" style="background:' + a.color + '">' + initials(a.name) + '</span><div style="flex:1;min-width:0"><b>' + esc(a.name) + "</b>" + (a.fresh ? ' <span class="pill pill-info">' + a.fresh + " nueva" + (a.fresh > 1 ? "s" : "") + "</span>" : "") + '<div class="small muted">Última: hace ' + a.lastDays + ' días</div></div>' + spark(sp) + "</div>";
+    s += '<div class="mini-stats"><div><b>' + a.races + '</b><span>carreras</span></div><div><b>' + fpct(a.ir, 0) + '</b><span>rendimiento</span></div><div><b>' + fpct(a.err, 0) + '</b><span>tasa de error</span></div></div>';
+    s += '<div class="row small"><span class="muted">Error más común:</span> ' + esc(a.common) + '</div><div class="chips">' + a.groups.map(function (gid) { const g = GROUPS.find(function (x) { return x.id === gid; }); return '<span class="pill"><span class="dot" style="background:' + g.color + '"></span>' + g.name + "</span>"; }).join("") + "</div></button>";
+  });
+  s += "</div>";
+  return s;
+}
+function viewAtleta() {
+  const a = viewing();
+  let s = viewingBanner();
+  s += '<section class="card card-pad"><div class="row"><span class="avatar lg" style="background:' + a.color + '">' + initials(a.name) + '</span><div style="flex:1;min-width:200px" class="stack"><h1>' + esc(a.name) + '</h1><div class="chips">' + a.groups.map(function (gid) { const g = GROUPS.find(function (x) { return x.id === gid; }); return '<span class="pill"><span class="dot" style="background:' + g.color + '"></span>' + g.name + "</span>"; }).join("") + '</div></div><div class="row"><button class="btn" data-go="carreras" data-keep-athlete="1">' + icon("list", 16) + 'Carreras</button><button class="btn btn-primary" data-go="estadisticas" data-keep-athlete="1">' + icon("chart", 16) + "Estadísticas</button></div></div></section>";
+  s += '<div class="kpis">' + kpi("Carreras", a.races, "recibidas") + kpi("Rendimiento medio", fpct(a.ir), "") + kpi("Tasa de error", fpct(a.err), "", "error") + kpi("Pérdida media", fnum(a.loss) + " %", "por tramo") + "</div>";
+  s += '<section class="card"><div class="card-head"><h3>Últimas carreras</h3><button class="btn btn-ghost btn-sm" data-go="carreras" data-keep-athlete="1">Ver todas ' + icon("arrow", 14) + '</button></div><div class="card-body"><div class="table-wrap"><table><tbody>';
+  RACES.slice(0, 5).forEach(function (x) { s += '<tr tabindex="0" class="click" data-race="' + x.id + '"><td class="muted num">' + fshort(x.date) + '</td><td class="race-name">' + esc(x.name) + "</td><td>" + fmtPill(x.format) + '</td><td class="r">' + fpct(x.ir, 0) + '</td><td class="r down">' + ftime(x.lost) + "</td></tr>"; });
+  s += "</tbody></table></div></div></section>";
+  return s;
+}
+function viewGrupo() {
+  const members = state.groupSel === "all" ? ATHLETES : ATHLETES.filter(function (a) { return a.groups.indexOf(state.groupSel) >= 0; });
+  const rows = members.slice();
+  if (state.includeMe) rows.unshift({ id: "me", name: ME.name + " (tú)", races: 28, ir: 0.862, err: 0.151, loss: 6.7, common: "Salida de baliza", color: ME.color });
+  let s = '<div class="page-head"><div class="grow"><h1>Comparar atletas</h1><p class="muted">Todos contra todos (P15), con los filtros del histórico.</p></div></div>';
+  s += note("La vista de grupo de ahora, con <b>selector de grupo</b> (#120) y la casilla «Incluirme» (#119). Tres pestañas en vez de tres bloques seguidos. Comparar un grupo contra otro (#121) iría aquí más adelante.");
+  s += '<div class="filterbar"><label for="g-sel">Grupo <select id="g-sel" class="select"><option value="all">Todos los atletas</option>' + GROUPS.map(function (g) { return '<option value="' + g.id + '"' + (state.groupSel === g.id ? " selected" : "") + ">" + g.name + "</option>"; }).join("") + '</select></label><label><input type="checkbox" id="includeMe"' + (state.includeMe ? " checked" : "") + '> Incluirme</label><label for="g-from">Desde <input id="g-from" class="input" type="date" value="2025-01-01"></label><label for="g-fmt">Formato <select id="g-fmt" class="select"><option>Todos</option><option>Sprint</option><option>Media</option><option>Larga</option></select></label></div>';
+  const avg = function (k) { return rows.reduce(function (t, x) { return t + x[k]; }, 0) / rows.length; };
+  s += '<div class="kpis">' + kpi("Atletas", rows.length, state.groupSel === "all" ? "todos" : GROUPS.find(function (g) { return g.id === state.groupSel; }).name) + kpi("Rendimiento medio", fpct(avg("ir")), "del grupo") + kpi("Tasa de error", fpct(avg("err")), "del grupo", "error") + kpi("Pérdida media", fnum(avg("loss")) + " %", "por tramo") + "</div>";
+  s += '<div class="tabs">' + [["atletas", "Atletas"], ["h2h", "Cara a cara"], ["compartidas", "Carreras compartidas"]].map(function (t) { return '<button class="tab' + (state.groupTab === t[0] ? " on" : "") + '" data-gtab="' + t[0] + '">' + t[1] + "</button>"; }).join("") + "</div>";
+  if (state.groupTab === "atletas") {
+    s += '<section class="card"><div class="table-wrap"><table><thead><tr><th>Atleta</th><th class="r">Carreras</th><th class="r">Rendimiento</th><th class="r">Tasa de error</th><th class="r">Pérdida</th><th>Error más común</th></tr></thead><tbody>';
+    rows.forEach(function (a) { s += '<tr tabindex="0" class="click"' + (a.id !== "me" ? ' data-go-athlete="' + a.id + '"' : "") + '><td><span class="row" style="gap:8px;flex-wrap:nowrap"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:' + a.color + '">' + initials(a.name) + "</span><b>" + esc(a.name) + '</b></span></td><td class="r">' + a.races + '</td><td class="r">' + fpct(a.ir) + '</td><td class="r">' + fpct(a.err) + '</td><td class="r">' + fnum(a.loss) + " %</td><td>" + esc(a.common) + "</td></tr>"; });
+    s += "</tbody></table></div></section>";
+  } else if (state.groupTab === "h2h") {
+    s += '<section class="card"><div class="table-wrap"><table class="h2h"><thead><tr><th></th>' + rows.map(function (a) { return '<th class="r">' + esc(a.name.split(" ")[0]) + "</th>"; }).join("") + "</tr></thead><tbody>";
+    rows.forEach(function (a, i) {
+      s += "<tr><th>" + esc(a.name) + "</th>";
+      rows.forEach(function (b, j) {
+        if (i === j) { s += '<td class="cell faint">—</td>'; return; }
+        const r = rng((i + 1) * 17 + (j + 1) * 5);
+        const w = Math.floor(r() * 5), l = Math.floor(r() * 5);
+        s += '<td class="cell"><span class="' + (w > l ? "w" : w < l ? "l" : "") + '">' + w + "–" + l + '</span><div class="small faint">' + (w >= l ? "+" : "−") + fnum(r() * 6) + "</div></td>";
+      });
+      s += "</tr>";
+    });
+    s += '</tbody></table></div><p class="small muted" style="padding:10px 16px">En cada celda, cuántas carreras compartidas tuvo el de la fila más rendimiento que el de la columna y cuántas menos; debajo, la diferencia media en puntos.</p></section>';
+  } else {
+    s += '<section class="card"><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Carrera</th><th>De más a menos rendimiento</th></tr></thead><tbody>';
+    RACES.slice(0, 6).forEach(function (x, k) {
+      const order = rows.slice().sort(function () { return 0.5 - rng(k + 3)(); }).slice(0, 3 + (k % 3));
+      s += '<tr><td class="muted num">' + fshort(x.date) + '</td><td class="race-name">' + esc(x.name) + "</td><td>" + order.map(function (a) { return esc(a.name.split(" ")[0]); }).join(" › ") + "</td></tr>";
+    });
+    s += "</tbody></table></div></section>";
+  }
+  return s;
+}
+
+// ---------- Perfil, ajustes y ayuda ----------
+function viewPerfil() {
+  let s = '<section class="card card-pad"><div class="row"><span class="avatar lg" style="background:' + ME.color + '">' + initials(ME.name) + '</span><div class="stack" style="gap:2px;flex:1"><h1>' + ME.name + '</h1><span class="muted">' + ME.club + " · " + ME.cat + '</span></div><button class="btn">Editar</button></div></section>';
+  s += note("<b>Mi perfil</b> junta quién eres (para encontrarte en los resultados) y qué compartes. Lo técnico de verdad (umbrales, zona horaria) se va a Ajustes.");
+  s += '<div class="grid-2"><section class="card card-pad form-section"><h2>Quién soy</h2><div class="field"><label for="p-name">Nombre y apellidos</label><input id="p-name" class="input" value="' + ME.name + '"><span class="hint">Tal y como sale en los resultados. Sirve para encontrarte en el .spl.</span></div><div class="field"><label for="p-si">Tarjeta SI</label><input id="p-si" class="input" value="' + ME.si + '"></div><div class="field"><label for="p-club">Club</label><input id="p-club" class="input" value="' + ME.club + '"></div></section>';
+  s += '<section class="card card-pad form-section"><h2>Qué comparto</h2><div class="field"><label for="p-share">Por defecto, de cada carrera</label><select id="p-share" class="select"><option>Tramos</option><option>Nada</option><option>Solo el resumen</option><option>Track completo</option></select><span class="hint">Se puede cambiar en cada carrera.</span></div><div class="field"><label>Carpeta compartida</label><div class="row"><span class="pill pill-ok">Conectada</span><span class="small muted">~/Drive/Club/tramos</span><button class="btn btn-sm">Cambiar</button></div></div><div class="kpis"><div class="kpi"><span class="label">Carreras compartidas</span><span class="value">26</span></div><div class="kpi"><span class="label">Sin compartir</span><span class="value">2</span></div></div></section></div>';
+  return s;
+}
+function viewAjustes() {
+  const sec = state.settingsSection;
+  const sections = [["analisis", "Análisis"], ["importacion", "Importación"], ["mapa", "Colores del mapa"], ["entrenar", "Entrenar"], ["apariencia", "Apariencia y vistas"]];
+  let s = '<div class="page-head"><div class="grow"><h1>Ajustes</h1><p class="muted">Se guardan al momento.</p></div></div>';
+  s += '<div class="settings"><nav class="settings-nav" aria-label="Secciones de ajustes">' + sections.map(function (x) { return '<button class="' + (sec === x[0] ? "on" : "") + '" data-sset="' + x[0] + '">' + x[1] + "</button>"; }).join("") + '</nav><section class="card card-pad form-section">';
+  if (sec === "analisis") s += '<h2>Análisis</h2><p class="muted small">Cuándo un tramo cuenta como error. Cambiarlo recalcula todas las vistas.</p><div class="grid-2"><div class="field"><label for="s-th">Pérdida mínima (s)</label><input id="s-th" class="input" value="15"></div><div class="field"><label for="s-pct">Pérdida mínima (% de lo esperado)</label><input id="s-pct" class="input" value="10"></div></div>';
+  if (sec === "importacion") s += '<h2>Importación</h2><div class="field"><label for="s-tz">Zona horaria de las carreras</label><select id="s-tz" class="select"><option>Europe/Madrid</option><option>Atlantic/Canary</option></select><span class="hint">Solo para las carreras que importes a partir de ahora.</span></div>';
+  if (sec === "mapa") {
+    s += '<h2>Colores del mapa</h2><p class="muted small">Tus zonas de ritmo y pulso para colorear el track. Sin zonas, se usan cinco tonos por carrera.</p>';
+    [["Hasta 4:30", "#6da7ec"], ["4:30 – 5:30", "#3987e5"], ["5:30 – 6:30", "#256abf"], ["6:30 – 8:00", "#184f95"], ["Más de 8:00", "#0d366b"]].forEach(function (z) { s += '<div class="zone-row"><span class="zone-sw" style="background:' + z[1] + '"></span><span class="num">' + z[0] + ' min/km</span></div>'; });
+  }
+  if (sec === "entrenar") {
+    s += '<h2>Entrenar</h2><label class="switch"><input type="checkbox" id="coachToggle"' + (state.coachEnabled ? " checked" : "") + '><span><b>Entreno a otros atletas</b><br><span class="muted small">Añade la sección Atletas al menú. Tus carreras siguen igual.</span></span></label>';
+    s += '<label class="switch"><input type="checkbox" checked><span><b>Compartir mis carreras</b><br><span class="muted small">Con quien te entrena, por la carpeta compartida.</span></span></label>';
+  }
+  if (sec === "apariencia") s += '<h2>Apariencia y vistas</h2><div class="field"><label>Tema</label><div class="seg"><button class="' + (state.theme === "system" ? "on" : "") + '" data-theme-set="system">Sistema</button><button class="' + (state.theme === "light" ? "on" : "") + '" data-theme-set="light">Claro</button><button class="' + (state.theme === "dark" ? "on" : "") + '" data-theme-set="dark">Oscuro</button></div></div><div class="field"><label>Paneles ocultos</label><span class="hint">Has ocultado ' + Object.keys(state.hidden).filter(function (k) { return state.hidden[k]; }).length + ' paneles en Estadísticas y en las carreras.</span><div class="row"><button class="btn btn-sm" data-act="customize">Elegir paneles</button><button class="btn btn-sm btn-ghost" data-act="reset-hidden">Enseñar todos</button></div></div>';
+  return s + "</section></div>";
+}
+function viewAyuda() {
+  let s = '<div class="page-head"><div class="grow"><h1>Ayuda</h1><p class="muted">Contenido de #125. Aquí solo se ve dónde vive.</p></div><div class="search">' + icon("search", 16) + '<input class="input" placeholder="Buscar en la ayuda"></div></div>';
+  s += '<div class="grid-3">' + [["Primeros pasos", "Importar tu primera carrera, añadir el FIT y revisar los errores."], ["Conceptos", "Tiempo perdido, rendimiento, referencia, consistencia y tipos de error, con ejemplos."], ["Cada pantalla", "Qué enseña cada vista y cada panel, y cómo leerlo."], ["Compartir", "La carpeta compartida, qué ve tu entrenador y cómo dejar de compartir."], ["Entrenar", "Atletas, grupos y comparaciones."], ["Privacidad", "Qué datos se guardan y dónde."]].map(function (x) { return '<section class="card card-pad stack"><h3>' + x[0] + '</h3><p class="muted small">' + x[1] + "</p></section>"; }).join("") + "</div>";
+  return s;
+}
+
+// ---------- Bienvenida ----------
+function viewOnboarding() {
+  return '<div class="onboard"><div class="onboard-card"><div class="stack" style="justify-items:center">' + baliza(48) + '<h1>Te damos la bienvenida a Tramos</h1><p class="muted">¿Cómo vas a usar la app? Lo puedes cambiar luego en Ajustes.</p></div><div class="role-grid">' +
+    [["run", "Corro", "Analizo mis carreras."], ["whistle", "Entreno", "Veo las carreras de mis atletas."], ["users", "Las dos cosas", "Corro y además entreno a otros."]].map(function (x, i) {
+      return '<button class="card role" data-role-pick="' + (i === 0 ? "runner" : "both") + '"><span class="ico">' + icon(x[0], 26) + "</span><b>" + x[1] + '</b><span class="small muted">' + x[2] + "</span></button>";
+    }).join("") + '</div><p class="small faint">Boceto: «Entreno» y «Las dos cosas» llevan aquí al mismo sitio, con tus carreras vacías si solo entrenas.</p></div></div>';
+}
+
+// ---------- Panel del boceto y personalizar ----------
+function mockPanel() {
+  let s = '<button class="mock-fab" data-act="mock">' + (state.mockOpen ? "Cerrar boceto" : "Boceto") + "</button>";
+  if (!state.mockOpen) return s;
+  s += '<aside class="mock-panel" aria-label="Opciones del boceto"><div class="stack" style="gap:4px"><h3>Boceto de navegación (#105 y #119)</h3><p class="small muted">Datos inventados. Ningún nombre, carrera ni número es real. Los botones de importar, guardar o etiquetar no hacen nada.</p></div>';
+  s += '<div class="field"><label>Cómo usas la app</label><div class="seg"><button class="' + (state.role === "runner" ? "on" : "") + '" data-role="runner">Corro</button><button class="' + (state.role === "both" ? "on" : "") + '" data-role="both">Corro y entreno</button></div></div>';
+  s += '<div class="field"><label>Estadísticas</label><div class="seg"><button class="' + (state.statsLayout === "tabs" ? "on" : "") + '" data-layout="tabs">Pestañas</button><button class="' + (state.statsLayout === "index" ? "on" : "") + '" data-layout="index">Índice lateral</button></div></div>';
+  s += '<div class="field"><label>Tema</label><div class="seg"><button class="' + (state.theme === "system" ? "on" : "") + '" data-theme-set="system">Sistema</button><button class="' + (state.theme === "light" ? "on" : "") + '" data-theme-set="light">Claro</button><button class="' + (state.theme === "dark" ? "on" : "") + '" data-theme-set="dark">Oscuro</button></div></div>';
+  s += '<label class="row small" style="gap:8px"><input type="checkbox" id="notesToggle"' + (state.notes ? " checked" : "") + "> Enseñar las notas de diseño (amarillas)</label>";
+  s += '<button class="btn btn-sm" data-act="onboarding">Ver la bienvenida de la primera vez</button>';
+  return s + "</aside>";
+}
+function drawer() {
+  if (!state.drawer) return "";
+  const all = statPanels();
+  let s = '<div class="drawer-bg" data-act="close-drawer"></div><aside class="drawer" aria-label="Personalizar"><div class="row"><h2 style="flex:1">Personalizar</h2><button class="icon-btn" data-act="close-drawer" aria-label="Cerrar">' + icon("close") + "</button></div>";
+  s += '<p class="muted small">Elige qué paneles ves. Se guarda para ti y vale para todas tus carreras y para las de tus atletas.</p>';
+  STAT_TABS.forEach(function (t) {
+    s += '<div class="stack" style="gap:6px"><span class="eyebrow">Estadísticas · ' + t.label + "</span>";
+    all[t.id].forEach(function (p) { s += '<label class="check-row"><input type="checkbox" data-toggle-panel="' + p.id + '"' + (state.hidden[p.id] ? "" : " checked") + '><span class="grow">' + p.title + '</span><span class="faint small">' + p.q + "</span></label>"; });
+    s += "</div>";
+  });
+  s += '<div class="stack" style="gap:6px"><span class="eyebrow">Carrera · Análisis</span>' + [["rc-p3", "Pérdida acumulada"], ["rc-p5", "Dónde gano y dónde pierdo"], ["rc-ir", "Rendimiento por tramo"], ["rc-p2", "¿De qué está hecha la pérdida?"]].map(function (p) { return '<label class="check-row"><input type="checkbox" data-toggle-panel="' + p[0] + '"' + (state.hidden[p[0]] ? "" : " checked") + '><span class="grow">' + p[1] + "</span></label>"; }).join("") + "</div>";
+  s += '<div class="row"><button class="btn btn-primary" data-act="close-drawer">Hecho</button><button class="btn btn-ghost" data-act="reset-hidden">Enseñar todos</button></div></aside>';
+  return s;
+}
+
+// ======================================================================
+// Render y eventos
+// ======================================================================
+const root = document.getElementById("root");
+function applyTheme() {
+  if (state.theme === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", state.theme);
+  document.body.classList.toggle("no-notes", !state.notes);
+}
+function render() {
+  applyTheme();
+  if (state.onboarding) { root.innerHTML = viewOnboarding() + mockPanel(); return; }
+  const r = state.route;
+  const views = { inicio: viewInicio, carreras: viewCarreras, carrera: viewCarrera, estadisticas: viewEstadisticas, importar: viewImportar, atletas: viewAtletas, atleta: viewAtleta, grupo: viewGrupo, perfil: viewPerfil, ajustes: viewAjustes, ayuda: viewAyuda };
+  let body = (views[r.name] || viewInicio)();
+  root.innerHTML = '<div class="shell">' + sidebar() + '<div class="main">' + topbar() + '<main class="content">' + body + "</main></div></div>" + mockPanel() + drawer();
+}
+
+root.addEventListener("click", function (ev) {
+  const t = ev.target.closest("button, tr[data-race], tr[data-leg], tr[data-go-athlete], [data-act]");
+  if (!t) { if (state.openMenu) { state.openMenu = null; render(); } return; }
+  const d = t.dataset;
+  const athlete = state.route.athlete;
+  if (d.go) { go({ name: d.go, athlete: d.keepAthlete ? athlete : undefined }); return; }
+  if (d.goAthlete) { go({ name: "atleta", athlete: d.goAthlete }); return; }
+  if (d.route) { go(JSON.parse(d.route)); return; }
+  if (d.race) { go({ name: "carrera", id: d.race, tab: d.tab || "resumen", athlete: athlete }); return; }
+  if (d.rtab) { state.route = Object.assign({}, state.route, { tab: d.rtab }); render(); return; }
+  if (d.stab) { state.route = Object.assign({}, state.route, { tab: d.stab }); render(); return; }
+  if (d.mapleg) { state.selLeg = Number(d.mapleg); state.route = Object.assign({}, state.route, { tab: "mapa" }); render(); return; }
+  if (d.leg != null) { const n = Number(d.leg); state.selLeg = n === 0 || state.selLeg === n ? null : n; render(); return; }
+  if (d.format) { state.list.format = d.format; state.list.page = 1; render(); return; }
+  if (d.page) { const p = Number(d.page); if (p >= 1) { state.list.page = p; render(); } return; }
+  if (d.view) { state.viewTable[d.view] = d.as === "table"; render(); return; }
+  if (d.menu) { state.openMenu = state.openMenu === d.menu ? null : d.menu; render(); return; }
+  if (d.hide) { state.hidden[d.hide] = true; store.set("hidden", state.hidden); state.openMenu = null; render(); return; }
+  if (d.metric) { state.mapMetric = d.metric; render(); return; }
+  if (d.agroup) { state.athleteFilter.group = d.agroup; render(); return; }
+  if (d.atab) { state.athletesTab = d.atab; render(); return; }
+  if (d.gtab) { state.groupTab = d.gtab; render(); return; }
+  if (d.itab) { state.importTab = d.itab; render(); return; }
+  if (d.sset) { state.settingsSection = d.sset; render(); return; }
+  if (d.groupStats) { state.groupSel = d.groupStats; go({ name: "grupo" }); return; }
+  if (d.toc) { const el = document.getElementById(d.toc); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); document.querySelectorAll(".toc button").forEach(function (b) { b.classList.toggle("on", b === t); }); return; }
+  if (d.role) { state.role = d.role; state.coachEnabled = d.role === "both"; store.set("role", d.role); if (!state.coachEnabled && (viewing() || ["atletas", "grupo", "atleta"].indexOf(state.route.name) >= 0)) state.route = { name: "inicio" }; render(); return; }
+  if (d.rolePick) { state.role = d.rolePick; state.coachEnabled = d.rolePick === "both"; state.onboarding = false; state.route = { name: "inicio" }; render(); return; }
+  if (d.layout) { state.statsLayout = d.layout; store.set("statsLayout", d.layout); render(); return; }
+  if (d.themeSet) { state.theme = d.themeSet; store.set("theme", d.themeSet); render(); return; }
+  if (d.act === "back") { back(); return; }
+  if (d.act === "side") { state.sideOpen = !state.sideOpen; render(); return; }
+  if (d.act === "mock") { state.mockOpen = !state.mockOpen; store.set("mockOpen", state.mockOpen); render(); return; }
+  if (d.act === "onboarding") { state.onboarding = true; state.mockOpen = false; render(); return; }
+  if (d.act === "customize") { state.drawer = true; state.openMenu = null; render(); return; }
+  if (d.act === "close-drawer") { state.drawer = null; render(); return; }
+  if (d.act === "reset-hidden") { state.hidden = {}; store.set("hidden", state.hidden); render(); return; }
+  if (d.act === "clear-filters") { state.list = { q: "", format: "all", season: "all", trackOnly: false, sort: "recent", page: 1 }; render(); return; }
+});
+root.addEventListener("change", function (ev) {
+  const t = ev.target;
+  if (t.id === "season") { state.list.season = t.value; state.list.page = 1; render(); }
+  else if (t.id === "sort") { state.list.sort = t.value; render(); }
+  else if (t.id === "trackOnly") { state.list.trackOnly = t.checked; state.list.page = 1; render(); }
+  else if (t.id === "onlyErrors") { state.onlyErrors = t.checked; render(); }
+  else if (t.id === "g-sel") { state.groupSel = t.value; render(); }
+  else if (t.id === "includeMe") { state.includeMe = t.checked; render(); }
+  else if (t.id === "notesToggle") { state.notes = t.checked; store.set("notes", state.notes); applyTheme(); }
+  else if (t.id === "coachToggle") { state.coachEnabled = t.checked; state.role = t.checked ? "both" : "runner"; store.set("role", state.role); render(); }
+  else if (t.dataset.togglePanel) { state.hidden[t.dataset.togglePanel] = !t.checked; store.set("hidden", state.hidden); render(); }
+});
+let typing = null;
+root.addEventListener("input", function (ev) {
+  const t = ev.target;
+  if (t.id !== "q" && t.id !== "aq") return;
+  clearTimeout(typing);
+  typing = setTimeout(function () {
+    if (t.id === "q") { state.list.q = t.value; state.list.page = 1; } else state.athleteFilter.q = t.value;
+    const id = t.id, pos = t.selectionStart;
+    render();
+    const el = document.getElementById(id);
+    if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+  }, 200);
+});
+document.addEventListener("keydown", function (ev) {
+  if (ev.key === "Escape") { if (state.drawer) { state.drawer = null; render(); } else if (state.openMenu) { state.openMenu = null; render(); } }
+  if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches && ev.target.matches("tr.click")) { ev.preventDefault(); ev.target.click(); }
+});
+render();
+</script>
+</body>
+</html>

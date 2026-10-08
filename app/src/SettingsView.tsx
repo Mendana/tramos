@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import {
   AppMode,
   SHARE_HINTS,
@@ -46,8 +46,20 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** Ajustes: umbrales de error, zona horaria, identidad y carpeta compartida (ver `docs/app.md`). */
-function SettingsView({ onSaved }: { onSaved: () => void }) {
+/** Un apartado del formulario: título, explicación y campos. */
+interface Section {
+  id: string;
+  title: string;
+  text: ReactNode;
+  fields: ReactNode;
+}
+
+/**
+ * Ajustes del usuario (ver `docs/app.md`, "Ajustes"), en dos pantallas que guardan el mismo
+ * formulario: **Mi perfil** (quién eres y qué compartes) y **Ajustes** (umbrales de error, zona
+ * horaria, colores del mapa y uso de la app, con un índice a cada apartado).
+ */
+function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved: () => void }) {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -157,216 +169,254 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  return (
-    <>
-      <PageHeader title="Ajustes" subtitle="Se guardan en tu equipo." />
-      {form === null ? (
-        error === null && <p className="muted">Cargando…</p>
-      ) : (
-        <form
-          className="card"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void save();
-          }}
-        >
-          {/* La entrenadora ve a cada corredor con sus umbrales: estos ajustes son de corredor. */}
-          {form.mode === "runner" && (
+  const folderField = (
+    <div className="field">
+      <span className="field-label">Carpeta compartida</span>
+      <div className="row">
+        <input
+          className="input"
+          aria-label="Carpeta compartida"
+          placeholder="Sin carpeta: no se comparte nada"
+          value={form?.folder ?? ""}
+          onChange={(e) => update("folder", e.target.value)}
+        />
+        <button type="button" className="btn" onClick={() => void chooseFolder()}>
+          Elegir…
+        </button>
+      </div>
+      <span className="field-hint">
+        Una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace falta servidor.
+      </span>
+    </div>
+  );
+
+  const sections = (form: Form): Section[] => {
+    if (page === "profile") {
+      return [
+        {
+          id: "who",
+          title: "Quién eres",
+          text: "Para encontrarte en cada carrera al importarla.",
+          fields: (
             <>
-              <div className="form-section">
-                <div className="form-section-text">
-                  <h3>Tramo con error</h3>
-                  <p className="small muted">
-                    Un tramo es error si pierdes más de los dos umbrales. Cambiarlos recalcula todas
-                    tus carreras.
-                  </p>
-                </div>
-                <div className="form-fields">
-                  <label className="field">
-                    <span className="field-label">Pérdida mínima</span>
-                    <input
-                      className="input num"
-                      inputMode="decimal"
-                      value={form.thresholdS}
-                      onChange={(e) => update("thresholdS", e.target.value)}
-                    />
-                    <span className="field-hint">En segundos. Por defecto, 15.</span>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">Pérdida mínima relativa</span>
-                    <input
-                      className="input num"
-                      inputMode="decimal"
-                      value={form.thresholdPct}
-                      onChange={(e) => update("thresholdPct", e.target.value)}
-                    />
-                    <span className="field-hint">En % del tiempo esperado. Por defecto, 10.</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <div className="form-section-text">
-                  <h3>Hora de las carreras</h3>
-                  <p className="small muted">
-                    Zona horaria de las horas del .spl. Se aplica a las carreras que importes a
-                    partir de ahora.
-                  </p>
-                </div>
-                <div className="form-fields">
-                  <label className="field">
-                    <span className="field-label">Zona horaria</span>
-                    <input
-                      className="input"
-                      list="time-zones"
-                      value={form.timeZone}
-                      onChange={(e) => update("timeZone", e.target.value)}
-                    />
-                    <datalist id="time-zones">
-                      {COMMON_TIME_ZONES.map((zone) => (
-                        <option key={zone} value={zone} />
-                      ))}
-                    </datalist>
-                    <span className="field-hint">
-                      Por ejemplo, Europe/Madrid o Atlantic/Canary.
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <div className="form-section-text">
-                  <h3>Quién eres</h3>
-                  <p className="small muted">Para encontrarte en cada carrera al importarla.</p>
-                </div>
-                <div className="form-fields">
-                  <label className="field">
-                    <span className="field-label">Tarjeta SI</span>
-                    <input
-                      className="input num"
-                      inputMode="numeric"
-                      value={form.siCard}
-                      onChange={(e) => update("siCard", e.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    <span className="field-label">Nombre y apellidos</span>
-                    <input
-                      className="input"
-                      value={form.fullName}
-                      onChange={(e) => update("fullName", e.target.value)}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <div className="form-section-text">
-                  <h3>Colores del mapa</h3>
-                  <p className="small muted">
-                    Cómo se colorea el track por ritmo o por pulso. Con tus zonas, el mismo color
-                    significa lo mismo en todas las carreras.
-                  </p>
-                </div>
-                <div className="form-fields">
-                  <ZoneEditor
-                    metric="pace"
-                    draft={form.paceZones}
-                    onChange={(d) => updateZones("paceZones", d)}
-                  />
-                  <ZoneEditor
-                    metric="heart_rate"
-                    draft={form.heartRateZones}
-                    onChange={(d) => updateZones("heartRateZones", d)}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-          <div className="form-section">
-            <div className="form-section-text">
-              <h3>Compartir con la entrenadora</h3>
-              <p className="small muted">
-                Por una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace
-                falta servidor.
-              </p>
-            </div>
-            <div className="form-fields">
               <label className="field">
-                <span className="field-label">Uso la app como</span>
+                <span className="field-label">Nombre y apellidos</span>
+                <input
+                  className="input"
+                  value={form.fullName}
+                  onChange={(e) => update("fullName", e.target.value)}
+                />
+                <span className="field-hint">Tal y como sale en los resultados.</span>
+              </label>
+              <label className="field">
+                <span className="field-label">Tarjeta SI</span>
+                <input
+                  className="input num"
+                  inputMode="numeric"
+                  value={form.siCard}
+                  onChange={(e) => update("siCard", e.target.value)}
+                />
+              </label>
+            </>
+          ),
+        },
+        {
+          id: "sharing",
+          title: "Qué compartes",
+          text: "Con la entrenadora, por la carpeta compartida. Tus carreras se exportan solas cuando cambian.",
+          fields: (
+            <>
+              {folderField}
+              <label className="field">
+                <span className="field-label">Qué compartes de cada carrera</span>
                 <select
                   className="select"
-                  value={form.mode}
-                  onChange={(e) => update("mode", e.target.value)}
+                  value={form.defaultChoice}
+                  onChange={(e) => update("defaultChoice", e.target.value)}
                 >
-                  <option value="runner">Corredor</option>
-                  <option value="coach">Entrenadora</option>
+                  {(Object.keys(SHARE_LABELS) as ShareChoice[]).map((choice) => (
+                    <option key={choice} value={choice}>
+                      {SHARE_LABELS[choice]}
+                    </option>
+                  ))}
                 </select>
                 <span className="field-hint">
-                  {form.mode === "runner"
-                    ? "Tus carreras se exportan solas a la carpeta cuando cambian."
-                    : "Cada minuto se importan los paquetes nuevos que dejen los corredores. Sus carreras se ven en solo lectura y con sus propios umbrales."}
+                  {SHARE_HINTS[form.defaultChoice]} Puedes cambiarlo en cada carrera.
                 </span>
               </label>
-              <div className="field">
-                <span className="field-label">Carpeta compartida</span>
-                <div className="row">
-                  <input
-                    className="input"
-                    aria-label="Carpeta compartida"
-                    placeholder="Sin carpeta: no se comparte nada"
-                    value={form.folder}
-                    onChange={(e) => update("folder", e.target.value)}
-                  />
-                  <button type="button" className="btn" onClick={() => void chooseFolder()}>
-                    Elegir…
-                  </button>
-                </div>
-              </div>
-              {form.mode === "runner" && (
-                <label className="field">
-                  <span className="field-label">Qué compartes de cada carrera</span>
-                  <select
-                    className="select"
-                    value={form.defaultChoice}
-                    onChange={(e) => update("defaultChoice", e.target.value)}
-                  >
-                    {(Object.keys(SHARE_LABELS) as ShareChoice[]).map((choice) => (
-                      <option key={choice} value={choice}>
-                        {SHARE_LABELS[choice]}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field-hint">
-                    {SHARE_HINTS[form.defaultChoice]} Puedes cambiarlo en cada carrera.
-                  </span>
-                </label>
-              )}
-            </div>
-          </div>
+            </>
+          ),
+        },
+      ];
+    }
+    const mode: Section = {
+      id: "mode",
+      title: "Uso de la app",
+      text: "Corredor o entrenadora. Cambia lo que se ve en el menú.",
+      fields: (
+        <>
+          <label className="field">
+            <span className="field-label">Uso la app como</span>
+            <select
+              className="select"
+              value={form.mode}
+              onChange={(e) => update("mode", e.target.value)}
+            >
+              <option value="runner">Corredor</option>
+              <option value="coach">Entrenadora</option>
+            </select>
+            <span className="field-hint">
+              {form.mode === "runner"
+                ? "Tus carreras se exportan solas a la carpeta compartida (en Mi perfil) cuando cambian."
+                : "Cada minuto se importan los paquetes nuevos que dejen los corredores. Sus carreras se ven en solo lectura y con sus propios umbrales."}
+            </span>
+          </label>
+          {form.mode === "coach" && folderField}
+        </>
+      ),
+    };
+    // La entrenadora ve a cada corredor con sus umbrales: el resto es de corredor.
+    if (form.mode === "coach") return [mode];
+    return [
+      {
+        id: "errors",
+        title: "Tramo con error",
+        text: "Un tramo es error si pierdes más de los dos umbrales. Cambiarlos recalcula todas tus carreras.",
+        fields: (
+          <>
+            <label className="field">
+              <span className="field-label">Pérdida mínima</span>
+              <input
+                className="input num"
+                inputMode="decimal"
+                value={form.thresholdS}
+                onChange={(e) => update("thresholdS", e.target.value)}
+              />
+              <span className="field-hint">En segundos. Por defecto, 15.</span>
+            </label>
+            <label className="field">
+              <span className="field-label">Pérdida mínima relativa</span>
+              <input
+                className="input num"
+                inputMode="decimal"
+                value={form.thresholdPct}
+                onChange={(e) => update("thresholdPct", e.target.value)}
+              />
+              <span className="field-hint">En % del tiempo esperado. Por defecto, 10.</span>
+            </label>
+          </>
+        ),
+      },
+      {
+        id: "time",
+        title: "Hora de las carreras",
+        text: "Zona horaria de las horas del .spl. Se aplica a las carreras que importes a partir de ahora.",
+        fields: (
+          <label className="field">
+            <span className="field-label">Zona horaria</span>
+            <input
+              className="input"
+              list="time-zones"
+              value={form.timeZone}
+              onChange={(e) => update("timeZone", e.target.value)}
+            />
+            <datalist id="time-zones">
+              {COMMON_TIME_ZONES.map((zone) => (
+                <option key={zone} value={zone} />
+              ))}
+            </datalist>
+            <span className="field-hint">Por ejemplo, Europe/Madrid o Atlantic/Canary.</span>
+          </label>
+        ),
+      },
+      {
+        id: "map",
+        title: "Colores del mapa",
+        text: "Cómo se colorea el track por ritmo o por pulso. Con tus zonas, el mismo color significa lo mismo en todas las carreras.",
+        fields: (
+          <>
+            <ZoneEditor
+              metric="pace"
+              draft={form.paceZones}
+              onChange={(d) => updateZones("paceZones", d)}
+            />
+            <ZoneEditor
+              metric="heart_rate"
+              draft={form.heartRateZones}
+              onChange={(d) => updateZones("heartRateZones", d)}
+            />
+          </>
+        ),
+      },
+      mode,
+    ];
+  };
 
-          {error !== null && <Notice kind="error">{error}</Notice>}
-          {folderResult !== null && folderResult.problems.length > 0 && (
-            <Notice kind="warning">
-              No se ha podido con todo:
-              <ul>
-                {folderResult.problems.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
-            </Notice>
-          )}
-          <div className="row">
-            <button type="submit" className="btn btn-primary">
-              Guardar
-            </button>
-            {saved && (
-              <span className="small muted">
-                Guardado.{folderResult !== null && ` ${folderResult.message}`}
-              </span>
-            )}
+  const list = form === null ? [] : sections(form);
+  const body =
+    form === null ? (
+      error === null && <p className="muted">Cargando…</p>
+    ) : (
+      <form
+        className="card"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        {list.map((section) => (
+          <div className="form-section" key={section.id} id={`settings-${section.id}`}>
+            <div className="form-section-text">
+              <h3>{section.title}</h3>
+              <p className="small muted">{section.text}</p>
+            </div>
+            <div className="form-fields">{section.fields}</div>
           </div>
-        </form>
+        ))}
+
+        {error !== null && <Notice kind="error">{error}</Notice>}
+        {folderResult !== null && folderResult.problems.length > 0 && (
+          <Notice kind="warning">
+            No se ha podido con todo:
+            <ul>
+              {folderResult.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </Notice>
+        )}
+        <div className="row">
+          <button type="submit" className="btn btn-primary">
+            Guardar
+          </button>
+          {saved && (
+            <span className="small muted">
+              Guardado.{folderResult !== null && ` ${folderResult.message}`}
+            </span>
+          )}
+        </div>
+      </form>
+    );
+
+  return (
+    <>
+      <PageHeader
+        title={page === "profile" ? "Mi perfil" : "Ajustes"}
+        subtitle="Se guardan en tu equipo."
+      />
+      {page === "settings" && list.length > 1 ? (
+        <div className="with-index">
+          <nav className="page-index" aria-label="Apartados">
+            {list.map((section) => (
+              <a key={section.id} className="page-index-link" href={`#settings-${section.id}`}>
+                {section.title}
+              </a>
+            ))}
+          </nav>
+          <div className="with-index-body">{body}</div>
+        </div>
+      ) : (
+        body
       )}
       {form === null && error !== null && <Notice kind="error">{error}</Notice>}
     </>

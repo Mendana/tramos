@@ -112,6 +112,10 @@ export interface RaceRow {
   total_s: number | null;
   lost_time_s: number | null;
   error_count: number;
+  /** Tramos con error aún sin confirmar (Sí, No o Físico). */
+  unreviewed_count: number;
+  /** Rendimiento habitual (1 = 100 %). */
+  usual_performance: number | null;
 }
 
 export interface LostTimeConfig {

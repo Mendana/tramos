@@ -1,8 +1,9 @@
 //! Paquete por carrera: la unidad de intercambio corredor → entrenadora (`docs/paquete.md`).
 //!
 //! Un JSON por corredor y carrera, con un nivel de permiso que decide qué lleva: el resumen, los
-//! originales del recorrido (reducidos y anonimizados) y las etiquetas, o además el track. Aquí
-//! están el formato, cómo se construye a partir de una carrera y cómo se lee y se comprueba.
+//! originales del recorrido (reducidos, sin dorsal, tarjeta ni sexo) y las etiquetas, o además el
+//! track. Aquí están el formato, cómo se construye a partir de una carrera y cómo se lee y se
+//! comprueba.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -109,10 +110,10 @@ pub struct RaceSummary {
     pub consistency: Option<f64>,
 }
 
-/// Originales del recorrido, reducidos y anonimizados ([`shared_course`]).
+/// Originales del recorrido, reducidos ([`shared_course`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SharedCourse {
-    /// Solo las categorías del recorrido del corredor, sin datos personales de nadie.
+    /// Solo las categorías del recorrido del corredor: de cada uno, nombre, club y resultado.
     pub event: Event,
     /// El resultado del corredor dentro de `event`.
     pub result: ResultRef,
@@ -218,8 +219,9 @@ pub fn hex(bytes: &[u8]) -> String {
 }
 
 /// Los originales del recorrido del resultado `at`: solo las categorías con su mismo recorrido y,
-/// de cada corredor (también el propio), solo estado, puesto y picadas. `None` si `at` no está
-/// en `event`.
+/// de cada corredor (también el propio), nombre, apellidos, club, estado, puesto y picadas, lo
+/// mismo que publican los resultados. Dorsal, tarjeta y sexo se quitan. `None` si `at` no está en
+/// `event`.
 pub fn shared_course(event: &Event, at: ResultRef) -> Option<SharedCourse> {
     let own_class = event.classes.get(at.class_index)?;
     at.get(event)?;
@@ -241,9 +243,6 @@ pub fn shared_course(event: &Event, at: ResultRef) -> Option<SharedCourse> {
         }
         let mut class = class.clone();
         for r in &mut class.results {
-            r.runner.given_name = String::new();
-            r.runner.family_name = String::new();
-            r.runner.club = None;
             r.runner.bib = None;
             r.runner.si_card = None;
             r.runner.sex = None;
@@ -383,6 +382,7 @@ impl RacePackage {
 mod tests {
     use super::*;
     use crate::importers::spl;
+    use crate::model::Class;
     use crate::model::TrackPoint;
     use crate::taxonomy::Confirmation;
 
@@ -475,33 +475,34 @@ mod tests {
     }
 
     #[test]
-    fn the_shared_course_is_anonymous_and_recomputes_the_same() {
+    fn the_shared_course_keeps_names_and_clubs_only() {
         let event = fixture();
         let course = shared_course(&event, AT).unwrap();
         let own = &event.classes[AT.class_index];
         assert!(course.event.classes.iter().all(|c| c.course == own.course));
         assert!(course.event.classes.iter().any(|c| c.name == own.name));
-        for r in course.event.classes.iter().flat_map(|c| &c.results) {
-            assert!(r.runner.given_name.is_empty() && r.runner.family_name.is_empty());
-            assert_eq!(
-                (r.runner.club.as_ref(), r.runner.si_card, r.runner.bib),
-                (None, None, None)
-            );
-        }
-        // Ningún nombre del .spl llega al JSON.
-        let json = build(input(&event, ShareLevel::Legs))
-            .unwrap()
-            .to_json()
-            .unwrap();
-        for r in event.classes.iter().flat_map(|c| &c.results) {
-            if !r.runner.family_name.is_empty() {
-                assert!(
-                    !json.contains(&r.runner.family_name),
-                    "{}",
-                    r.runner.family_name
+        let originals: Vec<&Class> = event
+            .classes
+            .iter()
+            .filter(|c| c.course == own.course)
+            .collect();
+        for (shared, original) in course.event.classes.iter().zip(&originals) {
+            for (s, o) in shared.results.iter().zip(&original.results) {
+                assert_eq!(
+                    (&s.runner.given_name, &s.runner.family_name, &s.runner.club),
+                    (&o.runner.given_name, &o.runner.family_name, &o.runner.club)
+                );
+                assert_eq!(
+                    (s.runner.si_card, s.runner.bib, s.runner.sex),
+                    (None, None, None)
                 );
             }
         }
+        let theirs = course.result.get(&course.event).unwrap();
+        assert_eq!(
+            theirs.runner.given_name,
+            AT.get(&event).unwrap().runner.given_name
+        );
         // La app de destino recalcula lo mismo con los originales reducidos.
         let config = LostTimeConfig::default();
         let original = runner_report(&event, AT, &config).unwrap();

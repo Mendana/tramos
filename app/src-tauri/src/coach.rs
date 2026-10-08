@@ -195,20 +195,19 @@ fn add_race(
     let mut event = course.event.clone();
     event.name.clone_from(&package.race.name);
     event.date = package.race.date;
-    // Los originales van sin nombres: el corredor lleva el suyo y los demás, un número.
+    // El corredor sale con su nombre visible, como en el selector. Los demás, con el nombre del
+    // .spl; los paquetes de antes de #118 los traen vacíos y se numeran.
     let mut number = 0;
     for (c, class) in event.classes.iter_mut().enumerate() {
         for (r, result) in class.results.iter_mut().enumerate() {
+            let runner = &mut result.runner;
             if c == course.result.class_index && r == course.result.result_index {
-                result
-                    .runner
-                    .given_name
-                    .clone_from(&package.runner.display_name);
-            } else {
+                runner.given_name.clone_from(&package.runner.display_name);
+                runner.family_name.clear();
+            } else if runner.given_name.trim().is_empty() && runner.family_name.trim().is_empty() {
                 number += 1;
-                result.runner.given_name = format!("Corredor {number}");
+                runner.given_name = format!("Corredor {number}");
             }
-            result.runner.family_name.clear();
         }
     }
     let saved = store.save_event(&event, None)?;
@@ -382,26 +381,69 @@ mod tests {
         assert_eq!(without_ids(&view.store), without_ids(&runner));
     }
 
-    #[test]
-    fn the_others_on_the_course_are_numbered() {
-        let (_, _, coach, runner_id) = received(ShareLevel::Legs, false);
-        let view = runner_view(&coach, &runner_id).unwrap();
+    /// Nombres de los corredores de la única carrera que ve la entrenadora.
+    fn course_names(view: &RunnerView) -> Vec<String> {
         let rows = list_races(&view.store).unwrap();
         let (event_id, _) = view.store.result_ref(ResultId(rows[0].result_id)).unwrap();
         let event = view.store.load_event(event_id).unwrap();
-        let names: Vec<&str> = event
+        event
             .classes
             .iter()
-            .flat_map(|c| c.results.iter().map(|r| r.runner.given_name.as_str()))
-            .collect();
-        assert!(names.contains(&"Corredor 1"));
-        assert!(names.iter().all(|n| !n.is_empty()));
+            .flat_map(|c| c.results.iter())
+            .map(|r| format!("{} {}", r.runner.given_name, r.runner.family_name))
+            .collect()
+    }
+
+    #[test]
+    fn the_others_on_the_course_keep_their_names() {
+        let (runner, result_id, coach, runner_id) = received(ShareLevel::Legs, false);
+        let view = runner_view(&coach, &runner_id).unwrap();
+        let names = course_names(&view);
+        let (event_id, at) = runner.result_ref(ResultId(result_id)).unwrap();
+        let original = runner.load_event(event_id).unwrap();
+        // Otro de su categoría, que seguro que va en el paquete.
+        let someone = original.classes[at.class_index]
+            .results
+            .iter()
+            .enumerate()
+            .find(|(i, r)| *i != at.result_index && !r.runner.family_name.is_empty())
+            .map(|(_, r)| r)
+            .unwrap();
+        let full = format!(
+            "{} {}",
+            someone.runner.given_name, someone.runner.family_name
+        );
+        assert!(names.contains(&full), "{full}");
+        assert!(names.iter().all(|n| !n.starts_with("Corredor ")));
         assert!(
             view.store
-                .load_track(ResultId(rows[0].result_id))
+                .load_track(ResultId(list_races(&view.store).unwrap()[0].result_id))
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn an_old_package_without_names_is_numbered() {
+        let (mut runner, result_id) = imported(false);
+        let mut package = race_package(&mut runner, result_id, ShareLevel::Legs).unwrap();
+        let course = package.course.as_mut().unwrap();
+        for r in course
+            .event
+            .classes
+            .iter_mut()
+            .flat_map(|c| c.results.iter_mut())
+        {
+            r.runner.given_name.clear();
+            r.runner.family_name.clear();
+            r.runner.club = None;
+        }
+        let mut coach = Store::open_in_memory().unwrap();
+        coach.save_received_package(&package).unwrap();
+        let view = runner_view(&coach, &package.runner.runner_id).unwrap();
+        let names = course_names(&view);
+        assert!(names.iter().any(|n| n.trim() == "Corredor 1"));
+        assert!(names.iter().all(|n| !n.trim().is_empty()));
     }
 
     #[test]

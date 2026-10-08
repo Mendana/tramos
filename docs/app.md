@@ -208,8 +208,9 @@ La entrenadora ve todo lo de cada corredor como si fuera él, sin poder modifica
   vinculado a «su» persona, el formato, las etiquetas, el track con su desfase manual y los
   umbrales de su paquete más reciente. Así **todas las vistas de corredor** (lista, carrera con
   P2 y P4, mapa e histórico) salen tal cual, recalculadas con la versión del algoritmo de esta
-  app. En la comparación con el grupo (P4), el corredor sale con su nombre y los demás, que
-  vienen sin nombres, como «Corredor 1», «Corredor 2»… Cuando llega algo nuevo de ese corredor,
+  app. En la comparación con el grupo (P4), el corredor sale con su nombre visible y los demás,
+  con el nombre y apellidos de los resultados; los de paquetes anteriores a #118, que vienen sin
+  nombres, como «Corredor 1», «Corredor 2»… Cuando llega algo nuevo de ese corredor,
   se vuelve a volcar.
 - **Solo resumen.** Las carreras compartidas con `aggregates` no traen tramos: salen aparte en la
   lista («Solo con el resumen»), con fecha, carrera, categoría, resultado, tiempo y tiempo

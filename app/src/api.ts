@@ -518,6 +518,62 @@ export const coachRunners = () => invoke<CoachRunner[]>("coach_runners");
 export const viewRunner = (runnerId: string | null) =>
   invoke<RunnerViewInfo | null>("view_runner", { runnerId });
 
+/** El tipo de error más común de un corredor (P15). */
+export interface TopError {
+  error_type: string;
+  errors: number;
+  /** Parte de sus errores de orientación (0–1). */
+  share: number;
+}
+
+/** Lo principal del histórico de un corredor en la tabla del grupo. */
+export interface GroupRow {
+  stats: HistoryStats;
+  top_error: TopError | null;
+  /** Su cubo de duración con más tasa de error, entre los que tienen bastantes tramos. */
+  weakest_leg_length: LegLengthStats | null;
+  slope: SlopeStats[];
+}
+
+export interface GroupRunnerRow {
+  runner: CoachRunner;
+  row: GroupRow | null;
+  problem: string | null;
+}
+
+export interface SharedResult {
+  /** Posición del corredor en `GroupView.runners`. */
+  runner: number;
+  stats: HistoryStats;
+}
+
+export interface SharedRace {
+  race_id: string;
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  /** De más a menos IR. */
+  results: SharedResult[];
+}
+
+export interface HeadToHead {
+  runner: number;
+  other: number;
+  races: number;
+  better: number;
+  worse: number;
+  /** Media de IR(runner) − IR(other) (1 = 100 puntos). */
+  mean_difference: number;
+}
+
+/** Vista de grupo (P15). */
+export interface GroupView {
+  runners: GroupRunnerRow[];
+  comparison: { shared_races: SharedRace[]; head_to_head: HeadToHead[] };
+}
+
+export const groupView = (filter: HistoryFilter) => invoke<GroupView>("group_view", { filter });
+
 /** El corredor que se está viendo, sin volver a cargarlo. */
 export const viewedRunner = () => invoke<RunnerViewInfo | null>("viewed_runner");
 

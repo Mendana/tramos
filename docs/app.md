@@ -26,6 +26,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `mode_chosen` / `choose_mode(mode)` | Si ya se ha elegido el modo (`runner` o `coach`; abajo, "Modo entrenadora") y elegirlo sin tocar los demás ajustes. |
 | `coach_runners` | En modo entrenadora, los corredores de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `view_runner(runnerId)` | En modo entrenadora, elige el corredor que se ve (`null` = ninguno): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. En modo corredor, error. |
+| `group_view(filter)` | En modo entrenadora, la vista de grupo (P15, `docs/historico.md`): una fila por corredor de los que hay paquetes (o por qué no se ha podido calcular) y todos contra todos en las carreras compartidas, con el filtro del histórico. En modo corredor, error. |
 | `viewed_runner` | Lo mismo que `view_runner` del corredor que se está viendo, sin volver a volcarlo. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
@@ -213,6 +214,17 @@ La entrenadora ve todo lo de cada corredor como si fuera él, sin poder modifica
 - **Solo resumen.** Las carreras compartidas con `aggregates` no traen tramos: salen aparte en la
   lista («Solo con el resumen»), con fecha, carrera, categoría, resultado, tiempo y tiempo
   perdido, y no se pueden abrir ni entran en el histórico.
+- **Grupo** (P15). Pantalla de la barra lateral solo en modo entrenadora, con los filtros del
+  histórico (`docs/historico.md`, "Vista de grupo (P15)"):
+  - **Corredores**: una fila por corredor con carreras, IR medio, tasa de error, pérdida media
+    (%), su error más común (tipo y parte de sus errores), la duración de tramo con más tasa de
+    error (si tiene al menos 10 tramos) e IR en subida, llano y bajada. Un clic en la fila abre
+    sus carreras.
+  - **Cara a cara**: tabla de todos contra todos. En cada celda, cuántas carreras compartidas
+    tuvo el de la fila más IR que el de la columna y cuántas menos («2–1», en verde si más, en
+    rojo si menos) y, debajo, la diferencia media de IR en puntos. «—» sin carreras en común.
+  - **Carreras compartidas**: las que han corrido al menos dos, de la más reciente a la más
+    antigua, con los corredores de más a menos IR y sus errores.
 - **Solo lectura.** No hay ningún control de edición ni de etiquetado: sin Importar en la barra
   lateral, el formato como etiqueta en vez de desplegable, sin selector de qué se comparte, el
   desfase del reloj sin campos ni botones y las etiquetas de los tramos como texto (si fue error,
@@ -498,7 +510,8 @@ sistema.
   tablas (números tabulares a la derecha, filas clicables, tramos con error resaltados), zona para
   soltar ficheros, lista de opciones, control segmentado, secciones de formulario y estado vacío.
   Los iconos son SVG en línea en `ui.tsx`; el de la app es una baliza.
-- **Estructura**: barra lateral con Carreras, Histórico, Importar y Ajustes y, al pie, la versión
+- **Estructura**: barra lateral con Carreras, Histórico, Importar (Grupo en vez de Importar en modo
+  entrenadora) y Ajustes y, al pie, la versión
   del núcleo; en modo entrenadora con carpeta compartida, también cuántos paquetes y de cuántos
   corredores ha recibido (y cuántos ficheros no ha podido leer). El contenido, centrado hasta
   1080 px. Por debajo de 860 px de ancho la barra lateral pasa arriba. La ventana abre a

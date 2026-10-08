@@ -64,6 +64,20 @@
   margin-bottom: var(--space-3);
 }
 
+/* --- Vista de grupo (P15) --- */
+
+.shared-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.head-to-head th[scope="row"] {
+  white-space: nowrap;
+}
+
 /* --- Primera vez: ¿corredor o entrenadora? --- */
 
 .welcome {

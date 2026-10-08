@@ -10,6 +10,7 @@ pub mod courses;
 pub mod days_off;
 pub mod fatigue;
 pub mod gain_loss;
+pub mod group;
 pub mod history;
 pub mod identify;
 pub mod importers;

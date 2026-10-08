@@ -27,7 +27,7 @@ use tramos_store::{SaveOutcome, Store};
 
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
-use crate::coach::{CoachRunner, RunnerView, RunnerViewInfo};
+use crate::coach::{CoachRunner, GroupView, RunnerView, RunnerViewInfo};
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
@@ -134,6 +134,19 @@ fn choose_mode(state: tauri::State<'_, AppState>, mode: AppMode) -> Result<(), S
 #[tauri::command]
 fn coach_runners(state: tauri::State<'_, AppState>) -> Result<Vec<CoachRunner>, String> {
     coach::coach_runners(&*state.store()?).map_err(|e| e.to_string())
+}
+
+/// En modo entrenadora, vista de grupo (P15): una fila por corredor y todos contra todos.
+#[tauri::command]
+fn group_view(
+    state: tauri::State<'_, AppState>,
+    filter: HistoryFilter,
+) -> Result<GroupView, String> {
+    let store = state.store()?;
+    if !coach::is_coach(&store).map_err(|e| e.to_string())? {
+        return Err("la vista de grupo es del modo entrenadora".to_string());
+    }
+    coach::group_view(&store, &filter).map_err(|e| e.to_string())
 }
 
 /// En modo entrenadora, el corredor que se está viendo, sin volver a volcarlo.
@@ -403,6 +416,7 @@ pub fn run() -> tauri::Result<()> {
             coach_runners,
             view_runner,
             viewed_runner,
+            group_view,
             preview_import,
             import_race,
             import_folder,

@@ -7,13 +7,18 @@
 //! carrera, mapa, histórico) funcionan sin cambios y recalculan con la versión del algoritmo de
 //! esta app. Lo que no se puede volcar (paquetes con solo el resumen) va aparte.
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use thiserror::Error;
+use tramos_core::group::{GroupComparison, GroupEntry, GroupRow, compare, group_row};
+use tramos_core::history::HistoryFilter;
 use tramos_core::package::{RacePackage, RaceSummary};
 use tramos_core::race_format::RaceFormat;
-use tramos_store::{ReceivedRunner, Store, StoreError};
+use tramos_store::{ReceivedRunner, ResultId, Store, StoreError};
 
+use crate::history::history_view;
 use crate::import::SELF_PERSON_KEY;
 use crate::settings::{self, AppMode};
 
@@ -71,6 +76,9 @@ pub struct RunnerView {
     pub runner: CoachRunner,
     /// Sus carreras con tramos, volcadas como en su app.
     pub store: Store,
+    /// El `race_id` de cada resultado de `store`, para cruzar carreras entre corredores: el de
+    /// la carrera volcada no vale, porque solo lleva las categorías del recorrido.
+    pub race_ids: HashMap<i64, String>,
     /// Las compartidas solo con el resumen, de la más reciente a la más antigua.
     pub summary_only: Vec<SummaryRace>,
     /// Paquetes que no se han podido leer, con el motivo, en español.
@@ -114,6 +122,7 @@ pub fn runner_view(main: &Store, runner_id: &str) -> Result<RunnerView, CoachErr
 
     let mut summary_only = Vec::new();
     let mut problems = Vec::new();
+    let mut race_ids = HashMap::new();
     let mut latest: Option<RacePackage> = None;
     for received in main.received_packages_of(runner_id)? {
         let package = match RacePackage::parse(&received.content) {
@@ -123,12 +132,16 @@ pub fn runner_view(main: &Store, runner_id: &str) -> Result<RunnerView, CoachErr
                 continue;
             }
         };
-        if let Err(e) = add_race(&mut store, person, &package, &mut summary_only) {
-            problems.push(format!(
+        match add_race(&mut store, person, &package, &mut summary_only) {
+            Ok(Some(result)) => {
+                race_ids.insert(result.0, package.race.race_id.clone());
+            }
+            Ok(None) => {}
+            Err(e) => problems.push(format!(
                 "{} {}: {e}",
                 package.race.date,
                 race_name(&package)
-            ));
+            )),
         }
         if latest
             .as_ref()
@@ -152,6 +165,7 @@ pub fn runner_view(main: &Store, runner_id: &str) -> Result<RunnerView, CoachErr
     Ok(RunnerView {
         runner,
         store,
+        race_ids,
         summary_only,
         problems,
     })
@@ -161,13 +175,14 @@ fn race_name(package: &RacePackage) -> &str {
     package.race.name.as_deref().unwrap_or("carrera sin nombre")
 }
 
-/// Vuelca una carrera del paquete; si solo trae el resumen, la apunta en `summary_only`.
+/// Vuelca una carrera del paquete y devuelve su resultado; si solo trae el resumen, la apunta en
+/// `summary_only`.
 fn add_race(
     store: &mut Store,
     person: tramos_store::PersonId,
     package: &RacePackage,
     summary_only: &mut Vec<SummaryRace>,
-) -> Result<(), StoreError> {
+) -> Result<Option<ResultId>, StoreError> {
     let Some(course) = &package.course else {
         summary_only.push(SummaryRace {
             date: package.race.date,
@@ -175,7 +190,7 @@ fn add_race(
             format: package.race.format,
             summary: package.summary.clone(),
         });
-        return Ok(());
+        return Ok(None);
     };
     let mut event = course.event.clone();
     event.name.clone_from(&package.race.name);
@@ -214,7 +229,70 @@ fn add_race(
         store.save_track(result, &shared.track, None)?;
         store.set_manual_offset(result, shared.manual_offset_s)?;
     }
-    Ok(())
+    Ok(Some(result))
+}
+
+/// Un corredor en la tabla del grupo.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct GroupRunnerRow {
+    pub runner: CoachRunner,
+    /// `None` si su histórico no se ha podido calcular (`problem` dice por qué).
+    pub row: Option<GroupRow>,
+    pub problem: Option<String>,
+}
+
+/// Vista de grupo (P15): una fila por corredor y todos contra todos, con el mismo filtro.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct GroupView {
+    /// En el orden de `coach_runners`; los índices de `comparison` son posiciones aquí.
+    pub runners: Vec<GroupRunnerRow>,
+    pub comparison: GroupComparison,
+}
+
+/// La vista de grupo con todos los corredores de los que hay paquetes. Cada uno se vuelca y se
+/// calcula como en su histórico (`history_view`), con sus umbrales.
+pub fn group_view(main: &Store, filter: &HistoryFilter) -> Result<GroupView, CoachError> {
+    let mut runners = Vec::new();
+    let mut entries = Vec::new();
+    for (index, runner) in coach_runners(main)?.into_iter().enumerate() {
+        let view = runner_view(main, &runner.runner_id)?;
+        let (row, problem) = match history_view(&view.store, filter) {
+            Ok(h) => {
+                for race in &h.races {
+                    let Some(race_id) = view.race_ids.get(&race.result_id) else {
+                        continue;
+                    };
+                    entries.push(GroupEntry {
+                        runner: index,
+                        race_id: race_id.clone(),
+                        date: race.date,
+                        name: race.name.clone(),
+                        format: race.format,
+                        stats: race.stats,
+                    });
+                }
+                (
+                    Some(group_row(
+                        &h.history,
+                        &h.by_leg_length,
+                        &h.by_slope,
+                        &h.common_errors,
+                    )),
+                    None,
+                )
+            }
+            Err(e) => (None, Some(e.to_string())),
+        };
+        runners.push(GroupRunnerRow {
+            runner,
+            row,
+            problem,
+        });
+    }
+    Ok(GroupView {
+        runners,
+        comparison: compare(&entries),
+    })
 }
 
 /// ¿Está la app en modo entrenadora?
@@ -233,7 +311,6 @@ mod tests {
     use tramos_core::history::HistoryFilter;
     use tramos_core::package::ShareLevel;
     use tramos_core::taxonomy::{Confirmation, LegTag};
-    use tramos_store::ResultId;
 
     /// El corredor etiqueta un tramo y fija sus umbrales; la entrenadora recibe su paquete.
     fn received(level: ShareLevel, with_fit: bool) -> (Store, i64, Store, String) {
@@ -271,6 +348,10 @@ mod tests {
         let rows = list_races(&view.store).unwrap();
         assert_eq!(rows.len(), 1);
         assert!(rows[0].has_track);
+        assert_eq!(
+            view.race_ids.get(&rows[0].result_id),
+            Some(&coach.received_packages().unwrap()[0].race_id)
+        );
 
         // La misma tabla de tramos, con los umbrales del corredor.
         let mine = race_detail(&runner, result_id).unwrap();
@@ -334,6 +415,45 @@ mod tests {
             view.summary_only[0].summary.lost_time_s,
             mine.report.lost_time.lost_time_s
         );
+    }
+
+    #[test]
+    fn the_group_crosses_the_runners_in_the_same_race() {
+        let (_, _, mut coach, runner_id) = received(ShareLevel::Legs, false);
+        // Otro corredor del mismo recorrido, con su propio paquete.
+        let mut other = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        other.runner.runner_id = "otro".into();
+        other.runner.display_name = "Berta".into();
+        if let Some(course) = other.course.as_mut() {
+            course.result.result_index = 0;
+        }
+        coach.save_received_package(&other).unwrap();
+
+        let group = group_view(&coach, &HistoryFilter::default()).unwrap();
+        let names: Vec<&str> = group
+            .runners
+            .iter()
+            .map(|r| r.runner.display_name.as_str())
+            .collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"Berta"));
+        assert!(group.runners.iter().all(|r| r.row.is_some()));
+        assert_eq!(group.comparison.shared_races.len(), 1);
+        assert_eq!(group.comparison.shared_races[0].results.len(), 2);
+        assert_eq!(group.comparison.head_to_head.len(), 2);
+        let mine = group
+            .runners
+            .iter()
+            .position(|r| r.runner.runner_id == runner_id)
+            .unwrap();
+        let pair = group
+            .comparison
+            .head_to_head
+            .iter()
+            .find(|p| p.runner == mine)
+            .unwrap();
+        assert_eq!(pair.races, 1);
+        assert_eq!(pair.better + pair.worse, 1);
     }
 
     #[test]

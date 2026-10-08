@@ -14,8 +14,9 @@
 - Pulso y GPS se tratan como datos sensibles: cada corredor decide, carrera a carrera, qué comparte
   con la entrenadora (nada, agregados, tramos o track completo). Lo que lleva cada nivel está en
   `docs/paquete.md`. El paquete nunca lleva el .spl: con «tramos» va una copia reducida del
-  recorrido (solo las categorías del corredor) sin nombres, clubes, dorsales, tarjetas ni sexo de
-  nadie, tampoco del propio corredor, que va con el nombre visible que escribió en la app y un
+  recorrido (solo las categorías del corredor) con nombre, apellidos y club de cada corredor, que
+  ya son públicos en los resultados de WinSplits (#118), pero sin dorsales, tarjetas ni sexo de
+  nadie. El propio corredor va además con el nombre visible que escribió en la app y un
   identificador al azar.
 - Los paquetes viajan por una **carpeta compartida** (Drive, OneDrive, Dropbox…, #36,
   `docs/paquete.md`): cualquiera con acceso a esa carpeta puede leerlos, y el proveedor de la

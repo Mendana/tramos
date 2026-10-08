@@ -43,13 +43,20 @@ exportar (`ShareChoice::Nothing`, `none`). Cada nivel incluye todo lo del anteri
 **Originales del recorrido.** Para que la app de la entrenadora pueda recalcular el tiempo perdido
 con su propia versión del algoritmo hacen falta los splits de todo el recorrido (la referencia sale
 de todos los corredores). El paquete no lleva el .spl, que nunca sale de la base local, sino una
-copia **reducida y anonimizada** del modelo (`course.event`):
+copia **reducida** del modelo (`course.event`):
 
 - Solo las categorías que comparten el recorrido del corredor.
-- De cada corredor quedan el estado, el puesto y las picadas. Nombre y apellidos van vacíos y
-  club, dorsal, tarjeta y sexo, a `null`, **también los del propio corredor** (su nombre es el
-  visible de `runner`). Fechas de nacimiento no hay: el modelo nunca las tiene.
+- De cada corredor (también del propio) quedan nombre, apellidos, club, estado, puesto y picadas:
+  lo mismo que publican los resultados de WinSplits, para que la entrenadora reconozca a los
+  rivales y a sus otros atletas (#118). Dorsal, tarjeta y sexo van a `null`. Fechas de nacimiento
+  no hay: el modelo nunca las tiene.
 - `course.result` dice cuál de esos resultados es el del corredor.
+
+Los paquetes de antes de #118 traen nombre y apellidos vacíos y club `null`. Es el mismo formato
+(los campos ya existían), así que `version` sigue siendo 1 y la app destino lee los dos: a quien
+venga sin nombre lo llama «Corredor 1», «Corredor 2»… Un paquete viejo se rehace con nombres en
+cuanto el corredor vuelve a exportar (al guardar los Ajustes con carpeta, o al cambiar algo de
+esa carrera).
 
 Con un paquete `legs` o `track`, la app destino recalcula a partir de `course` con su versión del
 algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene el `summary`.

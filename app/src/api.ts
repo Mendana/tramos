@@ -401,7 +401,76 @@ export interface Settings {
   error_threshold_pct: number;
   time_zone: string;
   identity: RunnerIdentity;
+  sharing: SharingSettings;
 }
+
+/** Quién usa la app: un corredor (exporta) o la entrenadora (recibe). */
+export type AppMode = "runner" | "coach";
+
+/** Qué se comparte de una carrera con la entrenadora (`docs/paquete.md`). */
+export type ShareChoice = "none" | "aggregates" | "legs" | "track";
+
+/** Nivel de un paquete: lo que se comparte, sin «nada». */
+export type ShareLevel = Exclude<ShareChoice, "none">;
+
+export const SHARE_LABELS: Record<ShareChoice, string> = {
+  none: "Nada",
+  aggregates: "Resumen",
+  legs: "Tramos",
+  track: "Track completo",
+};
+
+export const SHARE_HINTS: Record<ShareChoice, string> = {
+  none: "No se comparte.",
+  aggregates: "Tiempo, puesto, tiempo perdido y errores de la carrera.",
+  legs: "Además, los tramos y tus etiquetas. Sin pulso ni GPS.",
+  track: "Además, el track del reloj: GPS y pulso.",
+};
+
+export interface SharingSettings {
+  mode: AppMode;
+  /** Carpeta compartida; `null` = sin compartir. */
+  folder: string | null;
+  default_choice: ShareChoice;
+}
+
+/** Cómo queda una carrera en la carpeta compartida. */
+export interface RaceSharing {
+  /** Se puede compartir: modo corredor, con carpeta y la carrera es tuya. */
+  available: boolean;
+  /** Lo elegido para esta carrera; `null` = lo de por defecto. */
+  choice: ShareChoice | null;
+  default_choice: ShareChoice;
+  /** Con qué nivel está en la carpeta; `null` = no está. */
+  shared: ShareLevel | null;
+  problem: string | null;
+}
+
+export interface ShareReport {
+  written: number;
+  unchanged: number;
+  not_shared: number;
+  problems: string[];
+}
+
+export interface ReceiveReport {
+  created: number;
+  replaced: number;
+  unchanged: number;
+  problems: string[];
+  packages: number;
+  runners: number;
+}
+
+export const raceSharing = (resultId: number) =>
+  invoke<RaceSharing>("race_sharing", { resultId });
+
+export const setRaceSharing = (resultId: number, choice: ShareChoice | null) =>
+  invoke<RaceSharing>("set_race_sharing", { resultId, choice });
+
+export const shareAll = () => invoke<ShareReport>("share_all");
+
+export const receivePackages = () => invoke<ReceiveReport>("receive_packages");
 
 export const getSettings = () => invoke<Settings>("get_settings");
 

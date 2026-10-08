@@ -1,5 +1,15 @@
+import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
-import { getSettings, saveSettings } from "./api";
+import {
+  AppMode,
+  SHARE_HINTS,
+  SHARE_LABELS,
+  ShareChoice,
+  getSettings,
+  receivePackages,
+  saveSettings,
+  shareAll,
+} from "./api";
 import { Notice, PageHeader } from "./ui";
 
 /** Zonas horarias que se ofrecen en la lista; se puede escribir cualquier otra IANA. */
@@ -18,13 +28,27 @@ interface Form {
   timeZone: string;
   siCard: string;
   fullName: string;
+  mode: AppMode;
+  folder: string;
+  defaultChoice: ShareChoice;
 }
 
-/** Ajustes: umbrales de error, zona horaria e identidad (ver `docs/app.md`). */
+/** Qué ha pasado con la carpeta compartida al guardar. */
+interface FolderResult {
+  message: string;
+  problems: string[];
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** Ajustes: umbrales de error, zona horaria, identidad y carpeta compartida (ver `docs/app.md`). */
 function SettingsView({ onSaved }: { onSaved: () => void }) {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [folderResult, setFolderResult] = useState<FolderResult | null>(null);
 
   useEffect(() => {
     getSettings()
@@ -35,6 +59,9 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
           timeZone: s.time_zone,
           siCard: s.identity.si_card === null ? "" : String(s.identity.si_card),
           fullName: s.identity.full_name ?? "",
+          mode: s.sharing.mode,
+          folder: s.sharing.folder ?? "",
+          defaultChoice: s.sharing.default_choice,
         }),
       )
       .catch((err: unknown) => setError(String(err)));
@@ -43,6 +70,28 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
   function update(field: keyof Form, value: string) {
     setForm((current) => (current === null ? current : { ...current, [field]: value }));
     setSaved(false);
+    setFolderResult(null);
+  }
+
+  async function chooseFolder() {
+    const selected = await open({ directory: true, multiple: false });
+    if (typeof selected === "string") update("folder", selected);
+  }
+
+  /** Tras guardar con carpeta: el corredor exporta todas sus carreras y la entrenadora busca. */
+  async function syncFolder(mode: AppMode): Promise<FolderResult> {
+    if (mode === "runner") {
+      const r = await shareAll();
+      const parts = [`${plural(r.written, "carrera exportada", "carreras exportadas")}`];
+      if (r.unchanged > 0) parts.push(`${r.unchanged} sin cambios`);
+      if (r.not_shared > 0) parts.push(`${r.not_shared} sin compartir`);
+      return { message: `Carpeta compartida: ${parts.join(", ")}.`, problems: r.problems };
+    }
+    const r = await receivePackages();
+    return {
+      message: `Carpeta compartida: ${plural(r.packages, "paquete", "paquetes")} de ${plural(r.runners, "corredor", "corredores")}.`,
+      problems: r.problems,
+    };
   }
 
   async function save() {
@@ -61,6 +110,7 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
       setError("La tarjeta SI tiene que ser un número.");
       return;
     }
+    const folder = form.folder.trim();
     try {
       await saveSettings({
         error_threshold_s: thresholdS,
@@ -70,9 +120,15 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
           si_card: card === "" ? null : Number(card),
           full_name: form.fullName.trim() === "" ? null : form.fullName.trim(),
         },
+        sharing: {
+          mode: form.mode,
+          folder: folder === "" ? null : folder,
+          default_choice: form.defaultChoice,
+        },
       });
       setSaved(true);
       onSaved();
+      if (folder !== "") setFolderResult(await syncFolder(form.mode));
     } catch (err) {
       setError(String(err));
     }
@@ -176,12 +232,88 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
             </div>
           </div>
 
+          <div className="form-section">
+            <div className="form-section-text">
+              <h3>Compartir con la entrenadora</h3>
+              <p className="small muted">
+                Por una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace falta
+                servidor.
+              </p>
+            </div>
+            <div className="form-fields">
+              <label className="field">
+                <span className="field-label">Uso la app como</span>
+                <select
+                  className="select"
+                  value={form.mode}
+                  onChange={(e) => update("mode", e.target.value)}
+                >
+                  <option value="runner">Corredor</option>
+                  <option value="coach">Entrenadora</option>
+                </select>
+                <span className="field-hint">
+                  {form.mode === "runner"
+                    ? "Tus carreras se exportan solas a la carpeta cuando cambian."
+                    : "Cada minuto se importan los paquetes nuevos que dejen los corredores."}
+                </span>
+              </label>
+              <div className="field">
+                <span className="field-label">Carpeta compartida</span>
+                <div className="row">
+                  <input
+                    className="input"
+                    aria-label="Carpeta compartida"
+                    placeholder="Sin carpeta: no se comparte nada"
+                    value={form.folder}
+                    onChange={(e) => update("folder", e.target.value)}
+                  />
+                  <button type="button" className="btn" onClick={() => void chooseFolder()}>
+                    Elegir…
+                  </button>
+                </div>
+              </div>
+              {form.mode === "runner" && (
+                <label className="field">
+                  <span className="field-label">Qué compartes de cada carrera</span>
+                  <select
+                    className="select"
+                    value={form.defaultChoice}
+                    onChange={(e) => update("defaultChoice", e.target.value)}
+                  >
+                    {(Object.keys(SHARE_LABELS) as ShareChoice[]).map((choice) => (
+                      <option key={choice} value={choice}>
+                        {SHARE_LABELS[choice]}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="field-hint">
+                    {SHARE_HINTS[form.defaultChoice]} Puedes cambiarlo en cada carrera.
+                  </span>
+                </label>
+              )}
+            </div>
+          </div>
+
           {error !== null && <Notice kind="error">{error}</Notice>}
+          {folderResult !== null && folderResult.problems.length > 0 && (
+            <Notice kind="warning">
+              No se ha podido con todo:
+              <ul>
+                {folderResult.problems.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
           <div className="row">
             <button type="submit" className="btn btn-primary">
               Guardar
             </button>
-            {saved && <span className="small muted">Guardado.</span>}
+            {saved && (
+              <span className="small muted">
+                Guardado.{folderResult !== null && ` ${folderResult.message}`}
+              </span>
+            )}
           </div>
         </form>
       )}

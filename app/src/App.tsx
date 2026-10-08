@@ -1,5 +1,13 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
-import { RaceRow, coreVersion, listRaces } from "./api";
+import {
+  RaceRow,
+  ReceiveReport,
+  SharingSettings,
+  coreVersion,
+  getSettings,
+  listRaces,
+  receivePackages,
+} from "./api";
 import HistoryScreen from "./HistoryScreen";
 import ImportScreen from "./ImportScreen";
 import RaceList from "./RaceList";
@@ -11,6 +19,55 @@ import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/charts.css";
 import "./styles/map.css";
+
+/** Cada cuánto busca la entrenadora paquetes nuevos en la carpeta compartida. */
+const RECEIVE_EVERY_MS = 60_000;
+
+/**
+ * En modo entrenadora con carpeta, importa los paquetes nuevos al abrir la app y cada minuto
+ * (`docs/paquete.md`, "Carpeta compartida"). Devuelve lo último que ha encontrado.
+ */
+function useReceivePackages(sharing: SharingSettings | null) {
+  const [report, setReport] = useState<ReceiveReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const active = sharing?.mode === "coach" && sharing.folder !== null;
+  useEffect(() => {
+    setReport(null);
+    setError(null);
+    if (!active) return;
+    const receive = () => {
+      receivePackages()
+        .then((r) => {
+          setReport(r);
+          setError(null);
+        })
+        .catch((err: unknown) => setError(String(err)));
+    };
+    receive();
+    const timer = window.setInterval(receive, RECEIVE_EVERY_MS);
+    return () => window.clearInterval(timer);
+  }, [active, sharing?.folder]);
+  return { active, report, error };
+}
+
+function ReceiveStatus({
+  report,
+  error,
+}: {
+  report: ReceiveReport | null;
+  error: string | null;
+}) {
+  if (error !== null) return <div title={error}>Carpeta compartida: no se puede leer</div>;
+  if (report === null) return <div>Carpeta compartida: buscando…</div>;
+  const problems = report.problems.length;
+  return (
+    <div title={report.problems.join("\n") || undefined}>
+      Recibidos: {report.packages} {report.packages === 1 ? "paquete" : "paquetes"} de{" "}
+      {report.runners} {report.runners === 1 ? "corredor" : "corredores"}
+      {problems > 0 && ` · ${problems} sin leer`}
+    </div>
+  );
+}
 
 /** Pantalla abierta. Una carrera se abre desde la lista (o al acabar de importarla). */
 type Screen =
@@ -49,10 +106,15 @@ function App() {
   const [races, setRaces] = useState<RaceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>({ kind: "races" });
+  const [sharing, setSharing] = useState<SharingSettings | null>(null);
+  const receiving = useReceivePackages(sharing);
 
   const refresh = useCallback(() => {
     listRaces()
       .then(setRaces)
+      .catch((err: unknown) => setError(String(err)));
+    getSettings()
+      .then((s) => setSharing(s.sharing))
       .catch((err: unknown) => setError(String(err)));
   }, []);
 
@@ -100,7 +162,10 @@ function App() {
             onClick={() => setScreen({ kind: "settings" })}
           />
         </nav>
-        <div className="sidebar-footer">Núcleo {version === null ? "…" : `v${version}`}</div>
+        <div className="sidebar-footer">
+          {receiving.active && <ReceiveStatus report={receiving.report} error={receiving.error} />}
+          <div>Núcleo {version === null ? "…" : `v${version}`}</div>
+        </div>
       </aside>
 
       <main className="content">

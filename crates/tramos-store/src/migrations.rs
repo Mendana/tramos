@@ -17,6 +17,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0005_event_format.sql"),
     include_str!("../migrations/0006_track_manual_offset.sql"),
     include_str!("../migrations/0007_received_packages.sql"),
+    include_str!("../migrations/0008_result_sharing.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -54,7 +55,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
 mod tests {
     use super::*;
 
-    const TABLES: [&str; 16] = [
+    const TABLES: [&str; 17] = [
         "classes",
         "course_controls",
         "courses",
@@ -63,6 +64,7 @@ mod tests {
         "people",
         "punches",
         "received_packages",
+        "result_sharing",
         "results",
         "runners",
         "settings",
@@ -94,8 +96,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 7);
-        assert_eq!(user_version(&conn).unwrap(), 7);
+        assert_eq!(SCHEMA_VERSION, 8);
+        assert_eq!(user_version(&conn).unwrap(), 8);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 

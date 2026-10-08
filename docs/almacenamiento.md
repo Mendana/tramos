@@ -34,7 +34,9 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `save_tag(ResultId, tramo, versión, &LegTag) -> Option<StoredTag>` | Guarda la etiqueta de un tramo (desde 1; 0 es `InvalidLegIndex`), sustituyendo la anterior con sus causas pero conservando su instante de creación. Una etiqueta vacía borra la del tramo y devuelve `None`. No comprueba las claves contra la taxonomía ni que el tramo exista: eso lo hace quien llama (`docs/taxonomia.md`). |
 | `delete_tag(ResultId, tramo)` | Borra la etiqueta de un tramo; si no la tenía no hace nada. |
 | `package_runner_id() -> String` | Identificador de corredor de esta base para los paquetes (`docs/paquete.md`): se genera la primera vez (32 cifras hexadecimales sin relación con el nombre ni la tarjeta) y se guarda en el ajuste `package_runner_id`. |
-| `save_received_package(&RacePackage) -> SaveOutcome` | Guarda un paquete recibido de otro corredor. Como mucho uno por (`runner_id`, `race_id`): uno igual de reciente o más lo sustituye (`Replaced`), también si baja de nivel; uno más antiguo se ignora (`IgnoredOlder`). |
+| `save_received_package(&RacePackage) -> SaveOutcome` | Guarda un paquete recibido de otro corredor. Como mucho uno por (`runner_id`, `race_id`): uno igual de reciente o más lo sustituye (`Replaced`), también si baja de nivel; uno más antiguo se ignora (`IgnoredOlder`) y uno idéntico al guardado no cambia nada (`Unchanged`). |
+| `result_sharing(ResultId) -> Option<ShareChoice>` / `set_result_sharing(ResultId, Option<ShareChoice>)` | Qué decidió compartir el corredor de un resultado suyo (`none`, `aggregates`, `legs`, `track`; `docs/paquete.md`). `None` = no ha elegido nada y vale el ajuste por defecto; guardar `None` borra la elección. |
+| `received_package_counts() -> (usize, usize)` | Cuántos paquetes recibidos hay y de cuántos corredores, sin leerlos. |
 | `received_packages() -> Vec<ReceivedPackage>` | Paquetes recibidos, por corredor y carrera, con el JSON tal cual y sus identificadores, nivel, versión e instantes de exportación e importación. |
 | `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre, inicio y formato de la carrera (si los hay), categoría, estado, puesto y si el resultado tiene track. |
 
@@ -77,6 +79,7 @@ El análisis guardado (`legs`) aún no tiene API: de momento solo existe su tabl
 | `tags` | Etiqueta del corredor sobre un tramo (`docs/taxonomia.md`). | `result_id`, `leg_index`, `taxonomy_version`; nivel 1 `confirmation` (`error`, `no_error`, `physical`); nivel 2 `error_type`, `error_subtype`; nivel 3 `leg_part` (`start`, `middle`, `attack`), `perceived_loss_s`, `effort` (1–10), `note`; `created_at_epoch_ms`, `updated_at_epoch_ms`. |
 | `tag_causes` | Causas percibidas de una etiqueta (varias). | `tag_id`, `cause`. |
 | `source_files` | Ficheros originales importados, con su contenido. **Nunca sale de la base local.** | `kind` (`spl`, `fit`), `path` (informativa), `sha256` (única), `size_bytes`, `content`, `imported_at_epoch_ms`. |
+| `result_sharing` | Qué comparte el corredor de un resultado suyo (#36). Sin fila, vale el ajuste `sharing.default_choice`. | `result_id` (clave), `choice` (`none`, `aggregates`, `legs`, `track`). |
 | `received_packages` | Paquetes por carrera recibidos de otros corredores (`docs/paquete.md`). Como mucho uno por corredor y carrera. | `runner_id`, `race_id` (únicos juntos), `level` (`aggregates`, `legs`, `track`), `format_version`, `exported_at_epoch_ms`, `imported_at_epoch_ms`, `content` (el JSON). |
 | `settings` | Ajustes clave-valor (umbrales, preferencias…). | `key`, `value`. |
 
@@ -122,6 +125,7 @@ Notas:
 | 5 | `0005_event_format.sql` | Columna `events.format` (nula en las carreras que ya había). |
 | 6 | `0006_track_manual_offset.sql` | Columna `tracks.manual_offset_s` (nula, es decir, automático, en los tracks que ya había). |
 | 7 | `0007_received_packages.sql` | Tabla `received_packages` (paquetes por carrera recibidos, #35). |
+| 8 | `0008_result_sharing.sql` | Tabla `result_sharing` (qué comparte el corredor de cada carrera, #36). |
 
 ## Personas
 

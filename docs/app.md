@@ -33,8 +33,12 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
 | `race_offset(resultId)` | Desfase entre el reloj y el cronometraje del resultado (abajo, "Reloj y cronometraje"): el calculado con su confianza y avisos, el error si no se puede alinear, la sugerencia de ±1/2 h y el fijado a mano. `null` sin track. |
 | `set_race_offset(resultId, offsetS)` | Fija el desfase a mano (segundos; `null` vuelve al automático) y devuelve lo mismo que `race_offset`. Antes comprueba que con él la carrera cae en el track (`align_with_offset`); si no, da el error y no guarda nada. Sin track, error. |
-| `export_race_package(resultId, level, folderPath)` | Exporta el paquete de una carrera del usuario (`docs/paquete.md`) con el nivel `aggregates`, `legs` o `track` a la carpeta, con su nombre de fichero (exportar otra vez la sobrescribe). Solo los resultados vinculados a la persona del usuario. Devuelve la ruta. Aún sin interfaz: la carpeta compartida es #36. |
-| `import_race_package(path)` | Importa el paquete de otro corredor: `created`, `replaced` (sustituye al de ese corredor y carrera) o `ignored_older` (ya había uno más reciente). Aún sin interfaz: la usará el modo entrenadora (#36, #37). |
+| `export_race_package(resultId, level, folderPath)` | Exporta el paquete de una carrera del usuario (`docs/paquete.md`) con el nivel `aggregates`, `legs` o `track` a la carpeta, con su nombre de fichero (exportar otra vez la sobrescribe). Solo los resultados vinculados a la persona del usuario. Devuelve la ruta. Sin interfaz: la app exporta sola a la carpeta compartida (abajo). |
+| `import_race_package(path)` | Importa el paquete de otro corredor: `created`, `replaced` (sustituye al de ese corredor y carrera), `unchanged` (era idéntico) o `ignored_older` (ya había uno más reciente). Sin interfaz: la entrenadora recibe por la carpeta compartida. |
+| `race_sharing(resultId)` | Qué se comparte de una carrera del usuario y cómo está en la carpeta compartida (`docs/paquete.md`, "Carpeta compartida"): si se puede compartir (modo corredor, con carpeta y la carrera es suya), lo elegido para ella, lo de por defecto, el nivel con el que está en la carpeta y, si no se ha podido exportar, por qué. Antes la exporta si hace falta. |
+| `set_race_sharing(resultId, choice)` | Cambia lo que se comparte de una carrera (`none`, `aggregates`, `legs`, `track`; `null` = lo de por defecto), la exporta o la quita de la carpeta y devuelve lo mismo que `race_sharing`. |
+| `share_all` | Exporta todas las carreras del usuario a la carpeta compartida: cuántas se han escrito, cuántas ya estaban igual, cuántas no se comparten y las que han fallado. En modo entrenadora o sin carpeta no hace nada. |
+| `receive_packages` | En modo entrenadora, importa los paquetes nuevos o cambiados de la carpeta compartida: cuántos nuevos, sustituidos y sin cambios, los ficheros que no se han podido leer y cuántos paquetes y corredores hay guardados. En modo corredor no importa nada. |
 | `taxonomy` | La taxonomía de errores con la que se etiqueta (`tramos_core::taxonomy`, `docs/taxonomia.md`). |
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
@@ -42,7 +46,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs` y `tags.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs`, `tags.rs`, `package.rs` y `sharing.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -164,6 +168,10 @@ Pantalla **Ajustes** (botón de la cabecera). Se guardan en la tabla `settings` 
 | `self.si_card` | Tarjeta SI del usuario. | — | Rellena el formulario de importar. |
 | `self.full_name` | Nombre y apellidos, tal y como los escribió. | — | Igual. |
 | `self.person_id` | Id de la persona del usuario en `people` (no se edita). | — | A ella se vinculan sus resultados. |
+| `sharing.mode` | `runner` (corredor) o `coach` (entrenadora). | `runner` | El corredor exporta sus carreras a la carpeta compartida; la entrenadora importa los paquetes de ella (`docs/paquete.md`, "Carpeta compartida"). |
+| `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, el corredor exporta todas sus carreras y la entrenadora busca paquetes nuevos. |
+| `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
+| `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
 
 Un valor guardado que no se entiende (número negativo, zona desconocida) se trata como si no
 estuviera y toma el valor por defecto. El tiempo ideal sigue siendo la suma de referencias.
@@ -182,7 +190,10 @@ número de errores) y si tiene track del reloj. Una fila abre la vista de la car
 - **Cabecera**: carrera, fecha, categoría, corredor y resultado. A la derecha, el **formato**
   en un desplegable (sprint, media, larga o sin formato): se sugiere al importar y aquí se
   puede corregir (#97). El cambio se guarda al momento y mueve la carrera de grupo en la vista
-  histórica.
+  histórica. En modo corredor y con carpeta compartida, al lado, **qué se comparte** de la
+  carrera con la entrenadora: «por defecto» (el ajuste), nada, resumen, tramos o track completo
+  (#36). Al abrir la carrera y al cambiarlo se exporta si hace falta; si falla, se avisa con el
+  motivo, y si se pide el track de una carrera sin track, se dice que van los tramos.
 - **Totales**: tiempo, tiempo perdido, tiempo sin errores, número de errores y rendimiento
   habitual, con la consistencia de la carrera debajo («Consistencia ± 23 %», P10,
   `docs/tiempo-perdido.md`): van juntos porque son el centro y la dispersión del IR. Aviso si la
@@ -446,7 +457,9 @@ sistema.
   tablas (números tabulares a la derecha, filas clicables, tramos con error resaltados), zona para
   soltar ficheros, lista de opciones, control segmentado, secciones de formulario y estado vacío.
   Los iconos son SVG en línea en `ui.tsx`; el de la app es una baliza.
-- **Estructura**: barra lateral con Carreras, Histórico, Importar y Ajustes; el contenido, centrado hasta
+- **Estructura**: barra lateral con Carreras, Histórico, Importar y Ajustes y, al pie, la versión
+  del núcleo; en modo entrenadora con carpeta compartida, también cuántos paquetes y de cuántos
+  corredores ha recibido (y cuántos ficheros no ha podido leer). El contenido, centrado hasta
   1080 px. Por debajo de 860 px de ancho la barra lateral pasa arriba. La ventana abre a
   1180 × 780 (mínimo 760 × 520).
 

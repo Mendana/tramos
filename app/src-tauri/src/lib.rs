@@ -9,6 +9,7 @@ pub mod package;
 pub mod race_map;
 pub mod races;
 pub mod settings;
+pub mod sharing;
 pub mod tags;
 
 use std::sync::{Mutex, MutexGuard};
@@ -18,7 +19,7 @@ use tramos_core::comparison::CourseComparison;
 use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
 use tramos_core::loss_breakdown::RaceBreakdown;
-use tramos_core::package::ShareLevel;
+use tramos_core::package::{ShareChoice, ShareLevel};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::{SaveOutcome, Store};
@@ -30,14 +31,17 @@ use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
 use crate::settings::Settings;
+use crate::sharing::{RaceSharing, ReceiveReport, SeenFiles, ShareReport};
 use crate::tags::TagView;
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
 const DATABASE_FILE: &str = "tramos.sqlite";
 
-/// Estado compartido por los comandos: la base de datos local.
+/// Estado compartido por los comandos: la base de datos local y los ficheros de la carpeta
+/// compartida ya importados.
 struct AppState {
     store: Mutex<Store>,
+    seen: Mutex<SeenFiles>,
 }
 
 impl AppState {
@@ -46,6 +50,12 @@ impl AppState {
             .lock()
             .map_err(|_| "la base de datos quedó bloqueada por un error anterior".to_string())
     }
+}
+
+/// Tras cambiar algo de un resultado, lo exporta a la carpeta compartida si toca. Un fallo no
+/// deshace el cambio: la vista de carrera lo muestra (`race_sharing`).
+fn reshare(store: &mut Store, result_id: i64) {
+    let _ = sharing::export_result(store, result_id);
 }
 
 /// Devuelve la versión del núcleo (`tramos_core::VERSION`).
@@ -84,7 +94,10 @@ fn import_race(
     state: tauri::State<'_, AppState>,
     request: ImportRequest,
 ) -> Result<ImportOutcome, String> {
-    import::import(&mut *state.store()?, &request).map_err(|e| e.to_string())
+    let mut store = state.store()?;
+    let outcome = import::import(&mut store, &request).map_err(|e| e.to_string())?;
+    reshare(&mut store, outcome.result_id);
+    Ok(outcome)
 }
 
 /// Importa todas las carreras de una carpeta (.spl y FIT) y devuelve el resumen. Es asíncrono
@@ -94,7 +107,10 @@ async fn import_folder(
     state: tauri::State<'_, AppState>,
     folder_path: String,
 ) -> Result<BatchSummary, String> {
-    batch::import_folder(&mut *state.store()?, &folder_path).map_err(|e| e.to_string())
+    let mut store = state.store()?;
+    let summary = batch::import_folder(&mut store, &folder_path).map_err(|e| e.to_string())?;
+    let _ = sharing::share_all(&mut store);
+    Ok(summary)
 }
 
 /// Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido.
@@ -125,7 +141,10 @@ fn set_race_format(
     result_id: i64,
     format: Option<RaceFormat>,
 ) -> Result<(), String> {
-    races::set_race_format(&mut *state.store()?, result_id, format).map_err(|e| e.to_string())
+    let mut store = state.store()?;
+    races::set_race_format(&mut store, result_id, format).map_err(|e| e.to_string())?;
+    reshare(&mut store, result_id);
+    Ok(())
 }
 
 /// ¿Lento o desorientado? (P2) de un resultado; `null` sin track.
@@ -154,8 +173,11 @@ fn set_race_offset(
     result_id: i64,
     offset_s: Option<f64>,
 ) -> Result<OffsetView, String> {
-    clock_offset::set_race_offset(&mut *state.store()?, result_id, offset_s)
-        .map_err(|e| e.to_string())
+    let mut store = state.store()?;
+    let view = clock_offset::set_race_offset(&mut store, result_id, offset_s)
+        .map_err(|e| e.to_string())?;
+    reshare(&mut store, result_id);
+    Ok(view)
 }
 
 /// Mapa de un resultado: track coloreado por ritmo o pulso, tramos y balizas.
@@ -177,7 +199,7 @@ fn export_race_package(
         .map_err(|e| e.to_string())
 }
 
-/// Importa el paquete de otro corredor: `created`, `replaced` o `ignored_older`.
+/// Importa el paquete de otro corredor: `created`, `replaced`, `unchanged` o `ignored_older`.
 #[tauri::command]
 fn import_race_package(
     state: tauri::State<'_, AppState>,
@@ -188,8 +210,41 @@ fn import_race_package(
     Ok(match outcome {
         SaveOutcome::Created => "created",
         SaveOutcome::Replaced => "replaced",
+        SaveOutcome::Unchanged => "unchanged",
         SaveOutcome::IgnoredOlder => "ignored_older",
     })
+}
+
+/// Exporta la carrera a la carpeta compartida si hace falta y dice cómo queda.
+#[tauri::command]
+fn race_sharing(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceSharing, String> {
+    sharing::race_sharing(&mut *state.store()?, result_id).map_err(|e| e.to_string())
+}
+
+/// Cambia lo que se comparte de una carrera (`null` = lo de por defecto) y dice cómo queda.
+#[tauri::command]
+fn set_race_sharing(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    choice: Option<ShareChoice>,
+) -> Result<RaceSharing, String> {
+    sharing::set_race_sharing(&mut *state.store()?, result_id, choice).map_err(|e| e.to_string())
+}
+
+/// Exporta todas las carreras del usuario a la carpeta compartida.
+#[tauri::command]
+fn share_all(state: tauri::State<'_, AppState>) -> Result<ShareReport, String> {
+    sharing::share_all(&mut *state.store()?).map_err(|e| e.to_string())
+}
+
+/// En modo entrenadora, importa los paquetes nuevos de la carpeta compartida.
+#[tauri::command]
+fn receive_packages(state: tauri::State<'_, AppState>) -> Result<ReceiveReport, String> {
+    let mut seen = state
+        .seen
+        .lock()
+        .map_err(|_| "la carpeta compartida quedó bloqueada por un error anterior".to_string())?;
+    sharing::receive(&mut *state.store()?, &mut seen).map_err(|e| e.to_string())
 }
 
 /// Taxonomía de errores con la que se etiqueta (`docs/taxonomia.md`).
@@ -212,7 +267,11 @@ fn save_leg_tag(
     leg_index: usize,
     tag: LegTag,
 ) -> Result<Option<TagView>, String> {
-    tags::save_leg_tag(&mut *state.store()?, result_id, leg_index, tag).map_err(|e| e.to_string())
+    let mut store = state.store()?;
+    let saved =
+        tags::save_leg_tag(&mut store, result_id, leg_index, tag).map_err(|e| e.to_string())?;
+    reshare(&mut store, result_id);
+    Ok(saved)
 }
 
 /// Histórico de las carreras del usuario por formato (P6), con filtros de fechas y formato.
@@ -235,6 +294,7 @@ pub fn run() -> tauri::Result<()> {
             let store = Store::open(dir.join(DATABASE_FILE))?;
             app.manage(AppState {
                 store: Mutex::new(store),
+                seen: Mutex::new(SeenFiles::new()),
             });
             Ok(())
         })
@@ -255,6 +315,10 @@ pub fn run() -> tauri::Result<()> {
             race_map,
             export_race_package,
             import_race_package,
+            race_sharing,
+            set_race_sharing,
+            share_all,
+            receive_packages,
             taxonomy,
             leg_tags,
             save_leg_tag,

@@ -1,4 +1,5 @@
-//! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras e identidad.
+//! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras, identidad y
+//! carpeta compartida.
 //!
 //! Se guardan en la tabla de ajustes clave-valor de la base (`docs/almacenamiento.md`). Las
 //! claves y su efecto están en `docs/app.md`, "Ajustes".
@@ -11,6 +12,7 @@ use thiserror::Error;
 use tramos_core::identify::RunnerIdentity;
 use tramos_core::importers::spl::RACE_TIME_ZONE;
 use tramos_core::lost_time::LostTimeConfig;
+use tramos_core::package::ShareChoice;
 use tramos_store::{Store, StoreError};
 
 /// Umbral de error en segundos.
@@ -23,6 +25,15 @@ pub const TIME_ZONE_KEY: &str = "import.time_zone";
 pub const SI_CARD_KEY: &str = "self.si_card";
 /// Nombre y apellidos del usuario, para lo mismo.
 pub const FULL_NAME_KEY: &str = "self.full_name";
+/// Modo de la app: `runner` (exporta sus carreras) o `coach` (recibe las de los corredores).
+pub const MODE_KEY: &str = "sharing.mode";
+/// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
+pub const FOLDER_KEY: &str = "sharing.folder";
+/// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
+pub const DEFAULT_CHOICE_KEY: &str = "sharing.default_choice";
+
+/// Lo que se comparte por defecto: los tramos y las etiquetas, sin pulso ni GPS.
+pub const DEFAULT_SHARE_CHOICE: ShareChoice = ShareChoice::Legs;
 
 /// Errores de los ajustes. Los mensajes van a la interfaz, en español.
 #[derive(Debug, Error)]
@@ -35,6 +46,8 @@ pub enum SettingsError {
     InvalidTimeZone(String),
     #[error("la tarjeta SI tiene que ser un número mayor que 0")]
     InvalidSiCard,
+    #[error("la carpeta compartida no existe o no es una carpeta: {0}")]
+    InvalidFolder(String),
     #[error(transparent)]
     Store(#[from] StoreError),
 }
@@ -49,6 +62,27 @@ pub struct Settings {
     /// Zona horaria IANA de las horas del .spl.
     pub time_zone: String,
     pub identity: RunnerIdentity,
+    pub sharing: SharingSettings,
+}
+
+/// Quién usa la app (`docs/paquete.md`, "Carpeta compartida").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppMode {
+    /// Un corredor: exporta sus carreras a la carpeta.
+    Runner,
+    /// La entrenadora: importa los paquetes que dejan los corredores en la carpeta.
+    Coach,
+}
+
+/// Cómo se comparte con la entrenadora.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SharingSettings {
+    pub mode: AppMode,
+    /// Carpeta compartida; `None` = sin compartir.
+    pub folder: Option<String>,
+    /// Qué se comparte de una carrera si no se ha elegido nada para ella.
+    pub default_choice: ShareChoice,
 }
 
 /// Ajustes guardados; los que faltan (o no se entienden) toman el valor por defecto.
@@ -69,6 +103,17 @@ pub fn load(store: &Store) -> Result<Settings, StoreError> {
             .filter(|v| Tz::from_str(v).is_ok())
             .unwrap_or_else(|| RACE_TIME_ZONE.name().to_string()),
         identity: identity(store)?,
+        sharing: SharingSettings {
+            mode: match store.setting(MODE_KEY)?.as_deref() {
+                Some("coach") => AppMode::Coach,
+                _ => AppMode::Runner,
+            },
+            folder: store.setting(FOLDER_KEY)?.filter(|v| !v.trim().is_empty()),
+            default_choice: store
+                .setting(DEFAULT_CHOICE_KEY)?
+                .and_then(|v| ShareChoice::from_key(&v))
+                .unwrap_or(DEFAULT_SHARE_CHOICE),
+        },
     })
 }
 
@@ -88,6 +133,15 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     if settings.identity.si_card == Some(0) {
         return Err(SettingsError::InvalidSiCard);
     }
+    let folder = settings
+        .sharing
+        .folder
+        .as_deref()
+        .map(str::trim)
+        .filter(|f| !f.is_empty());
+    if let Some(missing) = folder.filter(|f| !std::path::Path::new(f).is_dir()) {
+        return Err(SettingsError::InvalidFolder(missing.to_string()));
+    }
     store.set_setting(
         ERROR_THRESHOLD_S_KEY,
         &settings.error_threshold_s.to_string(),
@@ -98,6 +152,15 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     )?;
     store.set_setting(TIME_ZONE_KEY, zone)?;
     save_identity(store, &settings.identity, true)?;
+    store.set_setting(
+        MODE_KEY,
+        match settings.sharing.mode {
+            AppMode::Runner => "runner",
+            AppMode::Coach => "coach",
+        },
+    )?;
+    store.set_setting(FOLDER_KEY, folder.unwrap_or(""))?;
+    store.set_setting(DEFAULT_CHOICE_KEY, settings.sharing.default_choice.key())?;
     Ok(())
 }
 
@@ -160,6 +223,11 @@ mod tests {
                 si_card: Some(143),
                 full_name: Some("N143 Apellido143".into()),
             },
+            sharing: SharingSettings {
+                mode: AppMode::Runner,
+                folder: None,
+                default_choice: ShareChoice::Legs,
+            },
         }
     }
 
@@ -170,6 +238,14 @@ mod tests {
         assert_eq!((s.error_threshold_s, s.error_threshold_pct), (15.0, 10.0));
         assert_eq!(s.time_zone, "Europe/Madrid");
         assert_eq!(s.identity, RunnerIdentity::default());
+        assert_eq!(
+            s.sharing,
+            SharingSettings {
+                mode: AppMode::Runner,
+                folder: None,
+                default_choice: ShareChoice::Legs
+            }
+        );
         assert_eq!(lost_time_config(&store).unwrap(), LostTimeConfig::default());
         assert_eq!(time_zone(&store).unwrap(), RACE_TIME_ZONE);
     }
@@ -214,11 +290,40 @@ mod tests {
             bad(|s| s.error_threshold_pct = f64::NAN),
             bad(|s| s.time_zone = "Madrid".into()),
             bad(|s| s.identity.si_card = Some(0)),
+            bad(|s| s.sharing.folder = Some("/no/existe/esta/carpeta".into())),
         ];
         for case in &cases {
             assert!(save(&mut store, case).is_err(), "{case:?}");
         }
         assert_eq!(load(&store).unwrap().time_zone, "Europe/Madrid");
         assert_eq!(load(&store).unwrap().error_threshold_s, 15.0);
+    }
+
+    #[test]
+    fn the_shared_folder_and_mode_round_trip() {
+        let mut store = Store::open_in_memory().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = settings();
+        s.sharing = SharingSettings {
+            mode: AppMode::Coach,
+            folder: Some(dir.path().to_string_lossy().into_owned()),
+            default_choice: ShareChoice::Nothing,
+        };
+        save(&mut store, &s).unwrap();
+        assert_eq!(load(&store).unwrap(), s);
+
+        // Una carpeta en blanco es ninguna.
+        s.sharing.folder = Some("  ".into());
+        save(&mut store, &s).unwrap();
+        assert_eq!(load(&store).unwrap().sharing.folder, None);
+
+        // Valores que no se entienden toman el valor por defecto.
+        store.set_setting(MODE_KEY, "otro").unwrap();
+        store.set_setting(DEFAULT_CHOICE_KEY, "todo").unwrap();
+        let sharing = load(&store).unwrap().sharing;
+        assert_eq!(
+            (sharing.mode, sharing.default_choice),
+            (AppMode::Runner, DEFAULT_SHARE_CHOICE)
+        );
     }
 }

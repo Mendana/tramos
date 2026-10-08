@@ -40,13 +40,19 @@ function meaning(seconds: number): string {
   return `tu reloj va ${amount} ${seconds > 0 ? "adelantado" : "atrasado"}`;
 }
 
-/** Desfase de la carrera; no se enseña si no hay track. `onChange` avisa de que ha cambiado. */
+/**
+ * Desfase de la carrera; no se enseña si no hay track. `onChange` avisa de que ha cambiado.
+ * Plegado en una línea (el desfase en uso, en palabras) salvo si hay algo que revisar: casi
+ * nunca hay que tocarlo.
+ */
 export function ClockOffset({ resultId, onChange }: { resultId: number; onChange: () => void }) {
   const { readOnly } = useViewer();
   const [view, setView] = useState<OffsetView | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
+  // Abierto a mano; si no, se abre solo cuando hay algo que revisar.
+  const [opened, setOpened] = useState<boolean | null>(null);
 
   // El campo empieza con el desfase en uso (el fijado o el calculado).
   const fill = (v: OffsetView | null) => {
@@ -104,14 +110,23 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
   const automatic = view.automatic_offset_s;
   const inUse = manual ?? automatic;
   const confidence = view.confidence === null ? null : Math.round(view.confidence * 100);
+  const attention = view.automatic_error !== null || view.low_confidence;
   return (
-    <div className="card offset-card">
-      <div className="card-title">
+    <details
+      className="card offset-card"
+      open={opened ?? attention}
+      onToggle={(e) => setOpened(e.currentTarget.open)}
+    >
+      <summary className="offset-summary">
         <h3>Reloj y cronometraje</h3>
         <span className={manual === null ? "pill" : "pill pill-accent"}>
           {manual === null ? "Automático" : "Fijado a mano"}
         </span>
-      </div>
+        <span className="small muted">
+          {inUse === null ? "El track no se puede situar" : meaning(inUse)}
+        </span>
+        {attention && <span className="pill pill-error">Revisar</span>}
+      </summary>
       <p className="small muted">{INTRO}</p>
 
       <div className="stats">
@@ -207,6 +222,6 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
         </>
       )}
       {error !== null && <Notice kind="error">{error}</Notice>}
-    </div>
+    </details>
   );
 }

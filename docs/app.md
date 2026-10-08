@@ -325,12 +325,38 @@ Los números salen de `tramos_core::runner_report::runner_report`, la misma func
 `tramos analizar` (`docs/cli.md`), sobre la carrera guardada: la tabla coincide con la de la CLI.
 Los umbrales son los de los ajustes.
 
+Debajo de los totales, **pestañas** (#129, `Tabs` en `ui.tsx`; con las flechas del teclado se pasa
+de una a otra). La pestaña abierta es parte de la pantalla: «volver» regresa a ella, y cambiar de
+pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamente Tramos.
+
+- **Resumen** (la de entrada):
+  - si quedan errores sin revisar, un aviso con «Revisar ahora», que lleva a Tramos;
+  - el panel de pérdida por tramo (P1);
+  - «Dónde más perdiste»: los tres tramos con más pérdida, con su split y su referencia y, con
+    track, «Ver en el mapa», que lo selecciona y abre Mapa;
+  - con track, el recorrido en miniatura (`TrackSvg`) y «Abrir el mapa».
+- **Tramos**: la tabla de tramos con el etiquetado, la casilla «Solo errores» (los propuestos y
+  los etiquetados como error) y el contador «n de m propuestos revisados». La pestaña lleva un
+  contador con los que quedan sin revisar.
+- **Mapa**: «Reloj y cronometraje» plegado encima, el mapa y, a su derecha, la lista de tramos
+  con su split y su pérdida; un clic en uno lo selecciona.
+- **Frente al grupo**: P4.
+- **Análisis**: pérdida acumulada (P3), dónde gano y dónde pierdo (P5), rendimiento por tramo y
+  ¿lento o desorientado? (P2).
+
+En las pestañas, los paneles están siempre abiertos, sin desplegable (`PanelsOpen` en
+`ChartPanel.tsx`).
+
 Las filas de la tabla se pueden seleccionar (clic, o Intro o espacio con el foco): el tramo
-seleccionado se resalta a la vez en la tabla y en el mapa. Otro clic en el mismo lo quita.
+seleccionado se resalta a la vez en la tabla, en la lista de tramos y en el mapa, y sigue
+seleccionado al cambiar de pestaña. Otro clic en el mismo lo quita.
 
 ### Reloj y cronometraje (#68)
 
-Tarjeta encima del mapa, solo si la carrera tiene track (`ClockOffset.tsx`, comandos
+Tarjeta plegable encima del mapa, en la pestaña Mapa, solo si la carrera tiene track. Plegada es
+una línea: el título, si es automático o fijado a mano y el desfase en uso en palabras («tu reloj
+va 7,1 s adelantado»). Se despliega sola, con una píldora «Revisar», si la alineación ha fallado o
+la confianza es baja (`ClockOffset.tsx`, comandos
 `race_offset` y `set_race_offset`, lógica en `clock_offset.rs`). Una frase explica qué es el
 desfase (la diferencia de hora entre el reloj y el cronometraje, con la que se sabe dónde estaba
 el corredor al picar cada baliza) y cuándo tocarlo: si en el mapa las balizas no caen donde
@@ -375,7 +401,7 @@ Los tres niveles de `docs/taxonomia.md`, sin ninguno obligatorio:
 
 ## Mapa
 
-Entre las gráficas y la tabla de tramos (#20). Sin mapa de orientación en el MVP: la ruta se
+En la pestaña Mapa de la vista de carrera (#20, #129). Sin mapa de orientación en el MVP: la ruta se
 pinta sobre OpenStreetMap con **MapLibre GL JS** (BSD-3), que se carga aparte (`lazy`) al abrir
 una carrera. Componente: `app/src/MapView.tsx`; tipos: `app/src/mapApi.ts`; estilos:
 `app/src/styles/map.css`.
@@ -601,9 +627,9 @@ sistema.
 
 ## Gráficas
 
-Cada análisis se enseña en un **panel desplegable** (`app/src/charts/ChartPanel.tsx`) en la
-vista de carrera o en la histórica: título, número de casos en los que se
-apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
+Cada análisis se enseña en un **panel** (`app/src/charts/ChartPanel.tsx`), desplegable en la
+vista histórica y siempre abierto en las pestañas de la vista de carrera: título, número de casos
+en los que se apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
 accesible de la gráfica: todo valor que se ve al pasar el ratón está también en ella.
 
 **Sin librería de gráficas** (#21): son componentes propios en SVG y React (`app/src/charts/`).
@@ -654,7 +680,7 @@ Paneles de la vista de carrera:
 
 | Panel | Qué enseña | Casos |
 | --- | --- | --- |
-| Pérdida por tramo (P1), abierto de entrada | Pérdida de cada tramo en segundos, hacia arriba si pierde y hacia abajo si gana; los tramos con error en naranja y el resto en gris. | Tramos con pérdida. |
+| Pérdida por tramo (P1), en la pestaña Resumen | Pérdida de cada tramo en segundos, hacia arriba si pierde y hacia abajo si gana; los tramos con error en naranja y el resto en gris. | Tramos con pérdida. |
 | Pérdida acumulada (P3) | Tiempo perdido sumado tramo a tramo desde la salida: solo suben los tramos con error, marcados con un punto. Acaba en el tiempo perdido de la carrera. | Errores y tramos. |
 | Dónde gano y dónde pierdo (P5) | Ganancia de cada tramo frente a lo esperado (`gain_s`, arriba gano en azul, abajo pierdo en naranja), la línea del acumulado (`cumulative_gain_s`) y una franja por cada racha de dos o más tramos seguidos perdiendo (`losing_streaks`). Todo sale del núcleo (`docs/tiempo-perdido.md`). | Tramos con ganancia y rachas. |
 | Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
@@ -669,8 +695,8 @@ los compañeros y hacen de leyenda; la elección vale para los dos paneles:
 | Diferencia con el tiempo ideal | Diferencia acumulada respecto al tiempo ideal tras cada tramo, una línea por corredor; hacia abajo es por detrás, como en la gráfica clásica de WinSplits. | Corredores. |
 | Pérdida por tramo comparada | Pérdida de cada tramo frente a lo esperado con el rendimiento habitual de cada uno, en columnas agrupadas. | Corredores. |
 
-Los paneles van entre las cifras destacadas y la tabla de tramos, y salen de los mismos tramos que
-la tabla: sus valores coinciden con ella.
+Los paneles van en las pestañas Resumen (P1), Análisis y Frente al grupo, y salen de los mismos
+tramos que la tabla: sus valores coinciden con ella.
 
 ## Seguridad
 

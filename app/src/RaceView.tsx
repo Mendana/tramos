@@ -22,19 +22,31 @@ import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { ClockOffset } from "./ClockOffset";
 import { GroupComparison } from "./GroupComparison";
 import { LegTagsState, TagControls, TagEditor, TagSummary, typeLabel, useLegTags } from "./LegTags";
+import { PanelsOpen } from "./charts/ChartPanel";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
-import { Notice, PageHeader, Stat } from "./ui";
+import { TrackSvg, useMapTrack } from "./TrackThumb";
+import { ChevronRight, Notice, PageHeader, Stat, TabItem, Tabs } from "./ui";
 import { useViewer } from "./viewer";
 
 // MapLibre pesa: se carga solo al abrir una carrera.
 const MapView = lazy(() => import("./MapView"));
 
-/** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
+/** Pestañas de la vista de carrera (#129). */
+export type RaceTab = "summary" | "legs" | "map" | "group" | "analysis";
+
+/** Tramos que salen en «Lo más caro» del resumen. */
+const COSTLIEST_LEGS = 3;
+
+/** Una carrera: cabecera y cifras, y en pestañas el resto (P1, `docs/app.md`). */
 function RaceView({
   resultId,
+  tab,
+  onTab,
   onChanged,
 }: {
   resultId: number;
+  tab: RaceTab;
+  onTab: (tab: RaceTab) => void;
   /** La carrera ha cambiado (p. ej. su formato): la lista tiene que volver a cargarse. */
   onChanged: () => void;
 }) {
@@ -67,6 +79,8 @@ function RaceView({
               .catch((err: unknown) => setError(String(err)));
           }}
           onTagged={onChanged}
+          tab={tab}
+          onTab={onTab}
         />
       )}
     </>
@@ -77,11 +91,15 @@ function Detail({
   detail,
   onFormatChange,
   onTagged,
+  tab,
+  onTab,
 }: {
   detail: RaceDetail;
   onFormatChange: (format: RaceFormat | null) => void;
   /** Se ha guardado una etiqueta: cambia el número de errores sin revisar. */
   onTagged: () => void;
+  tab: RaceTab;
+  onTab: (tab: RaceTab) => void;
 }) {
   // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
@@ -105,6 +123,31 @@ function Detail({
   const confirmed = proposed.filter(
     (leg) => tagging.tags.get(leg.index)?.tag.confirmation != null,
   ).length;
+  const pending = readOnly ? 0 : proposed.length - confirmed;
+  const [onlyErrors, setOnlyErrors] = useState(false);
+  const track = useMapTrack(detail.result_id, trackRevision);
+  /** Selecciona un tramo y lo enseña en el mapa. */
+  const showOnMap = (leg: number) => {
+    setSelectedLeg(leg);
+    onTab("map");
+  };
+  const tabs: TabItem<RaceTab>[] = [
+    { id: "summary", label: "Resumen" },
+    {
+      id: "legs",
+      label: "Tramos",
+      badge: pending,
+      badgeLabel: `${pending} ${pending === 1 ? "error" : "errores"} sin revisar`,
+    },
+    { id: "map", label: "Mapa" },
+    { id: "group", label: "Frente al grupo" },
+    { id: "analysis", label: "Análisis" },
+  ];
+  const legs = onlyErrors
+    ? lost.legs.filter(
+        (leg) => leg.is_error || tagging.tags.get(leg.index)?.tag.confirmation === "error",
+      )
+    : lost.legs;
   return (
     <>
       <PageHeader
@@ -173,96 +216,254 @@ function Detail({
         </Notice>
       )}
 
-      <div className="chart-panels">
-        <h3 className="section-title">Gráficas</h3>
-        <LossPanel legs={lost.legs} />
-        <CumulativeLossPanel legs={lost.legs} />
-        <GainLossPanel legs={lost.legs} streaks={lost.losing_streaks} />
-        <PerformancePanel legs={lost.legs} />
-        <RaceBreakdownPanel resultId={detail.result_id} revision={trackRevision} />
-        <h3 className="section-title">Frente al grupo</h3>
-        <GroupComparison resultId={detail.result_id} />
-      </div>
+      <Tabs tabs={tabs} current={tab} onChange={onTab} label="Partes de la carrera" />
 
-      <ClockOffset resultId={detail.result_id} onChange={() => setTrackRevision((r) => r + 1)} />
+      <div className="tab-panel" role="tabpanel">
+        {tab === "summary" && (
+          <>
+            {pending > 0 && (
+              <div className="notice notice-warning notice-action">
+                <div>
+                  Tienes{" "}
+                  <strong>
+                    {pending} {pending === 1 ? "error" : "errores"} sin revisar
+                  </strong>{" "}
+                  en esta carrera. Confirmarlos y darles tipo mejora tus estadísticas.
+                </div>
+                <button type="button" className="btn" onClick={() => onTab("legs")}>
+                  Revisar ahora
+                </button>
+              </div>
+            )}
+            <div className="summary-grid">
+              <PanelsOpen.Provider value={true}>
+                <LossPanel legs={lost.legs} />
+              </PanelsOpen.Provider>
+              <CostliestLegs legs={lost.legs} hasTrack={track !== null} onShow={showOnMap} />
+            </div>
+            {track !== null && (
+              <section className="card">
+                <div className="card-title">
+                  <h3>Recorrido</h3>
+                  <button type="button" className="btn btn-ghost" onClick={() => onTab("map")}>
+                    Abrir el mapa <ChevronRight size={16} />
+                  </button>
+                </div>
+                <div className="summary-map">
+                  <TrackSvg track={track} />
+                </div>
+              </section>
+            )}
+          </>
+        )}
 
-      <Suspense fallback={<p className="muted">Cargando el mapa…</p>}>
-        <MapView
-          resultId={detail.result_id}
-          revision={trackRevision}
-          legs={lost.legs}
-          selected={selectedLeg}
-          onSelect={toggleLeg}
-        />
-      </Suspense>
-
-      <div className="card card-flush">
-        <div className="card-title card-head">
-          <h3>Tramos</h3>
-          <span className="small muted">
-            {course.controls.length} balizas · {course.valid_runners} clasificados
-            {shared !== null && ` (${shared})`} · error si pierdes más de{" "}
-            {decimal(detail.config.error_threshold_s, 0)} s y del{" "}
-            {decimal(detail.config.error_threshold_pct, 0)} %
-          </span>
-        </div>
-        <div className="tag-intro">
-          <p className="small muted">
-            {readOnly
-              ? "Las etiquetas son las que ha puesto el corredor: si fue error, el tipo y el contexto."
-              : "¿Fue un error? Responde en cada tramo propuesto con un clic: Sí, No o Físico (perdiste tiempo sin fallar en la orientación). Con el lápiz añades el tipo de error y el contexto, también en cualquier otro tramo."}
-          </p>
-          <span className="small strong num">
-            {proposed.length === 0
-              ? "Ningún error propuesto"
-              : `${confirmed} de ${proposed.length} propuestos revisados`}
-          </span>
-        </div>
-        {tagging.error !== null && <Notice kind="error">{tagging.error}</Notice>}
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th className="num">Tramo</th>
-                <th>Balizas</th>
-                <th className="num">Split</th>
-                <th className="num">Puesto</th>
-                <th className="num">Referencia</th>
-                <th className="num">IR</th>
-                <th className="num">Pérdida</th>
-                <th className="num">%</th>
-                <th>Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lost.legs.map((leg) => (
-                <Fragment key={leg.index}>
-                  <LegRow
-                    leg={leg}
-                    selected={leg.index === selectedLeg}
-                    onSelect={toggleLeg}
-                    tagging={tagging}
-                    editing={editing === leg.index}
-                    onToggleEditing={() => toggleEditing(leg.index)}
+        {tab === "legs" && (
+          <div className="card card-flush">
+            <div className="card-title card-head">
+              <h3>Tramos</h3>
+              <span className="small muted">
+                {course.controls.length} balizas · {course.valid_runners} clasificados
+                {shared !== null && ` (${shared})`} · error si pierdes más de{" "}
+                {decimal(detail.config.error_threshold_s, 0)} s y del{" "}
+                {decimal(detail.config.error_threshold_pct, 0)} %
+              </span>
+            </div>
+            <div className="tag-intro">
+              <p className="small muted">
+                {readOnly
+                  ? "Las etiquetas son las que ha puesto el corredor: si fue error, el tipo y el contexto."
+                  : "¿Fue un error? Responde en cada tramo propuesto con un clic: Sí, No o Físico (perdiste tiempo sin fallar en la orientación). Con el lápiz añades el tipo de error y el contexto, también en cualquier otro tramo."}
+              </p>
+              <div className="row">
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={onlyErrors}
+                    onChange={(e) => setOnlyErrors(e.target.checked)}
                   />
-                  {editing === leg.index && (
-                    <tr className="tag-editor-row">
-                      <td colSpan={9}>
-                        <TagEditor
-                          leg={leg.index}
-                          state={tagging}
-                          onClose={() => setEditing(null)}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  Solo errores
+                </label>
+                <span className={pending === 0 ? "pill pill-success num" : "pill pill-warning num"}>
+                  {proposed.length === 0
+                    ? "Ningún error propuesto"
+                    : `${confirmed} de ${proposed.length} propuestos revisados`}
+                </span>
+              </div>
+            </div>
+            {tagging.error !== null && <Notice kind="error">{tagging.error}</Notice>}
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="num">Tramo</th>
+                    <th>Balizas</th>
+                    <th className="num">Split</th>
+                    <th className="num">Puesto</th>
+                    <th className="num">Referencia</th>
+                    <th className="num">IR</th>
+                    <th className="num">Pérdida</th>
+                    <th className="num">%</th>
+                    <th>Notas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {legs.map((leg) => (
+                    <Fragment key={leg.index}>
+                      <LegRow
+                        leg={leg}
+                        selected={leg.index === selectedLeg}
+                        onSelect={toggleLeg}
+                        tagging={tagging}
+                        editing={editing === leg.index}
+                        onToggleEditing={() => toggleEditing(leg.index)}
+                      />
+                      {editing === leg.index && (
+                        <tr className="tag-editor-row">
+                          <td colSpan={9}>
+                            <TagEditor
+                              leg={leg.index}
+                              state={tagging}
+                              onClose={() => setEditing(null)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "map" && (
+          <>
+            <ClockOffset
+              resultId={detail.result_id}
+              onChange={() => setTrackRevision((r) => r + 1)}
+            />
+            <div className="map-layout">
+              <Suspense fallback={<p className="muted">Cargando el mapa…</p>}>
+                <MapView
+                  resultId={detail.result_id}
+                  revision={trackRevision}
+                  legs={lost.legs}
+                  selected={selectedLeg}
+                  onSelect={toggleLeg}
+                />
+              </Suspense>
+              {track !== null && (
+                <LegList legs={lost.legs} selected={selectedLeg} onSelect={toggleLeg} />
+              )}
+            </div>
+          </>
+        )}
+
+        {tab === "group" && (
+          <PanelsOpen.Provider value={true}>
+            <GroupComparison resultId={detail.result_id} />
+          </PanelsOpen.Provider>
+        )}
+
+        {tab === "analysis" && (
+          <PanelsOpen.Provider value={true}>
+            <div className="chart-panels">
+              <CumulativeLossPanel legs={lost.legs} />
+              <GainLossPanel legs={lost.legs} streaks={lost.losing_streaks} />
+              <PerformancePanel legs={lost.legs} />
+              <RaceBreakdownPanel resultId={detail.result_id} revision={trackRevision} />
+            </div>
+          </PanelsOpen.Provider>
+        )}
       </div>
     </>
+  );
+}
+
+/** «Lo más caro»: los tramos donde más se perdió, con un botón para verlos en el mapa. */
+function CostliestLegs({
+  legs,
+  hasTrack,
+  onShow,
+}: {
+  legs: LegReport[];
+  hasTrack: boolean;
+  onShow: (leg: number) => void;
+}) {
+  const worst = legs
+    .filter((leg) => leg.loss_s !== null && leg.loss_s > 0)
+    .sort((a, b) => (b.loss_s ?? 0) - (a.loss_s ?? 0))
+    .slice(0, COSTLIEST_LEGS);
+  return (
+    <section className="card">
+      <div className="card-title">
+        <h3>Dónde más perdiste</h3>
+      </div>
+      {worst.length === 0 ? (
+        <p className="muted">No perdiste tiempo en ningún tramo frente a lo esperado.</p>
+      ) : (
+        <ul className="tasks">
+          {worst.map((leg) => (
+            <li key={leg.index} className="task">
+              <span className={leg.is_error ? "task-icon task-icon-error" : "task-icon"}>
+                <span className="strong num">{leg.index}</span>
+              </span>
+              <div className="task-text">
+                <span className="strong num">
+                  {codeLabel(leg.from)} → {codeLabel(leg.to)}
+                </span>
+                <span className="small muted num">
+                  {clock(leg.split_s)} (referencia {clock(leg.reference_s)})
+                  {leg.is_error ? " · error" : ""}
+                </span>
+              </div>
+              <span className="loss-bad num strong">{signed(leg.loss_s ?? 0)} s</span>
+              {hasTrack && (
+                <button type="button" className="btn" onClick={() => onShow(leg.index)}>
+                  Ver en el mapa
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Lista de tramos junto al mapa: un clic lo selecciona (o lo quita). */
+function LegList({
+  legs,
+  selected,
+  onSelect,
+}: {
+  legs: LegReport[];
+  selected: number | null;
+  onSelect: (leg: number) => void;
+}) {
+  return (
+    <section className="card card-flush leg-list" aria-label="Tramos">
+      {legs.map((leg) => (
+        <button
+          key={leg.index}
+          type="button"
+          className="leg-list-item"
+          aria-pressed={leg.index === selected}
+          onClick={() => onSelect(leg.index)}
+        >
+          <span className={leg.is_error ? "strong num loss-bad" : "strong num"}>{leg.index}</span>
+          <span className="num">
+            {codeLabel(leg.from)} → {codeLabel(leg.to)}{" "}
+            <span className="small muted">{clock(leg.split_s)}</span>
+          </span>
+          <span
+            className={`small num ${leg.is_error ? "loss-bad" : leg.loss_s !== null && leg.loss_s < 0 ? "loss-good" : "muted"}`}
+          >
+            {leg.loss_s === null ? "—" : `${signed(leg.loss_s)} s`}
+          </span>
+        </button>
+      ))}
+    </section>
   );
 }
 

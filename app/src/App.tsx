@@ -21,7 +21,7 @@ import HistoryScreen from "./HistoryScreen";
 import Home from "./Home";
 import ImportScreen from "./ImportScreen";
 import RaceList, { RACE_LIST_START, RaceListState } from "./RaceList";
-import RaceView from "./RaceView";
+import RaceView, { RaceTab } from "./RaceView";
 import SettingsView from "./SettingsView";
 import Welcome from "./Welcome";
 import { ViewerContext } from "./viewer";
@@ -92,7 +92,7 @@ function ReceiveStatus({ report, error }: { report: ReceiveReport | null; error:
 type Screen =
   | { kind: "home" }
   | { kind: "races" }
-  | { kind: "race"; resultId: number }
+  | { kind: "race"; resultId: number; tab?: RaceTab }
   | { kind: "history" }
   | { kind: "group" }
   | { kind: "import" }
@@ -348,7 +348,7 @@ function App() {
   };
   const showRaces = () => navigate({ kind: "races" });
   const showImport = () => navigate({ kind: "import" });
-  const openRace = (resultId: number) => navigate({ kind: "race", resultId });
+  const openRace = (resultId: number, tab?: RaceTab) => navigate({ kind: "race", resultId, tab });
 
   if (chosen === false) {
     return (
@@ -499,7 +499,15 @@ function App() {
                 summaryOnly={coach ? (runner?.summary_only ?? []) : []}
               />
             )}
-            {screen.kind === "race" && <RaceView resultId={screen.resultId} onChanged={refresh} />}
+            {screen.kind === "race" && (
+              <RaceView
+                resultId={screen.resultId}
+                tab={screen.tab ?? "summary"}
+                // Cambiar de pestaña no es otra pantalla: no entra en «volver».
+                onTab={(tab) => setScreen({ ...screen, tab })}
+                onChanged={refresh}
+              />
+            )}
             {screen.kind === "history" && <HistoryScreen onImport={showImport} onOpen={openRace} />}
             {screen.kind === "group" && coach && (
               <GroupScreen

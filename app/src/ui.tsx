@@ -1,5 +1,6 @@
-// Componentes de la base de diseño (docs/app.md, "Diseño"): iconos, avisos, cabeceras y cifras.
-import { ReactNode } from "react";
+// Componentes de la base de diseño (docs/app.md, "Diseño"): iconos, avisos, cabeceras, cifras y
+// pestañas.
+import { KeyboardEvent, ReactNode } from "react";
 
 interface IconProps {
   size?: number;
@@ -241,6 +242,71 @@ export function EmptyState({
       <span className="empty-icon">{icon}</span>
       <h3>{title}</h3>
       {children}
+    </div>
+  );
+}
+
+export interface TabItem<T extends string> {
+  id: T;
+  label: string;
+  /** Contador a la derecha (p. ej. errores por revisar); no sale si es 0. */
+  badge?: number;
+  badgeLabel?: string;
+}
+
+/**
+ * Pestañas de una pantalla. Con el teclado, las flechas izquierda y derecha pasan a la pestaña de
+ * al lado. El contenido lo pinta quien las usa, en un elemento con `role="tabpanel"`.
+ */
+export function Tabs<T extends string>({
+  tabs,
+  current,
+  onChange,
+  label,
+}: {
+  tabs: TabItem<T>[];
+  current: T;
+  onChange: (id: T) => void;
+  label: string;
+}) {
+  const move = (e: KeyboardEvent, step: number) => {
+    const i = tabs.findIndex((t) => t.id === current);
+    const next = tabs[(i + step + tabs.length) % tabs.length];
+    e.preventDefault();
+    onChange(next.id);
+    const button = e.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+      `[data-tab="${next.id}"]`,
+    );
+    button?.focus();
+  };
+  return (
+    <div className="tabs" role="tablist" aria-label={label}>
+      {tabs.map((tab) => {
+        const selected = tab.id === current;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            className="tab"
+            data-tab={tab.id}
+            aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(tab.id)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowRight") move(e, 1);
+              if (e.key === "ArrowLeft") move(e, -1);
+            }}
+          >
+            {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="tab-badge" title={tab.badgeLabel} aria-label={tab.badgeLabel}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

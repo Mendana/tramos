@@ -34,7 +34,9 @@ const errorsLabel = (n: number) => `${n} ${n === 1 ? "error" : "errores"}`;
 /** «desvío 120 s (80 %), paradas 20 s (13 %) y ritmo 10 s (7 %)». */
 function summary(t: BreakdownTotals): string {
   const share = (v: number) => (t.loss_s > 0 ? ` (${decimal((v / t.loss_s) * 100, 0)} %)` : "");
-  const [d, s, p] = PARTS.map((part) => `${part.label.toLowerCase()} ${decimal(t[part.key], 0)} s${share(t[part.key])}`);
+  const [d, s, p] = PARTS.map(
+    (part) => `${part.label.toLowerCase()} ${decimal(t[part.key], 0)} s${share(t[part.key])}`,
+  );
   return `${d}, ${s} y ${p}`;
 }
 
@@ -42,7 +44,13 @@ function summary(t: BreakdownTotals): string {
  * Panel de la vista de carrera: cada error, repartido. `revision` cambia cuando cambian los tramos
  * del track (el desfase del reloj): entonces se vuelve a pedir.
  */
-export function RaceBreakdownPanel({ resultId, revision = 0 }: { resultId: number; revision?: number }) {
+export function RaceBreakdownPanel({
+  resultId,
+  revision = 0,
+}: {
+  resultId: number;
+  revision?: number;
+}) {
   const [data, setData] = useState<RaceBreakdown | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +81,7 @@ export function RaceBreakdownPanel({ resultId, revision = 0 }: { resultId: numbe
           : `Hacen falta al menos 3 tramos sin error con track para saber cuánto rodeas normalmente (hay ${data.clean_legs}).`);
     return (
       <ChartPanel
+        id="race-breakdown"
         title={title}
         description={HOW}
         cases="sin datos"
@@ -90,6 +99,7 @@ export function RaceBreakdownPanel({ resultId, revision = 0 }: { resultId: numbe
       : `De los ${decimal(t.loss_s, 0)} s que perdiste en ${errorsLabel(t.legs)}: ${summary(t)}. ${HOW}`;
   return (
     <ChartPanel
+      id="race-breakdown"
       title={title}
       description={description}
       cases={errorsLabel(errors.length)}
@@ -173,6 +183,7 @@ export function HistoryBreakdownPanel({ breakdown }: { breakdown: BreakdownHisto
     <>
       <h3 className="section-title">¿Lento o desorientado?</h3>
       <ChartPanel
+        id="breakdown"
         title="De qué está hecha la pérdida de tus errores"
         description={
           (t.legs === 0

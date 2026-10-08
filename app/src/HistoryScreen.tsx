@@ -1,6 +1,6 @@
-// Vista histórica (P6, docs/app.md): todas las carreras del usuario agregadas por formato, con
-// filtros de fechas y formato. Los análisis que se apoyan en el histórico (P7, P10, P11, P13…)
-// añaden sus secciones de paneles al final, con los mismos filtros.
+// Estadísticas (vista histórica, P6, docs/app.md): todas las carreras del usuario agregadas por
+// formato, con filtros de fechas y formato. Los análisis que se apoyan en el histórico (P7, P10,
+// P11, P13…) van en pestañas por pregunta (#130), con los mismos filtros.
 import { useEffect, useState } from "react";
 import { useViewer } from "./viewer";
 import {
@@ -25,7 +25,9 @@ import {
   percent1,
   racesLabel,
 } from "./HistoryPanels";
-import { ChartIcon, EmptyState, Notice, PageHeader, Stat } from "./ui";
+import { ChartIcon, EmptyState, Notice, PageHeader, SlidersIcon, Stat, TabItem, Tabs } from "./ui";
+import { PanelsOpen } from "./charts/ChartPanel";
+import { allHidden, usePanelVisibility } from "./panels";
 import { LegLengthPanel } from "./LegLengthPanel";
 import { SlopePanel } from "./SlopePanel";
 import { HistoryBreakdownPanel } from "./BreakdownPanel";
@@ -34,12 +36,38 @@ import { CommonErrorsPanel } from "./CommonErrorsPanel";
 import { FatiguePanel } from "./FatiguePanel";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
+
+/** Pestañas de Estadísticas: una por pregunta (#130). */
+export type HistoryTab = "summary" | "where" | "progress" | "body";
+
+const TABS: (TabItem<HistoryTab> & { intro: string })[] = [
+  { id: "summary", label: "Resumen", intro: "Cómo vas en general y por formato." },
+  {
+    id: "where",
+    label: "¿Dónde fallo?",
+    intro: "Qué tramos y qué terreno te cuestan más, y de qué tipo son tus errores.",
+  },
+  {
+    id: "progress",
+    label: "¿Cómo evoluciono?",
+    intro: "Tu regularidad a lo largo del tiempo y cómo entras en mapa tras días sin competir.",
+  },
+  {
+    id: "body",
+    label: "Cabeza y piernas",
+    intro: "Qué pasa después de un error y si el cansancio lo anticipa.",
+  },
+];
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
 
 function HistoryScreen({
+  tab,
+  onTab,
   onImport,
   onOpen,
 }: {
+  tab: HistoryTab;
+  onTab: (tab: HistoryTab) => void;
   onImport: () => void;
   /** Abre una carrera de la lista. */
   onOpen: (resultId: number) => void;
@@ -106,12 +134,17 @@ function HistoryScreen({
         <>
           <Filters filter={filter} onChange={setFilter} />
           {reversed && (
-            <Notice kind="warning">La fecha «desde» es posterior a «hasta»: no entra ninguna carrera.</Notice>
+            <Notice kind="warning">
+              La fecha «desde» es posterior a «hasta»: no entra ninguna carrera.
+            </Notice>
           )}
           {view.history.total.races === 0 ? (
             !reversed && (
               <div className="card">
-                <EmptyState icon={<ChartIcon size={40} />} title="Ninguna carrera con estos filtros">
+                <EmptyState
+                  icon={<ChartIcon size={40} />}
+                  title="Ninguna carrera con estos filtros"
+                >
                   <button type="button" className="btn" onClick={() => setFilter(NO_FILTER)}>
                     Quitar filtros
                   </button>
@@ -119,7 +152,7 @@ function HistoryScreen({
               </div>
             )
           ) : (
-            <Summary view={view} onOpen={onOpen} />
+            <Summary view={view} tab={tab} onTab={onTab} onOpen={onOpen} />
           )}
         </>
       )}
@@ -188,10 +221,24 @@ export function Filters({
   );
 }
 
-/** Cifras del total, tabla por formato y paneles. */
-function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: number) => void }) {
+/** Cifras del total y, en pestañas, la tabla por formato, las carreras y los paneles. */
+function Summary({
+  view,
+  tab,
+  onTab,
+  onOpen,
+}: {
+  view: HistoryView;
+  tab: HistoryTab;
+  onTab: (tab: HistoryTab) => void;
+  onOpen: (resultId: number) => void;
+}) {
   const { total, by_format: groups, races_without_data: withoutData } = view.history;
   const config = view.config;
+  const visibility = usePanelVisibility();
+  // El título de un apartado sale si queda alguno de sus paneles.
+  const shown = (...ids: string[]) => !allHidden(visibility, ids);
+  const intro = TABS.find((t) => t.id === tab)?.intro;
   return (
     <>
       <div className="stats">
@@ -213,59 +260,104 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
         </Notice>
       )}
 
-      <div className="card card-flush">
-        <div className="card-title card-head">
-          <h3>Por formato</h3>
-          <span className="small muted">
-            Cuentan los tramos con pérdida, salvo el último y los de referencia menor de 20 s ·
-            error si pierdes más de {decimal(config.error_threshold_s, 0)} s y del{" "}
-            {decimal(config.error_threshold_pct, 0)} %
-          </span>
-        </div>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Formato</th>
-                <th className="num">Carreras</th>
-                <th className="num">Tramos</th>
-                <th className="num">Errores</th>
-                <th className="num">IR medio</th>
-                <th className="num">Tasa de error</th>
-                <th className="num">Pérdida por tramo</th>
-                <th className="num">Consistencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g) => (
-                <StatsRow key={g.format ?? "none"} label={groupLabel(g)} stats={g.stats} />
-              ))}
-              {groups.length > 1 && <StatsRow label="Total" stats={total} strong />}
-            </tbody>
-          </table>
-        </div>
+      <div className="tabs-row">
+        <Tabs tabs={TABS} current={tab} onChange={onTab} label="Preguntas" />
+        {visibility !== null && (
+          <button type="button" className="btn btn-ghost" onClick={visibility.customize}>
+            <SlidersIcon size={16} /> Personalizar
+          </button>
+        )}
       </div>
+      {intro !== undefined && <p className="small muted">{intro}</p>}
 
-      <RaceRows races={view.races} onOpen={onOpen} />
+      <div className="tab-panel" role="tabpanel">
+        <PanelsOpen.Provider value={true}>
+          {tab === "summary" && (
+            <>
+              <div className="card card-flush">
+                <div className="card-title card-head">
+                  <h3>Por formato</h3>
+                  <span className="small muted">
+                    Cuentan los tramos con pérdida, salvo el último y los de referencia menor de 20
+                    s · error si pierdes más de {decimal(config.error_threshold_s, 0)} s y del{" "}
+                    {decimal(config.error_threshold_pct, 0)} %
+                  </span>
+                </div>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Formato</th>
+                        <th className="num">Carreras</th>
+                        <th className="num">Tramos</th>
+                        <th className="num">Errores</th>
+                        <th className="num">IR medio</th>
+                        <th className="num">Tasa de error</th>
+                        <th className="num">Pérdida por tramo</th>
+                        <th className="num">Consistencia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map((g) => (
+                        <StatsRow key={g.format ?? "none"} label={groupLabel(g)} stats={g.stats} />
+                      ))}
+                      {groups.length > 1 && <StatsRow label="Total" stats={total} strong />}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="panel-grid">
+                <FormatPerformancePanel groups={groups} total={total} />
+                <FormatErrorRatePanel groups={groups} total={total} />
+                <FormatLossPanel groups={groups} total={total} />
+              </div>
+              <RaceRows races={view.races} onOpen={onOpen} />
+            </>
+          )}
 
-      <div className="chart-panels">
-        <h3 className="section-title">Gráficas por formato</h3>
-        <FormatPerformancePanel groups={groups} total={total} />
-        <FormatErrorRatePanel groups={groups} total={total} />
-        <FormatLossPanel groups={groups} total={total} />
-        {/* P7, P10, P11 y P13: sus secciones de paneles van aquí, con los mismos filtros. */}
-        <LegLengthPanel buckets={view.by_leg_length} total={total} />
-        <CommonErrorsPanel data={view.common_errors} />
-        <ConsistencyPanel races={view.races} total={total} />
-        <DaysOffPanel
-          buckets={view.days_off.buckets}
-          withoutPrevious={view.days_off.without_previous}
-          total={total}
-        />
-        <SlopePanel slope={view.by_slope} />
-        <HistoryBreakdownPanel breakdown={view.loss_breakdown} />
-        <AfterErrorPanel data={view.after_error} total={total} />
-        <FatiguePanel data={view.fatigue} />
+          {tab === "where" && (
+            <div className="panel-grid">
+              {shown("leg-length") && <LegLengthPanel buckets={view.by_leg_length} total={total} />}
+              {shown("common-errors") && <CommonErrorsPanel data={view.common_errors} />}
+              {shown("slope-performance", "slope-error-rate") && (
+                <SlopePanel slope={view.by_slope} />
+              )}
+              {shown("breakdown") && <HistoryBreakdownPanel breakdown={view.loss_breakdown} />}
+            </div>
+          )}
+
+          {tab === "progress" && (
+            <div className="panel-grid">
+              {shown("consistency") && <ConsistencyPanel races={view.races} total={total} />}
+              {shown("days-off-entry", "days-off-start") && (
+                <DaysOffPanel
+                  buckets={view.days_off.buckets}
+                  withoutPrevious={view.days_off.without_previous}
+                  total={total}
+                />
+              )}
+            </div>
+          )}
+
+          {tab === "body" && (
+            <div className="panel-grid">
+              {shown("after-error", "clean-streaks") && (
+                <AfterErrorPanel data={view.after_error} total={total} />
+              )}
+              {shown("fatigue-drift", "fatigue-heart-rate", "fatigue-effort") && (
+                <FatiguePanel data={view.fatigue} />
+              )}
+            </div>
+          )}
+        </PanelsOpen.Provider>
+        {visibility !== null && visibility.hidden.size > 0 && (
+          <p className="small muted">
+            Hay paneles ocultos.{" "}
+            <button type="button" className="btn-link" onClick={visibility.customize}>
+              Elegir qué paneles ves
+            </button>
+          </p>
+        )}
       </div>
     </>
   );
@@ -274,9 +366,18 @@ function Summary({ view, onOpen }: { view: HistoryView; onOpen: (resultId: numbe
 const performance = (s: HistoryStats) =>
   s.mean_performance === null ? "—" : percent(s.mean_performance * 100);
 const errorRate = (s: HistoryStats) => (s.error_rate === null ? "—" : percent(s.error_rate * 100));
-const lossS = (s: HistoryStats) => (s.mean_loss_s === null ? "—" : `${decimal(s.mean_loss_s, 1)} s`);
+const lossS = (s: HistoryStats) =>
+  s.mean_loss_s === null ? "—" : `${decimal(s.mean_loss_s, 1)} s`;
 
-function StatsRow({ label, stats, strong }: { label: string; stats: HistoryStats; strong?: boolean }) {
+function StatsRow({
+  label,
+  stats,
+  strong,
+}: {
+  label: string;
+  stats: HistoryStats;
+  strong?: boolean;
+}) {
   return (
     <tr className={strong ? "total-row" : undefined}>
       <td className={strong ? "strong" : undefined}>{label}</td>

@@ -628,6 +628,11 @@ export const saveSettings = (settings: Settings) => invoke<void>("save_settings"
 /** Por qué no se pueden guardar unas zonas o, si se puede, los avisos sobre sus colores. */
 export const checkZones = (zones: Zones) => invoke<string[]>("check_zones", { zones });
 
+/** Paneles de análisis ocultos (#130), por identificador (`panels.tsx`). */
+export const hiddenPanels = () => invoke<string[]>("hidden_panels");
+
+export const setHiddenPanels = (ids: string[]) => invoke<void>("set_hidden_panels", { ids });
+
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
 

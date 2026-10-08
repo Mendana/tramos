@@ -126,6 +126,7 @@ export function FormatPerformancePanel({
 }) {
   return (
     <ChartPanel
+      id="format-performance"
       title="IR medio por formato"
       description="Media del rendimiento habitual de tus carreras de cada formato: 100 % es ir tan rápido como la referencia del recorrido; por debajo, más lento."
       cases={racesLabel(total.races)}
@@ -161,6 +162,7 @@ export function FormatErrorRatePanel({
 }) {
   return (
     <ChartPanel
+      id="format-error-rate"
       title="Tasa de error por formato"
       description="Qué parte de tus tramos acaban en error en cada formato. Cuentan los tramos con pérdida, salvo el último y los de referencia corta."
       cases={legsLabel(total.legs)}
@@ -174,7 +176,12 @@ export function FormatErrorRatePanel({
         />
       }
       table={
-        <GroupTable groups={groups} heading="Tasa de error" value={show(errorRate)} cases={legCases} />
+        <GroupTable
+          groups={groups}
+          heading="Tasa de error"
+          value={show(errorRate)}
+          cases={legCases}
+        />
       }
     />
   );
@@ -192,6 +199,7 @@ export function FormatLossPanel({
     s.mean_loss_s === null ? "—" : `${decimal(s.mean_loss_s, 1)} s por tramo`;
   return (
     <ChartPanel
+      id="format-loss"
       title="Pérdida media por tramo"
       description="Tiempo perdido en errores repartido entre todos tus tramos, en % del tiempo esperado: así se comparan formatos con tramos de duraciones muy distintas. En la tabla, también en segundos."
       cases={legsLabel(total.legs)}

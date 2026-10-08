@@ -66,6 +66,7 @@ export function DaysOffPanel({
     <>
       <h3 className="section-title">Días sin competir</h3>
       <ChartPanel
+        id="days-off-entry"
         title="IR al entrar en mapa"
         description={`IR medio de los tres primeros tramos de tus carreras, según los días desde la carrera anterior (cualquiera, pase o no los filtros), frente a tu IR medio. Si entras peor en mapa tras días sin competir, las columnas de la derecha quedan más bajas. ${firstLegs}.`}
         cases={cases}
@@ -96,6 +97,7 @@ export function DaysOffPanel({
         table={<DaysOffTable buckets={buckets} />}
       />
       <ChartPanel
+        id="days-off-start"
         title="Errores al principio de la carrera"
         description="Tasa de error del primer tercio de tus carreras (por número de tramos), según los días desde la carrera anterior, frente a tu tasa de error con estos filtros."
         cases={cases}

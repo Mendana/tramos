@@ -1,5 +1,5 @@
 //! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras, identidad,
-//! carpeta compartida y zonas de color del mapa.
+//! carpeta compartida, zonas de color del mapa y paneles de análisis ocultos.
 //!
 //! Se guardan en la tabla de ajustes clave-valor de la base (`docs/almacenamiento.md`). Las
 //! claves y su efecto están en `docs/app.md`, "Ajustes".
@@ -38,6 +38,13 @@ pub const DEFAULT_CHOICE_KEY: &str = "sharing.default_choice";
 pub const PACE_ZONES_KEY: &str = "map.pace_zones";
 /// Zonas de pulso del mapa (JSON de [`Zones`], en ppm); vacío = clases por cuantiles.
 pub const HEART_RATE_ZONES_KEY: &str = "map.heart_rate_zones";
+/// Paneles de análisis ocultos (JSON con la lista de sus identificadores, #130).
+pub const HIDDEN_PANELS_KEY: &str = "ui.hidden_panels";
+
+/// Paneles ocultos mientras el usuario no elija: los que menos se miran (rachas limpias, pulso
+/// antes del error y esfuerzo percibido), para no abrumar de entrada.
+pub const DEFAULT_HIDDEN_PANELS: [&str; 3] =
+    ["clean-streaks", "fatigue-heart-rate", "fatigue-effort"];
 
 /// Lo que se comparte por defecto: los tramos y las etiquetas, sin pulso ni GPS.
 pub const DEFAULT_SHARE_CHOICE: ShareChoice = ShareChoice::Legs;
@@ -62,6 +69,8 @@ pub enum SettingsError {
     },
     #[error(transparent)]
     Store(#[from] StoreError),
+    #[error("no se han podido guardar los paneles ocultos: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 /// Todos los ajustes, tal y como los edita la interfaz.
@@ -216,6 +225,24 @@ pub fn choose_mode(store: &mut Store, mode: AppMode) -> Result<(), StoreError> {
             AppMode::Coach => "coach",
         },
     )
+}
+
+/// Paneles de análisis ocultos, por identificador. Sin nada guardado (o con algo que no se
+/// entiende), los de [`DEFAULT_HIDDEN_PANELS`]; una lista vacía guardada los enseña todos.
+pub fn hidden_panels(store: &Store) -> Result<Vec<String>, StoreError> {
+    let saved = store
+        .setting(HIDDEN_PANELS_KEY)?
+        .and_then(|json| serde_json::from_str::<Vec<String>>(&json).ok());
+    Ok(saved.unwrap_or_else(|| DEFAULT_HIDDEN_PANELS.map(String::from).to_vec()))
+}
+
+/// Guarda los paneles ocultos, ordenados y sin repetir.
+pub fn set_hidden_panels(store: &mut Store, ids: &[String]) -> Result<(), SettingsError> {
+    let mut ids = ids.to_vec();
+    ids.sort();
+    ids.dedup();
+    store.set_setting(HIDDEN_PANELS_KEY, &serde_json::to_string(&ids)?)?;
+    Ok(())
 }
 
 /// Configuración del tiempo perdido con los umbrales guardados.
@@ -423,6 +450,28 @@ mod tests {
         assert_eq!(load(&store).unwrap().sharing.mode, AppMode::Coach);
         // Elegirlo no toca los demás ajustes.
         assert_eq!(load(&store).unwrap().time_zone, "Europe/Madrid");
+    }
+
+    #[test]
+    fn hidden_panels_default_round_trip_and_reset() {
+        let mut store = Store::open_in_memory().unwrap();
+        let defaults: Vec<String> = DEFAULT_HIDDEN_PANELS.map(String::from).to_vec();
+        assert_eq!(hidden_panels(&store).unwrap(), defaults);
+
+        let ids = ["slope-error-rate", "after-error", "slope-error-rate"].map(String::from);
+        set_hidden_panels(&mut store, &ids).unwrap();
+        assert_eq!(
+            hidden_panels(&store).unwrap(),
+            ["after-error", "slope-error-rate"].map(String::from)
+        );
+
+        // «Enseñar todos»: la lista vacía se guarda y no vuelve a los de por defecto.
+        set_hidden_panels(&mut store, &[]).unwrap();
+        assert!(hidden_panels(&store).unwrap().is_empty());
+
+        // Un valor que no se entiende se trata como si no estuviera.
+        store.set_setting(HIDDEN_PANELS_KEY, "no es json").unwrap();
+        assert_eq!(hidden_panels(&store).unwrap(), defaults);
     }
 
     #[test]

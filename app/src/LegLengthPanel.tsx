@@ -27,13 +27,12 @@ export function LegLengthPanel({
 }) {
   const legs = buckets.reduce((sum, b) => sum + b.legs, 0);
   const reference =
-    total.error_rate === null
-      ? undefined
-      : { value: total.error_rate * 100, label: "Tu media" };
+    total.error_rate === null ? undefined : { value: total.error_rate * 100, label: "Tu media" };
   return (
     <>
       <h3 className="section-title">Por duración del tramo</h3>
       <ChartPanel
+        id="leg-length"
         title="Pérdida según duración del tramo"
         description="Tasa de error de tus tramos agrupados por su tiempo de referencia, de los más cortos a los más largos, frente a tu media. Debajo de cada cubo, sus tramos (n): un cubo con pocos tramos es poco fiable. En la tabla, también la pérdida media por tramo."
         cases={legsLabel(legs)}

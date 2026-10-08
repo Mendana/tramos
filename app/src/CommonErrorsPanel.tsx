@@ -146,6 +146,7 @@ export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
     <>
       <h3 className="section-title">Errores más comunes</h3>
       <ChartPanel
+        id="common-errors"
         title="Tipos de error"
         description={description}
         cases={`${errorsLabel(t.errors)} · ${legsLabel(t.legs)}`}

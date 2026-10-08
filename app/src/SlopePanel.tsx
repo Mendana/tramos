@@ -98,6 +98,7 @@ export function SlopePanel({ slope }: { slope: SlopeHistory }) {
         .
       </p>
       <ChartPanel
+        id="slope-performance"
         title="IR medio según desnivel"
         description={`IR medio de tus tramos en subida, llano y bajada (ponderado por la referencia de cada tramo): 100 % es ir tan rápido como la referencia. ${rule} Debajo de cada clase, sus tramos (n).`}
         cases={legsLabel(classified)}
@@ -113,6 +114,7 @@ export function SlopePanel({ slope }: { slope: SlopeHistory }) {
         table={<ClassTable classes={classes} />}
       />
       <ChartPanel
+        id="slope-error-rate"
         title="Tasa de error según desnivel"
         description={`Qué parte de tus tramos en subida, llano y bajada acaban en error. ${rule} Debajo de cada clase, sus tramos (n): una clase con pocos tramos es poco fiable.`}
         cases={legsLabel(classified)}

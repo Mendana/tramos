@@ -532,3 +532,54 @@ Resultados:
 - Esfuerzo: 1.er tercio error 8, limpio 5 (marcado «No») y físico 9; 2.º errores (9 + 6) / 2 =
   **7,5** y limpio 4 (un error del cálculo marcado «No»); 3.º error 7. No cuentan el esfuerzo
   del último tramo ni el de un tramo de referencia corta.
+
+## Vista de grupo (P15)
+
+«La entrenadora ve [...] una vista de grupo: tabla de corredores por métricas y comparación de
+todos contra todos en las carreras compartidas» (`docs/preguntas.md`, P15). Implementado en
+`tramos_core::group` (#38); en la app, `coach::group_view` y la pantalla «Grupo» del modo
+entrenadora (`docs/app.md`).
+
+- **Corredores:** los de los paquetes recibidos (`docs/paquete.md`), cada uno con sus carreras
+  volcadas como en su app y **sus umbrales** (`docs/app.md`, "Modo entrenadora"). Solo cuentan
+  las carreras compartidas con tramos: las de solo resumen no traen tramos. El filtro (fechas y
+  formato) es el del histórico y se aplica a todos.
+- **Fila de un corredor** (`group_row`), todo de su histórico con el filtro:
+  - `stats`: el total del histórico (`History::total`): carreras, IR medio, tasa de error,
+    pérdida media…
+  - `top_error`: el primer tipo de `common_errors.total.by_type` (P9), el de más errores, con
+    su parte sobre **todos** sus errores de orientación (también los sin tipo). `None` si no
+    tiene errores con tipo.
+  - `weakest_leg_length`: el cubo de duración (P7) con más tasa de error entre los que tienen al
+    menos `MIN_BUCKET_LEGS` = 10 tramos; a igual tasa, el más corto. Con menos tramos, una tasa
+    alta puede ser casualidad. `None` si ningún cubo llega.
+  - `slope`: subida, llano y bajada (P13), tal cual.
+- **Carreras compartidas** (`compare`): se cruzan las carreras de todos por `race_id`, el mismo
+  para todos los que importaron la carrera (`docs/paquete.md`). Solo cuentan las que tienen
+  números (rendimiento habitual). Una carrera es compartida si la tienen al menos dos
+  corredores, **aunque sea en categorías o recorridos distintos**: se comparan por IR, que es
+  relativo a la referencia de cada recorrido. Dentro, de más a menos IR (a igual IR, por orden en
+  el grupo); las carreras, de la más reciente a la más antigua. Si un corredor aparece dos veces
+  en la misma carrera, cuenta la primera.
+- **Cara a cara** (`HeadToHead`): para cada par ordenado de corredores con alguna carrera en
+  común, cuántas (`races`), en cuántas tuvo el primero más IR (`better`) y en cuántas menos
+  (`worse`); los empates no cuentan en ninguna. Además, `mean_difference` = media de
+  `IR(corredor) − IR(otro)` en esas carreras (1 = 100 puntos).
+
+### Ejemplo de test
+
+Tres corredores sintéticos (0, 1 y 2) en cinco carreras (`group::tests`):
+
+| Carrera | 0 | 1 | 2 | ¿Compartida? |
+| --- | --- | --- | --- | --- |
+| R1 | 0,90 | 0,80 | 0,85 | Sí |
+| R2 | 0,70 | 0,75 | | Sí |
+| R3 | | | 0,95 | No: solo uno |
+| R4 | 0,90 | sin IR | | No: solo uno con números |
+| R5 | | 0,80 | 0,80 | Sí (empate) |
+
+- 0 frente a 1: dos carreras, una mejor (R1) y una peor (R2); diferencia media
+  ((0,90 − 0,80) + (0,70 − 0,75)) / 2 = **+0,025**.
+- 1 frente a 2: dos carreras, ninguna mejor y una peor (R5 es empate); diferencia media
+  ((0,80 − 0,85) + 0) / 2 = **−0,025**.
+- 0 frente a 2: solo R1, mejor; **+0,05**.

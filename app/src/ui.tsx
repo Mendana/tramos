@@ -54,6 +54,16 @@ export function ChartIcon(props: IconProps) {
   );
 }
 
+export function GroupIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M15.5 5.2a3 3 0 0 1 0 5.6M17 14.2A5.5 5.5 0 0 1 20.5 19" />
+    </Svg>
+  );
+}
+
 export function UploadIcon(props: IconProps) {
   return (
     <Svg {...props}>

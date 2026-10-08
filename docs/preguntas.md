@@ -85,7 +85,8 @@ error según las etiquetas: `docs/historico.md`, "¿El cansancio anticipa el err
 
 **P15.** La entrenadora ve todo lo de cada corredor como si fuera él, en solo lectura, y una vista
 de grupo: tabla de corredores por métricas (IR, tasa de error, tipos de error, P7 y P13) y
-comparación de todos contra todos en las carreras compartidas.
+comparación de todos contra todos en las carreras compartidas. Modo entrenadora en `docs/app.md`,
+"Modo entrenadora"; vista de grupo en `docs/historico.md`, "Vista de grupo (P15)".
 
 ## Descartadas por ahora
 

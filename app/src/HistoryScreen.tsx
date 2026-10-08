@@ -128,7 +128,7 @@ function HistoryScreen({
 }
 
 /** Filtros: fechas (incluidas) y formato. */
-function Filters({
+export function Filters({
   filter,
   onChange,
 }: {

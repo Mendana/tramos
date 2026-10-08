@@ -16,6 +16,7 @@ import {
   viewRunner,
   viewedRunner,
 } from "./api";
+import GroupScreen from "./GroupScreen";
 import HistoryScreen from "./HistoryScreen";
 import ImportScreen from "./ImportScreen";
 import RaceList from "./RaceList";
@@ -23,7 +24,7 @@ import RaceView from "./RaceView";
 import SettingsView from "./SettingsView";
 import Welcome from "./Welcome";
 import { ViewerContext } from "./viewer";
-import { ChartIcon, ControlFlag, ListIcon, Notice, SlidersIcon, UploadIcon } from "./ui";
+import { ChartIcon, ControlFlag, GroupIcon, ListIcon, Notice, SlidersIcon, UploadIcon } from "./ui";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -80,6 +81,7 @@ type Screen =
   | { kind: "races" }
   | { kind: "race"; resultId: number }
   | { kind: "history" }
+  | { kind: "group" }
   | { kind: "import" }
   | { kind: "settings" };
 
@@ -237,6 +239,14 @@ function App() {
               current={screen.kind === "history"}
               onClick={() => setScreen({ kind: "history" })}
             />
+            {coach && (
+              <NavItem
+                icon={<GroupIcon />}
+                label="Grupo"
+                current={screen.kind === "group"}
+                onClick={() => setScreen({ kind: "group" })}
+              />
+            )}
             {!coach && (
               <NavItem
                 icon={<UploadIcon />}
@@ -284,6 +294,14 @@ function App() {
               <RaceView resultId={screen.resultId} onBack={showRaces} onChanged={refresh} />
             )}
             {screen.kind === "history" && <HistoryScreen onImport={showImport} onOpen={openRace} />}
+            {screen.kind === "group" && coach && (
+              <GroupScreen
+                onOpenRunner={(runnerId) => {
+                  selectRunner(runnerId);
+                  setScreen({ kind: "races" });
+                }}
+              />
+            )}
             {screen.kind === "import" && !coach && (
               <ImportScreen
                 onImported={refresh}

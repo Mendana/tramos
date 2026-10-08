@@ -2,6 +2,7 @@
 // filtros de fechas y formato. Los análisis que se apoyan en el histórico (P7, P10, P11, P13…)
 // añaden sus secciones de paneles al final, con los mismos filtros.
 import { useEffect, useState } from "react";
+import { useViewer } from "./viewer";
 import {
   FORMAT_LABELS,
   HistoryFilter,
@@ -47,6 +48,7 @@ function HistoryScreen({
   const [view, setView] = useState<HistoryView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const { readOnly, runnerName } = useViewer();
   useEffect(() => {
     let current = true;
     setError(null);
@@ -81,12 +83,22 @@ function HistoryScreen({
 
       {view !== null && view.all_races === 0 && (
         <div className="card">
-          <EmptyState icon={<ChartIcon size={40} />} title="Aún no hay carreras">
-            <p>El histórico junta todas tus carreras. Importa alguna para verlo.</p>
-            <button type="button" className="btn btn-primary btn-lg" onClick={onImport}>
-              Importar carrera
-            </button>
-          </EmptyState>
+          {readOnly ? (
+            <EmptyState icon={<ChartIcon size={40} />} title="Aún no hay carreras">
+              <p>
+                {runnerName === null
+                  ? "Elige un corredor en la barra lateral."
+                  : "El histórico junta las carreras compartidas con sus tramos."}
+              </p>
+            </EmptyState>
+          ) : (
+            <EmptyState icon={<ChartIcon size={40} />} title="Aún no hay carreras">
+              <p>El histórico junta todas tus carreras. Importa alguna para verlo.</p>
+              <button type="button" className="btn btn-primary btn-lg" onClick={onImport}>
+                Importar carrera
+              </button>
+            </EmptyState>
+          )}
         </div>
       )}
 

@@ -472,6 +472,55 @@ export const shareAll = () => invoke<ShareReport>("share_all");
 
 export const receivePackages = () => invoke<ReceiveReport>("receive_packages");
 
+/** Resumen de una carrera tal y como lo vio el corredor (`docs/paquete.md`). */
+export interface RaceSummary {
+  class_name: string;
+  status: RaceStatus;
+  place: number | null;
+  total_s: number | null;
+  lost_time_s: number | null;
+  error_count: number;
+  time_without_errors_s: number | null;
+  usual_performance: number | null;
+  consistency: number | null;
+}
+
+/** Un corredor en el selector de la entrenadora. */
+export interface CoachRunner {
+  runner_id: string;
+  display_name: string;
+  races: number;
+  last_exported_at: string;
+}
+
+/** Carrera compartida solo con el resumen: no se puede abrir. */
+export interface SummaryRace {
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  summary: RaceSummary;
+}
+
+/** Lo que no sale en las vistas de corredor del corredor que se ve. */
+export interface RunnerViewInfo {
+  runner: CoachRunner;
+  summary_only: SummaryRace[];
+  problems: string[];
+}
+
+export const modeChosen = () => invoke<boolean>("mode_chosen");
+
+export const chooseMode = (mode: AppMode) => invoke<void>("choose_mode", { mode });
+
+export const coachRunners = () => invoke<CoachRunner[]>("coach_runners");
+
+/** Elige el corredor que se ve en modo entrenadora (`null` = ninguno). */
+export const viewRunner = (runnerId: string | null) =>
+  invoke<RunnerViewInfo | null>("view_runner", { runnerId });
+
+/** El corredor que se está viendo, sin volver a cargarlo. */
+export const viewedRunner = () => invoke<RunnerViewInfo | null>("viewed_runner");
+
 export const getSettings = () => invoke<Settings>("get_settings");
 
 export const saveSettings = (settings: Settings) =>

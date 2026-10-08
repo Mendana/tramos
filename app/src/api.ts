@@ -391,7 +391,8 @@ export function statusLabel(status: RaceStatus, place: number | null): string {
   if (status === "ok") return place === null ? "Clasificado" : `${place}.º`;
   if (status === "not_classified") return "No clasificado";
   if (status === "did_not_start") return "No presentado";
-  return `Estado ${status.unknown}`;
+  // Otros códigos del .spl (5, 7…, #55): no clasificado, con el código original.
+  return `No clasificado (código ${status.unknown})`;
 }
 
 export const coreVersion = () => invoke<string>("core_version");

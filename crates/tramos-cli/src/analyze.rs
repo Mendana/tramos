@@ -230,7 +230,7 @@ pub fn status_label(status: RaceStatus, place: Option<u16>) -> String {
         (RaceStatus::Ok, None) => "clasificado".to_string(),
         (RaceStatus::NotClassified, _) => "no clasificado".to_string(),
         (RaceStatus::DidNotStart, _) => "no presentado".to_string(),
-        (RaceStatus::Unknown(code), _) => format!("estado desconocido ({code})"),
+        (RaceStatus::Unknown(code), _) => format!("no clasificado (código {code})"),
     }
 }
 
@@ -315,5 +315,9 @@ mod tests {
             "no clasificado"
         );
         assert_eq!(status_label(RaceStatus::DidNotStart, None), "no presentado");
+        assert_eq!(
+            status_label(RaceStatus::Unknown(7), None),
+            "no clasificado (código 7)"
+        );
     }
 }

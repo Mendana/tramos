@@ -90,7 +90,7 @@ el primer registro de categoría con el marcador `0x2c`.
 | `0x8d` | texto | país |
 | `0x8e` | texto | nacionalidad |
 | `0x97` | u16 n + n × (código u16, hora u24) | picadas; hora en centésimas desde medianoche, hora local; `0xFFFFFF` = sin picada |
-| `0x98` | u8 | estado: 0 = clasificado; 10 en los no presentados; 6 aparece en no clasificados (ver correspondencia abajo) |
+| `0x98` | u8 | estado: 0 = clasificado; 10 en los no presentados; 6 aparece en no clasificados; 5 y 7, con OE12 (ver correspondencia abajo) |
 | `0x99` | u16 | puesto |
 | `0x9a` | u8 | sexo: 1 = M, 2 = F |
 | `0x9b` | f64 | fecha de nacimiento (OLE). **Se descarta al importar.** |
@@ -164,6 +164,15 @@ Cómo convierte el lector del núcleo cada campo a `docs/modelo.md`:
   | 6 | `not_classified` |
   | 10 | `did_not_start` |
   | otro `n` | `unknown(n)` |
+
+  Con OE12 vía IOF XML 3 aparecen también el **5** (picadas completas, con meta y sin puesto:
+  probablemente fuera de concurso o fuera de tiempo) y el **7** (faltan picadas, a veces sin
+  meta: probablemente abandono). No hay documentación que lo confirme, así que se decidió (#55)
+  no inventar estados: van, como cualquier otro código, a `unknown(n)`. `unknown(n)` es un **no
+  clasificado que conserva su código**: la app lo enseña como «No clasificado (código 7)» y, como
+  todo lo que no es `ok`, no cuenta para la referencia del tiempo perdido, ni siquiera con el
+  recorrido completo (`docs/tiempo-perdido.md`). El nombre `unknown` se mantiene por
+  compatibilidad con las bases y los paquetes ya guardados.
 
   Un corredor sin `0x98` es un error, que señala al corredor por la posición de su `0x80` y por
   su categoría.

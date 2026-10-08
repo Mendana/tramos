@@ -1,5 +1,5 @@
-//! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras, identidad y
-//! carpeta compartida.
+//! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras, identidad,
+//! carpeta compartida y zonas de color del mapa.
 //!
 //! Se guardan en la tabla de ajustes clave-valor de la base (`docs/almacenamiento.md`). Las
 //! claves y su efecto están en `docs/app.md`, "Ajustes".
@@ -14,6 +14,8 @@ use tramos_core::importers::spl::RACE_TIME_ZONE;
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::package::ShareChoice;
 use tramos_store::{Store, StoreError};
+
+use crate::zones::Zones;
 
 /// Umbral de error en segundos.
 pub const ERROR_THRESHOLD_S_KEY: &str = "lost_time.error_threshold_s";
@@ -32,6 +34,11 @@ pub const FOLDER_KEY: &str = "sharing.folder";
 /// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
 pub const DEFAULT_CHOICE_KEY: &str = "sharing.default_choice";
 
+/// Zonas de ritmo del mapa (JSON de [`Zones`], en s/km); vacío = clases por cuantiles.
+pub const PACE_ZONES_KEY: &str = "map.pace_zones";
+/// Zonas de pulso del mapa (JSON de [`Zones`], en ppm); vacío = clases por cuantiles.
+pub const HEART_RATE_ZONES_KEY: &str = "map.heart_rate_zones";
+
 /// Lo que se comparte por defecto: los tramos y las etiquetas, sin pulso ni GPS.
 pub const DEFAULT_SHARE_CHOICE: ShareChoice = ShareChoice::Legs;
 
@@ -48,6 +55,11 @@ pub enum SettingsError {
     InvalidSiCard,
     #[error("la carpeta compartida no existe o no es una carpeta: {0}")]
     InvalidFolder(String),
+    #[error("zonas de {metric} del mapa: {reason}")]
+    InvalidZones {
+        metric: &'static str,
+        reason: String,
+    },
     #[error(transparent)]
     Store(#[from] StoreError),
 }
@@ -63,6 +75,17 @@ pub struct Settings {
     pub time_zone: String,
     pub identity: RunnerIdentity,
     pub sharing: SharingSettings,
+    pub map: MapSettings,
+}
+
+/// Colores del track en el mapa: zonas propias o, sin ellas (`None`), clases por cuantiles de
+/// cada carrera.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct MapSettings {
+    /// En s/km: la primera zona es la más rápida.
+    pub pace_zones: Option<Zones>,
+    /// En ppm.
+    pub heart_rate_zones: Option<Zones>,
 }
 
 /// Quién usa la app (`docs/paquete.md`, "Carpeta compartida").
@@ -114,6 +137,10 @@ pub fn load(store: &Store) -> Result<Settings, StoreError> {
                 .and_then(|v| ShareChoice::from_key(&v))
                 .unwrap_or(DEFAULT_SHARE_CHOICE),
         },
+        map: MapSettings {
+            pace_zones: Zones::from_setting(store.setting(PACE_ZONES_KEY)?.as_deref()),
+            heart_rate_zones: Zones::from_setting(store.setting(HEART_RATE_ZONES_KEY)?.as_deref()),
+        },
     })
 }
 
@@ -142,6 +169,14 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     if let Some(missing) = folder.filter(|f| !std::path::Path::new(f).is_dir()) {
         return Err(SettingsError::InvalidFolder(missing.to_string()));
     }
+    for (metric, zones) in [
+        ("ritmo", &settings.map.pace_zones),
+        ("pulso", &settings.map.heart_rate_zones),
+    ] {
+        if let Some(reason) = zones.as_ref().and_then(Zones::problem) {
+            return Err(SettingsError::InvalidZones { metric, reason });
+        }
+    }
     store.set_setting(
         ERROR_THRESHOLD_S_KEY,
         &settings.error_threshold_s.to_string(),
@@ -155,6 +190,14 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     choose_mode(store, settings.sharing.mode)?;
     store.set_setting(FOLDER_KEY, folder.unwrap_or(""))?;
     store.set_setting(DEFAULT_CHOICE_KEY, settings.sharing.default_choice.key())?;
+    store.set_setting(
+        PACE_ZONES_KEY,
+        &Zones::to_setting(settings.map.pace_zones.as_ref()),
+    )?;
+    store.set_setting(
+        HEART_RATE_ZONES_KEY,
+        &Zones::to_setting(settings.map.heart_rate_zones.as_ref()),
+    )?;
     Ok(())
 }
 
@@ -239,6 +282,7 @@ mod tests {
                 folder: None,
                 default_choice: ShareChoice::Legs,
             },
+            map: MapSettings::default(),
         }
     }
 
@@ -257,8 +301,40 @@ mod tests {
                 default_choice: ShareChoice::Legs
             }
         );
+        assert_eq!(s.map, MapSettings::default());
         assert_eq!(lost_time_config(&store).unwrap(), LostTimeConfig::default());
         assert_eq!(time_zone(&store).unwrap(), RACE_TIME_ZONE);
+    }
+
+    #[test]
+    fn map_zones_round_trip() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut s = settings();
+        s.map.heart_rate_zones = Some(Zones {
+            limits: vec![120.0, 140.0],
+            colors: vec!["#6b7280".into(), "#2563eb".into(), "#15803d".into()],
+        });
+        s.map.pace_zones = Some(Zones {
+            limits: vec![300.0],
+            colors: vec!["#b91c1c".into(), "#2563eb".into()],
+        });
+        save(&mut store, &s).unwrap();
+        assert_eq!(load(&store).unwrap(), s);
+
+        // Quitarlas vuelve a los cuantiles.
+        s.map.pace_zones = None;
+        save(&mut store, &s).unwrap();
+        assert_eq!(load(&store).unwrap().map.pace_zones, None);
+
+        // Unas que no valen no se guardan y dicen de qué son.
+        let mut bad = s.clone();
+        bad.map.heart_rate_zones = Some(Zones {
+            limits: vec![140.0, 120.0],
+            colors: vec!["#6b7280".into(), "#2563eb".into(), "#15803d".into()],
+        });
+        let err = save(&mut store, &bad).unwrap_err().to_string();
+        assert!(err.starts_with("zonas de pulso del mapa:"), "{err}");
+        assert_eq!(load(&store).unwrap(), s);
     }
 
     #[test]

@@ -12,6 +12,7 @@ pub mod races;
 pub mod settings;
 pub mod sharing;
 pub mod tags;
+pub mod zones;
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -114,6 +115,16 @@ fn save_settings(state: tauri::State<'_, AppState>, settings: Settings) -> Resul
         *state.viewed()? = None;
     }
     Ok(())
+}
+
+/// Qué falla en unas zonas del mapa (lo que impide guardarlas) y los avisos sobre sus colores,
+/// para enseñarlos mientras se editan.
+#[tauri::command]
+fn check_zones(zones: zones::Zones) -> Vec<String> {
+    match zones.problem() {
+        Some(problem) => vec![format!("No se pueden guardar: {problem}.")],
+        None => zones.warnings(),
+    }
 }
 
 /// Si ya se ha elegido el modo (corredor o entrenadora). Al instalar, no: la app lo pregunta.
@@ -411,6 +422,7 @@ pub fn run() -> tauri::Result<()> {
             core_version,
             get_settings,
             save_settings,
+            check_zones,
             mode_chosen,
             choose_mode,
             coach_runners,

@@ -201,7 +201,7 @@ mod tests {
 
     fn ready(store: &Store, result_id: i64) -> MapTrack {
         match race_map(store, result_id).unwrap() {
-            RaceMap::Ready(map) => map,
+            RaceMap::Ready(map) => *map,
             other => panic!("se esperaba un mapa: {other:?}"),
         }
     }

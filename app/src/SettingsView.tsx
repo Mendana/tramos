@@ -11,6 +11,7 @@ import {
   shareAll,
 } from "./api";
 import { Notice, PageHeader } from "./ui";
+import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
 
 /** Zonas horarias que se ofrecen en la lista; se puede escribir cualquier otra IANA. */
 const COMMON_TIME_ZONES = [
@@ -31,6 +32,8 @@ interface Form {
   mode: AppMode;
   folder: string;
   defaultChoice: ShareChoice;
+  paceZones: ZoneDraft | null;
+  heartRateZones: ZoneDraft | null;
 }
 
 /** Qué ha pasado con la carpeta compartida al guardar. */
@@ -62,6 +65,8 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
           mode: s.sharing.mode,
           folder: s.sharing.folder ?? "",
           defaultChoice: s.sharing.default_choice,
+          paceZones: toDraft("pace", s.map.pace_zones),
+          heartRateZones: toDraft("heart_rate", s.map.heart_rate_zones),
         }),
       )
       .catch((err: unknown) => setError(String(err)));
@@ -71,6 +76,11 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
     setForm((current) => (current === null ? current : { ...current, [field]: value }));
     setSaved(false);
     setFolderResult(null);
+  }
+
+  function updateZones(field: "paceZones" | "heartRateZones", draft: ZoneDraft | null) {
+    setForm((current) => (current === null ? current : { ...current, [field]: draft }));
+    setSaved(false);
   }
 
   async function chooseFolder() {
@@ -111,6 +121,18 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
       return;
     }
     const folder = form.folder.trim();
+    const zones = (metric: ZoneMetric, draft: ZoneDraft | null) =>
+      draft === null ? null : fromDraft(metric, draft);
+    const paceZones = zones("pace", form.paceZones);
+    const heartRateZones = zones("heart_rate", form.heartRateZones);
+    if (typeof paceZones === "string") {
+      setError(zonesError("pace", paceZones));
+      return;
+    }
+    if (typeof heartRateZones === "string") {
+      setError(zonesError("heart_rate", heartRateZones));
+      return;
+    }
     try {
       await saveSettings({
         error_threshold_s: thresholdS,
@@ -125,6 +147,7 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
           folder: folder === "" ? null : folder,
           default_choice: form.defaultChoice,
         },
+        map: { pace_zones: paceZones, heart_rate_zones: heartRateZones },
       });
       setSaved(true);
       onSaved();
@@ -234,6 +257,28 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
                       onChange={(e) => update("fullName", e.target.value)}
                     />
                   </label>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <div className="form-section-text">
+                  <h3>Colores del mapa</h3>
+                  <p className="small muted">
+                    Cómo se colorea el track por ritmo o por pulso. Con tus zonas, el mismo color
+                    significa lo mismo en todas las carreras.
+                  </p>
+                </div>
+                <div className="form-fields">
+                  <ZoneEditor
+                    metric="pace"
+                    draft={form.paceZones}
+                    onChange={(d) => updateZones("paceZones", d)}
+                  />
+                  <ZoneEditor
+                    metric="heart_rate"
+                    draft={form.heartRateZones}
+                    onChange={(d) => updateZones("heartRateZones", d)}
+                  />
                 </div>
               </div>
             </>

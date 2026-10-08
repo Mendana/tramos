@@ -12,8 +12,9 @@
 //! 2. Cada intervalo entre dos puntos de un tramo lleva su ritmo, suavizado con la distancia
 //!    recorrida en una ventana de ±[`PACE_WINDOW_S`] alrededor del intervalo, y su pulso (media
 //!    de sus dos extremos).
-//! 3. Los valores se reparten en [`CLASSES`] clases por cuantiles ponderados por tiempo: cada
-//!    color ocupa más o menos el mismo tiempo de carrera.
+//! 3. Los valores se reparten en las zonas que el usuario haya definido en Ajustes
+//!    (`crate::zones`, #96) o, sin ellas, en [`CLASSES`] clases por cuantiles ponderados por
+//!    tiempo: cada color ocupa más o menos el mismo tiempo de carrera.
 //! 4. Los intervalos seguidos del mismo tramo y las mismas clases se juntan en un trozo de línea.
 
 use chrono::{DateTime, Utc};
@@ -28,6 +29,9 @@ use tramos_core::segmentation::{
     ControlRole, MissingLegTrack, MissingPosition, Segmentation, segment,
 };
 use tramos_store::{ResultId, Store, StoreError};
+
+use crate::settings;
+use crate::zones::Zones;
 
 /// Número de clases de la escala de color.
 pub const CLASSES: usize = 5;
@@ -60,7 +64,7 @@ pub enum RaceMap {
     /// desfase. `message` dice por qué, en español.
     NotAligned { message: String },
     /// Track, tramos y balizas listos para dibujar.
-    Ready(MapTrack),
+    Ready(Box<MapTrack>),
 }
 
 /// Track de la carrera (de la salida a la meta) preparado para el mapa.
@@ -109,9 +113,9 @@ pub struct TrackPiece {
     /// Tramo al que pertenece.
     pub leg: usize,
     pub coordinates: Vec<Coordinate>,
-    /// Clase de ritmo, de 0 (más rápido) a `CLASSES − 1` (más lento); `None` en un hueco.
+    /// Clase (o zona) de ritmo, de 0 (más rápido) a la última (más lento); `None` en un hueco.
     pub pace_class: Option<usize>,
-    /// Clase de pulso, de 0 (más bajo) a `CLASSES − 1` (más alto); `None` sin pulso o en un
+    /// Clase (o zona) de pulso, de 0 (más bajo) a la última (más alto); `None` sin pulso o en un
     /// hueco.
     pub heart_rate_class: Option<usize>,
 }
@@ -131,10 +135,16 @@ pub struct MapControl {
 
 /// Escala de color por clases.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ColorScale {
-    /// Límites de las clases, de menor a mayor: `CLASSES + 1` valores. La clase `k` va de
-    /// `edges[k]` a `edges[k + 1]`; el primero es el mínimo y el último el máximo.
-    pub edges: Vec<f64>,
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ColorScale {
+    /// [`CLASSES`] clases por cuantiles de esta carrera, con la escala de color de la app.
+    Quantiles {
+        /// Límites de las clases, de menor a mayor: `CLASSES + 1` valores. La clase `k` va de
+        /// `edges[k]` a `edges[k + 1]`; el primero es el mínimo y el último el máximo.
+        edges: Vec<f64>,
+    },
+    /// Las zonas del usuario, con sus colores ([`Zones::zone`]).
+    Zones(Zones),
 }
 
 /// Métricas del FIT de cada tramo del resultado `result` (`race_result` en su carrera). `None` si
@@ -245,10 +255,12 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
         });
     }
 
+    let zones = settings::load(store)?.map;
     let pace = scale(
         intervals
             .iter()
             .filter_map(|i| Some((i.pace?, i.duration_s))),
+        zones.pace_zones,
     );
     let race_s: f64 = intervals
         .iter()
@@ -261,10 +273,13 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
         .map(|i| i.duration_s)
         .sum();
     let heart_rate = if race_s > 0.0 && heart_rate_s / race_s >= MIN_HEART_RATE_COVERAGE {
-        scale(intervals.iter().filter_map(|i| {
-            i.pace?;
-            Some((i.heart_rate?, i.duration_s))
-        }))
+        scale(
+            intervals.iter().filter_map(|i| {
+                i.pace?;
+                Some((i.heart_rate?, i.duration_s))
+            }),
+            zones.heart_rate_zones,
+        )
     } else {
         None
     };
@@ -274,7 +289,7 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
         .iter()
         .flat_map(|l| l.coordinates.iter().copied())
         .collect();
-    Ok(RaceMap::Ready(MapTrack {
+    Ok(RaceMap::Ready(Box::new(MapTrack {
         bounds: bounds(&all),
         legs,
         pieces,
@@ -282,7 +297,7 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
         pace,
         heart_rate,
         warnings,
-    }))
+    })))
 }
 
 /// Un intervalo entre dos puntos consecutivos de un tramo.
@@ -399,13 +414,17 @@ impl CumulativeDistance {
     }
 }
 
-/// Escala de [`CLASSES`] clases por cuantiles ponderados (`(valor, peso)`); `None` sin valores.
-fn scale(values: impl Iterator<Item = (f64, f64)>) -> Option<ColorScale> {
+/// Escala de los valores (`(valor, peso)`): las `zones` del usuario si las hay o, sin ellas,
+/// [`CLASSES`] clases por cuantiles ponderados. `None` sin valores.
+fn scale(values: impl Iterator<Item = (f64, f64)>, zones: Option<Zones>) -> Option<ColorScale> {
     let mut values: Vec<(f64, f64)> = values
         .filter(|(v, w)| v.is_finite() && w.is_finite() && *w >= 0.0)
         .collect();
     if values.is_empty() {
         return None;
+    }
+    if let Some(zones) = zones {
+        return Some(ColorScale::Zones(zones));
     }
     values.sort_by(|a, b| a.0.total_cmp(&b.0));
     let total: f64 = values.iter().map(|(_, w)| w).sum();
@@ -415,7 +434,7 @@ fn scale(values: impl Iterator<Item = (f64, f64)>) -> Option<ColorScale> {
         edges.push(weighted_quantile(&values, total, k as f64 / CLASSES as f64));
     }
     edges.push(values[values.len() - 1].0);
-    Some(ColorScale { edges })
+    Some(ColorScale::Quantiles { edges })
 }
 
 /// Primer valor (de `sorted`, ordenado) cuyo peso acumulado llega a `q` del total. Con peso total
@@ -435,13 +454,18 @@ fn weighted_quantile(sorted: &[(f64, f64)], total: f64, q: f64) -> f64 {
     sorted[i.min(sorted.len() - 1)].0
 }
 
-/// Clase de `value`: el número de límites interiores que supera, de 0 a `CLASSES − 1`.
+/// Clase de `value`. Por cuantiles, el número de límites interiores que supera, de 0 a
+/// `CLASSES − 1`; con zonas, su zona.
 fn class(scale: &ColorScale, value: f64) -> usize {
-    let inner = scale
-        .edges
-        .get(1..scale.edges.len().saturating_sub(1))
-        .unwrap_or_default();
-    inner.iter().filter(|&&edge| value > edge).count()
+    match scale {
+        ColorScale::Quantiles { edges } => {
+            let inner = edges
+                .get(1..edges.len().saturating_sub(1))
+                .unwrap_or_default();
+            inner.iter().filter(|&&edge| value > edge).count()
+        }
+        ColorScale::Zones(zones) => zones.zone(value),
+    }
 }
 
 /// Junta los intervalos seguidos del mismo tramo y las mismas clases en trozos de línea.
@@ -538,9 +562,17 @@ pub(crate) mod tests {
         (store, outcome.result_id)
     }
 
+    /// Límites de una escala por cuantiles.
+    fn edges(scale: &ColorScale) -> &[f64] {
+        match scale {
+            ColorScale::Quantiles { edges } => edges,
+            ColorScale::Zones(zones) => panic!("se esperaban cuantiles: {zones:?}"),
+        }
+    }
+
     fn ready(store: &Store, result_id: i64) -> MapTrack {
         match race_map(store, result_id).unwrap() {
-            RaceMap::Ready(map) => map,
+            RaceMap::Ready(map) => *map,
             other => panic!("se esperaba un mapa: {other:?}"),
         }
     }
@@ -667,15 +699,13 @@ pub(crate) mod tests {
         assert!(near_stop.iter().all(|p| p.leg == 9));
         assert!(near_stop.iter().any(|p| p.pace_class == Some(CLASSES - 1)));
 
-        let pace = map.pace.unwrap();
-        assert_eq!(pace.edges.len(), CLASSES + 1);
-        assert!(pace.edges.windows(2).all(|w| w[0] <= w[1]));
+        let scale = map.pace.unwrap();
+        let pace = edges(&scale);
+        assert_eq!(pace.len(), CLASSES + 1);
+        assert!(pace.windows(2).all(|w| w[0] <= w[1]));
         // La parada lleva el máximo; correr, unos minutos por km.
-        assert_eq!(pace.edges[CLASSES], MAX_PACE_S_PER_KM);
-        assert!(
-            pace.edges[1] > 120.0 && pace.edges[CLASSES - 1] < 600.0,
-            "{pace:?}"
-        );
+        assert_eq!(pace[CLASSES], MAX_PACE_S_PER_KM);
+        assert!(pace[1] > 120.0 && pace[CLASSES - 1] < 600.0, "{pace:?}");
         // Cada clase de ritmo aparece en el track.
         for k in 0..CLASSES {
             assert!(
@@ -684,9 +714,10 @@ pub(crate) mod tests {
             );
         }
 
-        let heart_rate = map.heart_rate.unwrap();
-        assert!(heart_rate.edges.windows(2).all(|w| w[0] <= w[1]));
-        assert!(heart_rate.edges[0] > 60.0 && heart_rate.edges[CLASSES] < 220.0);
+        let scale = map.heart_rate.unwrap();
+        let heart_rate = edges(&scale);
+        assert!(heart_rate.windows(2).all(|w| w[0] <= w[1]));
+        assert!(heart_rate[0] > 60.0 && heart_rate[CLASSES] < 220.0);
     }
 
     #[test]
@@ -697,6 +728,7 @@ pub(crate) mod tests {
         assert_eq!(json["controls"][0]["role"], "start");
         assert!(json["legs"][0]["coordinates"][0].is_array());
         assert!(json["pieces"][0]["pace_class"].is_u64());
+        assert_eq!(json["pace"]["kind"], "quantiles");
         assert_eq!(json["pace"]["edges"].as_array().unwrap().len(), CLASSES + 1);
     }
 
@@ -775,8 +807,8 @@ pub(crate) mod tests {
     #[test]
     fn quantile_classes_by_hand() {
         // 10 valores con el mismo peso: los cuantiles 0,2, 0,4… son 2, 4, 6 y 8.
-        let s = scale((1..=10).map(|v| (f64::from(v), 1.0))).unwrap();
-        assert_eq!(s.edges, vec![1.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+        let s = scale((1..=10).map(|v| (f64::from(v), 1.0)), None).unwrap();
+        assert_eq!(edges(&s), [1.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
         assert_eq!(class(&s, 1.0), 0);
         assert_eq!(class(&s, 2.0), 0);
         assert_eq!(class(&s, 3.0), 1);
@@ -785,16 +817,16 @@ pub(crate) mod tests {
         assert_eq!(class(&s, 100.0), 4);
 
         // El peso cuenta: el 1 dura 9 veces más que el 10, así que los cuatro límites son 1.
-        let s = scale([(1.0, 9.0), (10.0, 1.0)].into_iter()).unwrap();
-        assert_eq!(s.edges, vec![1.0, 1.0, 1.0, 1.0, 1.0, 10.0]);
+        let s = scale([(1.0, 9.0), (10.0, 1.0)].into_iter(), None).unwrap();
+        assert_eq!(edges(&s), [1.0, 1.0, 1.0, 1.0, 1.0, 10.0]);
         assert_eq!(class(&s, 1.0), 0);
         assert_eq!(class(&s, 10.0), 4);
 
         // Un único valor: todo en la primera clase.
-        let s = scale([(5.0, 1.0)].into_iter()).unwrap();
+        let s = scale([(5.0, 1.0)].into_iter(), None).unwrap();
         assert_eq!(class(&s, 5.0), 0);
-        assert!(scale(std::iter::empty()).is_none());
-        assert!(scale([(f64::NAN, 1.0)].into_iter()).is_none());
+        assert!(scale(std::iter::empty(), None).is_none());
+        assert!(scale([(f64::NAN, 1.0)].into_iter(), None).is_none());
     }
 
     #[test]
@@ -818,6 +850,7 @@ pub(crate) mod tests {
             intervals
                 .iter()
                 .filter_map(|i| Some((i.pace?, i.duration_s))),
+            None,
         )
         .unwrap();
         let pieces = pieces(&intervals, Some(&pace), None);
@@ -834,5 +867,44 @@ pub(crate) mod tests {
                     || w[0].heart_rate_class != w[1].heart_rate_class
             );
         }
+    }
+
+    /// Con zonas guardadas, cada trozo va a la zona de su valor y la escala lleva las del
+    /// usuario. Sin zonas de pulso, el pulso sigue por cuantiles.
+    #[test]
+    fn saved_zones_colour_the_track() {
+        let (mut store, result_id) = imported(true);
+        let zones = Zones {
+            // 6:00 min/km: más rápido, zona 0; más lento (y parado), zona 1.
+            limits: vec![360.0],
+            colors: vec!["#b91c1c".into(), "#2563eb".into()],
+        };
+        let mut s = settings::load(&store).unwrap();
+        s.map.pace_zones = Some(zones.clone());
+        settings::save(&mut store, &s).unwrap();
+
+        let map = ready(&store, result_id);
+        assert_eq!(map.pace, Some(ColorScale::Zones(zones)));
+        assert!(matches!(map.heart_rate, Some(ColorScale::Quantiles { .. })));
+        assert!(
+            map.pieces
+                .iter()
+                .all(|p| p.pace_class.is_some_and(|k| k < 2))
+        );
+        // La parada del tramo 9 cae en la zona lenta; algo del track, en la rápida.
+        let stop = &truth()["stop"];
+        let at = [stop["lon"].as_f64().unwrap(), stop["lat"].as_f64().unwrap()];
+        assert!(
+            map.pieces
+                .iter()
+                .filter(|p| p.coordinates.iter().any(|&c| meters(c, at) < 3.0))
+                .any(|p| p.pace_class == Some(1))
+        );
+        assert!(map.pieces.iter().any(|p| p.pace_class == Some(0)));
+
+        let json = serde_json::to_value(&map.pace).unwrap();
+        assert_eq!(json["kind"], "zones");
+        assert_eq!(json["limits"], serde_json::json!([360.0]));
+        assert_eq!(json["colors"][1], "#2563eb");
     }
 }

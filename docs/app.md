@@ -24,6 +24,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `core_version` | Versión del núcleo. |
 | `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
 | `check_zones(zones)` | Unas zonas del mapa mientras se editan (#96): por qué no se pueden guardar o, si se puede, los avisos sobre sus colores, en español. |
+| `hidden_panels` / `set_hidden_panels(ids)` | Paneles de análisis ocultos (#130), por identificador. Se leen y guardan en la base propia también en modo entrenadora, así que valen al ver a cualquier corredor. |
 | `mode_chosen` / `choose_mode(mode)` | Si ya se ha elegido el modo (`runner` o `coach`; abajo, "Modo entrenadora") y elegirlo sin tocar los demás ajustes. |
 | `coach_runners` | En modo entrenadora, los corredores de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `view_runner(runnerId)` | En modo entrenadora, elige el corredor que se ve (`null` = ninguno): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. En modo corredor, error. |
@@ -194,6 +195,7 @@ Se guardan en la tabla `settings` de la base:
 | `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
 | `map.pace_zones` | Zonas de ritmo del mapa (#96), en JSON: `limits` (s/km, de menor a mayor) y `colors` (`#rrggbb`, uno más que límites). Vacío = ninguna. | — | Sin zonas, el mapa colorea por cuantiles de cada carrera. Con ellas, por las zonas del usuario (ver "Mapa"). |
 | `map.heart_rate_zones` | Igual, para el pulso (ppm). | — | Igual. |
+| `ui.hidden_panels` | Paneles de análisis ocultos (#130), en JSON: lista ordenada de identificadores (`app/src/panels.tsx`). `[]` = todos a la vista. | Rachas limpias, pulso antes del error y esfuerzo percibido | Inmediato: el panel desaparece de Estadísticas o de la carrera. No pasa por «Guardar». |
 
 Un valor guardado que no se entiende (número negativo, zona desconocida, zonas que no valen) se
 trata como si no estuviera y toma el valor por defecto. El tiempo ideal sigue siendo la suma de
@@ -514,16 +516,38 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
 - **Carreras** (#98): las que entran con los filtros, de la más reciente a la más antigua, con
   fecha, nombre, formato, categoría y sus números (IR, tramos que cuentan, errores, tasa de error
   y pérdida por tramo). Las que no cuentan lo dicen. Una fila abre la carrera.
-- **Gráficas por formato**: paneles de IR medio (con la línea del 100 %), tasa de error y pérdida
+- **Gráficas por formato** (pestaña Resumen): paneles de IR medio (con la línea del 100 %), tasa de error y pérdida
   media por tramo en % (los segundos no se comparan entre formatos; la tabla del panel da los
   dos).
 - **Estados vacíos**: sin carreras importadas, invita a importar; con carreras pero ninguna con
   esos filtros, ofrece quitarlos. Si las fechas están al revés, se avisa. Las carreras sin
   números (`races_without_data`) se mencionan en un aviso.
 
-Los análisis que se apoyan en el histórico (P7, P10, P11 y P13) añaden su sección de paneles
-debajo de «Gráficas por formato», con los mismos filtros y, si cuentan tramos, los mismos
-(`pattern_legs`).
+Debajo de las cifras, **pestañas por pregunta** (#130), con los mismos filtros. La última pestaña
+mirada se recuerda mientras la app está abierta:
+
+| Pestaña | Qué tiene |
+| --- | --- |
+| Resumen | La tabla por formato, las gráficas por formato y las carreras que entran. |
+| ¿Dónde fallo? | Por duración del tramo (P7), tipos de error (P9), por desnivel (P13) y ¿lento o desorientado? (P2). |
+| ¿Cómo evoluciono? | Consistencia (P10) y días sin competir (P11). |
+| Cabeza y piernas | Después de fallar (P8) y cansancio (P14). |
+
+Los paneles están abiertos, en rejilla de dos columnas (una por debajo de 1100 px), y los avisos y
+recuentos de cada análisis ocupan la fila entera.
+
+**Ocultar paneles** (`app/src/panels.tsx`):
+
+- Cada panel tiene un aspa para ocultarlo.
+- «Personalizar», junto a las pestañas, abre un cuadro con todos los paneles, también los de la
+  vista de carrera, con una casilla cada uno y «Enseñar todos».
+- En Ajustes, «Paneles de análisis» dice cuántos hay ocultos y tiene los mismos dos botones.
+- Se guarda al momento en `ui.hidden_panels`. De entrada están ocultos los que menos se miran:
+  rachas limpias, pulso antes del error y esfuerzo percibido.
+- Si se ocultan todos los paneles de un análisis, también desaparecen sus avisos.
+
+Los análisis que se apoyan en el histórico usan los mismos filtros y, si cuentan tramos, los
+mismos (`pattern_legs`).
 
 - **Por duración del tramo (P7)** (`LegLengthPanel.tsx`): panel «Pérdida según duración del
   tramo». Una columna por cubo de referencia (20–30 s, 30–60 s, 1–2 min, 2–4 min, 4–8 min y
@@ -627,9 +651,9 @@ sistema.
 
 ## Gráficas
 
-Cada análisis se enseña en un **panel** (`app/src/charts/ChartPanel.tsx`), desplegable en la
-vista histórica y siempre abierto en las pestañas de la vista de carrera: título, número de casos
-en los que se apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
+Cada análisis se enseña en un **panel** (`app/src/charts/ChartPanel.tsx`), siempre abierto en las
+pestañas de Estadísticas y de la vista de carrera, y con un aspa para ocultarlo (#130): título,
+número de casos en los que se apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
 accesible de la gráfica: todo valor que se ve al pasar el ratón está también en ella.
 
 **Sin librería de gráficas** (#21): son componentes propios en SVG y React (`app/src/charts/`).

@@ -29,6 +29,7 @@ export function ConsistencyPanel({
     <>
       <h3 className="section-title">Consistencia</h3>
       <ChartPanel
+        id="consistency"
         title="Consistencia por carrera"
         description={`Cuánto varía tu IR de un tramo a otro en cada carrera (desviación típica, ponderada por la referencia), de la más antigua a la más reciente: más bajo es más consistente. Tu media con estos filtros: ${spread(total.mean_consistency)}.`}
         cases={racesLabel(series.length)}

@@ -11,6 +11,7 @@ import {
   shareAll,
 } from "./api";
 import { Notice, PageHeader } from "./ui";
+import { PANEL_GROUPS, usePanelVisibility } from "./panels";
 import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
 
 /** Zonas horarias que se ofrecen en la lista; se puede escribir cualquier otra IANA. */
@@ -169,6 +170,33 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     }
   }
 
+  const visibility = usePanelVisibility();
+  const hiddenCount = visibility?.hidden.size ?? 0;
+  const panelsSection: Section = {
+    id: "panels",
+    title: "Paneles de análisis",
+    text: "Los que has ocultado en Estadísticas y en las carreras. Se cambian al momento, sin guardar.",
+    fields: (
+      <div className="field">
+        <span className="field-label">
+          {hiddenCount === 0
+            ? "Ves todos los paneles."
+            : `Ocultos: ${hiddenCount} de ${PANEL_GROUPS.reduce((n, g) => n + g.panels.length, 0)}.`}
+        </span>
+        <div className="row">
+          <button type="button" className="btn" onClick={() => visibility?.customize()}>
+            Elegir paneles
+          </button>
+          {hiddenCount > 0 && (
+            <button type="button" className="btn btn-ghost" onClick={() => visibility?.showAll()}>
+              Enseñar todos
+            </button>
+          )}
+        </div>
+      </div>
+    ),
+  };
+
   const folderField = (
     <div className="field">
       <span className="field-label">Carpeta compartida</span>
@@ -276,7 +304,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       ),
     };
     // La entrenadora ve a cada corredor con sus umbrales: el resto es de corredor.
-    if (form.mode === "coach") return [mode];
+    if (form.mode === "coach") return [mode, panelsSection];
     return [
       {
         id: "errors",
@@ -348,6 +376,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           </>
         ),
       },
+      panelsSection,
       mode,
     ];
   };

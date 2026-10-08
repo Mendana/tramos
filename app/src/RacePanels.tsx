@@ -22,6 +22,7 @@ export function PerformancePanel({ legs }: { legs: LegReport[] }) {
   const percent = (v: number) => `${decimal(v, 0)} %`;
   return (
     <ChartPanel
+      id="race-performance"
       title="Rendimiento por tramo"
       description="IR de cada tramo: 100 % es ir tan rápido como la referencia del recorrido; por debajo, más lento."
       cases={cases(withIr)}
@@ -75,6 +76,7 @@ export function LossPanel({ legs }: { legs: LegReport[] }) {
   const withLoss = legs.filter((leg) => leg.loss_s !== null).length;
   return (
     <ChartPanel
+      id="race-loss"
       title="Pérdida por tramo"
       description="Segundos perdidos (arriba) o ganados (abajo) en cada tramo frente a lo esperado con tu rendimiento habitual."
       cases={cases(withLoss)}
@@ -150,6 +152,7 @@ export function CumulativeLossPanel({ legs }: { legs: LegReport[] }) {
   const errors = legs.filter((leg) => leg.is_error).length;
   return (
     <ChartPanel
+      id="race-cumulative"
       title="Pérdida acumulada"
       description="Tiempo perdido sumado tramo a tramo: solo suben los tramos con error (los puntos). Acaba en el tiempo perdido de la carrera."
       cases={`${errors} ${errors === 1 ? "error" : "errores"} en ${cases(legs.length)}`}
@@ -215,13 +218,7 @@ export function CumulativeLossPanel({ legs }: { legs: LegReport[] }) {
  * abajo pierdo), su acumulado y las rachas de dos o más tramos seguidos perdiendo. Todo sale del
  * núcleo (`docs/tiempo-perdido.md`, "Dónde gano y dónde pierdo").
  */
-export function GainLossPanel({
-  legs,
-  streaks,
-}: {
-  legs: LegReport[];
-  streaks: LosingStreak[];
-}) {
+export function GainLossPanel({ legs, streaks }: { legs: LegReport[]; streaks: LosingStreak[] }) {
   const withGain = legs.filter((leg) => leg.gain_s !== null).length;
   const streakOf = (leg: LegReport) =>
     streaks.find((s) => s.first_leg <= leg.index && leg.index <= s.last_leg);
@@ -230,6 +227,7 @@ export function GainLossPanel({
   const gain = (v: number | null) => (v === null ? "—" : `${signed(v)} s`);
   return (
     <ChartPanel
+      id="race-gain-loss"
       title="Dónde gano y dónde pierdo"
       description="Segundos ganados (arriba) o perdidos (abajo) en cada tramo frente a lo esperado con tu rendimiento habitual, y la línea con lo que llevas acumulado. Las franjas son rachas de dos o más tramos seguidos perdiendo."
       cases={`${cases(withGain)} · ${streaks.length} ${streaks.length === 1 ? "racha" : "rachas"}`}

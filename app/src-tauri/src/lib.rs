@@ -127,6 +127,19 @@ fn check_zones(zones: zones::Zones) -> Vec<String> {
     }
 }
 
+/// Paneles de análisis ocultos (#130). Son del usuario de la app: valen también al ver a otro
+/// corredor en modo entrenadora.
+#[tauri::command]
+fn hidden_panels(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
+    settings::hidden_panels(&*state.store()?).map_err(|e| e.to_string())
+}
+
+/// Guarda los paneles de análisis ocultos; una lista vacía los enseña todos.
+#[tauri::command]
+fn set_hidden_panels(state: tauri::State<'_, AppState>, ids: Vec<String>) -> Result<(), String> {
+    settings::set_hidden_panels(&mut *state.store()?, &ids).map_err(|e| e.to_string())
+}
+
 /// Si ya se ha elegido el modo (corredor o entrenadora). Al instalar, no: la app lo pregunta.
 #[tauri::command]
 fn mode_chosen(state: tauri::State<'_, AppState>) -> Result<bool, String> {
@@ -423,6 +436,8 @@ pub fn run() -> tauri::Result<()> {
             get_settings,
             save_settings,
             check_zones,
+            hidden_panels,
+            set_hidden_panels,
             mode_chosen,
             choose_mode,
             coach_runners,

@@ -1439,3 +1439,70 @@
     max-height: 280px;
   }
 }
+
+/* --- Pestañas con acciones al lado (Estadísticas) --- */
+
+.tabs-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs-row > .tabs {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.tabs-row > .btn {
+  margin-bottom: var(--space-1);
+}
+
+.btn-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* --- Cuadro lateral (Personalizar) --- */
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(0 0 0 / 35%);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(420px, 100vw);
+  padding: var(--space-5);
+  overflow-y: auto;
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.drawer-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.drawer-group legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}

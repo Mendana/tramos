@@ -2,14 +2,7 @@
 // mismo recorrido, en la diferencia acumulada respecto al tiempo ideal y en la pérdida por tramo.
 // Los números salen del núcleo (`race_comparison`); aquí solo se eligen y se dibujan.
 import { useEffect, useState } from "react";
-import {
-  ComparedRunner,
-  CourseComparison,
-  clock,
-  codeLabel,
-  raceComparison,
-  signed,
-} from "./api";
+import { ComparedRunner, CourseComparison, clock, codeLabel, raceComparison, signed } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { GroupedColumnChart } from "./charts/GroupedColumnChart";
 import { MultiLineChart } from "./charts/MultiLineChart";
@@ -118,6 +111,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
   return (
     <>
       <ChartPanel
+        id="race-group-ideal"
         title="Diferencia con el tiempo ideal"
         description="Tiempo por detrás del ideal del recorrido al acabar cada tramo: cuanto más abajo, más lejos del ideal; una línea que baja de golpe es un tramo malo."
         cases={runnerCount}
@@ -177,6 +171,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
         }
       />
       <ChartPanel
+        id="race-group-loss"
         title="Pérdida por tramo comparada"
         description="Segundos perdidos (arriba) o ganados (abajo) en cada tramo frente a lo esperado con el rendimiento habitual de cada uno."
         cases={runnerCount}

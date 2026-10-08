@@ -2,12 +2,14 @@
 // accesible de la gráfica: todo valor está también en la tabla). Desplegable salvo dentro de
 // `PanelsOpen`, donde está siempre abierto (pestañas de la vista de carrera, #129).
 import { ReactNode, createContext, useContext, useId, useState } from "react";
-import { ChevronRight } from "../ui";
+import { usePanelVisibility } from "../panels";
+import { ChevronRight, CloseIcon } from "../ui";
 
 /** Con `true`, los paneles de dentro están siempre abiertos y sin desplegable. */
 export const PanelsOpen = createContext(false);
 
 export function ChartPanel({
+  id,
   title,
   description,
   cases,
@@ -15,6 +17,8 @@ export function ChartPanel({
   table,
   defaultOpen = false,
 }: {
+  /** Identificador estable (`panels.tsx`): con él, el panel se puede ocultar. */
+  id?: string;
   title: string;
   /** Qué enseña y cómo leerla, en una frase. */
   description: string;
@@ -25,32 +29,49 @@ export function ChartPanel({
   defaultOpen?: boolean;
 }) {
   const alwaysOpen = useContext(PanelsOpen);
+  const visibility = usePanelVisibility();
   const [toggled, setOpen] = useState(defaultOpen);
   const open = alwaysOpen || toggled;
   const [view, setView] = useState<"chart" | "table">("chart");
   const bodyId = useId();
+  if (id !== undefined && visibility?.hidden.has(id)) return null;
+  const hide =
+    id !== undefined && visibility !== null ? (
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon chart-panel-hide"
+        onClick={() => visibility.setHidden(id, true)}
+        aria-label={`Ocultar «${title}»`}
+        title="Ocultar este panel (vuelve desde Personalizar)"
+      >
+        <CloseIcon size={16} />
+      </button>
+    ) : null;
   return (
     <section className={open ? "chart-panel is-open" : "chart-panel"}>
-      {alwaysOpen ? (
-        <div className="chart-panel-header is-static">
-          <h3 className="chart-panel-title">{title}</h3>
-          <span className="pill">{cases}</span>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="chart-panel-header"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => setOpen(!open)}
-        >
-          <span className="chart-panel-chevron">
-            <ChevronRight size={16} />
-          </span>
-          <span className="chart-panel-title">{title}</span>
-          <span className="pill">{cases}</span>
-        </button>
-      )}
+      <div className="chart-panel-head">
+        {alwaysOpen ? (
+          <div className="chart-panel-header is-static">
+            <h3 className="chart-panel-title">{title}</h3>
+            <span className="pill">{cases}</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="chart-panel-header"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={() => setOpen(!open)}
+          >
+            <span className="chart-panel-chevron">
+              <ChevronRight size={16} />
+            </span>
+            <span className="chart-panel-title">{title}</span>
+            <span className="pill">{cases}</span>
+          </button>
+        )}
+        {hide}
+      </div>
       {open && (
         <div className="chart-panel-body" id={bodyId}>
           <div className="chart-panel-toolbar">

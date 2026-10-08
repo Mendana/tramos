@@ -78,6 +78,7 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
     <>
       <h3 className="section-title">Después de fallar</h3>
       <ChartPanel
+        id="after-error"
         title="¿Un error trae otro?"
         description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según aceleraste (más de un 5 % más rápido que tu mediana en los tramos limpios de esa carrera) o no.${withoutSpeed}`}
         cases={legsLabel(data.after_clean.legs + data.after_error.legs)}
@@ -92,6 +93,7 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
         table={<RateTable rows={chain} />}
       />
       <ChartPanel
+        id="clean-streaks"
         title="Rachas limpias"
         description="Tasa de error de un tramo según cuántos tramos limpios seguidos llevabas justo antes (0 = venías de un error), frente a tu media. Si las rachas largas acaban en error, puede ser exceso de confianza."
         cases={legsLabel(streaks.reduce((sum, s) => sum + s.rate.legs, 0))}

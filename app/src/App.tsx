@@ -17,8 +17,9 @@ import {
   viewedRunner,
 } from "./api";
 import GroupScreen from "./GroupScreen";
-import HistoryScreen from "./HistoryScreen";
+import HistoryScreen, { HistoryTab } from "./HistoryScreen";
 import Home from "./Home";
+import { PanelVisibilityProvider } from "./panels";
 import ImportScreen from "./ImportScreen";
 import RaceList, { RACE_LIST_START, RaceListState } from "./RaceList";
 import RaceView, { RaceTab } from "./RaceView";
@@ -242,6 +243,8 @@ function App() {
   const [previous, setPrevious] = useState<Screen[]>([]);
   // Filtros y página de la lista de carreras: siguen ahí al volver de una carrera.
   const [raceList, setRaceList] = useState<RaceListState>(RACE_LIST_START);
+  // Pestaña de Estadísticas: la última que se miró.
+  const [historyTab, setHistoryTab] = useState<HistoryTab>("summary");
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [sharing, setSharing] = useState<SharingSettings | null>(null);
   // Modo entrenadora: corredores con paquetes y el que se está viendo.
@@ -369,168 +372,177 @@ function App() {
 
   return (
     <ViewerContext.Provider value={viewer}>
-      <div className="shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <ControlFlag />
-            Tramos
-          </div>
-          <nav className="nav" aria-label="Secciones">
-            {!coach && (
-              <NavItem
-                icon={<HomeIcon />}
-                label="Inicio"
-                current={at("home")}
-                onClick={() => goTo("home")}
-              />
-            )}
-            {coach ? (
-              <NavSection label="Corredor">
-                <RunnerPicker
-                  runners={runners}
-                  current={runner?.runner.runner_id ?? null}
-                  onChange={selectRunner}
-                />
-                <NavItem
-                  icon={<ListIcon />}
-                  label="Carreras"
-                  current={at("races", "race")}
-                  onClick={showRaces}
-                />
-                <NavItem
-                  icon={<ChartIcon />}
-                  label="Estadísticas"
-                  current={at("history")}
-                  onClick={() => goTo("history")}
-                />
-              </NavSection>
-            ) : (
-              <NavSection label="Lo mío">
-                <NavItem
-                  icon={<ListIcon />}
-                  label="Mis carreras"
-                  current={at("races", "race")}
-                  count={unreviewed}
-                  countLabel={`${unreviewed} ${unreviewed === 1 ? "error" : "errores"} por revisar`}
-                  onClick={showRaces}
-                />
-                <NavItem
-                  icon={<ChartIcon />}
-                  label="Estadísticas"
-                  current={at("history")}
-                  onClick={() => goTo("history")}
-                />
-                <NavItem
-                  icon={<UploadIcon />}
-                  label="Importar"
-                  current={at("import")}
-                  onClick={showImport}
-                />
-              </NavSection>
-            )}
-            {coach && (
-              <NavSection label="Todos">
-                <NavItem
-                  icon={<GroupIcon />}
-                  label="Grupo"
-                  current={at("group")}
-                  onClick={() => goTo("group")}
-                />
-              </NavSection>
-            )}
-            <NavSection label="Cuenta">
+      <PanelVisibilityProvider>
+        <div className="shell">
+          <aside className="sidebar">
+            <div className="brand">
+              <ControlFlag />
+              Tramos
+            </div>
+            <nav className="nav" aria-label="Secciones">
               {!coach && (
                 <NavItem
-                  icon={<UserIcon />}
-                  label="Mi perfil"
-                  current={at("profile")}
-                  onClick={() => goTo("profile")}
+                  icon={<HomeIcon />}
+                  label="Inicio"
+                  current={at("home")}
+                  onClick={() => goTo("home")}
                 />
               )}
-              <NavItem
-                icon={<SlidersIcon />}
-                label="Ajustes"
-                current={at("settings")}
-                onClick={() => goTo("settings")}
-              />
-            </NavSection>
-          </nav>
-          <div className="sidebar-footer">
-            {receiving.active && (
-              <ReceiveStatus report={receiving.report} error={receiving.error} />
-            )}
-            <div>Núcleo {version === null ? "…" : `v${version}`}</div>
-          </div>
-        </aside>
+              {coach ? (
+                <NavSection label="Corredor">
+                  <RunnerPicker
+                    runners={runners}
+                    current={runner?.runner.runner_id ?? null}
+                    onChange={selectRunner}
+                  />
+                  <NavItem
+                    icon={<ListIcon />}
+                    label="Carreras"
+                    current={at("races", "race")}
+                    onClick={showRaces}
+                  />
+                  <NavItem
+                    icon={<ChartIcon />}
+                    label="Estadísticas"
+                    current={at("history")}
+                    onClick={() => goTo("history")}
+                  />
+                </NavSection>
+              ) : (
+                <NavSection label="Lo mío">
+                  <NavItem
+                    icon={<ListIcon />}
+                    label="Mis carreras"
+                    current={at("races", "race")}
+                    count={unreviewed}
+                    countLabel={`${unreviewed} ${unreviewed === 1 ? "error" : "errores"} por revisar`}
+                    onClick={showRaces}
+                  />
+                  <NavItem
+                    icon={<ChartIcon />}
+                    label="Estadísticas"
+                    current={at("history")}
+                    onClick={() => goTo("history")}
+                  />
+                  <NavItem
+                    icon={<UploadIcon />}
+                    label="Importar"
+                    current={at("import")}
+                    onClick={showImport}
+                  />
+                </NavSection>
+              )}
+              {coach && (
+                <NavSection label="Todos">
+                  <NavItem
+                    icon={<GroupIcon />}
+                    label="Grupo"
+                    current={at("group")}
+                    onClick={() => goTo("group")}
+                  />
+                </NavSection>
+              )}
+              <NavSection label="Cuenta">
+                {!coach && (
+                  <NavItem
+                    icon={<UserIcon />}
+                    label="Mi perfil"
+                    current={at("profile")}
+                    onClick={() => goTo("profile")}
+                  />
+                )}
+                <NavItem
+                  icon={<SlidersIcon />}
+                  label="Ajustes"
+                  current={at("settings")}
+                  onClick={() => goTo("settings")}
+                />
+              </NavSection>
+            </nav>
+            <div className="sidebar-footer">
+              {receiving.active && (
+                <ReceiveStatus report={receiving.report} error={receiving.error} />
+              )}
+              <div>Núcleo {version === null ? "…" : `v${version}`}</div>
+            </div>
+          </aside>
 
-        <main className="content">
-          <TopBar
-            crumbs={crumbsFor(screen, races, viewer.runnerName)}
-            onBack={previous.length > 0 ? goBack : null}
-            onNavigate={navigate}
-          />
-          {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
-          <div className="page" key={runner?.runner.runner_id ?? "self"}>
-            {error !== null && (
-              <Notice kind="error">No se pudo consultar el núcleo: {error}</Notice>
-            )}
-            {coach && runner !== null && runner.problems.length > 0 && (
-              <Notice kind="warning">
-                Algunos paquetes de {runner.runner.display_name} no se han podido leer:{" "}
-                {runner.problems.join("; ")}
-              </Notice>
-            )}
-            {screen.kind === "home" && !coach && (
-              <Home
-                races={races}
-                onOpen={openRace}
-                onImport={showImport}
-                onRaces={showRaces}
-                onHistory={() => goTo("history")}
-              />
-            )}
-            {screen.kind === "races" && (
-              <RaceList
-                races={races}
-                state={raceList}
-                onStateChange={setRaceList}
-                onOpen={openRace}
-                onImport={showImport}
-                summaryOnly={coach ? (runner?.summary_only ?? []) : []}
-              />
-            )}
-            {screen.kind === "race" && (
-              <RaceView
-                resultId={screen.resultId}
-                tab={screen.tab ?? "summary"}
-                // Cambiar de pestaña no es otra pantalla: no entra en «volver».
-                onTab={(tab) => setScreen({ ...screen, tab })}
-                onChanged={refresh}
-              />
-            )}
-            {screen.kind === "history" && <HistoryScreen onImport={showImport} onOpen={openRace} />}
-            {screen.kind === "group" && coach && (
-              <GroupScreen
-                onOpenRunner={(runnerId) => {
-                  selectRunner(runnerId);
-                  navigate({ kind: "races" });
-                }}
-              />
-            )}
-            {screen.kind === "import" && !coach && (
-              <ImportScreen
-                onImported={refresh}
-                onOpen={openRace}
-                onSettings={() => goTo("profile")}
-              />
-            )}
-            {screen.kind === "profile" && !coach && (
-              <SettingsView page="profile" onSaved={refresh} />
-            )}
-            {screen.kind === "settings" && <SettingsView page="settings" onSaved={refresh} />}
-          </div>
-        </main>
-      </div>
+          <main className="content">
+            <TopBar
+              crumbs={crumbsFor(screen, races, viewer.runnerName)}
+              onBack={previous.length > 0 ? goBack : null}
+              onNavigate={navigate}
+            />
+            {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
+            <div className="page" key={runner?.runner.runner_id ?? "self"}>
+              {error !== null && (
+                <Notice kind="error">No se pudo consultar el núcleo: {error}</Notice>
+              )}
+              {coach && runner !== null && runner.problems.length > 0 && (
+                <Notice kind="warning">
+                  Algunos paquetes de {runner.runner.display_name} no se han podido leer:{" "}
+                  {runner.problems.join("; ")}
+                </Notice>
+              )}
+              {screen.kind === "home" && !coach && (
+                <Home
+                  races={races}
+                  onOpen={openRace}
+                  onImport={showImport}
+                  onRaces={showRaces}
+                  onHistory={() => goTo("history")}
+                />
+              )}
+              {screen.kind === "races" && (
+                <RaceList
+                  races={races}
+                  state={raceList}
+                  onStateChange={setRaceList}
+                  onOpen={openRace}
+                  onImport={showImport}
+                  summaryOnly={coach ? (runner?.summary_only ?? []) : []}
+                />
+              )}
+              {screen.kind === "race" && (
+                <RaceView
+                  resultId={screen.resultId}
+                  tab={screen.tab ?? "summary"}
+                  // Cambiar de pestaña no es otra pantalla: no entra en «volver».
+                  onTab={(tab) => setScreen({ ...screen, tab })}
+                  onChanged={refresh}
+                />
+              )}
+              {screen.kind === "history" && (
+                <HistoryScreen
+                  tab={historyTab}
+                  onTab={setHistoryTab}
+                  onImport={showImport}
+                  onOpen={openRace}
+                />
+              )}
+              {screen.kind === "group" && coach && (
+                <GroupScreen
+                  onOpenRunner={(runnerId) => {
+                    selectRunner(runnerId);
+                    navigate({ kind: "races" });
+                  }}
+                />
+              )}
+              {screen.kind === "import" && !coach && (
+                <ImportScreen
+                  onImported={refresh}
+                  onOpen={openRace}
+                  onSettings={() => goTo("profile")}
+                />
+              )}
+              {screen.kind === "profile" && !coach && (
+                <SettingsView page="profile" onSaved={refresh} />
+              )}
+              {screen.kind === "settings" && <SettingsView page="settings" onSaved={refresh} />}
+            </div>
+          </main>
+        </div>
+      </PanelVisibilityProvider>
     </ViewerContext.Provider>
   );
 }

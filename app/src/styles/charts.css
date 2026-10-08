@@ -191,6 +191,49 @@
   background: var(--surface-hover);
 }
 
+/* Cabecera con el botón de ocultar al lado (#130). */
+.chart-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-right: var(--space-2);
+}
+
+.chart-panel-head > .chart-panel-header {
+  flex: 1;
+  min-width: 0;
+}
+
+.chart-panel-hide {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/*
+ * Paneles en rejilla de dos columnas dentro de una pestaña (#130). Los títulos de apartado sobran
+ * (la pestaña ya dice la pregunta) y lo que no es un panel (avisos, recuentos) ocupa la fila.
+ */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.panel-grid > .section-title {
+  display: none;
+}
+
+.panel-grid > :not(.chart-panel) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+  .panel-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Siempre abierto (dentro de una pestaña): sin desplegable. */
 .chart-panel-header.is-static {
   cursor: default;

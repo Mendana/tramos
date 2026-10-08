@@ -361,13 +361,15 @@ function Detail({
 
         {tab === "group" && (
           <PanelsOpen.Provider value={true}>
-            <GroupComparison resultId={detail.result_id} />
+            <div className="panel-grid">
+              <GroupComparison resultId={detail.result_id} />
+            </div>
           </PanelsOpen.Provider>
         )}
 
         {tab === "analysis" && (
           <PanelsOpen.Provider value={true}>
-            <div className="chart-panels">
+            <div className="panel-grid">
               <CumulativeLossPanel legs={lost.legs} />
               <GainLossPanel legs={lost.legs} streaks={lost.losing_streaks} />
               <PerformancePanel legs={lost.legs} />

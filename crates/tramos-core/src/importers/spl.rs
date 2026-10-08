@@ -304,7 +304,8 @@ fn ole_date(days: f64) -> Result<NaiveDate, SplError> {
         .ok_or(invalid)
 }
 
-/// Correspondencia de estados (`docs/formato-spl.md`).
+/// Correspondencia de estados (`docs/formato-spl.md`). El resto de códigos (5 y 7 en OE12, #55)
+/// son no clasificados con su código.
 fn status_from_code(code: u8) -> RaceStatus {
     match code {
         0 => RaceStatus::Ok,
@@ -1106,6 +1107,9 @@ mod tests {
         assert_eq!(status_from_code(6), RaceStatus::NotClassified);
         assert_eq!(status_from_code(10), RaceStatus::DidNotStart);
         assert_eq!(status_from_code(3), RaceStatus::Unknown(3));
+        // Los de la Liga Norte de Soria (#55): no clasificados, con su código.
+        assert_eq!(status_from_code(5), RaceStatus::Unknown(5));
+        assert_eq!(status_from_code(7), RaceStatus::Unknown(7));
         assert_eq!(sex_from_code(1), Some(Sex::Male));
         assert_eq!(sex_from_code(2), Some(Sex::Female));
         assert_eq!(sex_from_code(0), None);

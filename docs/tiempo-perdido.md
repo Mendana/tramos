@@ -47,9 +47,9 @@ Lo que las definiciones de arriba no fijaban, decidido al implementarlas (#12) e
   hora del origen. Un split que no sea positivo (horas iguales o al revés) se trata como si no
   hubiera split.
 - **Población.** La referencia solo usa clasificados (`RaceStatus::Ok`), pero **todos** los
-  resultados del recorrido se analizan con ella: un no clasificado (baliza fallida, abandono)
-  tiene `IR_i`, habitual, pérdidas y errores en los tramos que tenga. Un no presentado no tiene
-  picadas con hora y sale sin números.
+  resultados del recorrido se analizan con ella: un no clasificado (baliza fallida, abandono,
+  otro código de estado del .spl como el 5 o el 7) tiene `IR_i`, habitual, pérdidas y errores en
+  los tramos que tenga. Un no presentado no tiene picadas con hora y sale sin números.
 - **Tramo sin referencia** (ningún clasificado con split): sin `ref_i`, sin `IR_i` y sin pérdida
   para nadie.
 - **25 %**: `ceil(n / 4)` de los `n` clasificados con split en ese tramo.

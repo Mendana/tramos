@@ -796,6 +796,9 @@ mod tests {
                 controls,
                 &[Some(40.0), Some(20.0)],
             ),
+            // Tampoco con otro código del .spl (5 o 7, #55), aunque tenga todas las picadas.
+            result(RaceStatus::Unknown(5), controls, &[Some(30.0), Some(15.0)]),
+            result(RaceStatus::Unknown(7), controls, &[Some(35.0), None]),
         ];
         let course = single_course(&event(vec![("A", controls, results)]));
         assert_eq!(course.valid_runners, 4);
@@ -808,6 +811,9 @@ mod tests {
         close(nc.usual_performance, 1.5);
         // Puesto en el tramo frente a los clasificados: el más rápido.
         assert_eq!(nc.legs[0].place, Some(1));
+        let other = &course.runners[5];
+        assert_eq!((other.status, other.place), (RaceStatus::Unknown(5), None));
+        close(other.legs[0].performance_index, 2.0);
     }
 
     #[test]

@@ -98,7 +98,9 @@ pub enum RaceStatus {
     NotClassified,
     /// No presentado.
     DidNotStart,
-    /// Código de estado que aún no sabemos interpretar; se conserva tal cual.
+    /// Otro código de estado del .spl (por ejemplo 5 y 7, #55): no clasificado, con el código
+    /// tal cual para enseñarlo, porque no se sabe con certeza qué significa cada uno. Como los
+    /// demás estados que no son `Ok`, no cuenta para la referencia del tiempo perdido.
     Unknown(u8),
 }
 

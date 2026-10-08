@@ -5,6 +5,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { OffsetView, decimal, raceOffset, setRaceOffset, signed } from "./api";
 import { Notice, Stat } from "./ui";
+import { useViewer } from "./viewer";
 
 const INTRO =
   "Tu reloj y el cronometraje no marcan exactamente la misma hora. Tramos calcula la diferencia (el desfase) para saber dónde estabas al picar cada baliza. Cámbialo solo si en el mapa las balizas no caen donde estaban.";
@@ -33,12 +34,15 @@ function meaning(seconds: number): string {
     h === null
       ? `${decimal(abs, 1)} s`
       : `${h.hours} h` +
-        (Math.abs(h.rest) < 0.05 ? "" : ` ${h.rest > 0 ? "y" : "menos"} ${decimal(Math.abs(h.rest), 1)} s`);
+        (Math.abs(h.rest) < 0.05
+          ? ""
+          : ` ${h.rest > 0 ? "y" : "menos"} ${decimal(Math.abs(h.rest), 1)} s`);
   return `tu reloj va ${amount} ${seconds > 0 ? "adelantado" : "atrasado"}`;
 }
 
 /** Desfase de la carrera; no se enseña si no hay track. `onChange` avisa de que ha cambiado. */
 export function ClockOffset({ resultId, onChange }: { resultId: number; onChange: () => void }) {
+  const { readOnly } = useViewer();
   const [view, setView] = useState<OffsetView | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -139,8 +143,8 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
       )}
       {view.automatic_error === null && view.low_confidence && (
         <Notice kind="warning">
-          Confianza baja en el desfase calculado: mira en el mapa si las balizas caen donde
-          estaban y, si no, fíjalo a mano.
+          Confianza baja en el desfase calculado: mira en el mapa si las balizas caen donde estaban
+          y, si no, fíjalo a mano.
         </Notice>
       )}
       {manual === null &&
@@ -150,7 +154,7 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
           </p>
         ))}
 
-      {view.suggested_offset_s !== null && view.suggested_shift_s !== null && (
+      {!readOnly && view.suggested_offset_s !== null && view.suggested_shift_s !== null && (
         <div className="row">
           <button
             type="button"
@@ -168,30 +172,40 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
         </div>
       )}
 
-      <form className="row" onSubmit={submit}>
-        <label className="field offset-field">
-          <span className="field-label">Desfase a mano (segundos)</span>
-          <input
-            className="input num"
-            inputMode="decimal"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            aria-describedby="offset-hint"
-          />
-        </label>
-        <button type="submit" className="btn" disabled={saving}>
-          Aplicar
-        </button>
-        {manual !== null && (
-          <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => save(null)}>
-            Volver al automático
-          </button>
-        )}
-      </form>
-      <p id="offset-hint" className="field-hint">
-        Positivo si tu reloj va adelantado respecto al cronometraje; negativo si va atrasado. Al
-        aplicarlo se recolocan las balizas en el mapa y se recalculan las métricas de los tramos.
-      </p>
+      {!readOnly && (
+        <>
+          <form className="row" onSubmit={submit}>
+            <label className="field offset-field">
+              <span className="field-label">Desfase a mano (segundos)</span>
+              <input
+                className="input num"
+                inputMode="decimal"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                aria-describedby="offset-hint"
+              />
+            </label>
+            <button type="submit" className="btn" disabled={saving}>
+              Aplicar
+            </button>
+            {manual !== null && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={saving}
+                onClick={() => save(null)}
+              >
+                Volver al automático
+              </button>
+            )}
+          </form>
+          <p id="offset-hint" className="field-hint">
+            Positivo si tu reloj va adelantado respecto al cronometraje; negativo si va atrasado. Al
+            aplicarlo se recolocan las balizas en el mapa y se recalculan las métricas de los
+            tramos.
+          </p>
+        </>
+      )}
       {error !== null && <Notice kind="error">{error}</Notice>}
     </div>
   );

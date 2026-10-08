@@ -148,3 +148,33 @@ fn the_sharing_choice_is_kept_per_result() {
     store.set_result_sharing(mine, None).unwrap();
     assert_eq!(store.result_sharing(mine).unwrap(), None);
 }
+
+#[test]
+fn received_runners_take_the_name_of_their_latest_package() {
+    let event = fixture();
+    let mut store = Store::open_in_memory().unwrap();
+    let mut first = package(&event, "a1", ShareLevel::Legs, 0);
+    first.runner.display_name = "Nombre viejo".into();
+    let mut second = package(&event, "a1", ShareLevel::Aggregates, 10);
+    second.race.race_id = "otra-carrera".into();
+    second.runner.display_name = "Ana".into();
+    let mut other = package(&event, "b2", ShareLevel::Legs, 5);
+    other.runner.display_name = "berta".into();
+    for p in [&first, &second, &other] {
+        store.save_received_package(p).unwrap();
+    }
+
+    let runners = store.received_runners().unwrap();
+    let rows: Vec<_> = runners
+        .iter()
+        .map(|r| (r.runner_id.as_str(), r.display_name.as_str(), r.packages))
+        .collect();
+    // Por nombre sin distinguir mayúsculas.
+    assert_eq!(rows, [("a1", "Ana", 2), ("b2", "berta", 1)]);
+    assert_eq!(runners[0].last_exported_at, second.exported_at);
+
+    let of_a1 = store.received_packages_of("a1").unwrap();
+    assert_eq!(of_a1.len(), 2);
+    assert!(of_a1.iter().all(|p| p.runner_id == "a1"));
+    assert!(store.received_packages_of("zz").unwrap().is_empty());
+}

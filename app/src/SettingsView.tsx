@@ -147,97 +147,103 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
             void save();
           }}
         >
-          <div className="form-section">
-            <div className="form-section-text">
-              <h3>Tramo con error</h3>
-              <p className="small muted">
-                Un tramo es error si pierdes más de los dos umbrales. Cambiarlos recalcula todas tus
-                carreras.
-              </p>
-            </div>
-            <div className="form-fields">
-              <label className="field">
-                <span className="field-label">Pérdida mínima</span>
-                <input
-                  className="input num"
-                  inputMode="decimal"
-                  value={form.thresholdS}
-                  onChange={(e) => update("thresholdS", e.target.value)}
-                />
-                <span className="field-hint">En segundos. Por defecto, 15.</span>
-              </label>
-              <label className="field">
-                <span className="field-label">Pérdida mínima relativa</span>
-                <input
-                  className="input num"
-                  inputMode="decimal"
-                  value={form.thresholdPct}
-                  onChange={(e) => update("thresholdPct", e.target.value)}
-                />
-                <span className="field-hint">En % del tiempo esperado. Por defecto, 10.</span>
-              </label>
-            </div>
-          </div>
+          {/* La entrenadora ve a cada corredor con sus umbrales: estos ajustes son de corredor. */}
+          {form.mode === "runner" && (
+            <>
+              <div className="form-section">
+                <div className="form-section-text">
+                  <h3>Tramo con error</h3>
+                  <p className="small muted">
+                    Un tramo es error si pierdes más de los dos umbrales. Cambiarlos recalcula todas
+                    tus carreras.
+                  </p>
+                </div>
+                <div className="form-fields">
+                  <label className="field">
+                    <span className="field-label">Pérdida mínima</span>
+                    <input
+                      className="input num"
+                      inputMode="decimal"
+                      value={form.thresholdS}
+                      onChange={(e) => update("thresholdS", e.target.value)}
+                    />
+                    <span className="field-hint">En segundos. Por defecto, 15.</span>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Pérdida mínima relativa</span>
+                    <input
+                      className="input num"
+                      inputMode="decimal"
+                      value={form.thresholdPct}
+                      onChange={(e) => update("thresholdPct", e.target.value)}
+                    />
+                    <span className="field-hint">En % del tiempo esperado. Por defecto, 10.</span>
+                  </label>
+                </div>
+              </div>
 
-          <div className="form-section">
-            <div className="form-section-text">
-              <h3>Hora de las carreras</h3>
-              <p className="small muted">
-                Zona horaria de las horas del .spl. Se aplica a las carreras que importes a partir de
-                ahora.
-              </p>
-            </div>
-            <div className="form-fields">
-              <label className="field">
-                <span className="field-label">Zona horaria</span>
-                <input
-                  className="input"
-                  list="time-zones"
-                  value={form.timeZone}
-                  onChange={(e) => update("timeZone", e.target.value)}
-                />
-                <datalist id="time-zones">
-                  {COMMON_TIME_ZONES.map((zone) => (
-                    <option key={zone} value={zone} />
-                  ))}
-                </datalist>
-                <span className="field-hint">Por ejemplo, Europe/Madrid o Atlantic/Canary.</span>
-              </label>
-            </div>
-          </div>
+              <div className="form-section">
+                <div className="form-section-text">
+                  <h3>Hora de las carreras</h3>
+                  <p className="small muted">
+                    Zona horaria de las horas del .spl. Se aplica a las carreras que importes a
+                    partir de ahora.
+                  </p>
+                </div>
+                <div className="form-fields">
+                  <label className="field">
+                    <span className="field-label">Zona horaria</span>
+                    <input
+                      className="input"
+                      list="time-zones"
+                      value={form.timeZone}
+                      onChange={(e) => update("timeZone", e.target.value)}
+                    />
+                    <datalist id="time-zones">
+                      {COMMON_TIME_ZONES.map((zone) => (
+                        <option key={zone} value={zone} />
+                      ))}
+                    </datalist>
+                    <span className="field-hint">
+                      Por ejemplo, Europe/Madrid o Atlantic/Canary.
+                    </span>
+                  </label>
+                </div>
+              </div>
 
-          <div className="form-section">
-            <div className="form-section-text">
-              <h3>Quién eres</h3>
-              <p className="small muted">Para encontrarte en cada carrera al importarla.</p>
-            </div>
-            <div className="form-fields">
-              <label className="field">
-                <span className="field-label">Tarjeta SI</span>
-                <input
-                  className="input num"
-                  inputMode="numeric"
-                  value={form.siCard}
-                  onChange={(e) => update("siCard", e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Nombre y apellidos</span>
-                <input
-                  className="input"
-                  value={form.fullName}
-                  onChange={(e) => update("fullName", e.target.value)}
-                />
-              </label>
-            </div>
-          </div>
-
+              <div className="form-section">
+                <div className="form-section-text">
+                  <h3>Quién eres</h3>
+                  <p className="small muted">Para encontrarte en cada carrera al importarla.</p>
+                </div>
+                <div className="form-fields">
+                  <label className="field">
+                    <span className="field-label">Tarjeta SI</span>
+                    <input
+                      className="input num"
+                      inputMode="numeric"
+                      value={form.siCard}
+                      onChange={(e) => update("siCard", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Nombre y apellidos</span>
+                    <input
+                      className="input"
+                      value={form.fullName}
+                      onChange={(e) => update("fullName", e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
           <div className="form-section">
             <div className="form-section-text">
               <h3>Compartir con la entrenadora</h3>
               <p className="small muted">
-                Por una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace falta
-                servidor.
+                Por una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace
+                falta servidor.
               </p>
             </div>
             <div className="form-fields">
@@ -254,7 +260,7 @@ function SettingsView({ onSaved }: { onSaved: () => void }) {
                 <span className="field-hint">
                   {form.mode === "runner"
                     ? "Tus carreras se exportan solas a la carpeta cuando cambian."
-                    : "Cada minuto se importan los paquetes nuevos que dejen los corredores."}
+                    : "Cada minuto se importan los paquetes nuevos que dejen los corredores. Sus carreras se ven en solo lectura y con sus propios umbrales."}
                 </span>
               </label>
               <div className="field">

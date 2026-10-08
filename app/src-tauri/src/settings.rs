@@ -152,16 +152,27 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     )?;
     store.set_setting(TIME_ZONE_KEY, zone)?;
     save_identity(store, &settings.identity, true)?;
-    store.set_setting(
-        MODE_KEY,
-        match settings.sharing.mode {
-            AppMode::Runner => "runner",
-            AppMode::Coach => "coach",
-        },
-    )?;
+    choose_mode(store, settings.sharing.mode)?;
     store.set_setting(FOLDER_KEY, folder.unwrap_or(""))?;
     store.set_setting(DEFAULT_CHOICE_KEY, settings.sharing.default_choice.key())?;
     Ok(())
+}
+
+/// Si ya se ha elegido el modo: está guardado o, en una base de antes del modo, ya hay
+/// carreras importadas (entonces es un corredor).
+pub fn mode_chosen(store: &Store) -> Result<bool, StoreError> {
+    Ok(store.setting(MODE_KEY)?.is_some() || crate::import::stored_self_person(store)?.is_some())
+}
+
+/// Guarda el modo sin tocar los demás ajustes.
+pub fn choose_mode(store: &mut Store, mode: AppMode) -> Result<(), StoreError> {
+    store.set_setting(
+        MODE_KEY,
+        match mode {
+            AppMode::Runner => "runner",
+            AppMode::Coach => "coach",
+        },
+    )
 }
 
 /// Configuración del tiempo perdido con los umbrales guardados.
@@ -325,5 +336,23 @@ mod tests {
             (sharing.mode, sharing.default_choice),
             (AppMode::Runner, DEFAULT_SHARE_CHOICE)
         );
+    }
+
+    #[test]
+    fn the_mode_is_chosen_once() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert!(!mode_chosen(&store).unwrap());
+        choose_mode(&mut store, AppMode::Coach).unwrap();
+        assert!(mode_chosen(&store).unwrap());
+        assert_eq!(load(&store).unwrap().sharing.mode, AppMode::Coach);
+        // Elegirlo no toca los demás ajustes.
+        assert_eq!(load(&store).unwrap().time_zone, "Europe/Madrid");
+    }
+
+    #[test]
+    fn a_runner_from_before_the_mode_has_it_chosen() {
+        let (store, _) = crate::race_map::tests::imported(false);
+        assert!(mode_chosen(&store).unwrap());
+        assert_eq!(load(&store).unwrap().sharing.mode, AppMode::Runner);
     }
 }

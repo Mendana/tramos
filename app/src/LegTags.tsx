@@ -134,6 +134,42 @@ function Chip({
   );
 }
 
+/** Respuesta del nivel 1 en solo lectura. */
+const CONFIRMATION_SUMMARIES: Record<Confirmation, string> = {
+  error: "Error",
+  no_error: "Sin error",
+  physical: "Físico",
+};
+
+/**
+ * Etiqueta de un tramo en solo lectura (modo entrenadora): la respuesta del nivel 1 y el
+ * contexto. El tipo ya sale en la fila.
+ */
+export function TagSummary({ leg, state }: { leg: number; state: LegTagsState }) {
+  const tag = state.tags.get(leg)?.tag;
+  if (tag === undefined) return null;
+  const causes = tag.causes.map(
+    (key) => state.taxonomy?.causes.find((c) => c.key === key)?.label ?? key,
+  );
+  const context = [
+    tag.leg_part === null ? null : LEG_PART_LABELS[tag.leg_part],
+    ...causes,
+    tag.perceived_loss_s === null ? null : `${tag.perceived_loss_s} s percibidos`,
+    tag.effort === null ? null : `esfuerzo ${tag.effort}/10`,
+  ].filter((part): part is string => part !== null);
+  return (
+    <div className="tag-summary">
+      {tag.confirmation !== null && (
+        <span className="pill" data-tone={CONFIRMATION_TONES[tag.confirmation]}>
+          {CONFIRMATION_SUMMARIES[tag.confirmation]}
+        </span>
+      )}
+      {context.length > 0 && <span className="small muted">{context.join(" · ")}</span>}
+      {tag.note !== null && <span className="small">«{tag.note}»</span>}
+    </div>
+  );
+}
+
 /** Nivel 1 en una fila: Error / No / Físico. Otro clic en la respuesta marcada la quita. */
 function ConfirmChips({
   value,

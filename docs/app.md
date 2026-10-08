@@ -23,6 +23,10 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | --- | --- |
 | `core_version` | Versión del núcleo. |
 | `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
+| `mode_chosen` / `choose_mode(mode)` | Si ya se ha elegido el modo (`runner` o `coach`; abajo, "Modo entrenadora") y elegirlo sin tocar los demás ajustes. |
+| `coach_runners` | En modo entrenadora, los corredores de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
+| `view_runner(runnerId)` | En modo entrenadora, elige el corredor que se ve (`null` = ninguno): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. En modo corredor, error. |
+| `viewed_runner` | Lo mismo que `view_runner` del corredor que se está viendo, sin volver a volcarlo. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
@@ -45,8 +49,14 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
 
+En modo entrenadora, los comandos que leen las vistas de corredor (`list_races`, `race_detail`,
+`race_comparison`, `race_breakdown`, `race_offset`, `race_map`, `leg_tags` y `history`) leen las
+carreras del corredor que se está viendo, y los que modifican algo (`import_race`, `import_folder`,
+`set_race_format`, `set_race_offset`, `save_leg_tag`, `set_race_sharing`, `share_all` y
+`export_race_package`) dan error: «en modo entrenadora no se puede modificar nada».
+
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs`, `tags.rs`, `package.rs` y `sharing.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs`, `tags.rs`, `package.rs`, `sharing.rs` y `coach.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -178,6 +188,37 @@ estuviera y toma el valor por defecto. El tiempo ideal sigue siendo la suma de r
 
 Con una zona horaria equivocada, el FIT no se solapa con la carrera y la alineación lo dice, con
 la sugerencia de desplazamiento (`docs/alineacion.md`).
+
+## Modo entrenadora (#37)
+
+La entrenadora ve todo lo de cada corredor como si fuera él, sin poder modificar nada
+(`docs/datos-y-privacidad.md`).
+
+- **Elegir el modo.** La primera vez que se abre la app pregunta «¿Cómo vas a usar la app?»:
+  corredor o entrenadora (`choose_mode`). Una base de antes del modo que ya tiene carreras se toma
+  por un corredor y no pregunta. Se cambia después en Ajustes. Al elegir entrenadora se abren los
+  Ajustes, porque sin carpeta compartida no le llega nada.
+- **Recibir.** Los paquetes llegan por la carpeta compartida (`docs/paquete.md`, "Carpeta
+  compartida").
+- **Elegir corredor.** En la barra lateral, un selector con los corredores de los que hay paquetes
+  (nombre visible y número de carreras). Si no se ve a nadie, se elige el primero.
+- **Ver.** Los paquetes del corredor se vuelcan en una base en memoria con la forma de la de su
+  app (`coach::runner_view`): cada carrera con los originales del recorrido, su resultado
+  vinculado a «su» persona, el formato, las etiquetas, el track con su desfase manual y los
+  umbrales de su paquete más reciente. Así **todas las vistas de corredor** (lista, carrera con
+  P2 y P4, mapa e histórico) salen tal cual, recalculadas con la versión del algoritmo de esta
+  app. En la comparación con el grupo (P4), el corredor sale con su nombre y los demás, que
+  vienen sin nombres, como «Corredor 1», «Corredor 2»… Cuando llega algo nuevo de ese corredor,
+  se vuelve a volcar.
+- **Solo resumen.** Las carreras compartidas con `aggregates` no traen tramos: salen aparte en la
+  lista («Solo con el resumen»), con fecha, carrera, categoría, resultado, tiempo y tiempo
+  perdido, y no se pueden abrir ni entran en el histórico.
+- **Solo lectura.** No hay ningún control de edición ni de etiquetado: sin Importar en la barra
+  lateral, el formato como etiqueta en vez de desplegable, sin selector de qué se comparte, el
+  desfase del reloj sin campos ni botones y las etiquetas de los tramos como texto (si fue error,
+  el contexto y la nota) en vez de botones y lápiz. Además, el núcleo rechaza cualquier cambio
+  (arriba, "Comandos"). En Ajustes solo quedan el modo y la carpeta: los umbrales, la zona
+  horaria y la identidad son de corredor.
 
 ## Lista de carreras
 

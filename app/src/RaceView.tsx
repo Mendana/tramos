@@ -21,9 +21,10 @@ import {
 import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { ClockOffset } from "./ClockOffset";
 import { GroupComparison } from "./GroupComparison";
-import { LegTagsState, TagControls, TagEditor, typeLabel, useLegTags } from "./LegTags";
+import { LegTagsState, TagControls, TagEditor, TagSummary, typeLabel, useLegTags } from "./LegTags";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
 import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
+import { useViewer } from "./viewer";
 
 // MapLibre pesa: se carga solo al abrir una carrera.
 const MapView = lazy(() => import("./MapView"));
@@ -41,6 +42,7 @@ function RaceView({
 }) {
   const [detail, setDetail] = useState<RaceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const viewer = useViewer();
 
   useEffect(() => {
     setDetail(null);
@@ -53,7 +55,8 @@ function RaceView({
   return (
     <>
       <button type="button" className="btn btn-ghost back" onClick={onBack}>
-        <ChevronLeft size={16} /> Tus carreras
+        <ChevronLeft size={16} />{" "}
+        {viewer.runnerName === null ? "Tus carreras" : `Carreras de ${viewer.runnerName}`}
       </button>
       {error !== null && <Notice kind="error">{error}</Notice>}
       {detail === null ? (
@@ -95,7 +98,8 @@ function Detail({
     if (editing !== leg) setSelectedLeg(leg);
     setEditing((e) => (e === leg ? null : leg));
   };
-  const sharing = useRaceSharing(detail.result_id);
+  const { readOnly } = useViewer();
+  const sharing = useRaceSharing(detail.result_id, !readOnly);
   const lost = detail.report.lost_time;
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
@@ -110,6 +114,9 @@ function Detail({
           <>
             <span className="num">{detail.date}</span>
             <span className="pill">{detail.class_name}</span>
+            {readOnly && detail.format !== null && (
+              <span className="pill pill-accent">{FORMAT_LABELS[detail.format]}</span>
+            )}
             <span>
               {name} · {statusLabel(detail.status, detail.place)}
             </span>
@@ -120,7 +127,7 @@ function Detail({
             {sharing.view?.available && (
               <SharingPicker view={sharing.view} onChange={sharing.change} />
             )}
-            <FormatPicker format={detail.format} onChange={onFormatChange} />
+            {!readOnly && <FormatPicker format={detail.format} onChange={onFormatChange} />}
           </>
         }
       />
@@ -198,9 +205,9 @@ function Detail({
         </div>
         <div className="tag-intro">
           <p className="small muted">
-            ¿Fue un error? Responde en cada tramo propuesto con un clic: Sí, No o Físico (perdiste
-            tiempo sin fallar en la orientación). Con el lápiz añades el tipo de error y el
-            contexto, también en cualquier otro tramo.
+            {readOnly
+              ? "Las etiquetas son las que ha puesto el corredor: si fue error, el tipo y el contexto."
+              : "¿Fue un error? Responde en cada tramo propuesto con un clic: Sí, No o Físico (perdiste tiempo sin fallar en la orientación). Con el lápiz añades el tipo de error y el contexto, también en cualquier otro tramo."}
           </p>
           <span className="small strong num">
             {proposed.length === 0
@@ -255,14 +262,15 @@ function Detail({
 
 /** Formato de la carrera, que se puede corregir después de importarla (cuenta en el histórico). */
 /** Qué se comparte de la carrera con la entrenadora; pedirlo también la exporta si hace falta. */
-function useRaceSharing(resultId: number) {
+function useRaceSharing(resultId: number, enabled: boolean) {
   const [view, setView] = useState<RaceSharing | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     raceSharing(resultId)
       .then(setView)
       .catch((err: unknown) => setError(String(err)));
-  }, [resultId]);
+  }, [resultId, enabled]);
   const change = (choice: ShareChoice | null) => {
     setError(null);
     setRaceSharing(resultId, choice)
@@ -339,6 +347,7 @@ function LegRow({
   editing: boolean;
   onToggleEditing: () => void;
 }) {
+  const { readOnly } = useViewer();
   const tag = tagging.tags.get(leg.index)?.tag ?? null;
   const type = tag === null ? null : typeLabel(tagging.taxonomy, tag);
   const lossClass =
@@ -380,13 +389,17 @@ function LegRow({
             {leg.short_reference && <span className="pill">Ref. corta</span>}
             {type !== null && <span className="pill pill-accent">{type}</span>}
           </div>
-          <TagControls
-            leg={leg.index}
-            proposed={leg.is_error}
-            state={tagging}
-            open={editing}
-            onToggleOpen={onToggleEditing}
-          />
+          {readOnly ? (
+            <TagSummary leg={leg.index} state={tagging} />
+          ) : (
+            <TagControls
+              leg={leg.index}
+              proposed={leg.is_error}
+              state={tagging}
+              open={editing}
+              onToggleOpen={onToggleEditing}
+            />
+          )}
         </div>
       </td>
     </tr>

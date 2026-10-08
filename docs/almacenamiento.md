@@ -37,6 +37,8 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `save_received_package(&RacePackage) -> SaveOutcome` | Guarda un paquete recibido de otro corredor. Como mucho uno por (`runner_id`, `race_id`): uno igual de reciente o más lo sustituye (`Replaced`), también si baja de nivel; uno más antiguo se ignora (`IgnoredOlder`) y uno idéntico al guardado no cambia nada (`Unchanged`). |
 | `result_sharing(ResultId) -> Option<ShareChoice>` / `set_result_sharing(ResultId, Option<ShareChoice>)` | Qué decidió compartir el corredor de un resultado suyo (`none`, `aggregates`, `legs`, `track`; `docs/paquete.md`). `None` = no ha elegido nada y vale el ajuste por defecto; guardar `None` borra la elección. |
 | `received_package_counts() -> (usize, usize)` | Cuántos paquetes recibidos hay y de cuántos corredores, sin leerlos. |
+| `received_runners() -> Vec<ReceivedRunner>` | Corredores de los que hay paquetes recibidos, por nombre visible (sin distinguir mayúsculas): identificador, nombre visible de su paquete más reciente (sale del JSON con `json_extract`, sin leer los paquetes enteros), cuántos paquetes y el instante de exportación del más reciente. |
+| `received_packages_of(runner_id) -> Vec<ReceivedPackage>` | Los paquetes recibidos de un corredor, por carrera. |
 | `received_packages() -> Vec<ReceivedPackage>` | Paquetes recibidos, por corredor y carrera, con el JSON tal cual y sus identificadores, nivel, versión e instantes de exportación e importación. |
 | `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre, inicio y formato de la carrera (si los hay), categoría, estado, puesto y si el resultado tiene track. |
 

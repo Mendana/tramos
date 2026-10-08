@@ -59,6 +59,53 @@
   color: var(--accent);
 }
 
+.runner-picker {
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* --- Primera vez: ¿corredor o entrenadora? --- */
+
+.welcome {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-5);
+  background: var(--bg);
+}
+
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 560px;
+}
+
+.welcome-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.welcome-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.welcome-option:hover,
+.welcome-option:focus-visible {
+  border-color: var(--accent);
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 0 var(--space-2);
@@ -720,6 +767,31 @@
   align-items: center;
   gap: var(--space-2);
   margin-left: auto;
+}
+
+/* Etiqueta en solo lectura (modo entrenadora). */
+.tag-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.pill[data-tone] {
+  color: var(--surface);
+}
+
+.pill[data-tone="error"] {
+  background: var(--error);
+}
+
+.pill[data-tone="success"] {
+  background: var(--success);
+}
+
+.pill[data-tone="warning"] {
+  background: var(--warning);
 }
 
 .tag-controls .chips {

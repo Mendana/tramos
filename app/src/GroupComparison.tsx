@@ -15,14 +15,20 @@ import { GroupedColumnChart } from "./charts/GroupedColumnChart";
 import { MultiLineChart } from "./charts/MultiLineChart";
 import { SERIES_COLORS } from "./charts/common";
 import { CloseIcon, Notice } from "./ui";
+import { useViewer } from "./viewer";
 
 /** Compañeros a la vez, además del corredor: una serie por color de la paleta. */
 const MAX_OTHERS = SERIES_COLORS.length - 1;
 
 const keyOf = (r: ComparedRunner) => `${r.result.class_index}-${r.result.result_index}`;
 const fullName = (r: ComparedRunner) => `${r.given_name} ${r.family_name}`.trim();
-const shortName = (r: ComparedRunner) =>
-  r.is_self ? "Tú" : `${r.given_name} ${r.family_name.charAt(0)}.`.trim();
+/** «Ana P.»; sin apellidos (los compañeros en modo entrenadora), el nombre tal cual. */
+const shortName = (r: ComparedRunner, self: string) =>
+  r.is_self
+    ? self
+    : r.family_name === ""
+      ? r.given_name
+      : `${r.given_name} ${r.family_name.charAt(0)}.`.trim();
 
 /** Diferencia con el ideal: `+1:23` por detrás, `-0:30` por delante. */
 const behind = (v: number | null) => (v === null ? "—" : `${v > 0 ? "+" : ""}${clock(v)}`);
@@ -38,6 +44,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
   const [comparison, setComparison] = useState<CourseComparison | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [others, setOthers] = useState<string[]>([]);
+  const selfName = useViewer().runnerName ?? "Tú";
 
   useEffect(() => {
     setComparison(null);
@@ -68,7 +75,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
       {/* Las fichas hacen de leyenda: el color de cada corredor en las dos gráficas. */}
       <span className="compare-chip is-self">
         <span className="legend-swatch" style={{ background: SERIES_COLORS[0] }} />
-        Tú
+        {selfName}
       </span>
       {chosen.map((r, i) => (
         <span className="compare-chip" key={keyOf(r)}>
@@ -130,7 +137,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
               formatValue={(v) => behind(v === null ? null : -v)}
               series={shown.map(({ runner, color }) => ({
                 key: keyOf(runner),
-                label: shortName(runner),
+                label: shortName(runner, selfName),
                 color,
                 emphasis: runner.is_self,
                 values: [0, ...runner.behind_ideal_s.map((v) => (v === null ? null : -v))],
@@ -146,7 +153,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
                 <th>Balizas</th>
                 {shown.map(({ runner }) => (
                   <th className="num" key={keyOf(runner)}>
-                    {shortName(runner)}
+                    {shortName(runner, selfName)}
                   </th>
                 ))}
               </tr>
@@ -184,7 +191,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
               formatValue={loss}
               series={shown.map(({ runner, color }) => ({
                 key: keyOf(runner),
-                label: shortName(runner),
+                label: shortName(runner, selfName),
                 color,
                 values: runner.loss_s,
               }))}
@@ -199,7 +206,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
                 <th>Balizas</th>
                 {shown.map(({ runner }) => (
                   <th className="num" key={keyOf(runner)}>
-                    {shortName(runner)}
+                    {shortName(runner, selfName)}
                   </th>
                 ))}
               </tr>

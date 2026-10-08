@@ -25,6 +25,18 @@ pub struct ReceivedPackage {
     pub content: String,
 }
 
+/// Un corredor del que se han recibido paquetes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReceivedRunner {
+    pub runner_id: String,
+    /// El nombre visible de su paquete más reciente.
+    pub display_name: String,
+    /// Cuántos paquetes (carreras) suyos hay.
+    pub packages: usize,
+    /// El instante de exportación de su paquete más reciente.
+    pub last_exported_at: DateTime<Utc>,
+}
+
 /// Qué ha pasado al guardar un paquete recibido.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaveOutcome {
@@ -146,11 +158,27 @@ impl Store {
 
     /// Paquetes recibidos, por corredor y carrera.
     pub fn received_packages(&self) -> Result<Vec<ReceivedPackage>, StoreError> {
+        self.query_received_packages(None)
+    }
+
+    /// Paquetes recibidos de un corredor, por carrera.
+    pub fn received_packages_of(
+        &self,
+        runner_id: &str,
+    ) -> Result<Vec<ReceivedPackage>, StoreError> {
+        self.query_received_packages(Some(runner_id))
+    }
+
+    fn query_received_packages(
+        &self,
+        runner_id: Option<&str>,
+    ) -> Result<Vec<ReceivedPackage>, StoreError> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT runner_id, race_id, level, format_version, exported_at_epoch_ms, \
-             imported_at_epoch_ms, content FROM received_packages ORDER BY runner_id, race_id",
+             imported_at_epoch_ms, content FROM received_packages \
+             WHERE ?1 IS NULL OR runner_id = ?1 ORDER BY runner_id, race_id",
         )?;
-        let mut rows = stmt.query([])?;
+        let mut rows = stmt.query([runner_id])?;
         let mut packages = Vec::new();
         while let Some(row) = rows.next()? {
             let level: String = row.get(2)?;
@@ -165,6 +193,29 @@ impl Store {
             });
         }
         Ok(packages)
+    }
+
+    /// Corredores de los que se han recibido paquetes, por nombre visible. El nombre sale del
+    /// JSON del paquete más reciente de cada uno, sin leer los paquetes enteros.
+    pub fn received_runners(&self) -> Result<Vec<ReceivedRunner>, StoreError> {
+        // En SQLite, con MAX() las demás columnas salen de la fila del máximo.
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT runner_id, json_extract(content, '$.runner.display_name'), \
+             MAX(exported_at_epoch_ms), COUNT(*) FROM received_packages \
+             GROUP BY runner_id ORDER BY 2 COLLATE NOCASE, runner_id",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut runners = Vec::new();
+        while let Some(row) = rows.next()? {
+            let packages: i64 = row.get(3)?;
+            runners.push(ReceivedRunner {
+                runner_id: row.get(0)?,
+                display_name: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                last_exported_at: ms_to_instant(row.get(2)?)?,
+                packages: usize::try_from(packages).unwrap_or_default(),
+            });
+        }
+        Ok(runners)
     }
 }
 

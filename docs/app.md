@@ -287,6 +287,23 @@ Los resultados vinculados a la persona del usuario, de la carrera más reciente 
 fecha, nombre de la carrera, categoría, puesto (o estado), formato, tiempo, tiempo perdido (con el
 número de errores) y si tiene track del reloj. Una fila abre la vista de la carrera.
 
+Pantalla **Mis carreras** (#128). Encima de la tabla, una barra (`raceFilter.ts`) que solo elige y
+ordena las filas de `list_races`, sin calcular nada:
+
+- **Buscar**: palabras que tienen que estar todas en el nombre de la carrera o la categoría, sin
+  distinguir mayúsculas ni tildes.
+- **Formato**: todas, sprint, media, larga o sin formato.
+- **Temporada**: los años con carreras.
+- **Solo con track**.
+- **Orden**: más recientes (lo normal), más tiempo perdido o mejor rendimiento habitual. Las
+  carreras sin ese valor van al final.
+- **Quitar filtros** (sale con algún filtro puesto) vuelve a la lista entera y deja el orden.
+
+25 carreras por página, con «1–25 de 60» y los botones de página debajo. Cambiar un filtro vuelve a
+la primera página. Los filtros y la página siguen al volver de una carrera; en modo entrenadora se
+reinician al cambiar de corredor. En cada fila, el icono de etiqueta en naranja avisa de errores
+sin revisar (`unreviewed_count`). Con filtros que no deja ninguna, se ofrece quitarlos.
+
 ## Vista de carrera (P1)
 
 - **Cabecera**: carrera, fecha, categoría, corredor y resultado. A la derecha, el **formato**

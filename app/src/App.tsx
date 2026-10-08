@@ -20,7 +20,7 @@ import GroupScreen from "./GroupScreen";
 import HistoryScreen from "./HistoryScreen";
 import Home from "./Home";
 import ImportScreen from "./ImportScreen";
-import RaceList from "./RaceList";
+import RaceList, { RACE_LIST_START, RaceListState } from "./RaceList";
 import RaceView from "./RaceView";
 import SettingsView from "./SettingsView";
 import Welcome from "./Welcome";
@@ -240,6 +240,8 @@ function App() {
   const [screen, setScreen] = useState<Screen>({ kind: "home" });
   // Pantallas anteriores, para volver.
   const [previous, setPrevious] = useState<Screen[]>([]);
+  // Filtros y página de la lista de carreras: siguen ahí al volver de una carrera.
+  const [raceList, setRaceList] = useState<RaceListState>(RACE_LIST_START);
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [sharing, setSharing] = useState<SharingSettings | null>(null);
   // Modo entrenadora: corredores con paquetes y el que se está viendo.
@@ -283,8 +285,9 @@ function App() {
       viewRunner(runnerId)
         .then((info) => {
           setRunner(info);
-          // Las pantallas anteriores eran de otro corredor.
+          // Las pantallas anteriores y los filtros eran de otro corredor.
           setPrevious([]);
+          setRaceList(RACE_LIST_START);
           setScreen((s) => (s.kind === "race" ? { kind: "races" } : s));
           refresh();
         })
@@ -489,6 +492,8 @@ function App() {
             {screen.kind === "races" && (
               <RaceList
                 races={races}
+                state={raceList}
+                onStateChange={setRaceList}
                 onOpen={openRace}
                 onImport={showImport}
                 summaryOnly={coach ? (runner?.summary_only ?? []) : []}

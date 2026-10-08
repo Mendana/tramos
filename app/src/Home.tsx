@@ -2,6 +2,7 @@
 // carrera, lo pendiente y el rendimiento de las últimas carreras; los análisis, en Estadísticas.
 import { useEffect, useState } from "react";
 import { FORMAT_LABELS, RaceRow, clock, getHistory, getSettings, statusLabel } from "./api";
+import type { RaceTab } from "./RaceView";
 import { LineChart } from "./charts/LineChart";
 import { percent, tickPercent } from "./HistoryPanels";
 import { TrackThumb } from "./TrackThumb";
@@ -26,7 +27,7 @@ function Home({
 }: {
   /** De la más reciente a la más antigua. */
   races: RaceRow[] | null;
-  onOpen: (resultId: number) => void;
+  onOpen: (resultId: number, tab?: RaceTab) => void;
   onImport: () => void;
   onRaces: () => void;
   onHistory: () => void;
@@ -129,7 +130,7 @@ function Home({
               Ver carrera <ChevronRight size={16} />
             </button>
             {last.unreviewed_count > 0 && (
-              <button type="button" className="btn" onClick={() => onOpen(last.result_id)}>
+              <button type="button" className="btn" onClick={() => onOpen(last.result_id, "legs")}>
                 <TagIcon size={16} /> Revisar {errorsLabel(last.unreviewed_count)}
               </button>
             )}
@@ -162,7 +163,11 @@ function Home({
                       {race.name ?? "Sin nombre"} · {race.date}
                     </span>
                   </div>
-                  <button type="button" className="btn" onClick={() => onOpen(race.result_id)}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => onOpen(race.result_id, "legs")}
+                  >
                     Revisar
                   </button>
                 </li>

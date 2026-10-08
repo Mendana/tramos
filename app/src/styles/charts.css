@@ -191,6 +191,19 @@
   background: var(--surface-hover);
 }
 
+/* Siempre abierto (dentro de una pestaña): sin desplegable. */
+.chart-panel-header.is-static {
+  cursor: default;
+}
+
+.chart-panel-header.is-static:hover {
+  background: transparent;
+}
+
+.chart-panel-header.is-static .chart-panel-title {
+  font-size: var(--text-md);
+}
+
 .chart-panel-chevron {
   display: flex;
   color: var(--text-muted);

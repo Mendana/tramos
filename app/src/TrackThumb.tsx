@@ -21,7 +21,8 @@ function projection(track: MapTrack) {
   };
 }
 
-export function TrackThumb({ resultId }: { resultId: number }) {
+/** El track de una carrera, o `null` si no tiene (o aún no ha llegado, o no se puede situar). */
+export function useMapTrack(resultId: number, revision = 0): MapTrack | null {
   const [track, setTrack] = useState<MapTrack | null>(null);
   useEffect(() => {
     setTrack(null);
@@ -35,9 +36,18 @@ export function TrackThumb({ resultId }: { resultId: number }) {
     return () => {
       current = false;
     };
-  }, [resultId]);
+  }, [resultId, revision]);
+  return track;
+}
 
-  if (track === null) return null;
+/** Miniatura del track de una carrera; nada si no tiene. */
+export function TrackThumb({ resultId }: { resultId: number }) {
+  const track = useMapTrack(resultId);
+  return track === null ? null : <TrackSvg track={track} />;
+}
+
+/** El recorrido, el track y las balizas, en SVG. */
+export function TrackSvg({ track }: { track: MapTrack }) {
   const { point, viewBox, size } = projection(track);
   const radius = size * 0.022;
   return (

@@ -8,7 +8,9 @@ use tramos_core::identify::ResultRef;
 use tramos_core::importers::spl;
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::Event;
-use tramos_core::package::{PackageInput, PackageRunner, RacePackage, ShareLevel, build, race_id};
+use tramos_core::package::{
+    PackageInput, PackageRunner, RacePackage, ShareChoice, ShareLevel, build, race_id,
+};
 use tramos_store::{SaveOutcome, Store};
 
 fn fixture() -> Event {
@@ -69,10 +71,17 @@ fn a_new_export_replaces_the_old_one_and_an_older_one_is_ignored() {
     store
         .save_received_package(&package(&event, "a1", ShareLevel::Legs, 0))
         .unwrap();
-    // El mismo otra vez: sustituye, sin duplicar.
+    // El mismo otra vez: no cambia nada.
     assert_eq!(
         store
             .save_received_package(&package(&event, "a1", ShareLevel::Legs, 0))
+            .unwrap(),
+        SaveOutcome::Unchanged
+    );
+    // Igual de reciente pero distinto: sustituye, sin duplicar.
+    assert_eq!(
+        store
+            .save_received_package(&package(&event, "a1", ShareLevel::Aggregates, 0))
             .unwrap(),
         SaveOutcome::Replaced
     );
@@ -94,6 +103,7 @@ fn a_new_export_replaces_the_old_one_and_an_older_one_is_ignored() {
         .save_received_package(&package(&event, "b2", ShareLevel::Legs, 0))
         .unwrap();
 
+    assert_eq!(store.received_package_counts().unwrap(), (2, 2));
     let received = store.received_packages().unwrap();
     let rows: Vec<_> = received
         .iter()
@@ -116,4 +126,25 @@ fn the_runner_id_is_generated_once() {
     // Otra base, otro identificador.
     let mut other = Store::open_in_memory().unwrap();
     assert_ne!(other.package_runner_id().unwrap(), id);
+}
+
+#[test]
+fn the_sharing_choice_is_kept_per_result() {
+    let mut store = Store::open_in_memory().unwrap();
+    let saved = store.save_event(&fixture(), None).unwrap();
+    let (mine, other) = (saved.results[9][15], saved.results[9][14]);
+    assert_eq!(store.result_sharing(mine).unwrap(), None);
+    for choice in [
+        ShareChoice::Nothing,
+        ShareChoice::Aggregates,
+        ShareChoice::Legs,
+        ShareChoice::Track,
+    ] {
+        store.set_result_sharing(mine, Some(choice)).unwrap();
+        assert_eq!(store.result_sharing(mine).unwrap(), Some(choice));
+    }
+    assert_eq!(store.result_sharing(other).unwrap(), None);
+    // Sin elección vuelve al ajuste por defecto.
+    store.set_result_sharing(mine, None).unwrap();
+    assert_eq!(store.result_sharing(mine).unwrap(), None);
 }

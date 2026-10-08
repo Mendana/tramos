@@ -34,6 +34,48 @@ pub enum ShareLevel {
     Track,
 }
 
+/// Qué decide compartir el corredor de una carrera: nada (no se exporta) o un nivel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareChoice {
+    /// No se comparte: no hay paquete.
+    #[serde(rename = "none")]
+    Nothing,
+    Aggregates,
+    Legs,
+    Track,
+}
+
+impl ShareChoice {
+    /// Todas, de menos a más.
+    pub const ALL: [Self; 4] = [Self::Nothing, Self::Aggregates, Self::Legs, Self::Track];
+
+    /// El nombre con el que se serializa (`none`, `aggregates`, `legs`, `track`).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Nothing => "none",
+            Self::Aggregates => "aggregates",
+            Self::Legs => "legs",
+            Self::Track => "track",
+        }
+    }
+
+    /// La elección con ese nombre ([`ShareChoice::key`]).
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|c| c.key() == key)
+    }
+
+    /// El nivel del paquete; `None` si no se comparte.
+    pub fn level(self) -> Option<ShareLevel> {
+        match self {
+            Self::Nothing => None,
+            Self::Aggregates => Some(ShareLevel::Aggregates),
+            Self::Legs => Some(ShareLevel::Legs),
+            Self::Track => Some(ShareLevel::Track),
+        }
+    }
+}
+
 /// La carrera del paquete.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PackageRace {
@@ -163,6 +205,11 @@ pub fn race_id(event: &Event) -> String {
         hasher.update(class.as_bytes());
     }
     hex(&hasher.finalize()[..16])
+}
+
+/// Nombre del fichero de un paquete: el mismo para el mismo corredor y la misma carrera.
+pub fn package_file_name(race_id: &str, runner_id: &str) -> String {
+    format!("tramos-{race_id}-{runner_id}.json")
 }
 
 /// Bytes en hexadecimal, en minúsculas.
@@ -307,12 +354,9 @@ impl RacePackage {
         serde_json::to_string_pretty(self).map_err(|e| PackageError::Json(e.to_string()))
     }
 
-    /// Nombre del fichero: el mismo para el mismo corredor y la misma carrera.
+    /// Nombre del fichero ([`package_file_name`]).
     pub fn file_name(&self) -> String {
-        format!(
-            "tramos-{}-{}.json",
-            self.race.race_id, self.runner.runner_id
-        )
+        package_file_name(&self.race.race_id, &self.runner.runner_id)
     }
 
     fn check(&self) -> Result<(), PackageError> {
@@ -541,5 +585,39 @@ mod tests {
             RacePackage::parse(&value.to_string()),
             Err(PackageError::ResultOutOfRange)
         );
+    }
+
+    #[test]
+    fn share_choice_reads_none_and_the_levels() {
+        let choices: Vec<ShareChoice> =
+            serde_json::from_str(r#"["none","aggregates","legs","track"]"#).unwrap();
+        assert_eq!(
+            choices.iter().map(|c| c.level()).collect::<Vec<_>>(),
+            vec![
+                None,
+                Some(ShareLevel::Aggregates),
+                Some(ShareLevel::Legs),
+                Some(ShareLevel::Track)
+            ]
+        );
+        for choice in ShareChoice::ALL {
+            assert_eq!(
+                serde_json::to_string(&choice).unwrap(),
+                format!("\"{}\"", choice.key())
+            );
+            assert_eq!(ShareChoice::from_key(choice.key()), Some(choice));
+        }
+        assert_eq!(ShareChoice::from_key("todo"), None);
+    }
+
+    #[test]
+    fn the_file_name_only_depends_on_race_and_runner() {
+        let event = fixture();
+        let package = build(input(&event, ShareLevel::Legs)).unwrap();
+        assert_eq!(
+            package.file_name(),
+            package_file_name(&race_id(&event), &package.runner.runner_id)
+        );
+        assert_eq!(package_file_name("r", "c"), "tramos-r-c.json");
     }
 }

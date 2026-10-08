@@ -1,13 +1,13 @@
-//! Paquetes por carrera (`docs/paquete.md`): el identificador del corredor que exporta y los
-//! paquetes recibidos de otros corredores.
+//! Paquetes por carrera (`docs/paquete.md`): el identificador del corredor que exporta, qué
+//! comparte de cada resultado y los paquetes recibidos de otros corredores.
 
 use chrono::{DateTime, Utc};
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
-use tramos_core::package::{RacePackage, ShareLevel, hex};
+use tramos_core::package::{RacePackage, ShareChoice, ShareLevel, hex};
 
 use crate::convert::ms_to_instant;
-use crate::{Store, StoreError};
+use crate::{ResultId, Store, StoreError};
 
 /// Ajuste con el `runner_id` de esta base de datos.
 const RUNNER_ID_KEY: &str = "package_runner_id";
@@ -32,6 +32,8 @@ pub enum SaveOutcome {
     Created,
     /// Sustituye al que había, que era igual de reciente o más antiguo.
     Replaced,
+    /// Era idéntico al que había: no cambia nada.
+    Unchanged,
     /// Ya había uno más reciente: no se ha guardado.
     IgnoredOlder,
 }
@@ -49,9 +51,43 @@ impl Store {
         Ok(id)
     }
 
+    /// Qué decidió compartir el corredor del resultado; `None` si no decidió nada (vale el
+    /// ajuste por defecto).
+    pub fn result_sharing(&self, result: ResultId) -> Result<Option<ShareChoice>, StoreError> {
+        let choice: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT choice FROM result_sharing WHERE result_id = ?1",
+                [result.0],
+                |row| row.get(0),
+            )
+            .optional()?;
+        choice.as_deref().map(sql_to_choice).transpose()
+    }
+
+    /// Guarda qué comparte el corredor del resultado; `None` vuelve al ajuste por defecto.
+    pub fn set_result_sharing(
+        &mut self,
+        result: ResultId,
+        choice: Option<ShareChoice>,
+    ) -> Result<(), StoreError> {
+        match choice {
+            Some(choice) => self.conn.execute(
+                "INSERT INTO result_sharing (result_id, choice) VALUES (?1, ?2) \
+                 ON CONFLICT (result_id) DO UPDATE SET choice = excluded.choice",
+                params![result.0, choice.key()],
+            )?,
+            None => self.conn.execute(
+                "DELETE FROM result_sharing WHERE result_id = ?1",
+                [result.0],
+            )?,
+        };
+        Ok(())
+    }
+
     /// Guarda un paquete recibido. Como mucho hay uno por (`runner_id`, `race_id`): uno igual de
     /// reciente o más (`exported_at`) sustituye al que había, también si baja de nivel; uno más
-    /// antiguo se ignora.
+    /// antiguo se ignora y uno idéntico no cambia nada.
     pub fn save_received_package(
         &mut self,
         package: &RacePackage,
@@ -61,16 +97,17 @@ impl Store {
             .map_err(|e| StoreError::InvalidData(e.to_string()))?;
         let exported_ms = package.exported_at.timestamp_millis();
         let tx = self.conn.transaction()?;
-        let existing: Option<i64> = tx
+        let existing: Option<(i64, String)> = tx
             .query_row(
-                "SELECT exported_at_epoch_ms FROM received_packages \
+                "SELECT exported_at_epoch_ms, content FROM received_packages \
                  WHERE runner_id = ?1 AND race_id = ?2",
                 params![package.runner.runner_id, package.race.race_id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
         let outcome = match existing {
-            Some(previous) if previous > exported_ms => return Ok(SaveOutcome::IgnoredOlder),
+            Some((previous, _)) if previous > exported_ms => return Ok(SaveOutcome::IgnoredOlder),
+            Some((_, previous)) if previous == content => return Ok(SaveOutcome::Unchanged),
             Some(_) => SaveOutcome::Replaced,
             None => SaveOutcome::Created,
         };
@@ -94,6 +131,17 @@ impl Store {
         )?;
         tx.commit()?;
         Ok(outcome)
+    }
+
+    /// Cuántos paquetes recibidos hay y de cuántos corredores, sin leerlos.
+    pub fn received_package_counts(&self) -> Result<(usize, usize), StoreError> {
+        let (packages, runners): (i64, i64) = self.conn.query_row(
+            "SELECT COUNT(*), COUNT(DISTINCT runner_id) FROM received_packages",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let count = |n: i64| usize::try_from(n).unwrap_or_default();
+        Ok((count(packages), count(runners)))
     }
 
     /// Paquetes recibidos, por corredor y carrera.
@@ -142,6 +190,12 @@ fn level_to_sql(level: ShareLevel) -> &'static str {
         ShareLevel::Legs => "legs",
         ShareLevel::Track => "track",
     }
+}
+
+fn sql_to_choice(text: &str) -> Result<ShareChoice, StoreError> {
+    ShareChoice::from_key(text).ok_or_else(|| {
+        StoreError::InvalidData(format!("elección de compartir desconocida: {text}"))
+    })
 }
 
 fn sql_to_level(text: &str) -> Result<ShareLevel, StoreError> {

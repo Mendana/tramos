@@ -3,13 +3,18 @@ import {
   FORMAT_LABELS,
   LegReport,
   RaceDetail,
+  RaceSharing,
+  SHARE_LABELS,
+  ShareChoice,
   clock,
   codeLabel,
   decimal,
   spread,
   raceDetail,
+  raceSharing,
   RaceFormat,
   setRaceFormat,
+  setRaceSharing,
   signed,
   statusLabel,
 } from "./api";
@@ -90,6 +95,7 @@ function Detail({
     if (editing !== leg) setSelectedLeg(leg);
     setEditing((e) => (e === leg ? null : leg));
   };
+  const sharing = useRaceSharing(detail.result_id);
   const lost = detail.report.lost_time;
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
@@ -109,8 +115,27 @@ function Detail({
             </span>
           </>
         }
-        actions={<FormatPicker format={detail.format} onChange={onFormatChange} />}
+        actions={
+          <>
+            {sharing.view?.available && (
+              <SharingPicker view={sharing.view} onChange={sharing.change} />
+            )}
+            <FormatPicker format={detail.format} onChange={onFormatChange} />
+          </>
+        }
       />
+
+      {sharing.error !== null && <Notice kind="error">{sharing.error}</Notice>}
+      {sharing.view?.available && sharing.view.problem !== null && (
+        <Notice kind="warning">
+          No se ha podido dejar en la carpeta compartida: {sharing.view.problem}
+        </Notice>
+      )}
+      {sharing.view?.available &&
+        (sharing.view.choice ?? sharing.view.default_choice) === "track" &&
+        sharing.view.shared === "legs" && (
+          <Notice>Esta carrera no tiene track: se comparten los tramos.</Notice>
+        )}
 
       <div className="stats">
         <Stat label="Tiempo" value={clock(lost.total_s)} />
@@ -229,6 +254,50 @@ function Detail({
 }
 
 /** Formato de la carrera, que se puede corregir después de importarla (cuenta en el histórico). */
+/** Qué se comparte de la carrera con la entrenadora; pedirlo también la exporta si hace falta. */
+function useRaceSharing(resultId: number) {
+  const [view, setView] = useState<RaceSharing | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    raceSharing(resultId)
+      .then(setView)
+      .catch((err: unknown) => setError(String(err)));
+  }, [resultId]);
+  const change = (choice: ShareChoice | null) => {
+    setError(null);
+    setRaceSharing(resultId, choice)
+      .then(setView)
+      .catch((err: unknown) => setError(String(err)));
+  };
+  return { view, error, change };
+}
+
+function SharingPicker({
+  view,
+  onChange,
+}: {
+  view: RaceSharing;
+  onChange: (choice: ShareChoice | null) => void;
+}) {
+  return (
+    <label className="field format-picker">
+      <span className="field-label">Compartir</span>
+      <select
+        className="select"
+        value={view.choice ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? null : (e.target.value as ShareChoice))}
+      >
+        <option value="">Por defecto ({SHARE_LABELS[view.default_choice].toLowerCase()})</option>
+        {(Object.keys(SHARE_LABELS) as ShareChoice[]).map((choice) => (
+          <option key={choice} value={choice}>
+            {SHARE_LABELS[choice]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function FormatPicker({
   format,
   onChange,

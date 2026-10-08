@@ -1,6 +1,6 @@
 //! Paquete por carrera (`docs/paquete.md`): exportar una carrera del usuario a un fichero e
 //! importar el de otro corredor. El formato es el de `tramos_core::package`; aquí se reúne lo que
-//! lleva desde la base de datos. Elegir la carpeta compartida y exportar solo es #36.
+//! lleva desde la base de datos. La carpeta compartida está en `sharing.rs`.
 
 use std::path::{Path, PathBuf};
 
@@ -31,6 +31,16 @@ pub enum PackageAppError {
     },
     #[error("no se pudo leer el paquete {path}: {source}")]
     Read {
+        path: String,
+        source: std::io::Error,
+    },
+    #[error("no se pudo borrar el paquete {path}: {source}")]
+    Remove {
+        path: String,
+        source: std::io::Error,
+    },
+    #[error("no se pudo leer la carpeta compartida {path}: {source}")]
+    Folder {
         path: String,
         source: std::io::Error,
     },
@@ -105,13 +115,45 @@ pub fn export_package(
     folder: &str,
 ) -> Result<String, PackageAppError> {
     let package = race_package(store, result_id, level)?;
+    write_package(folder, &package)?;
+    Ok(package_path(folder, &package.file_name()))
+}
+
+/// Ruta del paquete `file_name` en la carpeta, como texto.
+pub fn package_path(folder: &str, file_name: &str) -> String {
+    Path::new(folder)
+        .join(file_name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Escribe el paquete en la carpeta con su nombre, salvo que ya esté igual sin contar el
+/// instante de exportación: así no cambia el fichero (ni lo vuelve a subir la sincronización)
+/// si no ha cambiado nada. Escribe antes un temporal oculto y lo renombra, para que quien lea
+/// la carpeta nunca encuentre el paquete a medias. Devuelve si lo ha escrito.
+pub fn write_package(folder: &str, package: &RacePackage) -> Result<bool, PackageAppError> {
     let path: PathBuf = Path::new(folder).join(package.file_name());
-    let text = path.to_string_lossy().into_owned();
-    std::fs::write(&path, package.to_json()?).map_err(|source| PackageAppError::Write {
-        path: text.clone(),
+    let same = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| RacePackage::parse(&text).ok())
+        .is_some_and(|mut old| {
+            old.exported_at = package.exported_at;
+            old == *package
+        });
+    if same {
+        return Ok(false);
+    }
+    let temporary = Path::new(folder).join(format!(".{}.tmp", package.file_name()));
+    let write_error = |source| PackageAppError::Write {
+        path: path.to_string_lossy().into_owned(),
         source,
+    };
+    std::fs::write(&temporary, package.to_json()?).map_err(write_error)?;
+    std::fs::rename(&temporary, &path).map_err(|source| {
+        let _ = std::fs::remove_file(&temporary);
+        write_error(source)
     })?;
-    Ok(text)
+    Ok(true)
 }
 
 /// Importa un paquete de otro corredor. Reimportar no duplica: sustituye o se ignora si es más

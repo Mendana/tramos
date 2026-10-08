@@ -17,6 +17,11 @@
   recorrido (solo las categorías del corredor) sin nombres, clubes, dorsales, tarjetas ni sexo de
   nadie, tampoco del propio corredor, que va con el nombre visible que escribió en la app y un
   identificador al azar.
+- Los paquetes viajan por una **carpeta compartida** (Drive, OneDrive, Dropbox…, #36,
+  `docs/paquete.md`): cualquiera con acceso a esa carpeta puede leerlos, y el proveedor de la
+  sincronización los guarda en sus servidores. Lo más privado es que cada corredor comparta con
+  la entrenadora su propia carpeta. Al dejar de compartir una carrera se borra su fichero de la
+  carpeta, pero lo que la entrenadora ya hubiera importado sigue en su app.
 - La entrenadora solo lee; los datos de un corredor solo cambian desde su propia app.
 - Cuando llegue el LLM, a proveedores externos solo se envían agregados anónimos.
 - La ventana de la app tiene una CSP restrictiva (`app/src-tauri/tauri.conf.json`), porque va a

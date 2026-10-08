@@ -727,6 +727,51 @@
 .chevron {
   color: var(--text-faint);
   text-align: right;
+  white-space: nowrap;
+}
+
+.row-flag {
+  display: inline-flex;
+  margin-right: var(--space-2);
+  color: var(--error);
+  vertical-align: middle;
+}
+
+/* --- Lista con búsqueda, filtros y páginas (Mis carreras) --- */
+
+.list-toolbar {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.list-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.check input {
+  accent-color: var(--accent);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
 }
 
 /* --- Zona para soltar ficheros --- */

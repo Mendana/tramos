@@ -100,7 +100,7 @@ function BatchImportPanel({
         <h3 className="section-title">2 · Quién eres</h3>
         {identity !== null && who === null && (
           <Notice kind="warning">
-            Para importar una carpeta, escribe antes en Ajustes tu tarjeta SI o tu nombre: con
+            Para importar una carpeta, escribe antes en Mi perfil tu tarjeta SI o tu nombre: con
             ellos te busco en cada carrera.
           </Notice>
         )}
@@ -120,7 +120,7 @@ function BatchImportPanel({
             {busy ? "Importando…" : "Importar la carpeta"}
           </button>
           <button type="button" className="btn btn-ghost" onClick={onSettings} disabled={busy}>
-            Cambiar en Ajustes
+            Cambiar en Mi perfil
           </button>
         </div>
         {busy && (
@@ -288,9 +288,7 @@ function Summary({ summary, onOpen }: { summary: BatchSummary; onOpen: (id: numb
                   <span className="strong" title={race.spl_path}>
                     {raceTitle(race)}
                   </span>{" "}
-                  {race.event_date !== null && (
-                    <span className="muted num">{race.event_date}</span>
-                  )}{" "}
+                  {race.event_date !== null && <span className="muted num">{race.event_date}</span>}{" "}
                   {race.status === "not_imported" && (
                     <span className="pill pill-error">No importada</span>
                   )}

@@ -33,6 +33,33 @@ export function ControlFlag({ size = 22 }: IconProps) {
   );
 }
 
+export function HomeIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" />
+    </Svg>
+  );
+}
+
+export function UserIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </Svg>
+  );
+}
+
+/** Etiqueta: errores por revisar. */
+export function TagIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 12V5a1 1 0 0 1 1-1h7l8 8-8 8z" />
+      <circle cx="8.5" cy="8.5" r="1.3" />
+    </Svg>
+  );
+}
+
 export function ListIcon(props: IconProps) {
   return (
     <Svg {...props}>

@@ -70,7 +70,7 @@ function HistoryScreen({
   return (
     <>
       <PageHeader
-        title="Histórico"
+        title="Estadísticas"
         subtitle={
           view === null
             ? "Cargando…"

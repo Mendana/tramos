@@ -23,7 +23,7 @@ import { ClockOffset } from "./ClockOffset";
 import { GroupComparison } from "./GroupComparison";
 import { LegTagsState, TagControls, TagEditor, TagSummary, typeLabel, useLegTags } from "./LegTags";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
-import { ChevronLeft, Notice, PageHeader, Stat } from "./ui";
+import { Notice, PageHeader, Stat } from "./ui";
 import { useViewer } from "./viewer";
 
 // MapLibre pesa: se carga solo al abrir una carrera.
@@ -32,17 +32,14 @@ const MapView = lazy(() => import("./MapView"));
 /** Una carrera: totales y tabla de tramos (P1, `docs/app.md`). */
 function RaceView({
   resultId,
-  onBack,
   onChanged,
 }: {
   resultId: number;
-  onBack: () => void;
   /** La carrera ha cambiado (p. ej. su formato): la lista tiene que volver a cargarse. */
   onChanged: () => void;
 }) {
   const [detail, setDetail] = useState<RaceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const viewer = useViewer();
 
   useEffect(() => {
     setDetail(null);
@@ -54,10 +51,6 @@ function RaceView({
 
   return (
     <>
-      <button type="button" className="btn btn-ghost back" onClick={onBack}>
-        <ChevronLeft size={16} />{" "}
-        {viewer.runnerName === null ? "Tus carreras" : `Carreras de ${viewer.runnerName}`}
-      </button>
       {error !== null && <Notice kind="error">{error}</Notice>}
       {detail === null ? (
         error === null && <p className="muted">Cargando…</p>
@@ -73,6 +66,7 @@ function RaceView({
               })
               .catch((err: unknown) => setError(String(err)));
           }}
+          onTagged={onChanged}
         />
       )}
     </>
@@ -82,14 +76,17 @@ function RaceView({
 function Detail({
   detail,
   onFormatChange,
+  onTagged,
 }: {
   detail: RaceDetail;
   onFormatChange: (format: RaceFormat | null) => void;
+  /** Se ha guardado una etiqueta: cambia el número de errores sin revisar. */
+  onTagged: () => void;
 }) {
   // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
-  const tagging = useLegTags(detail.result_id);
+  const tagging = useLegTags(detail.result_id, onTagged);
   // Sube cada vez que cambia el desfase del reloj: el mapa y P2 lo vuelven a pedir.
   const [trackRevision, setTrackRevision] = useState(0);
   // Tramo con el formulario de etiqueta abierto; al abrirlo se selecciona en el mapa.
@@ -105,7 +102,9 @@ function Detail({
   const name = `${detail.given_name} ${detail.family_name}`.trim();
   const shared = course.classes.length > 1 ? course.classes.map((c) => c.name).join(", ") : null;
   const proposed = lost.legs.filter((leg) => leg.is_error);
-  const confirmed = proposed.filter((leg) => tagging.tags.get(leg.index)?.tag.confirmation != null).length;
+  const confirmed = proposed.filter(
+    (leg) => tagging.tags.get(leg.index)?.tag.confirmation != null,
+  ).length;
   return (
     <>
       <PageHeader
@@ -152,7 +151,11 @@ function Detail({
           tone={lost.error_count > 0 ? "error" : undefined}
         />
         <Stat label="Sin errores" value={clock(lost.time_without_errors_s)} />
-        <Stat label="Errores" value={lost.error_count} tone={lost.error_count > 0 ? "error" : undefined} />
+        <Stat
+          label="Errores"
+          value={lost.error_count}
+          tone={lost.error_count > 0 ? "error" : undefined}
+        />
         <Stat
           label="Rendimiento"
           value={
@@ -245,7 +248,11 @@ function Detail({
                   {editing === leg.index && (
                     <tr className="tag-editor-row">
                       <td colSpan={9}>
-                        <TagEditor leg={leg.index} state={tagging} onClose={() => setEditing(null)} />
+                        <TagEditor
+                          leg={leg.index}
+                          state={tagging}
+                          onClose={() => setEditing(null)}
+                        />
                       </td>
                     </tr>
                   )}
@@ -255,7 +262,6 @@ function Detail({
           </table>
         </div>
       </div>
-
     </>
   );
 }
@@ -351,7 +357,13 @@ function LegRow({
   const tag = tagging.tags.get(leg.index)?.tag ?? null;
   const type = tag === null ? null : typeLabel(tagging.taxonomy, tag);
   const lossClass =
-    leg.loss_s === null ? undefined : leg.is_error ? "loss-bad" : leg.loss_s < 0 ? "loss-good" : undefined;
+    leg.loss_s === null
+      ? undefined
+      : leg.is_error
+        ? "loss-bad"
+        : leg.loss_s < 0
+          ? "loss-good"
+          : undefined;
   return (
     <tr
       className={`clickable${leg.is_error ? " is-error" : ""}${selected ? " is-selected" : ""}`}

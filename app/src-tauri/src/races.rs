@@ -3,8 +3,8 @@
 //! El tiempo perdido no se guarda: se calcula al pedirlo con [`runner_report`], la misma función
 //! que usa `tramos analizar`, a partir de la carrera guardada (`docs/app.md`).
 
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;
 use serde::Serialize;
@@ -14,7 +14,7 @@ use tramos_core::loss_breakdown::{RaceBreakdown, race_breakdown as breakdown};
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
-use tramos_core::runner_report::{RunnerReport, runner_report};
+use tramos_core::runner_report::{RunnerLostTime, RunnerReport, runner_report};
 use tramos_store::{EventId, ResultId, Store, StoreError};
 
 use crate::import::stored_self_person;
@@ -49,6 +49,10 @@ pub struct RaceRow {
     /// Tiempo perdido en los tramos con error.
     pub lost_time_s: Option<f64>,
     pub error_count: usize,
+    /// Tramos con error sin confirmar todavía (sin respuesta Sí, No o Físico en su etiqueta).
+    pub unreviewed_count: usize,
+    /// Rendimiento habitual de la carrera (1.0 = 100 %).
+    pub usual_performance: Option<f64>,
 }
 
 /// Una carrera del usuario con su tabla de tramos.
@@ -88,6 +92,10 @@ pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, RaceError> {
             Entry::Vacant(entry) => entry.insert(store.load_event(event_id)?),
         };
         let lost = runner_report(event, at, &config).map(|report| report.lost_time);
+        let unreviewed_count = match &lost {
+            Some(lost) => unreviewed(store, r.result, lost)?,
+            None => 0,
+        };
         rows.push(RaceRow {
             event_id: r.event.0,
             result_id: r.result.0,
@@ -101,10 +109,28 @@ pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, RaceError> {
             total_s: lost.as_ref().and_then(|l| l.total_s),
             lost_time_s: lost.as_ref().and_then(|l| l.lost_time_s),
             error_count: lost.as_ref().map_or(0, |l| l.error_count),
+            unreviewed_count,
+            usual_performance: lost.as_ref().and_then(|l| l.usual_performance),
         });
     }
     rows.reverse();
     Ok(rows)
+}
+
+/// Tramos con error de un resultado cuya etiqueta aún no dice si lo fue (nivel 1 de
+/// `docs/taxonomia.md`), como el contador «n de m propuestos revisados» de la vista de carrera.
+fn unreviewed(store: &Store, result: ResultId, lost: &RunnerLostTime) -> Result<usize, RaceError> {
+    let confirmed: HashSet<usize> = store
+        .tags(result)?
+        .into_iter()
+        .filter(|t| t.tag.confirmation.is_some())
+        .map(|t| t.leg_index)
+        .collect();
+    Ok(lost
+        .legs
+        .iter()
+        .filter(|leg| leg.is_error && !confirmed.contains(&leg.index))
+        .count())
 }
 
 /// Una carrera con la tabla de tramos del resultado `result_id`.
@@ -243,6 +269,56 @@ pub(crate) mod tests {
         assert_eq!(row.lost_time_s, detail.report.lost_time.lost_time_s);
         assert_eq!(row.error_count, detail.report.lost_time.error_count);
         assert!(row.total_s.is_some() && row.lost_time_s.is_some());
+    }
+
+    /// Los errores sin revisar son los tramos con error cuya etiqueta no dice si lo fue: el
+    /// tipo sin confirmación no cuenta y una etiqueta en un tramo sin error no cambia nada.
+    #[test]
+    fn list_counts_unreviewed_errors() {
+        use crate::tags::save_leg_tag;
+        use tramos_core::taxonomy::{Confirmation, LegTag};
+
+        let (mut store, result_id) = imported();
+        let legs = race_detail(&store, result_id)
+            .unwrap()
+            .report
+            .lost_time
+            .legs;
+        let errors: Vec<usize> = legs
+            .iter()
+            .filter(|l| l.is_error)
+            .map(|l| l.index)
+            .collect();
+        let clean = legs.iter().find(|l| !l.is_error).unwrap().index;
+        assert!(errors.len() >= 2);
+        let unreviewed = |store: &Store| list_races(store).unwrap()[0].unreviewed_count;
+        assert_eq!(unreviewed(&store), errors.len());
+
+        let confirm = |c| LegTag {
+            confirmation: Some(c),
+            ..LegTag::default()
+        };
+        save_leg_tag(
+            &mut store,
+            result_id,
+            errors[0],
+            confirm(Confirmation::NoError),
+        )
+        .unwrap();
+        save_leg_tag(&mut store, result_id, clean, confirm(Confirmation::Error)).unwrap();
+        let typed_only = LegTag {
+            error_type: Some("attack".to_string()),
+            ..LegTag::default()
+        };
+        save_leg_tag(&mut store, result_id, errors[1], typed_only).unwrap();
+        assert_eq!(unreviewed(&store), errors.len() - 1);
+
+        let row = &list_races(&store).unwrap()[0];
+        let detail = race_detail(&store, result_id).unwrap();
+        assert_eq!(
+            row.usual_performance,
+            detail.report.lost_time.usual_performance
+        );
     }
 
     /// Criterio de aceptación de #17: cambiar el umbral cambia los tramos marcados como error.

@@ -43,8 +43,11 @@ export interface LegTagsState {
   save: (leg: number, tag: LegTag) => Promise<boolean>;
 }
 
-/** Taxonomía y etiquetas de un resultado, con la función para guardar una. */
-export function useLegTags(resultId: number): LegTagsState {
+/**
+ * Taxonomía y etiquetas de un resultado, con la función para guardar una. `onSaved` avisa tras
+ * cada guardado (p. ej. para el contador de errores sin revisar de la barra lateral).
+ */
+export function useLegTags(resultId: number, onSaved?: () => void): LegTagsState {
   const [taxonomy, setTaxonomy] = useState<Taxonomy | null>(null);
   const [tags, setTags] = useState<Map<number, TagView>>(new Map());
   const [saving, setSaving] = useState<number | null>(null);
@@ -79,6 +82,7 @@ export function useLegTags(resultId: number): LegTagsState {
         else next.set(leg, saved);
         return next;
       });
+      onSaved?.();
       return true;
     } catch (err: unknown) {
       setError(String(err));

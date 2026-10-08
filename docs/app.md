@@ -32,7 +32,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
-| `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido. |
+| `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos tramos con error quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
@@ -109,7 +109,7 @@ importar una carrera: no calcula nada por su cuenta.
    (por la extensión, sin distinguir mayúsculas) en ella y en sus subcarpetas, sin las ocultas
    (las que empiezan por `.`) ni seguir enlaces a carpetas. El resto de ficheros se ignora.
 2. **Identidad**: la de los ajustes (tarjeta SI y nombre). Sin ninguna de las dos (o con un
-   nombre que se queda vacío al normalizar) no se importa nada y se pide rellenarla en Ajustes.
+   nombre que se queda vacío al normalizar) no se importa nada y se pide rellenarla en Mi perfil.
 3. **Cada .spl** se lee con la zona horaria de los ajustes y se busca al corredor
    (`docs/identificacion.md`). **Solo se importa si sale un único resultado que casa** (por
    tarjeta y nombre, o por lo que haya configurado). Si casa por tarjeta pero no por nombre, si
@@ -170,7 +170,15 @@ arriba (importadas, con reloj, sin pareja y con avisos):
 
 ## Ajustes
 
-Pantalla **Ajustes** (botón de la cabecera). Se guardan en la tabla `settings` de la base:
+Dos pantallas de la barra lateral guardan el mismo formulario (`SettingsView.tsx`, #127):
+
+- **Mi perfil** (solo corredor): quién eres (nombre y apellidos, tarjeta SI) y qué compartes
+  (carpeta compartida y qué se comparte por defecto de cada carrera).
+- **Ajustes**: tramo con error (umbrales), hora de las carreras (zona horaria), colores del mapa
+  y uso de la app (corredor o entrenadora), con un índice a la izquierda que salta a cada
+  apartado. En modo entrenadora solo queda el uso de la app con la carpeta compartida.
+
+Se guardan en la tabla `settings` de la base:
 
 | Clave | Valor | Por defecto | Efecto |
 | --- | --- | --- | --- |
@@ -250,8 +258,28 @@ La entrenadora ve todo lo de cada corredor como si fuera él, sin poder modifica
   lateral, el formato como etiqueta en vez de desplegable, sin selector de qué se comparte, el
   desfase del reloj sin campos ni botones y las etiquetas de los tramos como texto (si fue error,
   el contexto y la nota) en vez de botones y lápiz. Además, el núcleo rechaza cualquier cambio
-  (arriba, "Comandos"). En Ajustes solo quedan el modo y la carpeta: los umbrales, la zona
-  horaria y la identidad son de corredor.
+  (arriba, "Comandos"). En Ajustes solo quedan el modo y la carpeta y no hay Mi perfil: los
+  umbrales, la zona horaria y la identidad son de corredor.
+
+## Inicio
+
+Primera pantalla del corredor (`Home.tsx`, #127): qué hay nuevo y qué queda por hacer. Los
+análisis van en Estadísticas.
+
+- **Saludo** con el nombre de pila de Mi perfil.
+- **Tu última carrera**: nombre, fecha, categoría, formato, tiempo con el resultado, tiempo
+  perdido con los errores y rendimiento habitual, con «Tu media» (el IR medio del histórico sin
+  filtros) debajo. «Ver carrera» la abre y, si tiene errores sin revisar, «Revisar n errores»
+  también. Con track, a la derecha, una miniatura del recorrido (`TrackThumb.tsx`): el track y
+  las balizas de `race_map` dibujados en SVG, sin teselas.
+- **Pendiente**: las carreras con errores sin revisar (`unreviewed_count`, las 5 más recientes y
+  cuántas más hay), con «Revisar», y cuántas carreras no tienen el FIT del reloj, con «Importar»
+  (reimportar una carrera con su FIT le añade el track). Sin nada pendiente, lo dice.
+- **Tu rendimiento**: línea con el rendimiento habitual de las 10 últimas carreras, de la más
+  antigua a la más reciente, y un enlace a Estadísticas.
+- Sin carreras, invita a importar la primera.
+
+La entrenadora no tiene Inicio: empieza en las carreras del corredor que ve.
 
 ## Lista de carreras
 
@@ -428,7 +456,7 @@ y la tabla el recorrido (`docs/segmentacion.md`).
 
 ## Vista histórica (P6)
 
-Pantalla **Histórico** de la barra lateral (`HistoryScreen.tsx`): todas las carreras del usuario
+Pantalla **Estadísticas** de la barra lateral (`HistoryScreen.tsx`): todas las carreras del usuario
 agregadas por formato. Las definiciones (qué carreras y tramos cuentan, IR medio, tasa de error,
 pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
 
@@ -538,11 +566,20 @@ sistema.
   tablas (números tabulares a la derecha, filas clicables, tramos con error resaltados), zona para
   soltar ficheros, lista de opciones, control segmentado, secciones de formulario y estado vacío.
   Los iconos son SVG en línea en `ui.tsx`; el de la app es una baliza.
-- **Estructura**: barra lateral con Carreras, Histórico, Importar (Grupo en vez de Importar en modo
-  entrenadora) y Ajustes y, al pie, la versión
+- **Estructura** (#127, boceto en `docs/bocetos/navegacion.html`): barra lateral oscura en los
+  dos modos (`--side-*`) con bloques:
+  - corredor: Inicio; «Lo mío», con Mis carreras (y un contador de errores sin revisar),
+    Estadísticas e Importar; «Cuenta», con Mi perfil y Ajustes;
+  - entrenadora: «Corredor», con el selector y sus Carreras y Estadísticas; «Todos», con
+    Grupo; «Cuenta», con Ajustes.
+
+  Encima del contenido, una cabecera fija con el botón de volver (a la pantalla anterior, hasta
+  30) y las migas de pan («Mis carreras / Nombre de la carrera»; en modo entrenadora, con el
+  nombre del corredor delante). Al pie de la barra lateral, la versión
   del núcleo; en modo entrenadora con carpeta compartida, también cuántos paquetes y de cuántos
   corredores ha recibido (y cuántos ficheros no ha podido leer). El contenido, centrado hasta
-  1080 px. Por debajo de 860 px de ancho la barra lateral pasa arriba. La ventana abre a
+  1160 px. Por debajo de 860 px de ancho la barra lateral pasa arriba, sin los títulos de los
+  bloques. La ventana abre a
   1180 × 780 (mínimo 760 × 520).
 
 ## Gráficas

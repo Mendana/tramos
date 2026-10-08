@@ -1,6 +1,7 @@
 // Tipos y llamada del comando `race_map` (`src-tauri/src/race_map.rs`, `docs/app.md`, "Mapa").
 // Todo viene calculado de Rust: la interfaz solo dibuja.
 import { invoke } from "@tauri-apps/api/core";
+import type { Zones } from "./api";
 
 /** `[longitud, latitud]`, como en GeoJSON. */
 export type Coordinate = [number, number];
@@ -26,9 +27,9 @@ export interface MapLeg {
 export interface TrackPiece {
   leg: number;
   coordinates: Coordinate[];
-  /** De 0 (más rápido) a 4 (más lento); `null` en un hueco del track. */
+  /** Clase o zona, de 0 (más rápido) a la última (más lento); `null` en un hueco del track. */
   pace_class: number | null;
-  /** De 0 (más bajo) a 4 (más alto); `null` sin pulso o en un hueco. */
+  /** Clase o zona, de 0 (más bajo) a la última (más alto); `null` sin pulso o en un hueco. */
   heart_rate_class: number | null;
 }
 
@@ -41,10 +42,10 @@ export interface MapControl {
   in_gap: boolean;
 }
 
-/** Límites de las clases, de menor a mayor (una más que clases). */
-export interface ColorScale {
-  edges: number[];
-}
+/** Escala del track: clases por cuantiles de la carrera o las zonas del usuario (#96). */
+export type ColorScale =
+  /** Cinco clases; `edges`: sus límites, de menor a mayor (uno más que clases). */
+  { kind: "quantiles"; edges: number[] } | ({ kind: "zones" } & Zones);
 
 export interface MapTrack {
   bounds: Bounds | null;

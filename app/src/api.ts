@@ -3,11 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type RaceFormat = "sprint" | "middle" | "long";
-export type RaceStatus =
-  | "ok"
-  | "not_classified"
-  | "did_not_start"
-  | { unknown: number };
+export type RaceStatus = "ok" | "not_classified" | "did_not_start" | { unknown: number };
 
 export interface RunnerIdentity {
   si_card: number | null;
@@ -403,7 +399,51 @@ export interface Settings {
   time_zone: string;
   identity: RunnerIdentity;
   sharing: SharingSettings;
+  map: MapSettings;
 }
+
+/** Zonas de color del mapa (#96, `src-tauri/src/zones.rs`), de menor a mayor valor. */
+export interface Zones {
+  /** Límites entre zonas, de menor a mayor (uno menos que colores). Un valor justo en un límite
+   *  va a la zona de arriba. */
+  limits: number[];
+  /** `#rrggbb`. */
+  colors: string[];
+}
+
+/** Colores del track: zonas propias o, con `null`, clases por cuantiles de cada carrera. */
+export interface MapSettings {
+  /** En s/km: la primera zona es la más rápida. */
+  pace_zones: Zones | null;
+  /** En ppm. */
+  heart_rate_zones: Zones | null;
+}
+
+/** Rango de la zona `k` («< 120», «120–140», «≥ 160»), con los límites escritos con `format`. */
+export function zoneLabel(limits: number[], k: number, format: (v: number) => string): string {
+  if (limits.length === 0) return "Todo";
+  if (k === 0) return `< ${format(limits[0])}`;
+  if (k >= limits.length) return `≥ ${format(limits[limits.length - 1])}`;
+  return `${format(limits[k - 1])}–${format(limits[k])}`;
+}
+
+/** Zonas como mucho (`MAX_ZONES` en `zones.rs`). */
+export const MAX_ZONES = 10;
+
+/** Colores que se proponen para cada zona, en orden: se ven sobre el mapa y se distinguen de
+ *  la zona de al lado (lo comprueba un test de `zones.rs`). */
+export const ZONE_COLORS = [
+  "#6b7280",
+  "#2563eb",
+  "#15803d",
+  "#d97706",
+  "#b91c1c",
+  "#7e22ce",
+  "#0e7490",
+  "#a16207",
+  "#be185d",
+  "#1e293b",
+];
 
 /** Quién usa la app: un corredor (exporta) o la entrenadora (recibe). */
 export type AppMode = "runner" | "coach";
@@ -463,8 +503,7 @@ export interface ReceiveReport {
   runners: number;
 }
 
-export const raceSharing = (resultId: number) =>
-  invoke<RaceSharing>("race_sharing", { resultId });
+export const raceSharing = (resultId: number) => invoke<RaceSharing>("race_sharing", { resultId });
 
 export const setRaceSharing = (resultId: number, choice: ShareChoice | null) =>
   invoke<RaceSharing>("set_race_sharing", { resultId, choice });
@@ -580,14 +619,13 @@ export const viewedRunner = () => invoke<RunnerViewInfo | null>("viewed_runner")
 
 export const getSettings = () => invoke<Settings>("get_settings");
 
-export const saveSettings = (settings: Settings) =>
-  invoke<void>("save_settings", { settings });
+export const saveSettings = (settings: Settings) => invoke<void>("save_settings", { settings });
 
-export const previewImport = (
-  splPath: string,
-  fitPath: string | null,
-  identity: RunnerIdentity,
-) => invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
+/** Por qué no se pueden guardar unas zonas o, si se puede, los avisos sobre sus colores. */
+export const checkZones = (zones: Zones) => invoke<string[]>("check_zones", { zones });
+
+export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
+  invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
 
 export const importRace = (request: ImportRequest) =>
   invoke<ImportOutcome>("import_race", { request });
@@ -597,8 +635,7 @@ export const importFolder = (folderPath: string) =>
 
 export const listRaces = () => invoke<RaceRow[]>("list_races");
 
-export const raceDetail = (resultId: number) =>
-  invoke<RaceDetail>("race_detail", { resultId });
+export const raceDetail = (resultId: number) => invoke<RaceDetail>("race_detail", { resultId });
 
 export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
   invoke<void>("set_race_format", { resultId, format });
@@ -746,8 +783,7 @@ export interface Fatigue {
 export const raceBreakdown = (resultId: number) =>
   invoke<RaceBreakdown | null>("race_breakdown", { resultId });
 
-export const getHistory = (filter: HistoryFilter) =>
-  invoke<HistoryView>("history", { filter });
+export const getHistory = (filter: HistoryFilter) => invoke<HistoryView>("history", { filter });
 
 // Etiquetado de errores (docs/taxonomia.md).
 export interface TaxonomyEntry {

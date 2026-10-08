@@ -23,6 +23,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | --- | --- |
 | `core_version` | Versión del núcleo. |
 | `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
+| `check_zones(zones)` | Unas zonas del mapa mientras se editan (#96): por qué no se pueden guardar o, si se puede, los avisos sobre sus colores, en español. |
 | `mode_chosen` / `choose_mode(mode)` | Si ya se ha elegido el modo (`runner` o `coach`; abajo, "Modo entrenadora") y elegirlo sin tocar los demás ajustes. |
 | `coach_runners` | En modo entrenadora, los corredores de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `view_runner(runnerId)` | En modo entrenadora, elige el corredor que se ve (`null` = ninguno): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. En modo corredor, error. |
@@ -183,9 +184,28 @@ Pantalla **Ajustes** (botón de la cabecera). Se guardan en la tabla `settings` 
 | `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, el corredor exporta todas sus carreras y la entrenadora busca paquetes nuevos. |
 | `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
 | `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
+| `map.pace_zones` | Zonas de ritmo del mapa (#96), en JSON: `limits` (s/km, de menor a mayor) y `colors` (`#rrggbb`, uno más que límites). Vacío = ninguna. | — | Sin zonas, el mapa colorea por cuantiles de cada carrera. Con ellas, por las zonas del usuario (ver "Mapa"). |
+| `map.heart_rate_zones` | Igual, para el pulso (ppm). | — | Igual. |
 
-Un valor guardado que no se entiende (número negativo, zona desconocida) se trata como si no
-estuviera y toma el valor por defecto. El tiempo ideal sigue siendo la suma de referencias.
+Un valor guardado que no se entiende (número negativo, zona desconocida, zonas que no valen) se
+trata como si no estuviera y toma el valor por defecto. El tiempo ideal sigue siendo la suma de
+referencias.
+
+**Colores del mapa** (#96, `app/src/ZoneEditor.tsx`, `app/src-tauri/src/zones.rs`). Para ritmo
+y para pulso, «Por cuantiles de cada carrera» (lo de siempre) o «Mis zonas»:
+
+- Cada zona tiene un color y, menos la primera, un límite «desde» (ritmo en min/km, «5:30»;
+  pulso en ppm). Al elegir «Mis zonas» se proponen 5 (pulso: 120, 140, 160 y 175; ritmo: 4:30,
+  5:30, 6:30 y 8:00) con los primeros colores de `ZONE_COLORS`, y se pueden añadir hasta 10 y
+  quitar hasta dejar 2.
+- **No se guardan** (`save_settings` da error y no guarda nada) si los límites no van de menor a
+  mayor sin repetirse, alguno no es un número mayor que 0, sobra o falta un límite o un color no
+  es `#rrggbb`.
+- **Avisos**, que no impiden guardar, mientras se editan (`check_zones`): un color con contraste
+  menor que 2:1 (WCAG) con el fondo de las teselas (`#f2efe9`) «se ve poco sobre el mapa», y dos
+  zonas seguidas a menos de 9 de distancia en OKLab (× 100) «tienen colores muy parecidos». Son
+  los umbrales que cumple la escala azul por defecto (contraste desde 2,18; tonos seguidos a entre
+  9,5 y 10,4). Los colores propuestos los cumplen todos, también seguidos (un test lo comprueba).
 
 Con una zona horaria equivocada, el FIT no se solapa con la carrera y la alineación lo dice, con
 la sugerencia de desplazamiento (`docs/alineacion.md`).
@@ -332,7 +352,7 @@ Con `ready`:
 | `legs` | Un tramo por par de picadas consecutivas (`docs/segmentacion.md`): `index`, `from`, `to`, `coordinates` (de baliza a baliza), `bounds` y `missing`. |
 | `pieces` | Trozos del track en orden, con su tramo (`leg`), `coordinates`, `pace_class` y `heart_rate_class`. |
 | `controls` | Balizas situadas: `position` (0 = salida; el tramo *n* acaba en la baliza *n*), `code`, `role` (`start`, `control`, `finish`), `coordinate` e `in_gap`. |
-| `pace` / `heart_rate` | Escalas: `edges`, los 6 límites de las 5 clases, de menor a mayor (s/km y ppm). `heart_rate` es `null` si el track no trae pulso en al menos la mitad del tiempo de carrera. |
+| `pace` / `heart_rate` | Escalas, según `kind`: `quantiles` con `edges`, los 6 límites de las 5 clases, de menor a mayor (s/km y ppm), o `zones` con las zonas del usuario (`limits` y `colors`, como en Ajustes). `heart_rate` es `null` si el track no trae pulso en al menos la mitad del tiempo de carrera, tenga zonas o no. |
 | `warnings` | Avisos de la alineación y balizas que no se pueden situar, en español. |
 
 Coordenadas `[longitud, latitud]` como en GeoJSON, redondeadas a 6 decimales (~10 cm).
@@ -352,11 +372,15 @@ Cómo se calcula:
    saltos el límite entre tramos. Por debajo de 0,5 m/s (parado) o más lento de 20:00 min/km, el
    ritmo es 20:00 min/km. Un intervalo de más de 10 s es un **hueco**: sin ritmo ni pulso.
 4. **Pulso** de un intervalo: la media de sus dos extremos, si los dos lo tienen.
-5. **Clases**: 5, por cuantiles ponderados por la duración de los intervalos (cada tono ocupa más
-   o menos el mismo tiempo de carrera). La clase de un valor es el número de límites interiores
-   que supera: 0 es lo más rápido (o el pulso más bajo) y 4 lo más lento (o el más alto). Con
-   cuantiles, el mapa enseña dónde fue el corredor más despacio *en esa carrera*, sin depender
-   de su forma ni del terreno.
+5. **Clases**. Con zonas del usuario (Ajustes, #96), la clase es la zona: el número de límites
+   que alcanza el valor, así que un valor justo en un límite va a la zona de arriba (con 120, 140
+   y 160: 119 es la zona 0, 120 la 1 y 160 la 3). Sirven para comparar entre carreras. Sin zonas,
+   5 clases por cuantiles ponderados por la duración de los intervalos (cada tono ocupa más o
+   menos el mismo tiempo de carrera); la clase de un valor es el número de límites interiores que
+   supera. En los dos casos, 0 es lo más rápido (o el pulso más bajo). Con cuantiles, el mapa
+   enseña dónde fue el corredor más despacio *en esa carrera*, sin depender de su forma ni del
+   terreno. Las zonas son las de los ajustes de la base que se mira: en la vista de un corredor
+   recibido (modo entrenadora) no hay, porque el paquete no las lleva, y sale por cuantiles.
 6. Los intervalos seguidos del mismo tramo con las mismas clases se juntan en un trozo: con el
    FIT sintético, 376 trozos para unos 1 500 puntos (unos 100 kB de JSON).
 
@@ -368,9 +392,12 @@ Lo que se ve:
   saltos visibles entre tonos y el más claro a más de 2:1 sobre el fondo del mapa. Las teselas
   de OSM son claras también en modo oscuro, así que estos colores no cambian con el modo; la
   leyenda se pinta sobre una tira del color del mapa (`--map-paper`) para que los tonos se vean
-  igual. Los huecos (y, con pulso, los trozos sin pulso) van en gris discontinuo.
+  igual. Los huecos (y, con pulso, los trozos sin pulso) van en gris discontinuo. Con zonas, cada
+  trozo lleva el color de su zona.
 - **Leyenda** bajo el mapa: los cinco tonos, los cuatro límites entre clases (min/km o ppm) y
-  los extremos «Más rápido / Más lento» (o «Más bajo / Más alto»).
+  los extremos «Más rápido / Más lento» (o «Más bajo / Más alto»). Con zonas, «· tus zonas» y
+  cada color con su rango («< 120», «120–140», «≥ 160»); el color va en el atributo `fill` de un
+  SVG, porque la CSP no deja estilos en línea.
 - **Balizas** como en un mapa de orientación, en el magenta del recorrido: triángulo en la
   salida, círculo con el número de orden en cada baliza (el código, en la etiqueta accesible) y
   doble círculo en la meta.

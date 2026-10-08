@@ -169,6 +169,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Zonas del usuario: cada color con su rango. */
+.map-legend-zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.map-legend-zones li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.map-zone-swatch {
+  width: 24px;
+  height: 10px;
+  flex: none;
+}
+
 .map-legend-nodata {
   display: flex;
   align-items: center;

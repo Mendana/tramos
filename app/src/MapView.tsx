@@ -10,7 +10,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // El worker de MapLibre se empaqueta como un fichero más de la app: así la CSP no tiene que
 // aceptar workers de `blob:` (docs/datos-y-privacidad.md).
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { LegReport, clock, codeLabel, signed } from "./api";
+import { LegReport, clock, codeLabel, signed, zoneLabel } from "./api";
 import { ColorScale, MapControl, MapTrack, RaceMap, raceMap } from "./mapApi";
 import { EmptyState, Notice, WatchIcon } from "./ui";
 
@@ -222,7 +222,7 @@ function TrackMap({
         source: "pieces",
         filter: [">=", ["get", METRIC_PROPERTY.pace], 0],
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": classColor("pace", colors), "line-width": 4 },
+        paint: { "line-color": classColor("pace", data.pace, colors), "line-width": 4 },
       });
       // Zona de clic más ancha que la línea, un elemento por tramo.
       map.addLayer({
@@ -266,8 +266,8 @@ function TrackMap({
     const property = METRIC_PROPERTY[metric];
     map.setFilter("track", [">=", ["get", property], 0]);
     map.setFilter("track-nodata", ["<", ["get", property], 0]);
-    map.setPaintProperty("track", "line-color", classColor(metric, trackColors()));
-  }, [loaded, metric]);
+    map.setPaintProperty("track", "line-color", classColor(metric, scale, trackColors()));
+  }, [loaded, metric, scale]);
 
   // Tramo seleccionado: halo, el resto atenuado, sus balizas destacadas y encuadre si no se ve.
   useEffect(() => {
@@ -281,8 +281,7 @@ function TrackMap({
     }
     for (const { control, element } of markers.current) {
       const ends =
-        selected !== null &&
-        (control.position === selected || control.position === selected - 1);
+        selected !== null && (control.position === selected || control.position === selected - 1);
       element.classList.toggle("is-selected", ends);
       element.classList.toggle("is-dimmed", selected !== null && !ends);
     }
@@ -407,31 +406,46 @@ function LegSummary({ leg }: { leg: LegReport }) {
   );
 }
 
-/** Leyenda de la escala: cinco tonos de un mismo azul con los límites entre clases. */
+/** Leyenda de la escala: las zonas del usuario o, sin ellas, cinco tonos de un mismo azul con
+ *  los límites entre clases. */
 function Legend({ metric, scale, noData }: { metric: Metric; scale: ColorScale; noData: boolean }) {
-  const inner = scale.edges.slice(1, CLASSES);
   const format = (v: number) => (metric === "pace" ? clock(v) : String(Math.round(v)));
   return (
     <figure className="map-legend">
       <figcaption className="small muted">
         {metric === "pace" ? "Ritmo (min/km)" : "Pulso (ppm)"}
+        {scale.kind === "zones" && " · tus zonas"}
       </figcaption>
-      <div className="map-legend-scale">
-        <span className="small muted">{metric === "pace" ? "Más rápido" : "Más bajo"}</span>
-        <div className="map-legend-bar">
-          <div className="map-legend-ramp" aria-hidden="true">
-            {Array.from({ length: CLASSES }, (_, k) => (
-              <span key={k} className={`map-swatch map-swatch-${k}`} />
-            ))}
+      {scale.kind === "zones" ? (
+        <ul className="map-legend-zones small">
+          {scale.colors.map((color, k) => (
+            <li key={k}>
+              {/* El color va en un atributo de SVG: la CSP no deja estilos en línea. */}
+              <svg className="map-zone-swatch" viewBox="0 0 24 10" aria-hidden="true">
+                <rect width="24" height="10" rx="2" fill={color} />
+              </svg>
+              <span className="num">{zoneLabel(scale.limits, k, format)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="map-legend-scale">
+          <span className="small muted">{metric === "pace" ? "Más rápido" : "Más bajo"}</span>
+          <div className="map-legend-bar">
+            <div className="map-legend-ramp" aria-hidden="true">
+              {Array.from({ length: CLASSES }, (_, k) => (
+                <span key={k} className={`map-swatch map-swatch-${k}`} />
+              ))}
+            </div>
+            <div className="map-legend-ticks small num">
+              {scale.edges.slice(1, CLASSES).map((v, k) => (
+                <span key={k}>{format(v)}</span>
+              ))}
+            </div>
           </div>
-          <div className="map-legend-ticks small num">
-            {inner.map((v, k) => (
-              <span key={k}>{format(v)}</span>
-            ))}
-          </div>
+          <span className="small muted">{metric === "pace" ? "Más lento" : "Más alto"}</span>
         </div>
-        <span className="small muted">{metric === "pace" ? "Más lento" : "Más alto"}</span>
-      </div>
+      )}
       {noData && (
         <div className="map-legend-nodata small muted">
           <span className="map-swatch-nodata" aria-hidden="true" /> Sin datos (hueco del track
@@ -461,9 +475,14 @@ function trackColors(): TrackColors {
   };
 }
 
-/** Color de cada trozo según su clase de `metric`. */
-function classColor(metric: Metric, colors: TrackColors): ExpressionSpecification {
-  const cases = colors.classes.flatMap((color, k) => [k, color]);
+/** Color de cada trozo según su clase de `metric`: el de su zona o el tono de su clase. */
+function classColor(
+  metric: Metric,
+  scale: ColorScale | null,
+  colors: TrackColors,
+): ExpressionSpecification {
+  const palette = scale?.kind === "zones" ? scale.colors : colors.classes;
+  const cases = palette.flatMap((color, k) => [k, color]);
   // La lista de pares clase → color es de longitud variable: TypeScript no la puede comprobar.
   return [
     "match",

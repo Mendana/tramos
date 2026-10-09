@@ -13,6 +13,7 @@ import {
   raceDetail,
   raceSharing,
   RaceFormat,
+  RaceInsightTarget,
   setRaceFormat,
   setRaceSharing,
   signed,
@@ -21,6 +22,7 @@ import {
 import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { ClockOffset } from "./ClockOffset";
 import { GroupComparison } from "./GroupComparison";
+import { Insights } from "./Insights";
 import { LegTagsState, TagControls, TagEditor, TagSummary, typeLabel, useLegTags } from "./LegTags";
 import { PanelsOpen } from "./charts/ChartPanel";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
@@ -33,6 +35,12 @@ const MapView = lazy(() => import("./MapView"));
 
 /** Pestañas de la vista de carrera (#129). */
 export type RaceTab = "summary" | "legs" | "map" | "group" | "analysis";
+
+/** Pestaña donde está lo que justifica cada frase del resumen (#126). */
+const INSIGHT_TABS: Record<RaceInsightTarget, RaceTab> = {
+  legs: "legs",
+  gain_loss: "analysis",
+};
 
 /** Tramos que salen en «Lo más caro» del resumen. */
 const COSTLIEST_LEGS = 3;
@@ -221,6 +229,7 @@ function Detail({
       <div className="tab-panel" role="tabpanel">
         {tab === "summary" && (
           <>
+            <Insights insights={detail.insights} onOpen={(target) => onTab(INSIGHT_TABS[target])} />
             {pending > 0 && (
               <div className="notice notice-warning notice-action">
                 <div>

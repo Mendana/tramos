@@ -10,6 +10,7 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use thiserror::Error;
 use tramos_core::comparison::{CourseComparison, course_comparison};
+use tramos_core::insights::{Insight, race_insights};
 use tramos_core::loss_breakdown::{RaceBreakdown, race_breakdown as breakdown};
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
@@ -72,6 +73,9 @@ pub struct RaceDetail {
     pub place: Option<u16>,
     /// Umbrales y tiempo ideal con los que se ha calculado.
     pub config: LostTimeConfig,
+    /// Resumen en frases de la carrera (#126, `docs/frases.md`): como mucho tres, sacadas del
+    /// informe.
+    pub insights: Vec<Insight>,
     pub report: RunnerReport,
 }
 
@@ -143,6 +147,7 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
     let (Some(class), Some(result)) = (event.classes.get(at.class_index), at.get(&event)) else {
         return Err(RaceError::NotAnalyzed(result_id));
     };
+    let insights = race_insights(&report);
     Ok(RaceDetail {
         event_id: event_id.0,
         result_id,
@@ -157,6 +162,7 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
         status: result.status,
         place: result.place,
         config,
+        insights,
         report,
     })
 }
@@ -255,6 +261,19 @@ pub(crate) mod tests {
         );
         assert_eq!(detail.format, Some(RaceFormat::Sprint));
         assert_eq!(detail.config, LostTimeConfig::default());
+    }
+
+    /// Las frases de la carrera (#126) son las del núcleo sobre el mismo informe.
+    #[test]
+    fn detail_has_the_race_insights() {
+        let (store, result_id) = imported();
+        let detail = race_detail(&store, result_id).unwrap();
+        assert_eq!(detail.insights, race_insights(&detail.report));
+        assert!(!detail.insights.is_empty());
+        assert!(detail.insights.len() <= tramos_core::insights::MAX_INSIGHTS);
+        let json = serde_json::to_value(&detail).unwrap();
+        assert!(json["insights"][0]["rule"].is_string());
+        assert!(json["insights"][0]["target"].is_string());
     }
 
     #[test]

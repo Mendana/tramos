@@ -193,6 +193,8 @@ export interface RaceDetail {
   status: RaceStatus;
   place: number | null;
   config: LostTimeConfig;
+  /** Resumen en frases de la carrera: como mucho tres (#126). */
+  insights: Insight<RaceInsightTarget>[];
   report: RunnerReport;
 }
 
@@ -272,12 +274,55 @@ export interface HistoryRaceRow {
   stats: HistoryStats | null;
 }
 
+/** Regla que ha dado una frase del resumen (#126, `docs/frases.md`). */
+export type InsightRule =
+  | "leg_length"
+  | "common_error"
+  | "after_error"
+  | "loss_breakdown"
+  | "slope"
+  | "format"
+  | "days_off"
+  | "clean_race"
+  | "concentrated_loss"
+  | "losing_streak"
+  | "errors_by_third";
+
+/** Análisis del histórico que justifica una frase: a dónde lleva su enlace. */
+export type HistoryInsightTarget =
+  | "formats"
+  | "leg_length"
+  | "common_errors"
+  | "slope"
+  | "loss_breakdown"
+  | "after_error"
+  | "days_off";
+
+/** Parte de la carrera que justifica una frase. */
+export type RaceInsightTarget = "legs" | "gain_loss";
+
+/**
+ * Una frase del resumen (#126, `docs/frases.md`). La escribe el núcleo con sus números; la app
+ * solo la enseña y enlaza su destino.
+ */
+export interface Insight<T extends string> {
+  rule: InsightRule;
+  text: string;
+  /** Sale con pocos datos: va con el aviso `caveat`. */
+  few_data: boolean;
+  /** «con pocas carreras», «con pocos tramos»…; `null` con datos suficientes. */
+  caveat: string | null;
+  target: T;
+}
+
 export interface HistoryView {
   /** Carreras del usuario sin filtrar. */
   all_races: number;
   first_date: string | null;
   last_date: string | null;
   config: LostTimeConfig;
+  /** Resumen en frases: como mucho tres, con el mismo filtro (#126). */
+  insights: Insight<HistoryInsightTarget>[];
   history: {
     filter: HistoryFilter;
     /** Sprint, media y larga (o solo el formato del filtro) y, si hay, las sin formato. */

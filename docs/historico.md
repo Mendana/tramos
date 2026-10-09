@@ -149,6 +149,9 @@ P7, P10, P11 y P13 se apoyan en este histórico: mismas carreras, mismo filtro y
 tramos, los mismos `pattern_legs`. Cada uno añade sus números al resultado del comando y sus
 paneles a la pantalla. P13 necesita además el FIT: solo aportan tramos las carreras con track.
 
+El **resumen en frases** de arriba de Estadísticas (#126) sale de estos análisis, con el mismo
+filtro, sin recalcular nada: reglas, umbrales y textos en `docs/frases.md`.
+
 ## Pérdida según duración del tramo (P7)
 
 «¿Tramos largos o cortos?» (`docs/preguntas.md`, P7). Implementado en `tramos_core::leg_length`

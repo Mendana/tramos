@@ -24,6 +24,7 @@ use tramos_core::fatigue::{Fatigue, FatigueRace, fatigue};
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, TrackedRace, history, race_stats,
 };
+use tramos_core::insights::{HistoryAnalyses, Insight, history_insights};
 use tramos_core::leg_length::{LegLengthStats, leg_length};
 use tramos_core::loss_breakdown::{BreakdownHistory, breakdown_history};
 use tramos_core::lost_time::LostTimeConfig;
@@ -31,7 +32,7 @@ use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::runner_report;
 use tramos_core::slope::{SlopeConfig, SlopeHistory, slope};
-use tramos_core::taxonomy::LegTag;
+use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::{EventId, Store};
 
 use crate::import::stored_self_person;
@@ -49,6 +50,9 @@ pub struct HistoryView {
     pub last_date: Option<NaiveDate>,
     /// Umbrales y tiempo ideal con los que se ha calculado.
     pub config: LostTimeConfig,
+    /// Resumen en frases (#126, `docs/frases.md`): como mucho tres, sacadas de los análisis de
+    /// abajo, con el mismo filtro.
+    pub insights: Vec<Insight>,
     pub history: History,
     /// Pérdida según duración del tramo (P7): los seis cubos de referencia, con el mismo filtro.
     pub by_leg_length: Vec<LegLengthStats>,
@@ -172,20 +176,39 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
             tags,
         })
         .collect();
+    let history = history(&races, filter);
+    let by_leg_length = leg_length(&races, filter);
+    let days_off = days_off(&races, &competed, filter);
+    let loss_breakdown = breakdown_history(&tracked, filter);
+    let after_error = after_error(&tracked, filter);
+    let common_errors = common_errors(&tagged, filter);
+    // Sin la taxonomía, las frases llevan la clave del tipo de error en vez de su nombre.
+    let taxonomy = Taxonomy::builtin().ok();
+    let insights = history_insights(&HistoryAnalyses {
+        history: &history,
+        by_leg_length: &by_leg_length,
+        by_slope: &by_slope,
+        common_errors: &common_errors,
+        after_error: &after_error,
+        days_off: &days_off,
+        loss_breakdown: &loss_breakdown,
+        taxonomy: taxonomy.as_ref(),
+    });
     Ok(HistoryView {
         all_races: results.len(),
         // `person_results` va de la más antigua a la más reciente.
         first_date: results.first().map(|r| r.event_date),
         last_date: results.last().map(|r| r.event_date),
         config,
-        history: history(&races, filter),
+        insights,
+        history,
         races: rows,
-        by_leg_length: leg_length(&races, filter),
-        days_off: days_off(&races, &competed, filter),
+        by_leg_length,
+        days_off,
         by_slope,
-        loss_breakdown: breakdown_history(&tracked, filter),
-        after_error: after_error(&tracked, filter),
-        common_errors: common_errors(&tagged, filter),
+        loss_breakdown,
+        after_error,
+        common_errors,
         fatigue: fatigue(&fatigue_races, filter),
     })
 }
@@ -438,6 +461,44 @@ mod tests {
         .unwrap();
         let dates: Vec<_> = view.races.iter().map(|r| r.date).collect();
         assert_eq!(dates, [date("2026-06-01")]);
+    }
+
+    /// Las frases del histórico (#126) salen de sus análisis, con el mismo filtro: con un
+    /// filtro que no deja ninguna carrera, ninguna frase.
+    #[test]
+    fn insights_come_from_the_filtered_analyses() {
+        use tramos_core::insights::{HistoryAnalyses, MAX_INSIGHTS, history_insights};
+
+        let (store, _) = two_races_with(true);
+        let taxonomy = Taxonomy::builtin().unwrap();
+        for filter in [
+            HistoryFilter::default(),
+            HistoryFilter {
+                format: Some(RaceFormat::Sprint),
+                ..HistoryFilter::default()
+            },
+        ] {
+            let view = history_view(&store, &filter).unwrap();
+            let expected = history_insights(&HistoryAnalyses {
+                history: &view.history,
+                by_leg_length: &view.by_leg_length,
+                by_slope: &view.by_slope,
+                common_errors: &view.common_errors,
+                after_error: &view.after_error,
+                days_off: &view.days_off,
+                loss_breakdown: &view.loss_breakdown,
+                taxonomy: Some(&taxonomy),
+            });
+            assert_eq!(view.insights, expected);
+            assert!(view.insights.len() <= MAX_INSIGHTS);
+            // Dos carreras: todo lo que sale lleva el aviso de pocas carreras.
+            assert!(view.insights.iter().all(|i| i.few_data));
+        }
+        let none = HistoryFilter {
+            format: Some(RaceFormat::Long),
+            ..HistoryFilter::default()
+        };
+        assert!(history_view(&store, &none).unwrap().insights.is_empty());
     }
 
     #[test]

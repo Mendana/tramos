@@ -44,6 +44,10 @@ Una tarea no está terminada hasta que estos comandos pasan en local.
    Las horas del .spl son hora local de la carrera (Europe/Madrid): conviértelas en la frontera.
 8. **No amplíes el alcance.** Si descubres trabajo nuevo, menciónalo en el PR para abrir otra issue.
 9. Idioma: identificadores y código en inglés; comentarios de dominio, docs, issues y PR en español.
+10. **Ayuda al día.** Si cambias lo que se ve o se hace en una vista de la app, actualiza su página
+    de ayuda (`app/src/help/`) en el mismo PR; si añades una vista o una pestaña, añádele página.
+    La ayuda explica en llano lo que dicen los `docs/`: si cambias un algoritmo, revisa también las
+    páginas que lo cuentan. Cómo se hace: `docs/app.md`, "Ayuda".
 
 ## Glosario
 

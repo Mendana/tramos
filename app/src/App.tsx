@@ -17,6 +17,9 @@ import {
   viewedRunner,
 } from "./api";
 import GroupScreen from "./GroupScreen";
+import HelpScreen from "./help/HelpScreen";
+import { HelpPageId, helpTitle } from "./help/pages";
+import { helpFor } from "./help/views";
 import HistoryScreen, { HistoryTab } from "./HistoryScreen";
 import Home from "./Home";
 import { PanelVisibilityProvider } from "./panels";
@@ -31,6 +34,7 @@ import {
   ChevronLeft,
   ControlFlag,
   GroupIcon,
+  HelpIcon,
   HomeIcon,
   ListIcon,
   Notice,
@@ -89,8 +93,11 @@ function ReceiveStatus({ report, error }: { report: ReceiveReport | null; error:
   );
 }
 
-/** Pantalla abierta. Una carrera se abre desde la lista (o al acabar de importarla). */
-type Screen =
+/**
+ * Pantalla abierta. Una carrera se abre desde la lista (o al acabar de importarla). Cada pantalla
+ * (y cada pestaña) tiene su página de ayuda en `help/views.ts`: si añades una, dale página.
+ */
+export type Screen =
   | { kind: "home" }
   | { kind: "races" }
   | { kind: "race"; resultId: number; tab?: RaceTab }
@@ -98,7 +105,8 @@ type Screen =
   | { kind: "group" }
   | { kind: "import" }
   | { kind: "profile" }
-  | { kind: "settings" };
+  | { kind: "settings" }
+  | { kind: "help"; page: HelpPageId };
 
 /** Pantallas que se recuerdan para el botón de volver. */
 const BACK_LIMIT = 30;
@@ -174,10 +182,17 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
         return [{ label: "Mi perfil" }];
       case "settings":
         return [{ label: "Ajustes" }];
+      case "help":
+        return screen.page === "indice"
+          ? [{ label: "Ayuda" }]
+          : [
+              { label: "Ayuda", to: { kind: "help", page: "indice" } },
+              { label: helpTitle(screen.page) },
+            ];
     }
   })();
   // La entrenadora ve a un corredor: su nombre va delante, salvo en lo que es de todos.
-  const general = screen.kind === "group" || screen.kind === "settings";
+  const general = screen.kind === "group" || screen.kind === "settings" || screen.kind === "help";
   return runnerName === null || general ? own : [{ label: runnerName }, ...own];
 }
 
@@ -185,10 +200,13 @@ function TopBar({
   crumbs,
   onBack,
   onNavigate,
+  onHelp,
 }: {
   crumbs: Crumb[];
   onBack: (() => void) | null;
   onNavigate: (screen: Screen) => void;
+  /** Abre la ayuda de esta pantalla; `null` en la propia ayuda. */
+  onHelp: (() => void) | null;
 }) {
   return (
     <header className="topbar">
@@ -230,6 +248,17 @@ function TopBar({
           );
         })}
       </nav>
+      {onHelp !== null && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon topbar-help"
+          onClick={onHelp}
+          aria-label="Ayuda de esta pantalla"
+          title="Ayuda de esta pantalla"
+        >
+          <HelpIcon />
+        </button>
+      )}
     </header>
   );
 }
@@ -368,7 +397,8 @@ function App() {
   };
   const unreviewed = coach ? 0 : (races ?? []).reduce((n, r) => n + r.unreviewed_count, 0);
   const at = (...kinds: Screen["kind"][]) => kinds.includes(screen.kind);
-  const goTo = (kind: Exclude<Screen["kind"], "race">) => navigate({ kind });
+  const goTo = (kind: Exclude<Screen["kind"], "race" | "help">) => navigate({ kind });
+  const openHelp = (page: HelpPageId) => navigate({ kind: "help", page });
 
   return (
     <ViewerContext.Provider value={viewer}>
@@ -457,6 +487,12 @@ function App() {
                   current={at("settings")}
                   onClick={() => goTo("settings")}
                 />
+                <NavItem
+                  icon={<HelpIcon />}
+                  label="Ayuda"
+                  current={at("help")}
+                  onClick={() => openHelp("indice")}
+                />
               </NavSection>
             </nav>
             <div className="sidebar-footer">
@@ -472,6 +508,7 @@ function App() {
               crumbs={crumbsFor(screen, races, viewer.runnerName)}
               onBack={previous.length > 0 ? goBack : null}
               onNavigate={navigate}
+              onHelp={screen.kind === "help" ? null : () => openHelp(helpFor(screen, historyTab))}
             />
             {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
             <div className="page" key={runner?.runner.runner_id ?? "self"}>
@@ -539,6 +576,7 @@ function App() {
                 <SettingsView page="profile" onSaved={refresh} />
               )}
               {screen.kind === "settings" && <SettingsView page="settings" onSaved={refresh} />}
+              {screen.kind === "help" && <HelpScreen page={screen.page} onOpen={openHelp} />}
             </div>
           </main>
         </div>

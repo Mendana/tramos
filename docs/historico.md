@@ -291,6 +291,7 @@ Subida, llano y bajada, **siempre y en ese orden**. Con `n` tramos de la clase y
 | Campo | Definición |
 | --- | --- |
 | `mean_performance` | **IR medio de la clase**: `Σ ref_i · IR_i / Σ ref_i` sobre los tramos de la clase (1 = 100 %). |
+| `reference_s` | `Σ ref_i` de esos tramos (s): el peso del IR medio, para juntar las clases de varios corredores sin aproximar (#121, "Comparar grupos"). |
 
 Una clase vacía tiene `n = 0` y las medias a `null`.
 
@@ -603,3 +604,44 @@ Tres corredores sintéticos (0, 1 y 2) en cinco carreras (`group::tests`):
 - 1 frente a 2: dos carreras, ninguna mejor y una peor (R5 es empate); diferencia media
   ((0,80 − 0,85) + 0) / 2 = **−0,025**.
 - 0 frente a 2: solo R1, mejor; **+0,05**.
+
+## Comparar grupos (#121)
+
+Un grupo de atletas frente a otro (`docs/app.md`, "Atletas"). Implementado en
+`tramos_core::group_compare`; en la app, `coach::compare_athlete_groups` y la pantalla «Comparar
+grupos». Se compara lo mismo que en la tabla del grupo: IR medio, tasa de error y pérdida media,
+tipos de error (P9), duración del tramo (P7) y desnivel (P13). Las dos dudas son opciones, y
+las dos se pueden elegir en la pantalla:
+
+- **Quien está en los dos grupos** (`Overlap`): `count_in_both` (lo normal) cuenta entero en los
+  dos; `exclude` no cuenta en ninguno, para que los grupos no se parezcan solo por tener a la
+  misma gente.
+- **Qué carreras entran** (`RaceSelection`, siempre con el filtro del histórico):
+  - `shared` (lo normal): solo las carreras (`race_id`) que han corrido **un atleta de cada
+    grupo, y que no sean la misma persona** (`races_of_both`): así se comparan en el mismo
+    terreno, y alguien que está en los dos no hace por sí solo que una carrera sea de los dos.
+    Cada atleta se vuelve a calcular solo con esas carreras.
+  - `all`: todas las de cada grupo.
+
+Cada lado (`pool_side`) junta a sus miembros con alguna carrera que cuenta, cada uno con sus
+umbrales:
+
+- **Cifras**: `group_total` (arriba, "Vista de grupo (P15)"): IR medio ponderado por carreras;
+  tasa de error y pérdida media ponderadas por tramos.
+- **P7**: los mismos cubos de todos; en cada uno se suman tramos y errores, y la pérdida media
+  se pondera por tramos.
+- **P13**: en cada clase se suman tramos y errores, y el IR medio se pondera por `reference_s`
+  (`Σ ref_i`), así que sale igual que si todos los tramos fueran de un solo corredor.
+- **P9**: los errores de cada tipo de todos, sobre **todos** sus errores de orientación (también
+  los sin tipo), de más a menos.
+
+Las **diferencias** (`a − b`) de IR medio, tasa de error y pérdida media también salen del
+núcleo. Un lado sin carreras no tiene medias ni diferencias.
+
+### Ejemplo de test
+
+Dos miembros sintéticos (`group_compare::tests`): uno con 2 carreras, IR 0,90 y en el cubo de
+20 s 10 tramos, 2 errores y 6 s de pérdida media; otro con 3 carreras, IR 0,80 y en ese cubo 30
+tramos, 3 errores y 2 s. Juntos: IR (0,90 × 2 + 0,80 × 3) / 5 = **0,84**; en el cubo, 40 tramos,
+5 errores (**12,5 %**) y (6 × 10 + 2 × 30) / 40 = **3 s**. En subida, IR 0,80 con 400 s de
+referencia y 0,90 con 100 s: (0,80 × 400 + 0,90 × 100) / 500 = **0,82**.

@@ -7,19 +7,24 @@
 //! carrera, mapa, histórico) funcionan sin cambios y recalculan con la versión del algoritmo de
 //! esta app. Lo que no se puede volcar (paquetes con solo el resumen) va aparte.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use thiserror::Error;
 use tramos_core::group::{GroupComparison, GroupEntry, GroupRow, compare, group_row, group_total};
+use tramos_core::group_compare::{
+    CompareOptions, GroupsComparison, MemberRaces, MemberStats, RaceSelection, compare_groups,
+    pool_side, races_of_both, sides,
+};
 use tramos_core::history::{HistoryFilter, HistoryStats};
 use tramos_core::package::{RacePackage, RaceSummary, race_id};
 use tramos_core::race_format::RaceFormat;
 use tramos_store::{AthleteGroupId, ReceivedRunner, ResultId, Store, StoreError};
 
-use crate::history::history_view;
+use crate::history::{HistoryView, history_view, history_view_where};
 use crate::import::{SELF_PERSON_KEY, stored_self_person};
+use crate::races::RaceError;
 use crate::settings;
 
 /// Errores de la sección Atletas. Los mensajes van a la interfaz, en español.
@@ -29,6 +34,8 @@ pub enum CoachError {
     Store(#[from] StoreError),
     #[error("no hay paquetes de ese corredor")]
     UnknownRunner,
+    #[error(transparent)]
+    Race(#[from] RaceError),
 }
 
 /// Un atleta en el selector de la sección Atletas.
@@ -412,6 +419,124 @@ fn own_race_ids(main: &Store) -> Result<HashMap<i64, String>, StoreError> {
         ids.insert(r.result.0, race_id(&main.load_event(event_id)?));
     }
     Ok(ids)
+}
+
+/// La base de un miembro de un grupo: la propia (con el `race_id` de cada carrera) o la volcada
+/// de un atleta.
+enum MemberBase {
+    Own(HashMap<i64, String>),
+    Athlete(Box<RunnerView>),
+}
+
+impl MemberBase {
+    fn parts<'a>(&'a self, main: &'a Store) -> (&'a Store, &'a HashMap<i64, String>) {
+        match self {
+            Self::Own(race_ids) => (main, race_ids),
+            Self::Athlete(view) => (&view.store, &view.race_ids),
+        }
+    }
+}
+
+/// Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro
+/// del histórico y las opciones de la comparación. Los miembros de los que no hay paquetes (ni
+/// son quien usa la app con carreras) no cuentan.
+pub fn compare_athlete_groups(
+    main: &mut Store,
+    filter: &HistoryFilter,
+    a: AthleteGroupId,
+    b: AthleteGroupId,
+    options: CompareOptions,
+) -> Result<GroupsComparison, CoachError> {
+    let groups = main.athlete_groups()?;
+    let members = |id: AthleteGroupId| {
+        groups
+            .iter()
+            .find(|g| g.id == id)
+            .map(|g| g.members.clone())
+            .ok_or(StoreError::GroupNotFound(id.0))
+    };
+    let sides = sides(&members(a)?, &members(b)?, options.overlap);
+    let me = own_runner(main)?.map(|r| r.runner_id);
+    let main: &Store = main;
+    let known: BTreeSet<String> = coach_runners(main)?
+        .into_iter()
+        .map(|r| r.runner_id)
+        .collect();
+
+    // Cada miembro se carga una vez, aunque esté en los dos lados.
+    let mut bases: BTreeMap<&str, MemberBase> = BTreeMap::new();
+    for id in sides.a.iter().chain(&sides.b) {
+        if bases.contains_key(id.as_str()) {
+            continue;
+        }
+        let base = if me.as_deref() == Some(id.as_str()) {
+            MemberBase::Own(own_race_ids(main)?)
+        } else if known.contains(id) {
+            MemberBase::Athlete(Box::new(runner_view(main, id)?))
+        } else {
+            continue;
+        };
+        bases.insert(id, base);
+    }
+    let mut views: BTreeMap<&str, HistoryView> = BTreeMap::new();
+    for (id, base) in &bases {
+        let (store, _) = base.parts(main);
+        views.insert(id, history_view(store, filter)?);
+    }
+
+    // Con «solo las de los dos», cada uno se vuelve a calcular con esas carreras.
+    let shared = match options.races {
+        RaceSelection::All => None,
+        RaceSelection::Shared => {
+            let raced: BTreeMap<&str, Vec<String>> = views
+                .iter()
+                .map(|(id, view)| {
+                    let (_, race_ids) = bases[id].parts(main);
+                    let races = view
+                        .races
+                        .iter()
+                        .filter(|r| r.stats.is_some())
+                        .filter_map(|r| race_ids.get(&r.result_id).cloned())
+                        .collect();
+                    (*id, races)
+                })
+                .collect();
+            let side = |ids: &[String]| -> Vec<MemberRaces<'_>> {
+                ids.iter()
+                    .filter_map(|id| raced.get_key_value(id.as_str()))
+                    .map(|(id, races)| (*id, races.as_slice()))
+                    .collect()
+            };
+            let allowed = races_of_both(&side(&sides.a), &side(&sides.b));
+            for (id, base) in &bases {
+                let (store, race_ids) = base.parts(main);
+                let keep = |result: i64| race_ids.get(&result).is_some_and(|r| allowed.contains(r));
+                views.insert(id, history_view_where(store, filter, &keep)?);
+            }
+            Some(allowed.len())
+        }
+    };
+
+    let pooled = |ids: &[String]| {
+        let members: Vec<MemberStats<'_>> = ids
+            .iter()
+            .filter_map(|id| views.get(id.as_str()))
+            .map(|v| MemberStats {
+                total: v.history.total,
+                by_leg_length: &v.by_leg_length,
+                by_slope: &v.by_slope.by_class,
+                errors: &v.common_errors.total,
+            })
+            .collect();
+        pool_side(&members)
+    };
+    Ok(compare_groups(
+        options,
+        pooled(&sides.a),
+        pooled(&sides.b),
+        sides.in_both.len(),
+        shared,
+    ))
 }
 
 /// ¿Entrena a otros atletas? (ajuste «Entreno a otros atletas», #119).

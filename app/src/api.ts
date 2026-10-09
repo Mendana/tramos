@@ -388,6 +388,8 @@ export interface SlopeStats {
   error_rate: number | null;
   /** IR medio de los tramos de la clase, ponderado por la referencia (1 = 100 %). */
   mean_performance: number | null;
+  /** Suma de las referencias de esos tramos (s): el peso del IR medio. */
+  reference_s: number;
 }
 
 /** P13 con los filtros del histórico: las tres clases y de dónde salen los tramos. */
@@ -724,6 +726,62 @@ export const updateAthleteGroup = (id: number, group: GroupFields) =>
   invoke<void>("update_athlete_group", { id, group });
 
 export const deleteAthleteGroup = (id: number) => invoke<void>("delete_athlete_group", { id });
+
+/** Qué se hace con un atleta que está en los dos grupos al compararlos (#121). */
+export type Overlap = "count_in_both" | "exclude";
+
+/** Qué carreras entran al comparar dos grupos. */
+export type RaceSelection = "shared" | "all";
+
+export interface CompareOptions {
+  overlap: Overlap;
+  races: RaceSelection;
+}
+
+/** Un tipo de error en un grupo. */
+export interface TypeShare {
+  error_type: string;
+  errors: number;
+  /** Parte de los errores de orientación del grupo (0–1), contando los sin tipo. */
+  share: number;
+}
+
+/** Un grupo, con sus miembros juntos. */
+export interface GroupSide {
+  /** Miembros con alguna carrera que cuenta. */
+  runners: number;
+  stats: HistoryStats;
+  by_leg_length: LegLengthStats[];
+  by_slope: SlopeStats[];
+  orientation_errors: number;
+  untyped: number;
+  /** De más a menos errores. */
+  by_type: TypeShare[];
+}
+
+/** Un grupo frente a otro (`docs/historico.md`, "Comparar grupos"). */
+export interface GroupsComparison {
+  options: CompareOptions;
+  a: GroupSide;
+  b: GroupSide;
+  /** Atletas que están en los dos grupos. */
+  in_both: number;
+  /** Con «solo las de los dos», cuántas carreras entran; con «todas», `null`. */
+  shared_races: number | null;
+  /** A − B (1 = 100 puntos). */
+  performance_difference: number | null;
+  /** A − B (0–1). */
+  error_rate_difference: number | null;
+  /** A − B (%). */
+  loss_pct_difference: number | null;
+}
+
+export const compareAthleteGroups = (
+  filter: HistoryFilter,
+  a: number,
+  b: number,
+  options: CompareOptions,
+) => invoke<GroupsComparison>("compare_athlete_groups", { filter, a, b, options });
 
 /** Mete (`member = true`) o saca a un atleta de un grupo. */
 export const setAthleteGroupMember = (id: number, runnerId: string, member: boolean) =>

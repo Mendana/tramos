@@ -19,6 +19,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use tauri::Manager;
 use tramos_core::comparison::CourseComparison;
+use tramos_core::group_compare::{CompareOptions, GroupsComparison};
 use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
 use tramos_core::loss_breakdown::RaceBreakdown;
@@ -215,6 +216,26 @@ fn update_athlete_group(
 #[tauri::command]
 fn delete_athlete_group(state: tauri::State<'_, AppState>, id: i64) -> Result<(), String> {
     groups::delete(&mut *state.coach_store()?, id).map_err(|e| e.to_string())
+}
+
+/// Compara dos grupos de atletas (#121) con el filtro del histórico y las opciones: qué pasa con
+/// quien está en los dos y qué carreras entran.
+#[tauri::command]
+fn compare_athlete_groups(
+    state: tauri::State<'_, AppState>,
+    filter: HistoryFilter,
+    a: i64,
+    b: i64,
+    options: CompareOptions,
+) -> Result<GroupsComparison, String> {
+    coach::compare_athlete_groups(
+        &mut *state.coach_store()?,
+        &filter,
+        AthleteGroupId(a),
+        AthleteGroupId(b),
+        options,
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// Mete (`member = true`) o saca a un atleta de un grupo.
@@ -513,6 +534,7 @@ pub fn run() -> tauri::Result<()> {
             update_athlete_group,
             delete_athlete_group,
             set_athlete_group_member,
+            compare_athlete_groups,
             preview_import,
             import_race,
             import_folder,

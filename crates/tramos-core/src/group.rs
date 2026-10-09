@@ -494,6 +494,7 @@ mod tests {
                 errors: 1,
                 error_rate: Some(1.0 / 3.0),
                 mean_performance: Some(0.8),
+                reference_s: 300.0,
             }],
             races_with_track: 1,
             races_without_track: 0,

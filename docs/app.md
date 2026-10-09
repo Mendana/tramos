@@ -34,6 +34,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `create_athlete_group(group)` / `update_athlete_group(id, group)` | Crea un grupo vacío (devuelve su identificador) o cambia uno: `group` = `{name, description, color}` (`docs/almacenamiento.md`, nombre no vacío y color `#rrggbb`). |
 | `delete_athlete_group(id)` | Borra un grupo; sus atletas y sus paquetes siguen ahí. |
 | `set_athlete_group_member(id, runnerId, member)` | Mete (`true`) o saca (`false`) a un atleta de un grupo. |
+| `compare_athlete_groups(filter, a, b, options)` | Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro del histórico. `options` = `{overlap, races}`: quien está en los dos cuenta en los dos (`count_in_both`) o en ninguno (`exclude`); entran solo las carreras de los dos grupos (`shared`) o todas (`all`). Devuelve cada lado junto (atletas, cifras, P7, P13 y tipos de error), cuántos están en los dos, cuántas carreras entran y las diferencias A − B. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
@@ -278,7 +279,20 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   dice cuántos son. «Nuevo grupo» y el lápiz de cada tarjeta abren el formulario: nombre
   (obligatorio), descripción y uno de 8 colores (el nuevo toma el primero libre). Desde el
   lápiz, «Borrar…» pide confirmar y avisa de que sus atletas y sus carreras se quedan.
-  «Estadísticas del grupo» abre Comparar atletas con ese grupo.
+  «Estadísticas del grupo» abre Comparar atletas con ese grupo. Con dos grupos o más, arriba,
+  «Comparar grupos».
+- **Comparar grupos** (#121, desde Grupos; migas «Grupos / Comparar grupos»). Un grupo A frente
+  a otro B (de entrada, los dos primeros), con dos opciones (`docs/historico.md`, "Comparar
+  grupos"): «Si alguien está en los dos» (cuenta en los dos o se deja fuera) y «Carreras» (las
+  de los dos grupos o todas), y los filtros del histórico. Un aviso dice cuántas carreras entran
+  y qué pasa con quien está en los dos. Debajo:
+  - una tabla con atletas, carreras, tramos, IR medio, tasa de error y pérdida media de cada
+    grupo, y la diferencia A − B en puntos;
+  - tres paneles que se pueden ocultar como los demás (`groups-error-types`,
+    `groups-leg-length` y `groups-slope`): la parte de los errores de cada tipo (los 6 más
+    comunes entre los dos; elegirlos solo ordena lo que da el núcleo), la tasa de error según la
+    duración del tramo y el IR medio en subida, llano y bajada. A y B llevan siempre los dos
+    primeros colores de serie, no los de los grupos, que podrían ser iguales.
 - **Comparar atletas** (P15). La vista de grupo, con los filtros del histórico
   (`docs/historico.md`, "Vista de grupo (P15)"), un selector **Grupo** («Todos los atletas» o
   uno de los grupos; cambiarlo no entra en «volver») y, con «Todos», la casilla

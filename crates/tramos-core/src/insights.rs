@@ -840,6 +840,7 @@ mod tests {
             errors: 0,
             error_rate: Some(0.0),
             mean_performance: Some(ir),
+            reference_s: 60.0 * legs as f64,
         }
     }
 

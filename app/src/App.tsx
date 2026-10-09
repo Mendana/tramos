@@ -18,6 +18,7 @@ import {
 } from "./api";
 import GroupScreen from "./GroupScreen";
 import GroupsScreen from "./GroupsScreen";
+import CompareGroupsScreen from "./CompareGroupsScreen";
 import HelpScreen from "./help/HelpScreen";
 import { HelpPageId, helpTitle } from "./help/pages";
 import { helpFor } from "./help/views";
@@ -107,6 +108,7 @@ export type Screen =
   | { kind: "history" }
   | { kind: "group"; groupId?: number }
   | { kind: "groups" }
+  | { kind: "compare-groups" }
   | { kind: "import" }
   | { kind: "profile" }
   | { kind: "settings" }
@@ -182,6 +184,8 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
         return [{ label: "Comparar atletas" }];
       case "groups":
         return [{ label: "Grupos" }];
+      case "compare-groups":
+        return [{ label: "Grupos", to: { kind: "groups" } }, { label: "Comparar grupos" }];
       case "import":
         return [{ label: "Importar" }];
       case "profile":
@@ -201,6 +205,7 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
   const general =
     screen.kind === "group" ||
     screen.kind === "groups" ||
+    screen.kind === "compare-groups" ||
     screen.kind === "settings" ||
     screen.kind === "help";
   return runnerName === null || general ? own : [{ label: runnerName }, ...own];
@@ -356,7 +361,11 @@ function App() {
     if (!coach) {
       setRunners([]);
       setRunner(null);
-      setScreen((s) => (s.kind === "group" || s.kind === "groups" ? { kind: "home" } : s));
+      setScreen((s) =>
+        s.kind === "group" || s.kind === "groups" || s.kind === "compare-groups"
+          ? { kind: "home" }
+          : s,
+      );
       return;
     }
     coachRunners()
@@ -486,7 +495,7 @@ function App() {
                   <NavItem
                     icon={<TagIcon />}
                     label="Grupos"
-                    current={at("groups")}
+                    current={at("groups", "compare-groups")}
                     onClick={() => goTo("groups")}
                   />
                 </NavSection>
@@ -600,8 +609,12 @@ function App() {
                 />
               )}
               {screen.kind === "groups" && coach && (
-                <GroupsScreen onStats={(groupId) => navigate({ kind: "group", groupId })} />
+                <GroupsScreen
+                  onStats={(groupId) => navigate({ kind: "group", groupId })}
+                  onCompare={() => goTo("compare-groups")}
+                />
               )}
+              {screen.kind === "compare-groups" && coach && <CompareGroupsScreen />}
               {screen.kind === "import" && !viewing && (
                 <ImportScreen
                   onImported={refresh}

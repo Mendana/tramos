@@ -97,6 +97,17 @@ pub struct HistoryRaceRow {
 /// El histórico de las carreras del usuario (los resultados vinculados a su persona) que pasan
 /// `filter`.
 pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView, RaceError> {
+    history_view_where(store, filter, &|_| true)
+}
+
+/// Como [`history_view`], solo con los resultados para los que `keep(result_id)` es cierto (al
+/// comparar grupos, las carreras que han corrido los dos, #121). Las demás carreras siguen
+/// sirviendo de «carrera anterior» (P11) y cuentan en `all_races`.
+pub fn history_view_where(
+    store: &Store,
+    filter: &HistoryFilter,
+    keep: &dyn Fn(i64) -> bool,
+) -> Result<HistoryView, RaceError> {
     let config = settings::lost_time_config(store)?;
     let results = match stored_self_person(store)? {
         Some(person) => store.person_results(person)?,
@@ -110,7 +121,7 @@ pub fn history_view(store: &Store, filter: &HistoryFilter) -> Result<HistoryView
     // Solo se cargan y analizan las carreras que pasan el filtro.
     for r in results
         .iter()
-        .filter(|r| filter.includes(r.event_date, r.event_format))
+        .filter(|r| filter.includes(r.event_date, r.event_format) && keep(r.result.0))
     {
         let (event_id, at) = store.result_ref(r.result)?;
         let event = match events.entry(event_id) {

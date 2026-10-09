@@ -32,7 +32,14 @@ const candidateName = (c: GroupCandidate) =>
       : `${c.display_name} (tú)`
     : c.display_name || "Sin nombre";
 
-function GroupsScreen({ onStats }: { onStats: (groupId: number) => void }) {
+function GroupsScreen({
+  onStats,
+  onCompare,
+}: {
+  onStats: (groupId: number) => void;
+  /** Abre «Comparar grupos» (#121). */
+  onCompare: () => void;
+}) {
   const [view, setView] = useState<GroupsView | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Grupo que se está editando; `"new"` = uno nuevo.
@@ -66,11 +73,18 @@ function GroupsScreen({ onStats }: { onStats: (groupId: number) => void }) {
         title="Grupos"
         subtitle="Organiza a tus atletas. Uno puede estar en varios grupos."
         actions={
-          editing !== "new" && (
-            <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
-              Nuevo grupo
-            </button>
-          )
+          <div className="row">
+            {(view?.groups.length ?? 0) >= 2 && (
+              <button type="button" className="btn" onClick={onCompare}>
+                Comparar grupos
+              </button>
+            )}
+            {editing !== "new" && (
+              <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
+                Nuevo grupo
+              </button>
+            )}
+          </div>
         }
       />
       {error !== null && <Notice kind="error">{error}</Notice>}

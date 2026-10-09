@@ -214,6 +214,89 @@ mod tests {
     }
 
     #[test]
+    fn two_groups_are_compared_with_both_options() {
+        use crate::coach::compare_athlete_groups;
+        use tramos_core::group_compare::{CompareOptions, Overlap, RaceSelection};
+
+        let mut coach = three_athletes();
+        let first = create(&mut coach, &fields("Primero")).unwrap();
+        let second = create(&mut coach, &fields("Segundo")).unwrap();
+        for (group, runner) in [(first, "a"), (first, "b"), (second, "b"), (second, "c")] {
+            set_member(&mut coach, group, runner, true).unwrap();
+        }
+        let filter = HistoryFilter::default();
+        let compare = |coach: &mut Store, a: i64, b: i64, overlap, races| {
+            compare_athlete_groups(
+                coach,
+                &filter,
+                AthleteGroupId(a),
+                AthleteGroupId(b),
+                CompareOptions { overlap, races },
+            )
+            .unwrap()
+        };
+
+        // `b` en los dos: cuenta en los dos o en ninguno. Los tres corrieron la misma carrera,
+        // así que es de los dos grupos.
+        let both = compare(
+            &mut coach,
+            first,
+            second,
+            Overlap::CountInBoth,
+            RaceSelection::Shared,
+        );
+        assert_eq!((both.a.runners, both.b.runners, both.in_both), (2, 2, 1));
+        assert_eq!(both.shared_races, Some(1));
+        assert_eq!((both.a.stats.races, both.b.stats.races), (2, 2));
+        let apart = compare(
+            &mut coach,
+            first,
+            second,
+            Overlap::Exclude,
+            RaceSelection::Shared,
+        );
+        assert_eq!((apart.a.runners, apart.b.runners, apart.in_both), (1, 1, 1));
+        // Cada lado, los números de su único miembro.
+        let a_alone = group_view(&mut coach, &filter, false, None)
+            .unwrap()
+            .runners[0]
+            .row
+            .as_ref()
+            .unwrap()
+            .stats;
+        assert_eq!(apart.a.stats.legs, a_alone.legs);
+        assert_eq!(apart.a.stats.errors, a_alone.errors);
+        assert_eq!(
+            apart.performance_difference.is_some(),
+            apart.a.stats.mean_performance.is_some() && apart.b.stats.mean_performance.is_some()
+        );
+
+        // Un grupo frente a sí mismo: la carrera solo la corre la misma gente, así que con
+        // «solo las de los dos» no entra ninguna; con «todas», sí.
+        let alone = create(&mut coach, &fields("Solo a")).unwrap();
+        set_member(&mut coach, alone, "a", true).unwrap();
+        let shared = compare(
+            &mut coach,
+            alone,
+            alone,
+            Overlap::CountInBoth,
+            RaceSelection::Shared,
+        );
+        assert_eq!(shared.shared_races, Some(0));
+        assert_eq!((shared.a.stats.races, shared.a.runners), (0, 0));
+        let all = compare(
+            &mut coach,
+            alone,
+            alone,
+            Overlap::CountInBoth,
+            RaceSelection::All,
+        );
+        assert_eq!(all.shared_races, None);
+        assert_eq!((all.a.stats.races, all.b.stats.races), (1, 1));
+        assert_eq!(all.performance_difference, Some(0.0));
+    }
+
+    #[test]
     fn groups_are_edited_and_deleting_one_keeps_the_packages() {
         let mut coach = three_athletes();
         let id = create(&mut coach, &fields("Juveniles")).unwrap();

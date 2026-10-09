@@ -56,6 +56,14 @@ export const PANEL_GROUPS: PanelGroup[] = [
     ],
   },
   {
+    label: "Atletas · Comparar grupos",
+    panels: [
+      { id: "groups-error-types", title: "Tipos de error de cada grupo" },
+      { id: "groups-leg-length", title: "Tasa de error según duración del tramo" },
+      { id: "groups-slope", title: "IR medio según desnivel" },
+    ],
+  },
+  {
     label: "Carrera · Resumen",
     panels: [{ id: "race-loss", title: "Pérdida por tramo" }],
   },

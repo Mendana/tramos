@@ -129,6 +129,9 @@ pub struct SlopeStats {
     /// IR medio de los tramos de la clase, ponderado por `ref_i`: `Σ ref_i·IR_i / Σ ref_i`
     /// (1 = 100 %).
     pub mean_performance: Option<f64>,
+    /// `Σ ref_i` de los tramos con IR (s): el peso de `mean_performance`, para juntar las clases
+    /// de varios corredores (#121).
+    pub reference_s: f64,
 }
 
 /// P13 con un filtro: las tres clases y de dónde salen los tramos.
@@ -214,6 +217,7 @@ pub fn slope(
             errors: a.errors,
             error_rate: (a.legs > 0).then(|| a.errors as f64 / a.legs as f64),
             mean_performance: (a.weight > 0.0).then(|| a.weighted_performance / a.weight),
+            reference_s: a.weight,
         })
         .collect();
     Ok(out)

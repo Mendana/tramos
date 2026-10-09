@@ -11,6 +11,7 @@ pub mod days_off;
 pub mod fatigue;
 pub mod gain_loss;
 pub mod group;
+pub mod group_compare;
 pub mod history;
 pub mod identify;
 pub mod importers;

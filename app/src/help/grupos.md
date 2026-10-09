@@ -10,7 +10,8 @@ sacarlo del grupo; el cambio se guarda al momento. Si tienes carreras propias, t
 («Tu nombre (tú)»). Si de algún miembro ya no hay carreras, la tarjeta dice cuántos son: siguen en
 el grupo.
 
-**Estadísticas del grupo** abre [Comparar atletas](grupo.md) solo con sus miembros.
+**Estadísticas del grupo** abre [Comparar atletas](grupo.md) solo con sus miembros. Con dos
+grupos o más, arriba, **Comparar grupos** pone uno frente a otro ([Comparar grupos](comparar-grupos.md)).
 
 ## Crear, cambiar y borrar
 

@@ -1789,3 +1789,22 @@
   align-items: center;
   gap: var(--space-4);
 }
+
+/* --- Comparar grupos (#121) --- */
+
+.compare-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.compare-group-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.compare-note {
+  padding: var(--space-3) var(--space-4);
+}

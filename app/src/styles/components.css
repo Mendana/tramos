@@ -1506,3 +1506,67 @@
   margin-bottom: var(--space-2);
   padding: 0;
 }
+
+/* --- Resumen en frases (#126) --- */
+
+.insights {
+  gap: 0;
+  padding: var(--space-2) var(--space-4);
+  border-left: 3px solid var(--accent);
+}
+
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insight-list > li + li {
+  border-top: 1px solid var(--border);
+}
+
+.insight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.insight:hover .insight-text {
+  color: var(--accent);
+}
+
+.insight:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.insight-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+}
+
+.insight-caveat {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.insight-go {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent);
+  font-weight: 600;
+}

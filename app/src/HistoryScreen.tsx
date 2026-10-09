@@ -6,6 +6,7 @@ import { useViewer } from "./viewer";
 import {
   FORMAT_LABELS,
   HistoryFilter,
+  HistoryInsightTarget,
   HistoryRaceRow,
   HistoryStats,
   HistoryView,
@@ -34,6 +35,7 @@ import { HistoryBreakdownPanel } from "./BreakdownPanel";
 import { AfterErrorPanel } from "./AfterErrorPanel";
 import { CommonErrorsPanel } from "./CommonErrorsPanel";
 import { FatiguePanel } from "./FatiguePanel";
+import { Insights } from "./Insights";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 
@@ -59,6 +61,17 @@ const TABS: (TabItem<HistoryTab> & { intro: string })[] = [
   },
 ];
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
+
+/** Pestaña donde está el análisis que justifica cada frase del resumen (#126). */
+const INSIGHT_TABS: Record<HistoryInsightTarget, HistoryTab> = {
+  formats: "summary",
+  leg_length: "where",
+  common_errors: "where",
+  slope: "where",
+  loss_breakdown: "where",
+  after_error: "body",
+  days_off: "progress",
+};
 
 function HistoryScreen({
   tab,
@@ -241,6 +254,8 @@ function Summary({
   const intro = TABS.find((t) => t.id === tab)?.intro;
   return (
     <>
+      <Insights insights={view.insights} onOpen={(target) => onTab(INSIGHT_TABS[target])} />
+
       <div className="stats">
         <Stat label="Carreras" value={total.races} />
         <Stat

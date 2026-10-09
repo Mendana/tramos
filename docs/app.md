@@ -34,7 +34,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos tramos con error quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). |
-| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado. |
+| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe; `docs/frases.md`). |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
@@ -50,7 +50,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
 
 En modo entrenadora, los comandos que leen las vistas de corredor (`list_races`, `race_detail`,
 `race_comparison`, `race_breakdown`, `race_offset`, `race_map`, `leg_tags` y `history`) leen las
@@ -332,6 +332,10 @@ de una a otra). La pestaña abierta es parte de la pantalla: «volver» regresa 
 pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamente Tramos.
 
 - **Resumen** (la de entrada):
+  - arriba, el **resumen en frases** de la carrera (#126, `docs/frases.md`): como mucho tres
+    frases, cada una un enlace a la pestaña que la justifica (Tramos o Análisis). Las de pocos
+    datos llevan su aviso escrito al lado («con pocos tramos», «referencia débil»), no solo un
+    color. Sin frases no se pinta el bloque. También en modo entrenadora;
   - si quedan errores sin revisar, un aviso con «Revisar ahora», que lleva a Tramos;
   - el panel de pérdida por tramo (P1);
   - «Dónde más perdiste»: los tres tramos con más pérdida, con su split y su referencia y, con
@@ -507,6 +511,11 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
 
 - **Filtros**: desde y hasta (fechas incluidas) y formato (todos, sprint, media, larga). Cambiar
   uno vuelve a pedir el histórico. «Quitar filtros» los borra.
+- **Resumen en frases** (#126, `docs/frases.md`): debajo de los filtros y encima de las cifras,
+  como mucho tres frases que resumen lo importante con los filtros puestos («Fallas más en los
+  tramos largos…»). Cada una es un enlace a la pestaña de su análisis (`docs/frases.md`,
+  "Destinos"). Las de pocos datos llevan su aviso escrito al lado («con pocas carreras»…), no
+  solo un color. Sin frases no se pinta el bloque. También en modo entrenadora.
 - **Cifras** del total: carreras, IR medio (con la consistencia media debajo, P10), tasa de
   error y pérdida media por tramo.
 - **Tabla por formato**: sprint, media y larga (aunque no tengan carreras) y, si hay, las

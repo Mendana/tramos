@@ -14,6 +14,7 @@ pub mod group;
 pub mod history;
 pub mod identify;
 pub mod importers;
+pub mod insights;
 pub mod leg_length;
 pub mod loss_breakdown;
 pub mod lost_time;

@@ -494,7 +494,8 @@ y la tabla el recorrido (`docs/segmentacion.md`).
 
 - Atribución siempre visible, «© OpenStreetMap contributors», con enlace a
   `https://www.openstreetmap.org/copyright`. El enlace se abre en el navegador del sistema con
-  `tauri-plugin-opener`, al que la ventana solo deja abrir URL de `https://www.openstreetmap.org/`.
+  `tauri-plugin-opener`, al que la ventana solo deja abrir URL de `https://www.openstreetmap.org/`
+  y de los documentos del repositorio (los de la Ayuda, abajo).
 - Solo se piden las teselas de lo que se mira, al moverse por el mapa: nada de descargas
   masivas ni de precarga. Zoom máximo 19 (el de OSM). MapLibre no vuelve a pedir las teselas
   caducadas mientras el mapa está abierto (`refreshExpiredTiles: false`) y la caché del
@@ -623,6 +624,55 @@ mismos (`pattern_legs`).
 
   Las definiciones están en `docs/historico.md`, "¿El cansancio anticipa el error? (P14)".
 
+## Ayuda (#125)
+
+Ayuda dentro de la app, que funciona sin conexión: una página por pantalla y por pestaña, y páginas
+de conceptos (tiempo perdido, IR, tipos de error, ¿lento o desorientado?, zonas del mapa, reloj y
+desfase, formatos, compartir con la entrenadora y modo entrenadora). Código en `app/src/help/`.
+
+- **Abrirla.** «Ayuda», en el bloque «Cuenta» de la barra lateral (en los dos modos), abre la
+  portada. El botón «?» a la derecha de la cabecera abre la página de la pantalla abierta y, en
+  la vista de carrera y en Estadísticas, la de la pestaña abierta (`views.ts`). En la propia
+  ayuda no sale. La ayuda es una pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo
+  perdido»), y no lleva delante el nombre del corredor en modo entrenadora.
+- **Pantalla** (`HelpScreen.tsx`): a la izquierda, el índice de todas las páginas por bloques
+  (Ayuda, Pantallas, Una carrera, Estadísticas y Conceptos); a la derecha, la página. Un enlace
+  a otra página la abre como otra pantalla, desde arriba.
+- **Páginas**: un fichero Markdown por página, `app/src/help/<id>.md`, que empieza por
+  `# Título`. Se importan con `?raw` en `pages.ts`, así que van dentro del bundle.
+- **Contenido**: para quien no es de datos, con un ejemplo inventado por concepto (nunca datos
+  reales: ni nombres, ni lugares, ni fechas, ni tiempos de carreras de verdad) y, al final, el
+  enlace al documento de `docs/` con el detalle técnico. Explica en llano lo que definen los
+  documentos de `docs/`, que son la fuente de verdad: no los contradice.
+- **Markdown**: renderizador propio y mínimo (`markdown.tsx`), sin dependencias: títulos (`#`,
+  `##`, `###`), párrafos, listas de un nivel (`-` y `1.`), tablas, citas (`>`, que se pintan como
+  un recuadro «Ejemplo»), negrita, cursiva, código y enlaces. Construye elementos de React y lo
+  que no entiende sale como texto: no hay HTML crudo ni estilos en línea (CSP).
+- **Enlaces**: `otra-pagina.md` abre esa página de la ayuda;
+  `https://github.com/Mendana/tramos/blob/main/...` se abre en el navegador del sistema (abajo,
+  "Seguridad"); cualquier otro destino sale como texto.
+
+**Que no se quede vieja.**
+
+- Regla en `CLAUDE.md`: quien cambia una vista actualiza su página en el mismo PR, y quien añade
+  una vista o una pestaña, le añade página.
+- `tsc` (y con él `npm run build`, que corre en la CI) falla si una pantalla o pestaña no tiene
+  página: en `views.ts`, el mapa vista → página es un `Record<Screen["kind"], HelpPageId>`, y los
+  de las pestañas, `Record<RaceTab, HelpPageId>` y `Record<HistoryTab, HelpPageId>`. Y como las
+  páginas se importan estáticamente, si falta un fichero el build no lo resuelve y falla.
+- Al compilar, el plugin `helpCheck` de `app/vite.config.ts` comprueba cada `.md` de
+  `app/src/help/`: que está registrado en `pages.ts`, que empieza por `# Título`, que no lleva
+  HTML ni listas anidadas y que sus enlaces van a una página que existe o a un fichero del
+  repositorio que existe. Si algo falla, el build falla con la lista.
+
+**Añadir una página**:
+
+1. Crea `app/src/help/<id>.md` (minúsculas, cifras y guiones), empezando por `# Título`.
+2. En `pages.ts`, impórtala con `?raw`, añade `<id>` a `HelpPageId` y a `HELP_PAGES` con su
+   bloque del índice (el orden de `HELP_PAGES` es el del índice).
+3. Si es la de una pantalla o pestaña nueva, apúntala en `views.ts` (`tsc` lo pide).
+4. Enlázala desde las páginas relacionadas y pasa `npm run build`.
+
 ## Diseño
 
 Base visual común a todas las pantallas (#88), en CSS propio y sin librerías de componentes. La
@@ -645,13 +695,14 @@ sistema.
 - **Estructura** (#127, boceto en `docs/bocetos/navegacion.html`): barra lateral oscura en los
   dos modos (`--side-*`) con bloques:
   - corredor: Inicio; «Lo mío», con Mis carreras (y un contador de errores sin revisar),
-    Estadísticas e Importar; «Cuenta», con Mi perfil y Ajustes;
+    Estadísticas e Importar; «Cuenta», con Mi perfil, Ajustes y Ayuda;
   - entrenadora: «Corredor», con el selector y sus Carreras y Estadísticas; «Todos», con
-    Grupo; «Cuenta», con Ajustes.
+    Grupo; «Cuenta», con Ajustes y Ayuda.
 
   Encima del contenido, una cabecera fija con el botón de volver (a la pantalla anterior, hasta
-  30) y las migas de pan («Mis carreras / Nombre de la carrera»; en modo entrenadora, con el
-  nombre del corredor delante). Al pie de la barra lateral, la versión
+  30), las migas de pan («Mis carreras / Nombre de la carrera»; en modo entrenadora, con el
+  nombre del corredor delante) y, a la derecha, el botón «?» de la ayuda (abajo, "Ayuda"). Al pie
+  de la barra lateral, la versión
   del núcleo; en modo entrenadora con carpeta compartida, también cuántos paquetes y de cuántos
   corredores ha recibido (y cuántos ficheros no ha podido leer). El contenido, centrado hasta
   1160 px. Por debajo de 860 px de ancho la barra lateral pasa arriba, sin los títulos de los
@@ -737,7 +788,9 @@ La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permiso
 (`app/src-tauri/capabilities/default.json`) son los de `core:default`, `dialog:allow-open`, este
 solo para el diálogo de abrir ficheros o elegir una carpeta (la carpeta la recorre Rust: la
 ventana no tiene permisos de sistema de ficheros), y `opener:allow-open-url` limitado a
-`https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa.
+`https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa, y a
+`https://github.com/Mendana/tramos/blob/main/*`, para los enlaces de la Ayuda a los documentos
+técnicos. Los dos se abren en el navegador del sistema, no en la ventana.
 
 MapLibre y la CSP:
 

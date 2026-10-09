@@ -8,7 +8,10 @@
     "dialog:allow-open",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://www.openstreetmap.org/*" }]
+      "allow": [
+        { "url": "https://www.openstreetmap.org/*" },
+        { "url": "https://github.com/Mendana/tramos/blob/main/*" }
+      ]
     }
   ]
 }

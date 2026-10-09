@@ -45,7 +45,9 @@
   más (ni track, ni nombres, ni tiempos). Si una carrera no tiene track, no se pide ninguna
   tesela. Las teselas quedan en la caché del navegador del sistema según sus cabeceras.
 - El enlace de la atribución de OSM se abre en el navegador del sistema; la app solo puede
-  abrir URL de `https://www.openstreetmap.org/`.
+  abrir URL de `https://www.openstreetmap.org/` y de los documentos del repositorio
+  (`https://github.com/Mendana/tramos/blob/main/`), a los que enlaza la Ayuda. La Ayuda va dentro
+  de la app y no pide nada a ningún servidor: solo esos enlaces, al pulsarlos, abren el navegador.
 
 ## En el repositorio (es público)
 

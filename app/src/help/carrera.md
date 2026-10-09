@@ -12,6 +12,16 @@ Todo lo de una carrera: arriba la cabecera y las cifras, y debajo las pestañas 
 - **Qué se comparte** de esta carrera con tu entrenadora, si tienes carpeta compartida: «por
   defecto», nada, resumen, tramos o track completo ([Compartir](compartir.md)).
 
+## Resumen en frases
+
+Arriba de la pestaña **Resumen**, hasta **tres frases** con lo esencial de la carrera: si fue
+limpia, si casi todo lo perdido se fue en uno o dos tramos, si encadenaste varios tramos perdiendo
+tiempo o si los errores llegaron juntos en una parte de la carrera. Cada una lleva a la pestaña
+que la justifica. Con pocos tramos o con la referencia débil, lo dice al lado.
+
+> «Dos tramos, el 3 y el 7, se llevaron el 70 % del tiempo perdido.» Si pulsas **Ver**, se abre
+> la pestaña Tramos para mirar esos dos.
+
 ## Cifras
 
 - **Tiempo**: de la salida a la meta.

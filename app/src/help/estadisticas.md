@@ -5,6 +5,17 @@ y las cifras; debajo, una pestaña por pregunta: **Resumen**,
 [¿Dónde fallo?](estadisticas-donde.md), [¿Cómo evoluciono?](estadisticas-evolucion.md) y
 [Cabeza y piernas](estadisticas-cabeza.md). El botón **?** abre la página de la pestaña abierta.
 
+## Resumen en frases
+
+Debajo de los filtros, hasta **tres frases** con lo más importante de tus carreras, por ejemplo
+«Fallas más en los tramos largos» o «Un error suele traer otro». Cambian con los filtros. Cada
+una lleva a la pestaña que la justifica (**Ver**). Si se apoya en pocos datos, lo dice al lado
+(«con pocas carreras»): tómala como una pista, no como una conclusión. Sin nada que destacar, no
+sale ninguna.
+
+> «Fallas más en los tramos largos (de 4 a 8 min): el 30 % son error, frente al 12 % de media.»
+> Si pulsas **Ver**, se abre ¿Dónde fallo?, con la gráfica por duración del tramo.
+
 ## Filtros
 
 **Desde** y **hasta** (las dos fechas entran) y **formato** (todos, sprint, media o larga). Valen

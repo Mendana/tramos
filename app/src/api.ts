@@ -494,10 +494,10 @@ export const ZONE_COLORS = [
   "#1e293b",
 ];
 
-/** Quién usa la app: un corredor (exporta) o la entrenadora (recibe). */
-export type AppMode = "runner" | "coach";
+/** Cómo se usa la app, en la bienvenida: corre, entrena o las dos cosas (#119). */
+export type Role = "runner" | "coach" | "both";
 
-/** Qué se comparte de una carrera con la entrenadora (`docs/paquete.md`). */
+/** Qué se comparte de una carrera con quien te entrena (`docs/paquete.md`). */
 export type ShareChoice = "none" | "aggregates" | "legs" | "track";
 
 /** Nivel de un paquete: lo que se comparte, sin «nada». */
@@ -518,7 +518,10 @@ export const SHARE_HINTS: Record<ShareChoice, string> = {
 };
 
 export interface SharingSettings {
-  mode: AppMode;
+  /** Exporta las carreras propias a la carpeta («Compartir mis carreras»). */
+  share_own: boolean;
+  /** Entrena a otros atletas: recibe sus paquetes y activa la sección Atletas. */
+  coach: boolean;
   /** Carpeta compartida; `null` = sin compartir. */
   folder: string | null;
   default_choice: ShareChoice;
@@ -526,7 +529,7 @@ export interface SharingSettings {
 
 /** Cómo queda una carrera en la carpeta compartida. */
 export interface RaceSharing {
-  /** Se puede compartir: modo corredor, con carpeta y la carrera es tuya. */
+  /** Se puede compartir: compartes lo tuyo, con carpeta y la carrera es tuya. */
   available: boolean;
   /** Lo elegido para esta carrera; `null` = lo de por defecto. */
   choice: ShareChoice | null;
@@ -574,7 +577,7 @@ export interface RaceSummary {
   consistency: number | null;
 }
 
-/** Un corredor en el selector de la entrenadora. */
+/** Un atleta en el selector de la sección Atletas. */
 export interface CoachRunner {
   runner_id: string;
   display_name: string;
@@ -597,13 +600,13 @@ export interface RunnerViewInfo {
   problems: string[];
 }
 
-export const modeChosen = () => invoke<boolean>("mode_chosen");
+export const roleChosen = () => invoke<boolean>("role_chosen");
 
-export const chooseMode = (mode: AppMode) => invoke<void>("choose_mode", { mode });
+export const chooseRole = (role: Role) => invoke<void>("choose_role", { role });
 
 export const coachRunners = () => invoke<CoachRunner[]>("coach_runners");
 
-/** Elige el corredor que se ve en modo entrenadora (`null` = ninguno). */
+/** Elige el atleta que se ve, en solo lectura (`null` = volver a lo propio). */
 export const viewRunner = (runnerId: string | null) =>
   invoke<RunnerViewInfo | null>("view_runner", { runnerId });
 
@@ -626,6 +629,8 @@ export interface GroupRow {
 
 export interface GroupRunnerRow {
   runner: CoachRunner;
+  /** Las carreras propias de quien usa la app («Incluirme»). */
+  is_self: boolean;
   row: GroupRow | null;
   problem: string | null;
 }
@@ -659,11 +664,16 @@ export interface HeadToHead {
 export interface GroupView {
   runners: GroupRunnerRow[];
   comparison: { shared_races: SharedRace[]; head_to_head: HeadToHead[] };
+  /** Si cuentan las carreras propias (ajuste «Incluirme»). */
+  include_self: boolean;
 }
 
 export const groupView = (filter: HistoryFilter) => invoke<GroupView>("group_view", { filter });
 
-/** El corredor que se está viendo, sin volver a cargarlo. */
+/** Guarda si las carreras propias cuentan en la vista de grupo. */
+export const setIncludeSelf = (include: boolean) => invoke<void>("set_include_self", { include });
+
+/** El atleta que se está viendo, sin volver a cargarlo; `null` = lo propio. */
 export const viewedRunner = () => invoke<RunnerViewInfo | null>("viewed_runner");
 
 export const getSettings = () => invoke<Settings>("get_settings");

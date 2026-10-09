@@ -121,7 +121,7 @@
   white-space: nowrap;
 }
 
-/* --- Primera vez: ¿corredor o entrenadora? --- */
+/* --- Primera vez: ¿corre, entrena o las dos cosas? --- */
 
 .welcome {
   display: grid;
@@ -135,12 +135,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 560px;
+  max-width: 720px;
 }
 
 .welcome-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
 }
 
@@ -1187,7 +1187,7 @@
   margin-left: auto;
 }
 
-/* Etiqueta en solo lectura (modo entrenadora). */
+/* Etiqueta en solo lectura (al ver a un atleta). */
 .tag-summary {
   display: flex;
   flex-wrap: wrap;
@@ -1669,4 +1669,42 @@
   .help-index-label {
     width: 100%;
   }
+
+/* Casilla con su explicación debajo (Ajustes). */
+.check-block {
+  align-items: flex-start;
+}
+
+.check-block input {
+  margin-top: 3px;
+}
+
+.check-block > span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Franja de solo lectura mientras se ve a un atleta (#119). */
+.viewing-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--info);
+  background: var(--info-soft);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.viewing-banner > svg {
+  flex-shrink: 0;
+  color: var(--info);
+}
+
+.viewing-banner-text {
+  flex: 1;
+  min-width: 200px;
 }

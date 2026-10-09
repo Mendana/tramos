@@ -27,8 +27,15 @@ pub const TIME_ZONE_KEY: &str = "import.time_zone";
 pub const SI_CARD_KEY: &str = "self.si_card";
 /// Nombre y apellidos del usuario, para lo mismo.
 pub const FULL_NAME_KEY: &str = "self.full_name";
-/// Modo de la app: `runner` (exporta sus carreras) o `coach` (recibe las de los corredores).
+/// Modo de antes de #119: `runner` o `coach`. Solo se lee, para las bases que lo tienen: `coach`
+/// equivale a entrenar sin compartir lo propio.
 pub const MODE_KEY: &str = "sharing.mode";
+/// Entrena a otros atletas: recibe sus paquetes y activa la sección Atletas (`true`/`false`).
+pub const COACH_KEY: &str = "athletes.enabled";
+/// Exporta las carreras propias a la carpeta compartida (`true`/`false`).
+pub const SHARE_OWN_KEY: &str = "sharing.share_own";
+/// En la vista de grupo, las carreras propias cuentan como un atleta más (`true`/`false`).
+pub const INCLUDE_SELF_KEY: &str = "athletes.include_self";
 /// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
 pub const FOLDER_KEY: &str = "sharing.folder";
 /// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
@@ -97,20 +104,26 @@ pub struct MapSettings {
     pub heart_rate_zones: Option<Zones>,
 }
 
-/// Quién usa la app (`docs/paquete.md`, "Carpeta compartida").
+/// Cómo se usa la app, en la bienvenida (`docs/app.md`, "Primera vez").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AppMode {
-    /// Un corredor: exporta sus carreras a la carpeta.
+pub enum Role {
+    /// Corre: analiza y comparte sus carreras.
     Runner,
-    /// La entrenadora: importa los paquetes que dejan los corredores en la carpeta.
+    /// Entrena: ve las carreras de sus atletas.
     Coach,
+    /// Las dos cosas.
+    Both,
 }
 
-/// Cómo se comparte con la entrenadora.
+/// La carpeta compartida y para qué se usa (`docs/paquete.md`, "Carpeta compartida"). Las
+/// funciones de corredor están siempre; entrenar las añade, no las quita.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SharingSettings {
-    pub mode: AppMode,
+    /// Exporta las carreras propias a la carpeta.
+    pub share_own: bool,
+    /// Entrena a otros atletas: importa sus paquetes de la carpeta y activa la sección Atletas.
+    pub coach: bool,
     /// Carpeta compartida; `None` = sin compartir.
     pub folder: Option<String>,
     /// Qué se comparte de una carrera si no se ha elegido nada para ella.
@@ -127,6 +140,8 @@ pub fn load(store: &Store) -> Result<Settings, StoreError> {
             .filter(|v| v.is_finite() && *v >= 0.0)
             .unwrap_or(default))
     };
+    // Una base de antes de #119 en modo entrenadora entrena y no comparte lo propio.
+    let legacy_coach = store.setting(MODE_KEY)?.as_deref() == Some("coach");
     Ok(Settings {
         error_threshold_s: number(ERROR_THRESHOLD_S_KEY, defaults.error_threshold_s)?,
         error_threshold_pct: number(ERROR_THRESHOLD_PCT_KEY, defaults.error_threshold_pct)?,
@@ -136,10 +151,8 @@ pub fn load(store: &Store) -> Result<Settings, StoreError> {
             .unwrap_or_else(|| RACE_TIME_ZONE.name().to_string()),
         identity: identity(store)?,
         sharing: SharingSettings {
-            mode: match store.setting(MODE_KEY)?.as_deref() {
-                Some("coach") => AppMode::Coach,
-                _ => AppMode::Runner,
-            },
+            share_own: flag(store, SHARE_OWN_KEY)?.unwrap_or(!legacy_coach),
+            coach: flag(store, COACH_KEY)?.unwrap_or(legacy_coach),
             folder: store.setting(FOLDER_KEY)?.filter(|v| !v.trim().is_empty()),
             default_choice: store
                 .setting(DEFAULT_CHOICE_KEY)?
@@ -196,7 +209,8 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     )?;
     store.set_setting(TIME_ZONE_KEY, zone)?;
     save_identity(store, &settings.identity, true)?;
-    choose_mode(store, settings.sharing.mode)?;
+    set_flag(store, SHARE_OWN_KEY, settings.sharing.share_own)?;
+    set_flag(store, COACH_KEY, settings.sharing.coach)?;
     store.set_setting(FOLDER_KEY, folder.unwrap_or(""))?;
     store.set_setting(DEFAULT_CHOICE_KEY, settings.sharing.default_choice.key())?;
     store.set_setting(
@@ -210,21 +224,37 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     Ok(())
 }
 
-/// Si ya se ha elegido el modo: está guardado o, en una base de antes del modo, ya hay
-/// carreras importadas (entonces es un corredor).
-pub fn mode_chosen(store: &Store) -> Result<bool, StoreError> {
-    Ok(store.setting(MODE_KEY)?.is_some() || crate::import::stored_self_person(store)?.is_some())
+/// Si ya se ha dicho cómo se usa la app: está guardado (o el modo de antes de #119) o, en una
+/// base de antes del modo, ya hay carreras importadas (entonces es un corredor).
+pub fn role_chosen(store: &Store) -> Result<bool, StoreError> {
+    Ok(store.setting(COACH_KEY)?.is_some()
+        || store.setting(MODE_KEY)?.is_some()
+        || crate::import::stored_self_person(store)?.is_some())
 }
 
-/// Guarda el modo sin tocar los demás ajustes.
-pub fn choose_mode(store: &mut Store, mode: AppMode) -> Result<(), StoreError> {
-    store.set_setting(
-        MODE_KEY,
-        match mode {
-            AppMode::Runner => "runner",
-            AppMode::Coach => "coach",
-        },
-    )
+/// Guarda cómo se usa la app sin tocar los demás ajustes: si entrena y si comparte lo propio.
+pub fn choose_role(store: &mut Store, role: Role) -> Result<(), StoreError> {
+    set_flag(store, SHARE_OWN_KEY, role != Role::Coach)?;
+    set_flag(store, COACH_KEY, role != Role::Runner)
+}
+
+/// Si en la vista de grupo cuentan las carreras propias. Por defecto, no.
+pub fn include_self(store: &Store) -> Result<bool, StoreError> {
+    Ok(flag(store, INCLUDE_SELF_KEY)?.unwrap_or(false))
+}
+
+/// Guarda si en la vista de grupo cuentan las carreras propias.
+pub fn set_include_self(store: &mut Store, include: bool) -> Result<(), StoreError> {
+    set_flag(store, INCLUDE_SELF_KEY, include)
+}
+
+/// Un ajuste `true`/`false`; `None` si no está o no se entiende.
+fn flag(store: &Store, key: &str) -> Result<Option<bool>, StoreError> {
+    Ok(store.setting(key)?.and_then(|v| v.parse().ok()))
+}
+
+fn set_flag(store: &mut Store, key: &str, value: bool) -> Result<(), StoreError> {
+    store.set_setting(key, if value { "true" } else { "false" })
 }
 
 /// Paneles de análisis ocultos, por identificador. Sin nada guardado (o con algo que no se
@@ -305,7 +335,8 @@ mod tests {
                 full_name: Some("N143 Apellido143".into()),
             },
             sharing: SharingSettings {
-                mode: AppMode::Runner,
+                share_own: true,
+                coach: false,
                 folder: None,
                 default_choice: ShareChoice::Legs,
             },
@@ -323,7 +354,8 @@ mod tests {
         assert_eq!(
             s.sharing,
             SharingSettings {
-                mode: AppMode::Runner,
+                share_own: true,
+                coach: false,
                 folder: None,
                 default_choice: ShareChoice::Legs
             }
@@ -419,7 +451,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut s = settings();
         s.sharing = SharingSettings {
-            mode: AppMode::Coach,
+            share_own: false,
+            coach: true,
             folder: Some(dir.path().to_string_lossy().into_owned()),
             default_choice: ShareChoice::Nothing,
         };
@@ -432,24 +465,63 @@ mod tests {
         assert_eq!(load(&store).unwrap().sharing.folder, None);
 
         // Valores que no se entienden toman el valor por defecto.
-        store.set_setting(MODE_KEY, "otro").unwrap();
+        store.set_setting(SHARE_OWN_KEY, "quizá").unwrap();
+        store.set_setting(COACH_KEY, "").unwrap();
         store.set_setting(DEFAULT_CHOICE_KEY, "todo").unwrap();
         let sharing = load(&store).unwrap().sharing;
         assert_eq!(
-            (sharing.mode, sharing.default_choice),
-            (AppMode::Runner, DEFAULT_SHARE_CHOICE)
+            (sharing.share_own, sharing.coach, sharing.default_choice),
+            (true, false, DEFAULT_SHARE_CHOICE)
         );
     }
 
     #[test]
-    fn the_mode_is_chosen_once() {
+    fn the_role_is_chosen_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert!(!mode_chosen(&store).unwrap());
-        choose_mode(&mut store, AppMode::Coach).unwrap();
-        assert!(mode_chosen(&store).unwrap());
-        assert_eq!(load(&store).unwrap().sharing.mode, AppMode::Coach);
+        assert!(!role_chosen(&store).unwrap());
+        for (role, share_own, coach) in [
+            (Role::Coach, false, true),
+            (Role::Both, true, true),
+            (Role::Runner, true, false),
+        ] {
+            choose_role(&mut store, role).unwrap();
+            assert!(role_chosen(&store).unwrap());
+            let sharing = load(&store).unwrap().sharing;
+            assert_eq!(
+                (sharing.share_own, sharing.coach),
+                (share_own, coach),
+                "{role:?}"
+            );
+        }
         // Elegirlo no toca los demás ajustes.
         assert_eq!(load(&store).unwrap().time_zone, "Europe/Madrid");
+    }
+
+    #[test]
+    fn a_coach_from_before_119_keeps_coaching_without_sharing_their_own() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.set_setting(MODE_KEY, "coach").unwrap();
+        assert!(role_chosen(&store).unwrap());
+        let sharing = load(&store).unwrap().sharing;
+        assert_eq!((sharing.share_own, sharing.coach), (false, true));
+
+        let mut store = Store::open_in_memory().unwrap();
+        store.set_setting(MODE_KEY, "runner").unwrap();
+        let sharing = load(&store).unwrap().sharing;
+        assert_eq!((sharing.share_own, sharing.coach), (true, false));
+        // Lo guardado después manda sobre el modo de antes.
+        choose_role(&mut store, Role::Both).unwrap();
+        assert!(load(&store).unwrap().sharing.coach);
+    }
+
+    #[test]
+    fn including_oneself_in_the_group_round_trips() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert!(!include_self(&store).unwrap());
+        set_include_self(&mut store, true).unwrap();
+        assert!(include_self(&store).unwrap());
+        set_include_self(&mut store, false).unwrap();
+        assert!(!include_self(&store).unwrap());
     }
 
     #[test]
@@ -477,7 +549,8 @@ mod tests {
     #[test]
     fn a_runner_from_before_the_mode_has_it_chosen() {
         let (store, _) = crate::race_map::tests::imported(false);
-        assert!(mode_chosen(&store).unwrap());
-        assert_eq!(load(&store).unwrap().sharing.mode, AppMode::Runner);
+        assert!(role_chosen(&store).unwrap());
+        let sharing = load(&store).unwrap().sharing;
+        assert_eq!((sharing.share_own, sharing.coach), (true, false));
     }
 }

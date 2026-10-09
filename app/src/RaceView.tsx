@@ -479,7 +479,7 @@ function LegList({
 }
 
 /** Formato de la carrera, que se puede corregir después de importarla (cuenta en el histórico). */
-/** Qué se comparte de la carrera con la entrenadora; pedirlo también la exporta si hace falta. */
+/** Qué se comparte de la carrera con quien te entrena; pedirlo también la exporta si hace falta. */
 function useRaceSharing(resultId: number, enabled: boolean) {
   const [view, setView] = useState<RaceSharing | null>(null);
   const [error, setError] = useState<string | null>(null);

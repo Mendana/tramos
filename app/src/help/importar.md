@@ -46,5 +46,5 @@ de la carrera: [Reloj y desfase](reloj.md).
 Detalle técnico:
 [app, «Importar una carrera»](https://github.com/Mendana/tramos/blob/main/docs/app.md#importar-una-carrera).
 
-La entrenadora no importa carreras: le llegan por la carpeta compartida
-([Modo entrenadora](modo-entrenadora.md)).
+Las carreras de tus atletas, si entrenas, no se importan aquí: llegan por la carpeta compartida
+([Atletas](atletas.md)).

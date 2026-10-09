@@ -1,5 +1,6 @@
-// Vista de grupo (P15, docs/historico.md): la entrenadora compara a sus corredores. Una fila por
-// corredor con lo principal de su histórico y todos contra todos en las carreras que comparten.
+// Vista de grupo (P15, docs/historico.md): quien entrena compara a sus atletas. Una fila por
+// atleta con lo principal de su histórico y todos contra todos en las carreras que comparten. Con
+// «Incluirme» (#119), sus carreras propias cuentan como un atleta más.
 // Los números vienen del núcleo; aquí solo se dibujan.
 import { useEffect, useState } from "react";
 import {
@@ -12,6 +13,7 @@ import {
   decimal,
   getTaxonomy,
   groupView,
+  setIncludeSelf,
 } from "./api";
 import { Filters } from "./HistoryScreen";
 import { percent } from "./HistoryPanels";
@@ -26,9 +28,16 @@ const rate = (v: number | null) => (v === null ? "—" : percent(v * 100));
 /** Diferencia de IR en puntos: «+2,5» o «−1,0». */
 const points = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${decimal(Math.abs(v) * 100, 1)}`;
 
-function GroupScreen({ onOpenRunner }: { onOpenRunner: (runnerId: string) => void }) {
+function GroupScreen({
+  onOpenRunner,
+}: {
+  /** Abre las carreras de un atleta; `null` = las propias. */
+  onOpenRunner: (runnerId: string | null) => void;
+}) {
   const [filter, setFilter] = useState<HistoryFilter>(NO_FILTER);
   const [view, setView] = useState<GroupView | null>(null);
+  // Sube al cambiar «Incluirme», para volver a pedir la vista.
+  const [revision, setRevision] = useState(0);
   const [taxonomy, setTaxonomy] = useState<Taxonomy | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,38 +60,60 @@ function GroupScreen({ onOpenRunner }: { onOpenRunner: (runnerId: string) => voi
     return () => {
       current = false;
     };
-  }, [filter]);
+  }, [filter, revision]);
 
-  const names = view?.runners.map((r) => r.runner.display_name || "Sin nombre") ?? [];
+  const includeSelf = (include: boolean) => {
+    setIncludeSelf(include)
+      .then(() => setRevision((r) => r + 1))
+      .catch((err: unknown) => setError(String(err)));
+  };
+
+  const names =
+    view?.runners.map((r) =>
+      r.is_self
+        ? r.runner.display_name === ""
+          ? "Tú"
+          : `${r.runner.display_name} (tú)`
+        : r.runner.display_name || "Sin nombre",
+    ) ?? [];
+  const athletes = view?.runners.filter((r) => !r.is_self).length ?? 0;
   const shared = view?.comparison.shared_races.length ?? 0;
   const typeName = (key: string) => taxonomy?.types.find((t) => t.key === key)?.label ?? key;
 
   return (
     <>
       <PageHeader
-        title="Grupo"
+        title="Comparar atletas"
         subtitle={
           view === null
             ? "Cargando…"
-            : `${names.length} ${names.length === 1 ? "corredor" : "corredores"} · ${shared} ${shared === 1 ? "carrera compartida" : "carreras compartidas"}`
+            : `${athletes} ${athletes === 1 ? "atleta" : "atletas"}${view.include_self ? " y tú" : ""} · ${shared} ${shared === 1 ? "carrera compartida" : "carreras compartidas"}`
         }
       />
       {error !== null && <Notice kind="error">{error}</Notice>}
 
-      {view !== null && view.runners.length === 0 && (
+      {view !== null && athletes === 0 && (
         <div className="card">
-          <EmptyState icon={<GroupIcon size={40} />} title="Aún no hay corredores">
+          <EmptyState icon={<GroupIcon size={40} />} title="Aún no hay atletas">
             <p>Aparecerán cuando dejen sus carreras en la carpeta compartida.</p>
           </EmptyState>
         </div>
       )}
 
-      {view !== null && view.runners.length > 0 && (
+      {view !== null && athletes > 0 && (
         <>
           <Filters filter={filter} onChange={setFilter} />
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={view.include_self}
+              onChange={(e) => includeSelf(e.target.checked)}
+            />
+            Incluirme: mis carreras cuentan como un atleta más
+          </label>
 
           <section>
-            <h3 className="section-title">Corredores</h3>
+            <h3 className="section-title">Atletas</h3>
             <p className="small muted">
               Cada uno con sus umbrales y solo con las carreras que ha compartido con sus tramos. IR
               medio: 100 % es ir tan rápido como la referencia del recorrido.
@@ -92,7 +123,7 @@ function GroupScreen({ onOpenRunner }: { onOpenRunner: (runnerId: string) => voi
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Corredor</th>
+                      <th>Atleta</th>
                       <th className="num">Carreras</th>
                       <th className="num">IR medio</th>
                       <th className="num">Tasa de error</th>
@@ -114,10 +145,11 @@ function GroupScreen({ onOpenRunner }: { onOpenRunner: (runnerId: string) => voi
                           key={r.runner.runner_id}
                           className="clickable"
                           tabIndex={0}
-                          title={`Ver las carreras de ${names[i]}`}
-                          onClick={() => onOpenRunner(r.runner.runner_id)}
+                          title={r.is_self ? "Ver mis carreras" : `Ver las carreras de ${names[i]}`}
+                          onClick={() => onOpenRunner(r.is_self ? null : r.runner.runner_id)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") onOpenRunner(r.runner.runner_id);
+                            if (e.key === "Enter")
+                              onOpenRunner(r.is_self ? null : r.runner.runner_id);
                           }}
                         >
                           <td className="strong">{names[i]}</td>
@@ -242,7 +274,7 @@ function HeadToHeadTable({ view, names }: { view: GroupView; names: string[] }) 
             <thead>
               <tr>
                 <th>
-                  <span className="visually-hidden">Corredor</span>
+                  <span className="visually-hidden">Atleta</span>
                 </th>
                 {names.map((name, j) => (
                   <th key={j} className="num">

@@ -146,7 +146,7 @@ const CONFIRMATION_SUMMARIES: Record<Confirmation, string> = {
 };
 
 /**
- * Etiqueta de un tramo en solo lectura (modo entrenadora): la respuesta del nivel 1 y el
+ * Etiqueta de un tramo en solo lectura (al ver a un atleta): la respuesta del nivel 1 y el
  * contexto. El tipo ya sale en la fila.
  */
 export function TagSummary({ leg, state }: { leg: number; state: LegTagsState }) {

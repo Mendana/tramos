@@ -23,5 +23,5 @@ Sin carreras, la pantalla te invita a [importar](importar.md) la primera.
 > 95 %». Has ido algo más lento que de costumbre y tres tramos se te torcieron. «Revisar 3
 > errores» te lleva a confirmarlos.
 
-La entrenadora no tiene Inicio: empieza en las carreras del corredor que está viendo
-([Modo entrenadora](modo-entrenadora.md)).
+Inicio es siempre de lo tuyo. Si entrenas y estás viendo a un atleta, Inicio te devuelve a lo
+tuyo ([Atletas](atletas.md)).

@@ -78,14 +78,16 @@ algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene e
   buena. Uno idéntico al guardado no cambia nada. Reimportar nunca duplica.
 - Sustituir vale también para bajar de nivel: si el corredor reexporta con `aggregates` una
   carrera que había compartido con `track`, el track desaparece de la app de la entrenadora.
-- Qué hace la app de la entrenadora con los paquetes (selector de corredor y vistas en solo
-  lectura) está en `docs/app.md`, "Modo entrenadora" (#37).
+- Qué hace la app de quien entrena con los paquetes (selector de atleta y vistas en solo
+  lectura) está en `docs/app.md`, "Atletas" (#37, #119).
 
 ## Carpeta compartida (#36)
 
-Sin servidor: el corredor y la entrenadora comparten una carpeta sincronizada (Drive, OneDrive,
+Sin servidor: el corredor y quien le entrena comparten una carpeta sincronizada (Drive, OneDrive,
 Dropbox…). Cada app la tiene en sus ajustes (`sharing.folder`, `docs/app.md`, "Ajustes") junto
-con el **modo** (`sharing.mode`): `runner` exporta, `coach` recibe. Implementado en
+con dos casillas independientes (#119): **«Compartir mis carreras»** (`sharing.share_own`)
+exporta y **«Entreno a otros atletas»** (`athletes.enabled`) recibe. Quien entrena y también
+corre marca las dos y usa **la misma carpeta** para las dos cosas. Implementado en
 `app/src-tauri/src/sharing.rs`.
 
 **Qué se comparte de cada carrera.** Lo elegido para esa carrera en la vista de carrera
@@ -93,7 +95,7 @@ con el **modo** (`sharing.mode`): `runner` exporta, `coach` recibe. Implementado
 `sharing.default_choice`, que por defecto es `legs` (tramos y etiquetas, sin pulso ni GPS). Si
 se elige `track` para una carrera sin track, se comparten los tramos.
 
-**Corredor (exportar).** En modo corredor y con carpeta, cada carrera del usuario se exporta sola
+**Exportar.** Si comparte lo suyo y hay carpeta, cada carrera del usuario se exporta sola
 (`export_result`) cuando cambia algo de lo que lleva el paquete: al importarla (una o una carpeta
 entera), al etiquetar un tramo, al cambiar el formato o el desfase del reloj y al cambiar qué se
 comparte de ella. Al guardar los ajustes con carpeta se exportan todas (`share_all`), porque los
@@ -102,22 +104,24 @@ umbrales cambian el resumen.
 - Se escribe primero un temporal oculto (`.tramos-….json.tmp`) y se renombra, para que quien lea
   la carpeta nunca encuentre un paquete a medias.
 - Si el fichero ya está igual salvo el instante de exportación, **no se reescribe**: así la
-  sincronización no lo vuelve a subir y la entrenadora no lo vuelve a leer.
-- Si la carrera pasa a «nada», **se borra su fichero** de la carpeta. Lo que la entrenadora ya
+  sincronización no lo vuelve a subir y quien entrena no lo vuelve a leer.
+- Si la carrera pasa a «nada», **se borra su fichero** de la carpeta. Lo que quien entrena ya
   hubiera importado se queda en su app.
 - Un fallo al exportar (carpeta que no está, sin permiso) no deshace el cambio que lo provocó: la
   vista de carrera lo muestra y se reintenta al abrirla o al volver a cambiar algo.
 - Una carrera que no se puede analizar (sin picadas) no se exporta.
 
-**Entrenadora (recibir).** En modo entrenadora y con carpeta, la app importa los paquetes de la
+**Recibir.** Si entrena y hay carpeta, la app importa los paquetes de la
 carpeta (`receive`) al arrancar, al guardar los ajustes y **cada minuto** mientras está abierta.
 No usa avisos del sistema de ficheros: las carpetas sincronizadas no siempre los dan bien y
 mirar cada minuto basta.
 
-- Solo lee los ficheros `tramos-*.json`; el resto de la carpeta se ignora.
+- Solo lee los ficheros `tramos-*.json`; el resto de la carpeta se ignora. Tampoco lee los suyos:
+  los que terminan en su propio `runner_id` (`tramos-<race_id>-<runner_id>.json`), que son las
+  carreras propias que exporta esta misma app.
 - Recuerda la fecha de modificación y el tamaño de cada fichero importado y no vuelve a leer los
   que no cambian (un paquete con track puede pesar varios MB). Al reabrir la app los lee todos
   una vez; los que no aportan nada salen como «sin cambios».
 - Un fichero que no se puede importar (JSON roto, versión más nueva) no impide importar los demás
   y se vuelve a intentar la vez siguiente.
-- En modo corredor no se importa nada de la carpeta, aunque haya paquetes de otros.
+- Si no entrena, no se importa nada de la carpeta, aunque haya paquetes de otros.

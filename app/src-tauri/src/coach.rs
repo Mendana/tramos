@@ -1,4 +1,4 @@
-//! Modo entrenadora (#37, `docs/app.md`, "Modo entrenadora"): ver las carreras de un corredor
+//! Atletas (#37, #119, `docs/app.md`, "Atletas"): quien entrena ve las carreras de un atleta
 //! como las ve él, en solo lectura, a partir de los paquetes recibidos (`docs/paquete.md`).
 //!
 //! Los paquetes de un corredor se vuelcan en una base en memoria con la misma forma que la de su
@@ -14,15 +14,15 @@ use serde::Serialize;
 use thiserror::Error;
 use tramos_core::group::{GroupComparison, GroupEntry, GroupRow, compare, group_row};
 use tramos_core::history::HistoryFilter;
-use tramos_core::package::{RacePackage, RaceSummary};
+use tramos_core::package::{RacePackage, RaceSummary, race_id};
 use tramos_core::race_format::RaceFormat;
 use tramos_store::{ReceivedRunner, ResultId, Store, StoreError};
 
 use crate::history::history_view;
-use crate::import::SELF_PERSON_KEY;
-use crate::settings::{self, AppMode};
+use crate::import::{SELF_PERSON_KEY, stored_self_person};
+use crate::settings;
 
-/// Errores del modo entrenadora. Los mensajes van a la interfaz, en español.
+/// Errores de la sección Atletas. Los mensajes van a la interfaz, en español.
 #[derive(Debug, Error)]
 pub enum CoachError {
     #[error(transparent)]
@@ -31,7 +31,7 @@ pub enum CoachError {
     UnknownRunner,
 }
 
-/// Un corredor en el selector de la entrenadora.
+/// Un atleta en el selector de la sección Atletas.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CoachRunner {
     pub runner_id: String,
@@ -70,7 +70,7 @@ pub struct SummaryRace {
     pub summary: RaceSummary,
 }
 
-/// Lo que ve la entrenadora de un corredor.
+/// Lo que ve quien entrena de un atleta.
 #[derive(Debug)]
 pub struct RunnerView {
     pub runner: CoachRunner,
@@ -235,6 +235,8 @@ fn add_race(
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct GroupRunnerRow {
     pub runner: CoachRunner,
+    /// Es quien usa la app, con sus carreras propias («Incluirme», #119).
+    pub is_self: bool,
     /// `None` si su histórico no se ha podido calcular (`problem` dice por qué).
     pub row: Option<GroupRow>,
     pub problem: Option<String>,
@@ -243,60 +245,141 @@ pub struct GroupRunnerRow {
 /// Vista de grupo (P15): una fila por corredor y todos contra todos, con el mismo filtro.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct GroupView {
-    /// En el orden de `coach_runners`; los índices de `comparison` son posiciones aquí.
+    /// Quien usa la app primero si se incluye; después, en el orden de `coach_runners`. Los
+    /// índices de `comparison` son posiciones aquí.
     pub runners: Vec<GroupRunnerRow>,
     pub comparison: GroupComparison,
+    /// Si las carreras propias cuentan (ajuste «Incluirme»).
+    pub include_self: bool,
 }
 
-/// La vista de grupo con todos los corredores de los que hay paquetes. Cada uno se vuelca y se
-/// calcula como en su histórico (`history_view`), con sus umbrales.
-pub fn group_view(main: &Store, filter: &HistoryFilter) -> Result<GroupView, CoachError> {
+/// La vista de grupo con todos los corredores de los que hay paquetes y, con `include_self`,
+/// las carreras propias como un atleta más. Cada uno se calcula como en su histórico
+/// (`history_view`), con sus umbrales.
+pub fn group_view(
+    main: &mut Store,
+    filter: &HistoryFilter,
+    include_self: bool,
+) -> Result<GroupView, CoachError> {
     let mut runners = Vec::new();
     let mut entries = Vec::new();
-    for (index, runner) in coach_runners(main)?.into_iter().enumerate() {
+    if include_self && let Some(me) = own_runner(main)? {
+        let race_ids = own_race_ids(main)?;
+        let row = group_row_of(
+            main,
+            me,
+            true,
+            &race_ids,
+            filter,
+            runners.len(),
+            &mut entries,
+        );
+        runners.push(row);
+    }
+    for runner in coach_runners(main)? {
         let view = runner_view(main, &runner.runner_id)?;
-        let (row, problem) = match history_view(&view.store, filter) {
-            Ok(h) => {
-                for race in &h.races {
-                    let Some(race_id) = view.race_ids.get(&race.result_id) else {
-                        continue;
-                    };
-                    entries.push(GroupEntry {
-                        runner: index,
-                        race_id: race_id.clone(),
-                        date: race.date,
-                        name: race.name.clone(),
-                        format: race.format,
-                        stats: race.stats,
-                    });
-                }
-                (
-                    Some(group_row(
-                        &h.history,
-                        &h.by_leg_length,
-                        &h.by_slope,
-                        &h.common_errors,
-                    )),
-                    None,
-                )
-            }
-            Err(e) => (None, Some(e.to_string())),
-        };
-        runners.push(GroupRunnerRow {
+        let row = group_row_of(
+            &view.store,
             runner,
-            row,
-            problem,
-        });
+            false,
+            &view.race_ids,
+            filter,
+            runners.len(),
+            &mut entries,
+        );
+        runners.push(row);
     }
     Ok(GroupView {
         runners,
         comparison: compare(&entries),
+        include_self,
     })
 }
 
-/// ¿Está la app en modo entrenadora?
+/// La fila del corredor que irá en la posición `index` del grupo, a partir de su base. Apunta
+/// sus carreras en `entries` para cruzarlas con las de los demás.
+fn group_row_of(
+    store: &Store,
+    runner: CoachRunner,
+    is_self: bool,
+    race_ids: &HashMap<i64, String>,
+    filter: &HistoryFilter,
+    index: usize,
+    entries: &mut Vec<GroupEntry>,
+) -> GroupRunnerRow {
+    let (row, problem) = match history_view(store, filter) {
+        Ok(h) => {
+            for race in &h.races {
+                let Some(race_id) = race_ids.get(&race.result_id) else {
+                    continue;
+                };
+                entries.push(GroupEntry {
+                    runner: index,
+                    race_id: race_id.clone(),
+                    date: race.date,
+                    name: race.name.clone(),
+                    format: race.format,
+                    stats: race.stats,
+                });
+            }
+            (
+                Some(group_row(
+                    &h.history,
+                    &h.by_leg_length,
+                    &h.by_slope,
+                    &h.common_errors,
+                )),
+                None,
+            )
+        }
+        Err(e) => (None, Some(e.to_string())),
+    };
+    GroupRunnerRow {
+        runner,
+        is_self,
+        row,
+        problem,
+    }
+}
+
+/// Quien usa la app como corredor del grupo: su identificador de paquetes, su nombre y sus
+/// carreras. `None` si aún no tiene ninguna.
+fn own_runner(main: &mut Store) -> Result<Option<CoachRunner>, StoreError> {
+    let Some(me) = stored_self_person(main)? else {
+        return Ok(None);
+    };
+    let display_name = main
+        .people()?
+        .into_iter()
+        .find(|p| p.id == me)
+        .map(|p| p.display_name)
+        .unwrap_or_default();
+    Ok(Some(CoachRunner {
+        runner_id: main.package_runner_id()?,
+        display_name,
+        races: main.person_results(me)?.len(),
+        // Lo propio no llega por la carpeta: está siempre al día.
+        last_exported_at: Utc::now(),
+    }))
+}
+
+/// El `race_id` de cada carrera propia, para cruzarla con las de los atletas: el mismo que
+/// llevaría su paquete.
+fn own_race_ids(main: &Store) -> Result<HashMap<i64, String>, StoreError> {
+    let mut ids = HashMap::new();
+    let Some(me) = stored_self_person(main)? else {
+        return Ok(ids);
+    };
+    for r in main.person_results(me)? {
+        let (event_id, _) = main.result_ref(r.result)?;
+        ids.insert(r.result.0, race_id(&main.load_event(event_id)?));
+    }
+    Ok(ids)
+}
+
+/// ¿Entrena a otros atletas? (ajuste «Entreno a otros atletas», #119).
 pub fn is_coach(store: &Store) -> Result<bool, StoreError> {
-    Ok(settings::load(store)?.sharing.mode == AppMode::Coach)
+    Ok(settings::load(store)?.sharing.coach)
 }
 
 #[cfg(test)]
@@ -471,7 +554,7 @@ mod tests {
         }
         coach.save_received_package(&other).unwrap();
 
-        let group = group_view(&coach, &HistoryFilter::default()).unwrap();
+        let group = group_view(&mut coach, &HistoryFilter::default(), false).unwrap();
         let names: Vec<&str> = group
             .runners
             .iter()
@@ -479,7 +562,7 @@ mod tests {
             .collect();
         assert_eq!(names.len(), 2);
         assert!(names.contains(&"Berta"));
-        assert!(group.runners.iter().all(|r| r.row.is_some()));
+        assert!(group.runners.iter().all(|r| r.row.is_some() && !r.is_self));
         assert_eq!(group.comparison.shared_races.len(), 1);
         assert_eq!(group.comparison.shared_races[0].results.len(), 2);
         assert_eq!(group.comparison.head_to_head.len(), 2);
@@ -496,6 +579,44 @@ mod tests {
             .unwrap();
         assert_eq!(pair.races, 1);
         assert_eq!(pair.better + pair.worse, 1);
+    }
+
+    #[test]
+    fn with_include_self_the_own_races_count_as_one_more_athlete() {
+        // Un atleta comparte su carrera; quien entrena corrió la misma y la tiene importada.
+        let (_, _, athlete_coach, runner_id) = received(ShareLevel::Legs, false);
+        let package = &athlete_coach.received_packages().unwrap()[0];
+        let (mut both, _) = imported(false);
+        both.save_received_package(&RacePackage::parse(&package.content).unwrap())
+            .unwrap();
+        let filter = HistoryFilter::default();
+
+        let without = group_view(&mut both, &filter, false).unwrap();
+        assert!(!without.include_self);
+        assert_eq!(without.runners.len(), 1);
+        assert_eq!(without.runners[0].runner.runner_id, runner_id);
+        // Sola, ninguna carrera compartida.
+        assert!(without.comparison.shared_races.is_empty());
+
+        let with = group_view(&mut both, &filter, true).unwrap();
+        assert!(with.include_self);
+        assert_eq!(with.runners.len(), 2);
+        let me = &with.runners[0];
+        assert!(me.is_self && me.row.is_some());
+        assert_eq!(me.runner.runner_id, both.package_runner_id().unwrap());
+        assert_eq!(me.runner.races, 1);
+        // La carrera propia se cruza con la del atleta: es la misma.
+        assert_eq!(with.comparison.shared_races.len(), 1);
+        assert_eq!(with.comparison.shared_races[0].results.len(), 2);
+        assert_eq!(with.comparison.head_to_head.len(), 2);
+    }
+
+    #[test]
+    fn including_oneself_without_races_adds_nobody() {
+        let (_, _, mut coach, _) = received(ShareLevel::Legs, false);
+        let group = group_view(&mut coach, &HistoryFilter::default(), true).unwrap();
+        assert_eq!(group.runners.len(), 1);
+        assert!(!group.runners[0].is_self);
     }
 
     #[test]

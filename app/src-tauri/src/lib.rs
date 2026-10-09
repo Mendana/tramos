@@ -33,18 +33,18 @@ use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
-use crate::settings::{AppMode, Settings};
+use crate::settings::{Role, Settings};
 use crate::sharing::{RaceSharing, ReceiveReport, SeenFiles, ShareReport};
 use crate::tags::TagView;
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
 const DATABASE_FILE: &str = "tramos.sqlite";
 
-/// Error de los comandos que modifican algo en modo entrenadora.
-const READ_ONLY: &str = "en modo entrenadora no se puede modificar nada";
+/// Error de los comandos que modifican carreras mientras se ve a un atleta.
+const READ_ONLY: &str = "mientras ves a un atleta no se puede modificar nada";
 
 /// Estado compartido por los comandos: la base de datos local, los ficheros de la carpeta
-/// compartida ya importados y, en modo entrenadora, el corredor que se está viendo.
+/// compartida ya importados y, si entrena, el atleta que se está viendo (#119).
 struct AppState {
     store: Mutex<Store>,
     seen: Mutex<SeenFiles>,
@@ -64,25 +64,24 @@ impl AppState {
             .map_err(|_| "el corredor quedó bloqueado por un error anterior".to_string())
     }
 
-    /// Lee de la base que muestran las vistas de corredor: la del usuario o, en modo
-    /// entrenadora, la del corredor que se está viendo (vacía si no hay ninguno).
+    /// Lee de la base que muestran las vistas de corredor: la del atleta que se está viendo o,
+    /// si no se ve a ninguno, la propia. Los cerrojos, siempre en el mismo orden: base y atleta.
     fn read<T, E: ToString>(&self, f: impl FnOnce(&Store) -> Result<T, E>) -> Result<T, String> {
-        let coach = coach::is_coach(&*self.store()?).map_err(|e| e.to_string())?;
-        if !coach {
-            return f(&*self.store()?).map_err(|e| e.to_string());
-        }
+        let store = self.store()?;
         let viewed = self.viewed()?;
         match viewed.as_ref() {
             Some(view) => f(&view.store),
-            None => f(&Store::open_in_memory().map_err(|e| e.to_string())?),
+            None => f(&store),
         }
         .map_err(|e| e.to_string())
     }
 
-    /// La base del usuario para modificarla. En modo entrenadora, error: solo lee.
+    /// La base propia para modificar sus carreras. Mientras se ve a un atleta, error: sus
+    /// `result_id` son de otra base y no deben tocar la propia. Los ajustes del usuario (también
+    /// los paneles ocultos e «Incluirme») no pasan por aquí: son suyos, se vea a quien se vea.
     fn write(&self) -> Result<MutexGuard<'_, Store>, String> {
         let store = self.store()?;
-        if coach::is_coach(&store).map_err(|e| e.to_string())? {
+        if self.viewed()?.is_some() {
             return Err(READ_ONLY.to_string());
         }
         Ok(store)
@@ -111,7 +110,7 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Result<Settings, String> {
 #[tauri::command]
 fn save_settings(state: tauri::State<'_, AppState>, settings: Settings) -> Result<(), String> {
     settings::save(&mut *state.store()?, &settings).map_err(|e| e.to_string())?;
-    if settings.sharing.mode != AppMode::Coach {
+    if !settings.sharing.coach {
         *state.viewed()? = None;
     }
     Ok(())
@@ -127,8 +126,8 @@ fn check_zones(zones: zones::Zones) -> Vec<String> {
     }
 }
 
-/// Paneles de análisis ocultos (#130). Son del usuario de la app: valen también al ver a otro
-/// corredor en modo entrenadora.
+/// Paneles de análisis ocultos (#130). Son del usuario de la app: valen también al ver a un
+/// atleta.
 #[tauri::command]
 fn hidden_panels(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
     settings::hidden_panels(&*state.store()?).map_err(|e| e.to_string())
@@ -140,55 +139,64 @@ fn set_hidden_panels(state: tauri::State<'_, AppState>, ids: Vec<String>) -> Res
     settings::set_hidden_panels(&mut *state.store()?, &ids).map_err(|e| e.to_string())
 }
 
-/// Si ya se ha elegido el modo (corredor o entrenadora). Al instalar, no: la app lo pregunta.
+/// Si ya se ha dicho cómo se usa la app (corre, entrena o las dos cosas). Al instalar, no: la
+/// app lo pregunta.
 #[tauri::command]
-fn mode_chosen(state: tauri::State<'_, AppState>) -> Result<bool, String> {
-    settings::mode_chosen(&*state.store()?).map_err(|e| e.to_string())
+fn role_chosen(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    settings::role_chosen(&*state.store()?).map_err(|e| e.to_string())
 }
 
-/// Elige el modo al empezar, sin tocar los demás ajustes.
+/// Elige cómo se usa la app al empezar, sin tocar los demás ajustes.
 #[tauri::command]
-fn choose_mode(state: tauri::State<'_, AppState>, mode: AppMode) -> Result<(), String> {
-    settings::choose_mode(&mut *state.store()?, mode).map_err(|e| e.to_string())?;
+fn choose_role(state: tauri::State<'_, AppState>, role: Role) -> Result<(), String> {
+    settings::choose_role(&mut *state.store()?, role).map_err(|e| e.to_string())?;
     *state.viewed()? = None;
     Ok(())
 }
 
-/// En modo entrenadora, corredores de los que hay paquetes.
+/// Si entrena, atletas de los que hay paquetes.
 #[tauri::command]
 fn coach_runners(state: tauri::State<'_, AppState>) -> Result<Vec<CoachRunner>, String> {
     coach::coach_runners(&*state.store()?).map_err(|e| e.to_string())
 }
 
-/// En modo entrenadora, vista de grupo (P15): una fila por corredor y todos contra todos.
+/// Si entrena, vista de grupo (P15): una fila por atleta y todos contra todos; con «Incluirme»,
+/// también las carreras propias.
 #[tauri::command]
 fn group_view(
     state: tauri::State<'_, AppState>,
     filter: HistoryFilter,
 ) -> Result<GroupView, String> {
-    let store = state.store()?;
+    let mut store = state.store()?;
     if !coach::is_coach(&store).map_err(|e| e.to_string())? {
-        return Err("la vista de grupo es del modo entrenadora".to_string());
+        return Err("la vista de grupo es para quien entrena".to_string());
     }
-    coach::group_view(&store, &filter).map_err(|e| e.to_string())
+    let include_self = settings::include_self(&store).map_err(|e| e.to_string())?;
+    coach::group_view(&mut store, &filter, include_self).map_err(|e| e.to_string())
 }
 
-/// En modo entrenadora, el corredor que se está viendo, sin volver a volcarlo.
+/// Guarda si las carreras propias cuentan en la vista de grupo («Incluirme»).
+#[tauri::command]
+fn set_include_self(state: tauri::State<'_, AppState>, include: bool) -> Result<(), String> {
+    settings::set_include_self(&mut *state.store()?, include).map_err(|e| e.to_string())
+}
+
+/// El atleta que se está viendo, sin volver a volcarlo; `null` = lo propio.
 #[tauri::command]
 fn viewed_runner(state: tauri::State<'_, AppState>) -> Result<Option<RunnerViewInfo>, String> {
     Ok(state.viewed()?.as_ref().map(RunnerView::info))
 }
 
-/// En modo entrenadora, elige el corredor que se ve (`null` = ninguno). A partir de ahí las
-/// vistas de corredor muestran sus carreras. Devuelve lo que no sale en ellas.
+/// Elige el atleta que se ve; `null` vuelve a lo propio. A partir de ahí las vistas de
+/// corredor muestran sus carreras, en solo lectura. Devuelve lo que no sale en ellas.
 #[tauri::command]
 fn view_runner(
     state: tauri::State<'_, AppState>,
     runner_id: Option<String>,
 ) -> Result<Option<RunnerViewInfo>, String> {
     let store = state.store()?;
-    if !coach::is_coach(&store).map_err(|e| e.to_string())? {
-        return Err("solo en modo entrenadora se ven otros corredores".to_string());
+    if runner_id.is_some() && !coach::is_coach(&store).map_err(|e| e.to_string())? {
+        return Err("solo quien entrena ve las carreras de otros atletas".to_string());
     }
     let view = runner_id
         .map(|id| coach::runner_view(&store, &id))
@@ -338,10 +346,11 @@ fn import_race_package(
     })
 }
 
-/// Exporta la carrera a la carpeta compartida si hace falta y dice cómo queda.
+/// Exporta la carrera a la carpeta compartida si hace falta y dice cómo queda. Es de una
+/// carrera propia: mientras se ve a un atleta, error.
 #[tauri::command]
 fn race_sharing(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceSharing, String> {
-    sharing::race_sharing(&mut *state.store()?, result_id).map_err(|e| e.to_string())
+    sharing::race_sharing(&mut *state.write()?, result_id).map_err(|e| e.to_string())
 }
 
 /// Cambia lo que se comparte de una carrera (`null` = lo de por defecto) y dice cómo queda.
@@ -360,7 +369,7 @@ fn share_all(state: tauri::State<'_, AppState>) -> Result<ShareReport, String> {
     sharing::share_all(&mut *state.write()?).map_err(|e| e.to_string())
 }
 
-/// En modo entrenadora, importa los paquetes nuevos de la carpeta compartida.
+/// Si entrena, importa los paquetes nuevos de la carpeta compartida (no los propios).
 #[tauri::command]
 fn receive_packages(state: tauri::State<'_, AppState>) -> Result<ReceiveReport, String> {
     let mut seen = state
@@ -438,12 +447,13 @@ pub fn run() -> tauri::Result<()> {
             check_zones,
             hidden_panels,
             set_hidden_panels,
-            mode_chosen,
-            choose_mode,
+            role_chosen,
+            choose_role,
             coach_runners,
             view_runner,
             viewed_runner,
             group_view,
+            set_include_self,
             preview_import,
             import_race,
             import_folder,
@@ -487,20 +497,77 @@ mod tests {
     }
 
     #[test]
-    fn in_coach_mode_nothing_can_be_modified_and_the_viewed_runner_is_read() {
-        let (mut runner, result_id) = crate::race_map::tests::imported(false);
-        let package = package::race_package(&mut runner, result_id, ShareLevel::Legs).unwrap();
-        let mut coach = Store::open_in_memory().unwrap();
-        settings::choose_mode(&mut coach, AppMode::Coach).unwrap();
-        coach.save_received_package(&package).unwrap();
-        let state = state(coach);
+    fn while_viewing_an_athlete_nothing_can_be_modified_and_their_races_are_read() {
+        let (mut athlete, athlete_result) = crate::race_map::tests::imported(false);
+        let package =
+            package::race_package(&mut athlete, athlete_result, ShareLevel::Legs).unwrap();
+        // Quien entrena también corre: tiene su carrera y recibe la del atleta.
+        let (mut both, own_result) = crate::race_map::tests::imported(true);
+        settings::choose_role(&mut both, Role::Both).unwrap();
+        both.save_received_package(&package).unwrap();
+        let state = state(both);
 
-        assert_eq!(state.write().err().as_deref(), Some(READ_ONLY));
-        // Sin corredor elegido, las vistas no ven nada.
-        assert!(state.read(races::list_races).unwrap().is_empty());
+        // Sin atleta elegido, lo propio, editable.
+        assert!(state.write().is_ok());
+        let own = state.read(races::list_races).unwrap();
+        assert_eq!(
+            (own.len(), own[0].result_id, own[0].has_track),
+            (1, own_result, true)
+        );
+
         let view = coach::runner_view(&state.store().unwrap(), &package.runner.runner_id).unwrap();
         *state.viewed().unwrap() = Some(view);
-        assert_eq!(state.read(races::list_races).unwrap().len(), 1);
+        let theirs = state.read(races::list_races).unwrap();
+        assert_eq!(theirs.len(), 1);
+        assert!(!theirs[0].has_track);
+        // Cada comando que modifica una carrera da error, también con un `result_id` que
+        // existe en la base propia.
+        let tag = tramos_core::taxonomy::LegTag::default();
+        let errors = [
+            state.write().err(),
+            state
+                .write()
+                .and_then(|mut s| {
+                    tags::save_leg_tag(&mut s, own_result, 1, tag.clone())
+                        .map_err(|e| e.to_string())
+                })
+                .err(),
+            state
+                .write()
+                .and_then(|mut s| {
+                    races::set_race_format(&mut s, own_result, None).map_err(|e| e.to_string())
+                })
+                .err(),
+            state
+                .write()
+                .and_then(|mut s| {
+                    clock_offset::set_race_offset(&mut s, own_result, Some(1.0))
+                        .map_err(|e| e.to_string())
+                })
+                .err(),
+            state
+                .write()
+                .and_then(|mut s| {
+                    sharing::race_sharing(&mut s, own_result).map_err(|e| e.to_string())
+                })
+                .err(),
+        ];
+        for error in errors {
+            assert_eq!(error.as_deref(), Some(READ_ONLY));
+        }
+        assert!(
+            tags::leg_tags(&state.store().unwrap(), own_result)
+                .unwrap()
+                .is_empty()
+        );
+
+        // Volver a lo propio: otra vez editable.
+        *state.viewed().unwrap() = None;
+        assert!(state.write().is_ok());
+        assert_eq!(
+            state.read(races::list_races).unwrap()[0].result_id,
+            own_result
+        );
     }
 
     #[test]

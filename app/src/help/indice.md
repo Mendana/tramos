@@ -36,8 +36,8 @@ app: funciona sin conexión.
 
 ## Tus datos
 
-Todo se guarda en tu equipo. Solo sale lo que decides compartir con tu entrenadora, carrera a
-carrera ([Compartir con la entrenadora](compartir.md)). El mapa pide el fondo a OpenStreetMap,
+Todo se guarda en tu equipo. Solo sale lo que decides compartir con quien te entrena, carrera a
+carrera ([Compartir](compartir.md)). El mapa pide el fondo a OpenStreetMap,
 y eso revela la zona que miras ([Mapa](carrera-mapa.md)).
 
 Detalle técnico:

@@ -540,11 +540,12 @@ Resultados:
 
 «La entrenadora ve [...] una vista de grupo: tabla de corredores por métricas y comparación de
 todos contra todos en las carreras compartidas» (`docs/preguntas.md`, P15). Implementado en
-`tramos_core::group` (#38); en la app, `coach::group_view` y la pantalla «Grupo» del modo
-entrenadora (`docs/app.md`).
+`tramos_core::group` (#38); en la app, `coach::group_view` y la pantalla «Comparar atletas» de
+la sección Atletas (`docs/app.md`), que con «Incluirme» (#119) añade las carreras propias como un
+corredor más.
 
 - **Corredores:** los de los paquetes recibidos (`docs/paquete.md`), cada uno con sus carreras
-  volcadas como en su app y **sus umbrales** (`docs/app.md`, "Modo entrenadora"). Solo cuentan
+  volcadas como en su app y **sus umbrales** (`docs/app.md`, "Atletas"). Solo cuentan
   las carreras compartidas con tramos: las de solo resumen no traen tramos. El filtro (fechas y
   formato) es el del histórico y se aplica a todos.
 - **Fila de un corredor** (`group_row`), todo de su histórico con el filtro:

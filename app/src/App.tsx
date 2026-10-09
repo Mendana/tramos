@@ -1,18 +1,18 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import {
-  AppMode,
   CoachRunner,
   RaceRow,
   ReceiveReport,
+  Role,
   RunnerViewInfo,
   SharingSettings,
-  chooseMode,
+  chooseRole,
   coachRunners,
   coreVersion,
   getSettings,
   listRaces,
-  modeChosen,
   receivePackages,
+  roleChosen,
   viewRunner,
   viewedRunner,
 } from "./api";
@@ -33,6 +33,7 @@ import {
   ChartIcon,
   ChevronLeft,
   ControlFlag,
+  EyeIcon,
   GroupIcon,
   HelpIcon,
   HomeIcon,
@@ -48,17 +49,17 @@ import "./styles/components.css";
 import "./styles/charts.css";
 import "./styles/map.css";
 
-/** Cada cuánto busca la entrenadora paquetes nuevos en la carpeta compartida. */
+/** Cada cuánto busca quien entrena paquetes nuevos en la carpeta compartida. */
 const RECEIVE_EVERY_MS = 60_000;
 
 /**
- * En modo entrenadora con carpeta, importa los paquetes nuevos al abrir la app y cada minuto
- * (`docs/paquete.md`, "Carpeta compartida"). Devuelve lo último que ha encontrado.
+ * Si entrena y hay carpeta, importa los paquetes nuevos de sus atletas al abrir la app y cada
+ * minuto (`docs/paquete.md`, "Carpeta compartida"). Devuelve lo último que ha encontrado.
  */
 function useReceivePackages(sharing: SharingSettings | null, onReceived: () => void) {
   const [report, setReport] = useState<ReceiveReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const active = sharing?.mode === "coach" && sharing.folder !== null;
+  const active = sharing?.coach === true && sharing.folder !== null;
   useEffect(() => {
     setReport(null);
     setError(null);
@@ -87,7 +88,7 @@ function ReceiveStatus({ report, error }: { report: ReceiveReport | null; error:
   return (
     <div title={report.problems.join("\n") || undefined}>
       Recibidos: {report.packages} {report.packages === 1 ? "paquete" : "paquetes"} de{" "}
-      {report.runners} {report.runners === 1 ? "corredor" : "corredores"}
+      {report.runners} {report.runners === 1 ? "atleta" : "atletas"}
       {problems > 0 && ` · ${problems} sin leer`}
     </div>
   );
@@ -175,7 +176,7 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
       case "history":
         return [{ label: "Estadísticas" }];
       case "group":
-        return [{ label: "Grupo" }];
+        return [{ label: "Comparar atletas" }];
       case "import":
         return [{ label: "Importar" }];
       case "profile":
@@ -191,7 +192,7 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
             ];
     }
   })();
-  // La entrenadora ve a un corredor: su nombre va delante, salvo en lo que es de todos.
+  // Se ve a un atleta: su nombre va delante, salvo en lo que es de todos.
   const general = screen.kind === "group" || screen.kind === "settings" || screen.kind === "help";
   return runnerName === null || general ? own : [{ label: runnerName }, ...own];
 }
@@ -276,10 +277,13 @@ function App() {
   const [historyTab, setHistoryTab] = useState<HistoryTab>("summary");
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [sharing, setSharing] = useState<SharingSettings | null>(null);
-  // Modo entrenadora: corredores con paquetes y el que se está viendo.
+  // Si entrena: sus atletas y el que se está viendo (`null` = lo propio, editable).
   const [runners, setRunners] = useState<CoachRunner[]>([]);
   const [runner, setRunner] = useState<RunnerViewInfo | null>(null);
-  const coach = sharing?.mode === "coach";
+  // Errores por revisar de lo propio: `races` es de quien se ve.
+  const [unreviewed, setUnreviewed] = useState(0);
+  const coach = sharing?.coach === true;
+  const viewing = runner !== null;
 
   const refresh = useCallback(() => {
     listRaces()
@@ -290,7 +294,7 @@ function App() {
       .catch((err: unknown) => setError(String(err)));
   }, []);
 
-  // Ha llegado algo por la carpeta: el corredor que se ve ya está al día en el núcleo.
+  // Ha llegado algo por la carpeta: el atleta que se ve ya está al día en el núcleo.
   const onReceived = useCallback(() => {
     coachRunners()
       .then(setRunners)
@@ -306,21 +310,31 @@ function App() {
     coreVersion()
       .then(setVersion)
       .catch((err: unknown) => setError(String(err)));
-    modeChosen()
+    roleChosen()
       .then(setChosen)
       .catch((err: unknown) => setError(String(err)));
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (!viewing && races !== null) {
+      setUnreviewed(races.reduce((n, r) => n + r.unreviewed_count, 0));
+    }
+  }, [viewing, races]);
+
+  /**
+   * Pasa a ver a un atleta o, con `null`, vuelve a lo propio, y abre `next` (o, si no, la misma
+   * pantalla, salvo una carrera, que era de la otra base).
+   */
   const selectRunner = useCallback(
-    (runnerId: string | null) => {
+    (runnerId: string | null, next?: Screen) => {
       viewRunner(runnerId)
         .then((info) => {
           setRunner(info);
-          // Las pantallas anteriores y los filtros eran de otro corredor.
+          // Las pantallas anteriores y los filtros eran de otra base.
           setPrevious([]);
           setRaceList(RACE_LIST_START);
-          setScreen((s) => (s.kind === "race" ? { kind: "races" } : s));
+          setScreen((s) => next ?? (s.kind === "race" ? { kind: "races" } : s));
           refresh();
         })
         .catch((err: unknown) => setError(String(err)));
@@ -328,20 +342,12 @@ function App() {
     [refresh],
   );
 
-  // La entrenadora no tiene Inicio, perfil ni importar: empieza en las carreras del corredor.
-  useEffect(() => {
-    if (!coach) return;
-    setPrevious([]);
-    setScreen((s) =>
-      s.kind === "home" || s.kind === "profile" || s.kind === "import" ? { kind: "races" } : s,
-    );
-  }, [coach]);
-
-  // Al entrar en modo entrenadora, sus corredores; al salir, ya no se ve a nadie.
+  // Si entrena, sus atletas; si deja de entrenar, ya no se ve a nadie.
   useEffect(() => {
     if (!coach) {
       setRunners([]);
       setRunner(null);
+      setScreen((s) => (s.kind === "group" ? { kind: "home" } : s));
       return;
     }
     coachRunners()
@@ -349,17 +355,12 @@ function App() {
       .catch((err: unknown) => setError(String(err)));
   }, [coach]);
 
-  // Si no se ve a nadie y hay corredores, el primero.
-  useEffect(() => {
-    if (coach && runner === null && runners.length > 0) selectRunner(runners[0].runner_id);
-  }, [coach, runner, runners, selectRunner]);
-
-  const choose = (mode: AppMode) => {
-    chooseMode(mode)
+  const choose = (role: Role) => {
+    chooseRole(role)
       .then(() => {
         setChosen(true);
-        // La entrenadora necesita la carpeta para recibir nada.
-        if (mode === "coach") navigate({ kind: "settings" });
+        // Para recibir lo de los atletas hace falta la carpeta.
+        if (role !== "runner") navigate({ kind: "settings" });
         refresh();
       })
       .catch((err: unknown) => setError(String(err)));
@@ -378,8 +379,11 @@ function App() {
     setPrevious(previous.slice(0, -1));
     setScreen(last);
   };
+  /** Una pantalla de lo propio: si se está viendo a un atleta, primero se vuelve a lo propio. */
+  const goOwn = (next: Screen) => (viewing ? selectRunner(null, next) : navigate(next));
+  const showImport = () => goOwn({ kind: "import" });
+  // Las carreras y las estadísticas son de quien se ve; la lista, la de esa misma base.
   const showRaces = () => navigate({ kind: "races" });
-  const showImport = () => navigate({ kind: "import" });
   const openRace = (resultId: number, tab?: RaceTab) => navigate({ kind: "race", resultId, tab });
 
   if (chosen === false) {
@@ -392,13 +396,14 @@ function App() {
   }
 
   const viewer = {
-    readOnly: coach,
-    runnerName: coach ? (runner?.runner.display_name ?? null) : null,
+    readOnly: viewing,
+    runnerName: runner?.runner.display_name ?? null,
   };
-  const unreviewed = coach ? 0 : (races ?? []).reduce((n, r) => n + r.unreviewed_count, 0);
   const at = (...kinds: Screen["kind"][]) => kinds.includes(screen.kind);
   const goTo = (kind: Exclude<Screen["kind"], "race" | "help">) => navigate({ kind });
   const openHelp = (page: HelpPageId) => navigate({ kind: "help", page });
+  // Lo que se ve de un atleta (y lleva la franja de solo lectura).
+  const athleteScreen = viewing && at("races", "race", "history");
 
   return (
     <ViewerContext.Provider value={viewer}>
@@ -410,77 +415,74 @@ function App() {
               Tramos
             </div>
             <nav className="nav" aria-label="Secciones">
-              {!coach && (
+              <NavItem
+                icon={<HomeIcon />}
+                label="Inicio"
+                current={!viewing && at("home")}
+                onClick={() => goOwn({ kind: "home" })}
+              />
+              <NavSection label="Lo mío">
                 <NavItem
-                  icon={<HomeIcon />}
-                  label="Inicio"
-                  current={at("home")}
-                  onClick={() => goTo("home")}
+                  icon={<ListIcon />}
+                  label="Mis carreras"
+                  current={!viewing && at("races", "race")}
+                  count={unreviewed}
+                  countLabel={`${unreviewed} ${unreviewed === 1 ? "error" : "errores"} por revisar`}
+                  onClick={() => goOwn({ kind: "races" })}
                 />
-              )}
-              {coach ? (
-                <NavSection label="Corredor">
+                <NavItem
+                  icon={<ChartIcon />}
+                  label="Estadísticas"
+                  current={!viewing && at("history")}
+                  onClick={() => goOwn({ kind: "history" })}
+                />
+                <NavItem
+                  icon={<UploadIcon />}
+                  label="Importar"
+                  current={at("import")}
+                  onClick={showImport}
+                />
+              </NavSection>
+              {coach && (
+                <NavSection label="Atletas">
                   <RunnerPicker
                     runners={runners}
                     current={runner?.runner.runner_id ?? null}
-                    onChange={selectRunner}
+                    onChange={(id) =>
+                      selectRunner(id, at("history") ? { kind: "history" } : { kind: "races" })
+                    }
                   />
-                  <NavItem
-                    icon={<ListIcon />}
-                    label="Carreras"
-                    current={at("races", "race")}
-                    onClick={showRaces}
-                  />
-                  <NavItem
-                    icon={<ChartIcon />}
-                    label="Estadísticas"
-                    current={at("history")}
-                    onClick={() => goTo("history")}
-                  />
-                </NavSection>
-              ) : (
-                <NavSection label="Lo mío">
-                  <NavItem
-                    icon={<ListIcon />}
-                    label="Mis carreras"
-                    current={at("races", "race")}
-                    count={unreviewed}
-                    countLabel={`${unreviewed} ${unreviewed === 1 ? "error" : "errores"} por revisar`}
-                    onClick={showRaces}
-                  />
-                  <NavItem
-                    icon={<ChartIcon />}
-                    label="Estadísticas"
-                    current={at("history")}
-                    onClick={() => goTo("history")}
-                  />
-                  <NavItem
-                    icon={<UploadIcon />}
-                    label="Importar"
-                    current={at("import")}
-                    onClick={showImport}
-                  />
-                </NavSection>
-              )}
-              {coach && (
-                <NavSection label="Todos">
+                  {viewing && (
+                    <>
+                      <NavItem
+                        icon={<ListIcon />}
+                        label="Carreras"
+                        current={at("races", "race")}
+                        onClick={showRaces}
+                      />
+                      <NavItem
+                        icon={<ChartIcon />}
+                        label="Estadísticas"
+                        current={at("history")}
+                        onClick={() => goTo("history")}
+                      />
+                    </>
+                  )}
                   <NavItem
                     icon={<GroupIcon />}
-                    label="Grupo"
+                    label="Comparar atletas"
                     current={at("group")}
                     onClick={() => goTo("group")}
                   />
                 </NavSection>
               )}
               <NavSection label="Cuenta">
-                {!coach && (
-                  <NavItem
-                    icon={<UserIcon />}
-                    label="Mi perfil"
-                    current={at("profile")}
-                    onClick={() => goTo("profile")}
-                  />
-                )}
+                <NavItem
+                  icon={<UserIcon />}
+                  label="Mi perfil"
+                  current={at("profile")}
+                  onClick={() => goOwn({ kind: "profile" })}
+                />
                 <NavItem
                   icon={<SlidersIcon />}
                   label="Ajustes"
@@ -512,16 +514,33 @@ function App() {
             />
             {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
             <div className="page" key={runner?.runner.runner_id ?? "self"}>
+              {athleteScreen && runner !== null && (
+                <div className="viewing-banner" role="status">
+                  <EyeIcon />
+                  <span className="viewing-banner-text">
+                    Estás viendo a <strong>{runner.runner.display_name || "un atleta"}</strong>.
+                    Solo lectura: no se puede etiquetar ni cambiar nada.
+                  </span>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => selectRunner(null, { kind: "home" })}
+                  >
+                    <ChevronLeft size={16} />
+                    Volver a lo mío
+                  </button>
+                </div>
+              )}
               {error !== null && (
                 <Notice kind="error">No se pudo consultar el núcleo: {error}</Notice>
               )}
-              {coach && runner !== null && runner.problems.length > 0 && (
+              {athleteScreen && runner !== null && runner.problems.length > 0 && (
                 <Notice kind="warning">
                   Algunos paquetes de {runner.runner.display_name} no se han podido leer:{" "}
                   {runner.problems.join("; ")}
                 </Notice>
               )}
-              {screen.kind === "home" && !coach && (
+              {screen.kind === "home" && !viewing && (
                 <Home
                   races={races}
                   onOpen={openRace}
@@ -537,7 +556,7 @@ function App() {
                   onStateChange={setRaceList}
                   onOpen={openRace}
                   onImport={showImport}
-                  summaryOnly={coach ? (runner?.summary_only ?? []) : []}
+                  summaryOnly={runner?.summary_only ?? []}
                 />
               )}
               {screen.kind === "race" && (
@@ -559,22 +578,17 @@ function App() {
               )}
               {screen.kind === "group" && coach && (
                 <GroupScreen
-                  onOpenRunner={(runnerId) => {
-                    selectRunner(runnerId);
-                    navigate({ kind: "races" });
-                  }}
+                  onOpenRunner={(runnerId) => selectRunner(runnerId, { kind: "races" })}
                 />
               )}
-              {screen.kind === "import" && !coach && (
+              {screen.kind === "import" && !viewing && (
                 <ImportScreen
                   onImported={refresh}
                   onOpen={openRace}
-                  onSettings={() => goTo("profile")}
+                  onSettings={() => goOwn({ kind: "profile" })}
                 />
               )}
-              {screen.kind === "profile" && !coach && (
-                <SettingsView page="profile" onSaved={refresh} />
-              )}
+              {screen.kind === "profile" && <SettingsView page="profile" onSaved={refresh} />}
               {screen.kind === "settings" && <SettingsView page="settings" onSaved={refresh} />}
               {screen.kind === "help" && <HelpScreen page={screen.page} onOpen={openHelp} />}
             </div>
@@ -585,7 +599,7 @@ function App() {
   );
 }
 
-/** Modo entrenadora: de qué corredor se ven las carreras. */
+/** De qué atleta se ven las carreras; sin elegir, se ve lo propio. */
 function RunnerPicker({
   runners,
   current,
@@ -596,13 +610,13 @@ function RunnerPicker({
   onChange: (runnerId: string) => void;
 }) {
   if (runners.length === 0) {
-    return <p className="small muted runner-picker">Aún no ha llegado nada de los corredores.</p>;
+    return <p className="small muted runner-picker">Aún no ha llegado nada de tus atletas.</p>;
   }
   return (
     <label className="field runner-picker">
-      <span className="field-label">Corredor</span>
+      <span className="field-label">Ver a</span>
       <select className="select" value={current ?? ""} onChange={(e) => onChange(e.target.value)}>
-        {current === null && <option value="">Elige…</option>}
+        {current === null && <option value="">Elige un atleta…</option>}
         {runners.map((r) => (
           <option key={r.runner_id} value={r.runner_id}>
             {r.display_name === "" ? "Sin nombre" : r.display_name} ({r.races})

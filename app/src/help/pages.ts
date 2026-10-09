@@ -20,7 +20,7 @@ import inicio from "./inicio.md?raw";
 import ir from "./ir.md?raw";
 import lentoODesorientado from "./lento-o-desorientado.md?raw";
 import misCarreras from "./mis-carreras.md?raw";
-import modoEntrenadora from "./modo-entrenadora.md?raw";
+import atletas from "./atletas.md?raw";
 import perfil from "./perfil.md?raw";
 import reloj from "./reloj.md?raw";
 import tiempoPerdido from "./tiempo-perdido.md?raw";
@@ -54,7 +54,7 @@ export type HelpPageId =
   | "reloj"
   | "formatos"
   | "compartir"
-  | "modo-entrenadora";
+  | "atletas";
 
 type HelpGroup = "start" | "screens" | "race" | "history" | "concepts";
 
@@ -98,7 +98,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   reloj: { source: reloj, group: "concepts" },
   formatos: { source: formatos, group: "concepts" },
   compartir: { source: compartir, group: "concepts" },
-  "modo-entrenadora": { source: modoEntrenadora, group: "concepts" },
+  atletas: { source: atletas, group: "concepts" },
 };
 
 export function isHelpPageId(id: string): id is HelpPageId {

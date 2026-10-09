@@ -30,13 +30,12 @@ Explicado en [Zonas del mapa](zonas-del-mapa.md).
 Cuántos paneles tienes ocultos, con **Personalizar** para elegir cuáles ver y **Enseñar todos**.
 Los mismos botones están en [Estadísticas](estadisticas.md).
 
-## Uso de la app
+## Entrenar
 
-Corredor o entrenadora, y la carpeta compartida. Ver [Modo entrenadora](modo-entrenadora.md) y
-[Compartir con la entrenadora](compartir.md).
-
-En modo entrenadora solo queda este apartado (y los paneles): los umbrales, la zona horaria y los
-colores son cosa de cada corredor.
+**Entreno a otros atletas** añade a la barra lateral el bloque [Atletas](atletas.md), para ver
+las carreras que te comparten tus atletas. Tus carreras siguen igual. Con la casilla marcada, aquí
+eliges también la carpeta compartida de la que llegan (la misma que en [Mi perfil](perfil.md)).
+Ver [Compartir](compartir.md).
 
 Detalle técnico:
 [app, «Ajustes»](https://github.com/Mendana/tramos/blob/main/docs/app.md#ajustes).

@@ -26,9 +26,9 @@ puestos cuando vuelves de una carrera.
 > tienen las dos palabras en el nombre o en la categoría. Ordenas por «más tiempo perdido» para
 > ver primero las que peor se te dieron.
 
-## En modo entrenadora
+## Las de un atleta
 
-La pantalla se llama **Carreras** y enseña las del corredor elegido en la barra lateral. Las que
-ha compartido solo con el resumen salen aparte, en «Solo con el resumen», y no se pueden abrir
-([Compartir con la entrenadora](compartir.md)). Al cambiar de corredor, los filtros vuelven a
-empezar.
+Si entrenas, al elegir un atleta en el bloque [Atletas](atletas.md) la pantalla se llama
+**Carreras** y enseña las suyas, en solo lectura. Las que ha compartido solo con el resumen salen
+aparte, en «Solo con el resumen», y no se pueden abrir ([Compartir](compartir.md)). Al cambiar
+de atleta o volver a lo tuyo, los filtros vuelven a empezar.

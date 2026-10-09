@@ -40,7 +40,7 @@ El lápiz está en todos los tramos: sirve también para apuntar un error que la
 
 Qué tipos hay y cómo elegir: [Tipos de error](tipos-de-error.md).
 
-En modo entrenadora, las etiquetas se ven como texto, sin botones.
+Al ver a un atleta, las etiquetas se ven como texto, sin botones.
 
 Detalle técnico:
 [app, «Etiquetar errores»](https://github.com/Mendana/tramos/blob/main/docs/app.md#etiquetar-errores-30).

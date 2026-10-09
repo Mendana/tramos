@@ -35,7 +35,7 @@ límite va a la zona de arriba.
 Los **huecos** (más de 10 s sin datos del reloj) van en gris discontinuo. Por debajo de 0,5 m/s
 (parado) el ritmo cuenta como 20:00 min/km. Con pulso, los trozos sin pulso también van en gris.
 
-En [modo entrenadora](modo-entrenadora.md) el mapa sale siempre por cuantiles: las zonas de cada
+Al ver a un [atleta](atletas.md), el mapa sale siempre por cuantiles: las zonas de cada
 corredor no viajan con sus carreras.
 
 Detalle técnico: [app, «Mapa»](https://github.com/Mendana/tramos/blob/main/docs/app.md#mapa) y

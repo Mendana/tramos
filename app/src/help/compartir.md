@@ -1,34 +1,36 @@
-# Compartir con la entrenadora
+# Compartir
 
-Todo se guarda en tu equipo. Tu entrenadora solo ve lo que tú compartes, carrera a carrera, y lo
-ve en solo lectura ([Modo entrenadora](modo-entrenadora.md)).
+Todo se guarda en tu equipo. Quien te entrena solo ve lo que tú compartes, carrera a carrera, y lo
+ve en solo lectura ([Atletas](atletas.md)). Para compartir, marca **Compartir mis carreras** en
+[Mi perfil](perfil.md).
 
 ## Cómo viaja: paquetes y carpeta compartida
 
 No hay servidor. Cada carrera que compartes es un fichero (un **paquete**) que la app deja en una
-**carpeta compartida**: una carpeta de Drive, OneDrive, Dropbox… que tienen tu app y la de tu
-entrenadora. Tú la eliges en [Mi perfil](perfil.md); ella, en [Ajustes](ajustes.md).
+**carpeta compartida**: una carpeta de Drive, OneDrive, Dropbox… que tienen tu app y la de quien
+te entrena. Tú la eliges en [Mi perfil](perfil.md); quien entrena, en [Ajustes](ajustes.md). Si
+corres y entrenas, la misma carpeta sirve para las dos cosas.
 
 - La app deja el paquete al importar la carrera y lo actualiza sola cada vez que cambias algo de
   lo que lleva (etiquetas, formato, desfase, qué se comparte).
-- La app de la entrenadora mira la carpeta al abrirse y cada minuto, y recoge lo nuevo.
+- La app de quien te entrena mira la carpeta al abrirse y cada minuto, y recoge lo nuevo.
 - Si un paquete no se puede escribir (la carpeta no está, no hay permiso), la carrera te lo dice y
   se vuelve a intentar.
 
 ## Qué se comparte de cada carrera
 
-| Nivel                | Qué lleva                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Nada                 | No se deja ningún fichero.                                                                                                     |
-| Resumen              | Fecha, carrera, categoría, resultado, tiempo, tiempo perdido, errores y rendimiento. La entrenadora no puede abrir la carrera. |
-| Tramos (por defecto) | Además, los splits de tu recorrido y tus etiquetas: la entrenadora ve la carrera entera, sin mapa.                             |
-| Track completo       | Además, el track del reloj: GPS, pulso, altitud y cadencia. Con mapa.                                                          |
+| Nivel                | Qué lleva                                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Nada                 | No se deja ningún fichero.                                                                                                       |
+| Resumen              | Fecha, carrera, categoría, resultado, tiempo, tiempo perdido, errores y rendimiento. Quien te entrena no puede abrir la carrera. |
+| Tramos (por defecto) | Además, los splits de tu recorrido y tus etiquetas: quien te entrena ve la carrera entera, sin mapa.                             |
+| Track completo       | Además, el track del reloj: GPS, pulso, altitud y cadencia. Con mapa.                                                            |
 
 Se elige **por defecto** en [Mi perfil](perfil.md) y se cambia **en cada carrera**, en su
 cabecera.
 
-> Compartes tramos por defecto. En una carrera elegiste «track completo» porque querías que tu
-> entrenadora viera tu ruta en el mapa. En otra, en la que el reloj grabó también el camino desde
+> Compartes tramos por defecto. En una carrera elegiste «track completo» porque querías que quien te
+> entrena viera tu ruta en el mapa. En otra, en la que el reloj grabó también el camino desde
 > casa, eliges «resumen».
 
 ## Qué nunca sale
@@ -44,7 +46,7 @@ cabecera.
 - **Quien tenga acceso a la carpeta puede leer los paquetes**, y el servicio de sincronización los
   guarda en sus servidores.
 - **Dejar de compartir** una carrera (pasarla a «nada») borra su fichero de la carpeta, pero lo que
-  la entrenadora ya hubiera recibido se queda en su app.
+  quien te entrena ya hubiera recibido se queda en su app.
 
 Detalle técnico:
 [paquete](https://github.com/Mendana/tramos/blob/main/docs/paquete.md) y

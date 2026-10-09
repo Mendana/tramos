@@ -1,13 +1,17 @@
-# Grupo
+# Comparar atletas
 
-Solo en [modo entrenadora](modo-entrenadora.md): todos los corredores de los que han llegado
+En el bloque [Atletas](atletas.md), si entrenas: todos los atletas de los que han llegado
 paquetes, juntos. Arriba, los mismos filtros que en [Estadísticas](estadisticas.md) (fechas y
 formato), que se aplican a todos. Solo cuentan las carreras compartidas con los tramos: las de
 solo resumen no traen bastante.
 
-## Corredores
+**Incluirme**: con esta casilla marcada, tus propias carreras cuentan como las de un atleta más
+(«Tu nombre (tú)», la primera fila), en la tabla, en el cara a cara y en las carreras
+compartidas. Desmarcada por defecto; se queda como la dejes.
 
-Una fila por corredor, con sus carreras y:
+## Atletas
+
+Una fila por atleta, con sus carreras y:
 
 - **IR medio**, **tasa de error** y **pérdida media** (en %): como en sus Estadísticas
   ([IR](ir.md), [tiempo perdido](tiempo-perdido.md)).
@@ -17,7 +21,7 @@ Una fila por corredor, con sus carreras y:
   si tiene al menos 10 tramos de esa duración.
 - **IR en subida, llano y bajada**, si ha compartido el track.
 
-Un clic en la fila abre sus carreras.
+Un clic en la fila abre sus carreras (en la tuya, las tuyas).
 
 ## Cara a cara
 
@@ -34,7 +38,7 @@ categorías o recorridos distintos: el IR ya es relativo a los mejores de cada r
 ## Carreras compartidas
 
 Las carreras que han corrido al menos dos, de la más reciente a la más antigua, con los
-corredores de más a menos IR y sus errores.
+atletas de más a menos IR y sus errores.
 
 Detalle técnico:
 [histórico, «Vista de grupo»](https://github.com/Mendana/tramos/blob/main/docs/historico.md#vista-de-grupo-p15).

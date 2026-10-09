@@ -56,7 +56,7 @@ carrera. Las carreras sin [formato](formatos.md) salen en su propia fila.
 Cada panel tiene un aspa para ocultarlo. **Personalizar**, junto a las pestañas, abre la lista de
 todos los paneles (también los de la vista de carrera) para elegir cuáles ver, con **Enseñar
 todos**. De entrada están ocultos los que menos se miran: rachas limpias, pulso antes del error y
-esfuerzo percibido. Si ocultas un panel en modo entrenadora, se oculta para todos los corredores.
+esfuerzo percibido. Si ocultas un panel mientras ves a un atleta, se oculta también en lo tuyo y en los demás.
 
 Cada panel dice en cuántos casos se apoya (n): con pocos casos, una cifra llamativa puede ser
 casualidad.

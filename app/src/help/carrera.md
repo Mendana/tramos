@@ -9,7 +9,7 @@ Todo lo de una carrera: arriba la cabecera y las cifras, y debajo las pestañas 
 - Carrera, fecha, categoría, tú y tu resultado.
 - **Formato** (sprint, media, larga o sin formato): la app lo sugiere al importar y aquí lo
   corriges. Cambiarlo mueve la carrera de grupo en Estadísticas ([Formatos](formatos.md)).
-- **Qué se comparte** de esta carrera con tu entrenadora, si tienes carpeta compartida: «por
+- **Qué se comparte** de esta carrera con quien te entrena, si tienes carpeta compartida: «por
   defecto», nada, resumen, tramos o track completo ([Compartir](compartir.md)).
 
 ## Resumen en frases

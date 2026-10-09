@@ -357,7 +357,7 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
   - arriba, el **resumen en frases** de la carrera (#126, `docs/frases.md`): como mucho tres
     frases, cada una un enlace a la pestaña que la justifica (Tramos o Análisis). Las de pocos
     datos llevan su aviso escrito al lado («con pocos tramos», «referencia débil»), no solo un
-    color. Sin frases no se pinta el bloque. También en modo entrenadora;
+    color. Sin frases no se pinta el bloque. También al ver a un atleta;
   - si quedan errores sin revisar, un aviso con «Revisar ahora», que lleva a Tramos;
   - el panel de pérdida por tramo (P1);
   - «Dónde más perdiste»: los tres tramos con más pérdida, con su split y su referencia y, con
@@ -538,7 +538,7 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
   como mucho tres frases que resumen lo importante con los filtros puestos («Fallas más en los
   tramos largos…»). Cada una es un enlace a la pestaña de su análisis (`docs/frases.md`,
   "Destinos"). Las de pocos datos llevan su aviso escrito al lado («con pocas carreras»…), no
-  solo un color. Sin frases no se pinta el bloque. También en modo entrenadora.
+  solo un color. Sin frases no se pinta el bloque. También al ver a un atleta.
 - **Cifras** del total: carreras, IR medio (con la consistencia media debajo, P10), tasa de
   error y pérdida media por tramo.
 - **Tabla por formato**: sprint, media y larga (aunque no tengan carreras) y, si hay, las
@@ -650,13 +650,13 @@ mismos (`pattern_legs`).
 
 Ayuda dentro de la app, que funciona sin conexión: una página por pantalla y por pestaña, y páginas
 de conceptos (tiempo perdido, IR, tipos de error, ¿lento o desorientado?, zonas del mapa, reloj y
-desfase, formatos, compartir con la entrenadora y modo entrenadora). Código en `app/src/help/`.
+desfase, formatos, compartir y atletas). Código en `app/src/help/`.
 
-- **Abrirla.** «Ayuda», en el bloque «Cuenta» de la barra lateral (en los dos modos), abre la
+- **Abrirla.** «Ayuda», en el bloque «Cuenta» de la barra lateral, abre la
   portada. El botón «?» a la derecha de la cabecera abre la página de la pantalla abierta y, en
   la vista de carrera y en Estadísticas, la de la pestaña abierta (`views.ts`). En la propia
   ayuda no sale. La ayuda es una pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo
-  perdido»), y no lleva delante el nombre del corredor en modo entrenadora.
+  perdido»), y no lleva delante el nombre del atleta que se esté viendo.
 - **Pantalla** (`HelpScreen.tsx`): a la izquierda, el índice de todas las páginas por bloques
   (Ayuda, Pantallas, Una carrera, Estadísticas y Conceptos); a la derecha, la página. Un enlace
   a otra página la abre como otra pantalla, desde arriba.

@@ -25,6 +25,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
 | `check_zones(zones)` | Unas zonas del mapa mientras se editan (#96): por qué no se pueden guardar o, si se puede, los avisos sobre sus colores, en español. |
 | `hidden_panels` / `set_hidden_panels(ids)` | Paneles de análisis ocultos (#130), por identificador. Se leen y guardan en la base propia también mientras se ve a un atleta, así que valen para todos. |
+| `theme` / `set_theme(theme)` | Tema de la interfaz (#143): `system`, `light` o `dark`. Se lee y guarda al momento, sin pasar por `save_settings`; un valor que no se entiende es `system`. |
 | `role_chosen` / `choose_role(role)` | Si ya se ha dicho cómo se usa la app y decirlo sin tocar los demás ajustes: `runner` (corre), `coach` (entrena) o `both` (las dos cosas; abajo, "Atletas"). |
 | `coach_runners` | Si entrena, los atletas de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `view_runner(runnerId)` | Elige el atleta que se ve (`null` = volver a lo propio): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras en solo lectura. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. Elegir un atleta sin entrenar da error. |
@@ -187,7 +188,7 @@ Dos pantallas de la barra lateral guardan el mismo formulario (`SettingsView.tsx
 - **Mi perfil**: quién eres (nombre y apellidos, tarjeta SI) y qué compartes («Compartir mis
   carreras», la carpeta compartida y qué se comparte por defecto de cada carrera).
 - **Ajustes**: tramo con error (umbrales), hora de las carreras (zona horaria), colores del mapa,
-  paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
+  apariencia (tema), paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
   con un índice a la izquierda que salta a cada apartado.
 
 Se guardan en la tabla `settings` de la base:
@@ -209,6 +210,7 @@ Se guardan en la tabla `settings` de la base:
 | `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
 | `map.pace_zones` | Zonas de ritmo del mapa (#96), en JSON: `limits` (s/km, de menor a mayor) y `colors` (`#rrggbb`, uno más que límites). Vacío = ninguna. | — | Sin zonas, el mapa colorea por cuantiles de cada carrera. Con ellas, por las zonas del usuario (ver "Mapa"). |
 | `map.heart_rate_zones` | Igual, para el pulso (ppm). | — | Igual. |
+| `ui.theme` | Tema de la interfaz (#143): `system`, `light` o `dark`. | `system` | Inmediato: se aplica al elegirlo (abajo, "Apariencia"). No pasa por «Guardar». |
 | `ui.hidden_panels` | Paneles de análisis ocultos (#130), en JSON: lista ordenada de identificadores (`app/src/panels.tsx`). `[]` = todos a la vista. | Rachas limpias, pulso antes del error y esfuerzo percibido | Inmediato: el panel desaparece de Estadísticas o de la carrera. No pasa por «Guardar». |
 
 Un valor guardado que no se entiende (número negativo, zona desconocida, zonas que no valen) se
@@ -233,6 +235,23 @@ y para pulso, «Por cuantiles de cada carrera» (lo de siempre) o «Mis zonas»:
 
 Con una zona horaria equivocada, el FIT no se solapa con la carrera y la alineación lo dice, con
 la sugerencia de desplazamiento (`docs/alineacion.md`).
+
+### Apariencia (#143)
+
+Apartado de Ajustes con un control segmentado **Sistema / Claro / Oscuro** (`ui.theme`). Se aplica
+y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
+
+- Al abrir la app se lee el tema y se pone en la raíz del documento (`theme.ts`): `data-theme="light"`
+  o `"dark"` fuerzan el modo; con **Sistema** no hay atributo y manda el del sistema operativo
+  (`prefers-color-scheme`), que sigue cambiando con él.
+- Los colores oscuros de `tokens.css` valen para dos selectores con los mismos valores:
+  `@media (prefers-color-scheme: dark)` sobre `:root:not([data-theme="light"])` y
+  `:root[data-theme="dark"]`. Si cambias uno, cambia el otro.
+- Las gráficas, la barra lateral y todo el CSS usan los tokens, así que cambian con el tema. El
+  mapa no: las teselas de OSM son claras en los dos modos, y los colores del track y de la
+  leyenda (`--map-*`) no cambian con el tema (ver "Mapa").
+- Sin estilos en línea: la CSP no los deja, y el tema es solo un atributo más reglas en
+  `tokens.css`.
 
 ## Atletas (#37, #119)
 
@@ -734,7 +753,8 @@ CSP no deja inyectar estilos en tiempo de ejecución y no hay fuentes externas: 
 sistema.
 
 - **Variables** (`app/src/styles/tokens.css`): colores, tipografía, espaciado (múltiplos de 4),
-  radios y sombras, con modo claro y oscuro según el sistema (`prefers-color-scheme`). Ninguna
+  radios y sombras, con modo claro y oscuro según el sistema (`prefers-color-scheme`) o según lo
+  que elija el usuario en Ajustes (`data-theme` en la raíz, arriba, "Apariencia"). Ninguna
   pantalla usa colores ni medidas sueltas.
 - **Paleta** inspirada en el mapa de orientación: el **magenta** de los recorridos es el acento
   (navegación, botón principal, selección) y el **naranja** de la baliza marca los errores (filas

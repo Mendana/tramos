@@ -805,6 +805,13 @@ export const hiddenPanels = () => invoke<string[]>("hidden_panels");
 
 export const setHiddenPanels = (ids: string[]) => invoke<void>("set_hidden_panels", { ids });
 
+/** Tema de la interfaz (#143): el del sistema, claro u oscuro. */
+export type Theme = "system" | "light" | "dark";
+
+export const getTheme = () => invoke<Theme>("theme");
+
+export const setTheme = (theme: Theme) => invoke<void>("set_theme", { theme });
+
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
 

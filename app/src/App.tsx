@@ -10,6 +10,7 @@ import {
   coachRunners,
   coreVersion,
   getSettings,
+  getTheme,
   listRaces,
   receivePackages,
   roleChosen,
@@ -30,6 +31,7 @@ import RaceList, { RACE_LIST_START, RaceListState } from "./RaceList";
 import RaceView, { RaceTab } from "./RaceView";
 import SettingsView from "./SettingsView";
 import Welcome from "./Welcome";
+import { applyTheme } from "./theme";
 import { ViewerContext } from "./viewer";
 import {
   ChartIcon,
@@ -323,6 +325,9 @@ function App() {
   useEffect(() => {
     coreVersion()
       .then(setVersion)
+      .catch((err: unknown) => setError(String(err)));
+    getTheme()
+      .then(applyTheme)
       .catch((err: unknown) => setError(String(err)));
     roleChosen()
       .then(setChosen)

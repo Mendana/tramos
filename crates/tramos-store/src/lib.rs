@@ -7,6 +7,7 @@
 mod convert;
 mod error;
 mod event;
+mod group;
 mod migrations;
 mod package;
 mod person;
@@ -21,6 +22,7 @@ use rusqlite::Connection;
 
 pub use error::StoreError;
 pub use event::SavedEvent;
+pub use group::{AthleteGroup, AthleteGroupId};
 pub use migrations::SCHEMA_VERSION;
 pub use package::{ReceivedPackage, ReceivedRunner, SaveOutcome};
 pub use person::{Person, PersonId, PersonResult};

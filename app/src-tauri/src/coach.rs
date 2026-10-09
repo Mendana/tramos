@@ -12,11 +12,11 @@ use std::collections::HashMap;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use thiserror::Error;
-use tramos_core::group::{GroupComparison, GroupEntry, GroupRow, compare, group_row};
-use tramos_core::history::HistoryFilter;
+use tramos_core::group::{GroupComparison, GroupEntry, GroupRow, compare, group_row, group_total};
+use tramos_core::history::{HistoryFilter, HistoryStats};
 use tramos_core::package::{RacePackage, RaceSummary, race_id};
 use tramos_core::race_format::RaceFormat;
-use tramos_store::{ReceivedRunner, ResultId, Store, StoreError};
+use tramos_store::{AthleteGroupId, ReceivedRunner, ResultId, Store, StoreError};
 
 use crate::history::history_view;
 use crate::import::{SELF_PERSON_KEY, stored_self_person};
@@ -249,21 +249,49 @@ pub struct GroupView {
     /// índices de `comparison` son posiciones aquí.
     pub runners: Vec<GroupRunnerRow>,
     pub comparison: GroupComparison,
-    /// Si las carreras propias cuentan (ajuste «Incluirme»).
+    /// Totales de todos los que salen (`group_total`, #120): sus carreras y tramos juntos.
+    pub total: HistoryStats,
+    /// Si las carreras propias cuentan en «Todos» (ajuste «Incluirme»).
     pub include_self: bool,
+    /// El grupo de atletas al que se limita; `None` = todos.
+    pub group: Option<i64>,
 }
 
-/// La vista de grupo con todos los corredores de los que hay paquetes y, con `include_self`,
-/// las carreras propias como un atleta más. Cada uno se calcula como en su histórico
+/// La vista de grupo con todos los atletas de los que hay paquetes o, con `group`, solo con los
+/// miembros de ese grupo. Las carreras propias cuentan como un atleta más con `include_self` (sin
+/// grupo) o si quien entrena es miembro del grupo. Cada uno se calcula como en su histórico
 /// (`history_view`), con sus umbrales.
 pub fn group_view(
     main: &mut Store,
     filter: &HistoryFilter,
     include_self: bool,
+    group: Option<AthleteGroupId>,
 ) -> Result<GroupView, CoachError> {
+    let members = match group {
+        None => None,
+        Some(id) => Some(
+            main.athlete_groups()?
+                .into_iter()
+                .find(|g| g.id == id)
+                .ok_or(StoreError::GroupNotFound(id.0))?
+                .members,
+        ),
+    };
+    let counts = |runner_id: &str| {
+        members
+            .as_ref()
+            .is_none_or(|m| m.iter().any(|r| r == runner_id))
+    };
     let mut runners = Vec::new();
     let mut entries = Vec::new();
-    if include_self && let Some(me) = own_runner(main)? {
+    let me = own_runner(main)?.filter(|me| {
+        if members.is_some() {
+            counts(&me.runner_id)
+        } else {
+            include_self
+        }
+    });
+    if let Some(me) = me {
         let race_ids = own_race_ids(main)?;
         let row = group_row_of(
             main,
@@ -276,7 +304,10 @@ pub fn group_view(
         );
         runners.push(row);
     }
-    for runner in coach_runners(main)? {
+    for runner in coach_runners(main)?
+        .into_iter()
+        .filter(|r| counts(&r.runner_id))
+    {
         let view = runner_view(main, &runner.runner_id)?;
         let row = group_row_of(
             &view.store,
@@ -289,10 +320,16 @@ pub fn group_view(
         );
         runners.push(row);
     }
+    let stats: Vec<HistoryStats> = runners
+        .iter()
+        .filter_map(|r| r.row.as_ref().map(|row| row.stats))
+        .collect();
     Ok(GroupView {
         runners,
         comparison: compare(&entries),
+        total: group_total(&stats),
         include_self,
+        group: group.map(|g| g.0),
     })
 }
 
@@ -344,7 +381,7 @@ fn group_row_of(
 
 /// Quien usa la app como corredor del grupo: su identificador de paquetes, su nombre y sus
 /// carreras. `None` si aún no tiene ninguna.
-fn own_runner(main: &mut Store) -> Result<Option<CoachRunner>, StoreError> {
+pub fn own_runner(main: &mut Store) -> Result<Option<CoachRunner>, StoreError> {
     let Some(me) = stored_self_person(main)? else {
         return Ok(None);
     };
@@ -554,7 +591,7 @@ mod tests {
         }
         coach.save_received_package(&other).unwrap();
 
-        let group = group_view(&mut coach, &HistoryFilter::default(), false).unwrap();
+        let group = group_view(&mut coach, &HistoryFilter::default(), false, None).unwrap();
         let names: Vec<&str> = group
             .runners
             .iter()
@@ -591,14 +628,14 @@ mod tests {
             .unwrap();
         let filter = HistoryFilter::default();
 
-        let without = group_view(&mut both, &filter, false).unwrap();
+        let without = group_view(&mut both, &filter, false, None).unwrap();
         assert!(!without.include_self);
         assert_eq!(without.runners.len(), 1);
         assert_eq!(without.runners[0].runner.runner_id, runner_id);
         // Sola, ninguna carrera compartida.
         assert!(without.comparison.shared_races.is_empty());
 
-        let with = group_view(&mut both, &filter, true).unwrap();
+        let with = group_view(&mut both, &filter, true, None).unwrap();
         assert!(with.include_self);
         assert_eq!(with.runners.len(), 2);
         let me = &with.runners[0];
@@ -614,7 +651,7 @@ mod tests {
     #[test]
     fn including_oneself_without_races_adds_nobody() {
         let (_, _, mut coach, _) = received(ShareLevel::Legs, false);
-        let group = group_view(&mut coach, &HistoryFilter::default(), true).unwrap();
+        let group = group_view(&mut coach, &HistoryFilter::default(), true, None).unwrap();
         assert_eq!(group.runners.len(), 1);
         assert!(!group.runners[0].is_self);
     }

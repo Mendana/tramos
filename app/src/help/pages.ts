@@ -14,6 +14,7 @@ import estadisticasDonde from "./estadisticas-donde.md?raw";
 import estadisticasEvolucion from "./estadisticas-evolucion.md?raw";
 import formatos from "./formatos.md?raw";
 import grupo from "./grupo.md?raw";
+import grupos from "./grupos.md?raw";
 import importar from "./importar.md?raw";
 import indice from "./indice.md?raw";
 import inicio from "./inicio.md?raw";
@@ -37,6 +38,7 @@ export type HelpPageId =
   | "perfil"
   | "ajustes"
   | "grupo"
+  | "grupos"
   | "carrera"
   | "carrera-tramos"
   | "carrera-mapa"
@@ -81,6 +83,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   perfil: { source: perfil, group: "screens" },
   ajustes: { source: ajustes, group: "screens" },
   grupo: { source: grupo, group: "screens" },
+  grupos: { source: grupos, group: "screens" },
   carrera: { source: carrera, group: "race" },
   "carrera-tramos": { source: carreraTramos, group: "race" },
   "carrera-mapa": { source: carreraMapa, group: "race" },

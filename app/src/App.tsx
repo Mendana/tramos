@@ -17,6 +17,7 @@ import {
   viewedRunner,
 } from "./api";
 import GroupScreen from "./GroupScreen";
+import GroupsScreen from "./GroupsScreen";
 import HelpScreen from "./help/HelpScreen";
 import { HelpPageId, helpTitle } from "./help/pages";
 import { helpFor } from "./help/views";
@@ -40,6 +41,7 @@ import {
   ListIcon,
   Notice,
   SlidersIcon,
+  TagIcon,
   UploadIcon,
   UserIcon,
 } from "./ui";
@@ -103,7 +105,8 @@ export type Screen =
   | { kind: "races" }
   | { kind: "race"; resultId: number; tab?: RaceTab }
   | { kind: "history" }
-  | { kind: "group" }
+  | { kind: "group"; groupId?: number }
+  | { kind: "groups" }
   | { kind: "import" }
   | { kind: "profile" }
   | { kind: "settings" }
@@ -177,6 +180,8 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
         return [{ label: "Estadísticas" }];
       case "group":
         return [{ label: "Comparar atletas" }];
+      case "groups":
+        return [{ label: "Grupos" }];
       case "import":
         return [{ label: "Importar" }];
       case "profile":
@@ -193,7 +198,11 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
     }
   })();
   // Se ve a un atleta: su nombre va delante, salvo en lo que es de todos.
-  const general = screen.kind === "group" || screen.kind === "settings" || screen.kind === "help";
+  const general =
+    screen.kind === "group" ||
+    screen.kind === "groups" ||
+    screen.kind === "settings" ||
+    screen.kind === "help";
   return runnerName === null || general ? own : [{ label: runnerName }, ...own];
 }
 
@@ -347,7 +356,7 @@ function App() {
     if (!coach) {
       setRunners([]);
       setRunner(null);
-      setScreen((s) => (s.kind === "group" ? { kind: "home" } : s));
+      setScreen((s) => (s.kind === "group" || s.kind === "groups" ? { kind: "home" } : s));
       return;
     }
     coachRunners()
@@ -474,6 +483,12 @@ function App() {
                     current={at("group")}
                     onClick={() => goTo("group")}
                   />
+                  <NavItem
+                    icon={<TagIcon />}
+                    label="Grupos"
+                    current={at("groups")}
+                    onClick={() => goTo("groups")}
+                  />
                 </NavSection>
               )}
               <NavSection label="Cuenta">
@@ -578,8 +593,14 @@ function App() {
               )}
               {screen.kind === "group" && coach && (
                 <GroupScreen
+                  group={screen.groupId ?? null}
+                  // Cambiar de grupo no es otra pantalla: no entra en «volver».
+                  onGroup={(groupId) => setScreen({ kind: "group", groupId: groupId ?? undefined })}
                   onOpenRunner={(runnerId) => selectRunner(runnerId, { kind: "races" })}
                 />
+              )}
+              {screen.kind === "groups" && coach && (
+                <GroupsScreen onStats={(groupId) => navigate({ kind: "group", groupId })} />
               )}
               {screen.kind === "import" && !viewing && (
                 <ImportScreen

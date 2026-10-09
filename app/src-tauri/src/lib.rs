@@ -4,6 +4,7 @@
 pub mod batch;
 pub mod clock_offset;
 pub mod coach;
+pub mod groups;
 pub mod history;
 pub mod import;
 pub mod package;
@@ -24,11 +25,12 @@ use tramos_core::loss_breakdown::RaceBreakdown;
 use tramos_core::package::{ShareChoice, ShareLevel};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::taxonomy::{LegTag, Taxonomy};
-use tramos_store::{SaveOutcome, Store};
+use tramos_store::{AthleteGroupId, SaveOutcome, Store};
 
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
 use crate::coach::{CoachRunner, GroupView, RunnerView, RunnerViewInfo};
+use crate::groups::{GroupFields, GroupsView};
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
@@ -74,6 +76,16 @@ impl AppState {
             None => f(&store),
         }
         .map_err(|e| e.to_string())
+    }
+
+    /// La base propia para lo que solo hace quien entrena (vista de grupo, grupos de atletas).
+    /// Si no entrena, error.
+    fn coach_store(&self) -> Result<MutexGuard<'_, Store>, String> {
+        let store = self.store()?;
+        if !coach::is_coach(&store).map_err(|e| e.to_string())? {
+            return Err("esto es para quien entrena a otros atletas".to_string());
+        }
+        Ok(store)
     }
 
     /// La base propia para modificar sus carreras. Mientras se ve a un atleta, error: sus
@@ -161,18 +173,60 @@ fn coach_runners(state: tauri::State<'_, AppState>) -> Result<Vec<CoachRunner>, 
 }
 
 /// Si entrena, vista de grupo (P15): una fila por atleta y todos contra todos; con «Incluirme»,
-/// también las carreras propias.
+/// también las carreras propias. Con `group`, solo los miembros de ese grupo de atletas.
 #[tauri::command]
 fn group_view(
     state: tauri::State<'_, AppState>,
     filter: HistoryFilter,
+    group: Option<i64>,
 ) -> Result<GroupView, String> {
-    let mut store = state.store()?;
-    if !coach::is_coach(&store).map_err(|e| e.to_string())? {
-        return Err("la vista de grupo es para quien entrena".to_string());
-    }
+    let mut store = state.coach_store()?;
     let include_self = settings::include_self(&store).map_err(|e| e.to_string())?;
-    coach::group_view(&mut store, &filter, include_self).map_err(|e| e.to_string())
+    coach::group_view(&mut store, &filter, include_self, group.map(AthleteGroupId))
+        .map_err(|e| e.to_string())
+}
+
+/// Si entrena, sus grupos de atletas y a quién puede meter en ellos.
+#[tauri::command]
+fn athlete_groups(state: tauri::State<'_, AppState>) -> Result<GroupsView, String> {
+    groups::groups_view(&mut *state.coach_store()?).map_err(|e| e.to_string())
+}
+
+/// Crea un grupo de atletas vacío y devuelve su identificador.
+#[tauri::command]
+fn create_athlete_group(
+    state: tauri::State<'_, AppState>,
+    group: GroupFields,
+) -> Result<i64, String> {
+    groups::create(&mut *state.coach_store()?, &group).map_err(|e| e.to_string())
+}
+
+/// Cambia el nombre, la descripción y el color de un grupo de atletas.
+#[tauri::command]
+fn update_athlete_group(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    group: GroupFields,
+) -> Result<(), String> {
+    groups::update(&mut *state.coach_store()?, id, &group).map_err(|e| e.to_string())
+}
+
+/// Borra un grupo de atletas; sus atletas y sus paquetes siguen ahí.
+#[tauri::command]
+fn delete_athlete_group(state: tauri::State<'_, AppState>, id: i64) -> Result<(), String> {
+    groups::delete(&mut *state.coach_store()?, id).map_err(|e| e.to_string())
+}
+
+/// Mete (`member = true`) o saca a un atleta de un grupo.
+#[tauri::command]
+fn set_athlete_group_member(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    runner_id: String,
+    member: bool,
+) -> Result<(), String> {
+    groups::set_member(&mut *state.coach_store()?, id, &runner_id, member)
+        .map_err(|e| e.to_string())
 }
 
 /// Guarda si las carreras propias cuentan en la vista de grupo («Incluirme»).
@@ -454,6 +508,11 @@ pub fn run() -> tauri::Result<()> {
             viewed_runner,
             group_view,
             set_include_self,
+            athlete_groups,
+            create_athlete_group,
+            update_athlete_group,
+            delete_athlete_group,
+            set_athlete_group_member,
             preview_import,
             import_race,
             import_folder,

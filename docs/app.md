@@ -28,8 +28,12 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `role_chosen` / `choose_role(role)` | Si ya se ha dicho cómo se usa la app y decirlo sin tocar los demás ajustes: `runner` (corre), `coach` (entrena) o `both` (las dos cosas; abajo, "Atletas"). |
 | `coach_runners` | Si entrena, los atletas de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `view_runner(runnerId)` | Elige el atleta que se ve (`null` = volver a lo propio): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras en solo lectura. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. Elegir un atleta sin entrenar da error. |
-| `group_view(filter)` | Si entrena, la vista de grupo (P15, `docs/historico.md`): una fila por atleta de los que hay paquetes (o por qué no se ha podido calcular) y todos contra todos en las carreras compartidas, con el filtro del histórico. Con `athletes.include_self`, las carreras propias cuentan como un atleta más (la primera fila, `is_self`). Si no entrena, error. |
+| `group_view(filter, group)` | Si entrena, la vista de grupo (P15, `docs/historico.md`): una fila por atleta de los que hay paquetes (o por qué no se ha podido calcular), todos contra todos en las carreras compartidas y los totales de todos juntos (`total`, #120), con el filtro del histórico. Con `group` (un grupo de atletas), solo sus miembros: quien usa la app sale si es miembro. Sin grupo, con `athletes.include_self`, las carreras propias cuentan como un atleta más (la primera fila, `is_self`). Si no entrena, error. |
 | `set_include_self(include)` | Guarda «Incluirme» (`athletes.include_self`) de la vista de grupo. |
+| `athlete_groups` | Si entrena, sus grupos de atletas (#120: identificador, nombre, descripción, color y `runner_id` de los miembros) y a quién puede meter en ellos: quien usa la app (con su `package_runner_id`, si tiene carreras) y los atletas de los que hay paquetes. |
+| `create_athlete_group(group)` / `update_athlete_group(id, group)` | Crea un grupo vacío (devuelve su identificador) o cambia uno: `group` = `{name, description, color}` (`docs/almacenamiento.md`, nombre no vacío y color `#rrggbb`). |
+| `delete_athlete_group(id)` | Borra un grupo; sus atletas y sus paquetes siguen ahí. |
+| `set_athlete_group_member(id, runnerId, member)` | Mete (`true`) o saca (`false`) a un atleta de un grupo. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
@@ -246,8 +250,8 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   propios (`docs/paquete.md`, "Carpeta compartida"). Los suyos no vuelven a entrar.
 - **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: un selector «Ver a» con los
   atletas de los que hay paquetes (nombre visible y número de carreras; sin elegir, «Elige un
-  atleta…»), y, mientras se ve a uno, sus **Carreras** y **Estadísticas**; y **Comparar
-  atletas**, la vista de grupo. Las entradas de «Lo mío» (y Mi perfil) vuelven siempre a lo
+  atleta…»), y, mientras se ve a uno, sus **Carreras** y **Estadísticas**; **Comparar
+  atletas**, la vista de grupo; y **Grupos**. Las entradas de «Lo mío» (y Mi perfil) vuelven siempre a lo
   propio.
 - **Qué se está viendo.** Las vistas de un atleta llevan arriba una franja «Estás viendo a
   Nombre. Solo lectura: no se puede etiquetar ni cambiar nada.» con «Volver a lo mío», que
@@ -266,14 +270,28 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
 - **Solo resumen.** Las carreras compartidas con `aggregates` no traen tramos: salen aparte en la
   lista («Solo con el resumen»), con fecha, carrera, categoría, resultado, tiempo y tiempo
   perdido, y no se pueden abrir ni entran en el histórico.
+- **Grupos** (#120). Pantalla del bloque Atletas para organizarlos en grupos (por ejemplo,
+  «Juveniles» o «Equipo de relevos»). Cada grupo, una tarjeta con su color, nombre, descripción y
+  una casilla por atleta (también «Nombre (tú)», si tiene carreras propias) para meterlo o
+  sacarlo al momento. Un atleta puede estar en varios grupos y sigue en ellos aunque cambie su
+  nombre visible, porque van por el `runner_id` de sus paquetes; si ya no hay paquetes suyos, se
+  dice cuántos son. «Nuevo grupo» y el lápiz de cada tarjeta abren el formulario: nombre
+  (obligatorio), descripción y uno de 8 colores (el nuevo toma el primero libre). Desde el
+  lápiz, «Borrar…» pide confirmar y avisa de que sus atletas y sus carreras se quedan.
+  «Estadísticas del grupo» abre Comparar atletas con ese grupo.
 - **Comparar atletas** (P15). La vista de grupo, con los filtros del histórico
-  (`docs/historico.md`, "Vista de grupo (P15)") y la casilla **«Incluirme»** (desmarcada por
-  defecto, se guarda en `athletes.include_self`), con la que las carreras propias cuentan como
-  un atleta más («Nombre (tú)», la primera fila):
+  (`docs/historico.md`, "Vista de grupo (P15)"), un selector **Grupo** («Todos los atletas» o
+  uno de los grupos; cambiarlo no entra en «volver») y, con «Todos», la casilla
+  **«Incluirme»** (desmarcada por defecto, se guarda en `athletes.include_self`), con la que las
+  carreras propias cuentan como un atleta más («Nombre (tú)», la primera fila). Con un grupo,
+  salen sus miembros, quien usa la app solo si está en él, y su nombre y descripción arriba. Si
+  ninguno tiene carreras con esos filtros, se dice.
   - **Atletas**: una fila por atleta con carreras, IR medio, tasa de error, pérdida media
     (%), su error más común (tipo y parte de sus errores), la duración de tramo con más tasa de
     error (si tiene al menos 10 tramos) e IR en subida, llano y bajada. Un clic en la fila abre
-    sus carreras (en la propia, las tuyas).
+    sus carreras (en la propia, las tuyas). Con dos o más, una última fila de **totales**
+    («Todos» o «Total de Grupo»): carreras, IR medio, tasa de error y pérdida media de todos
+    juntos (`docs/historico.md`, "Vista de grupo (P15)").
   - **Cara a cara**: tabla de todos contra todos. En cada celda, cuántas carreras compartidas
     tuvo el de la fila más IR que el de la columna y cuántas menos («2–1», en verde si más, en
     rojo si menos) y, debajo, la diferencia media de IR en puntos. «—» sin carreras en común.
@@ -717,8 +735,8 @@ sistema.
 - **Estructura** (#127, #119, boceto en `docs/bocetos/navegacion.html`): barra lateral oscura
   (`--side-*`) con bloques: Inicio; «Lo mío», con Mis carreras (y un contador de errores sin
   revisar de lo propio), Estadísticas e Importar; si entrena, «Atletas», con el selector, las
-  Carreras y Estadísticas del atleta que se ve y Comparar atletas; «Cuenta», con Mi perfil,
-  Ajustes y Ayuda.
+  Carreras y Estadísticas del atleta que se ve, Comparar atletas y Grupos; «Cuenta», con Mi
+  perfil, Ajustes y Ayuda.
 
   Encima del contenido, una cabecera fija con el botón de volver (a la pantalla anterior, hasta
   30), las migas de pan («Mis carreras / Nombre de la carrera»; al ver a un atleta, con su

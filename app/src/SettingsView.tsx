@@ -1,7 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { ReactNode, useEffect, useState } from "react";
 import {
-  AppMode,
   SHARE_HINTS,
   SHARE_LABELS,
   ShareChoice,
@@ -30,7 +29,8 @@ interface Form {
   timeZone: string;
   siCard: string;
   fullName: string;
-  mode: AppMode;
+  shareOwn: boolean;
+  coach: boolean;
   folder: string;
   defaultChoice: ShareChoice;
   paceZones: ZoneDraft | null;
@@ -58,7 +58,7 @@ interface Section {
 /**
  * Ajustes del usuario (ver `docs/app.md`, "Ajustes"), en dos pantallas que guardan el mismo
  * formulario: **Mi perfil** (quién eres y qué compartes) y **Ajustes** (umbrales de error, zona
- * horaria, colores del mapa y uso de la app, con un índice a cada apartado).
+ * horaria, colores del mapa, paneles y entrenar, con un índice a cada apartado).
  */
 function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved: () => void }) {
   const [form, setForm] = useState<Form | null>(null);
@@ -75,7 +75,8 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           timeZone: s.time_zone,
           siCard: s.identity.si_card === null ? "" : String(s.identity.si_card),
           fullName: s.identity.full_name ?? "",
-          mode: s.sharing.mode,
+          shareOwn: s.sharing.share_own,
+          coach: s.sharing.coach,
           folder: s.sharing.folder ?? "",
           defaultChoice: s.sharing.default_choice,
           paceZones: toDraft("pace", s.map.pace_zones),
@@ -91,6 +92,12 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     setFolderResult(null);
   }
 
+  function toggle(field: "shareOwn" | "coach", value: boolean) {
+    setForm((current) => (current === null ? current : { ...current, [field]: value }));
+    setSaved(false);
+    setFolderResult(null);
+  }
+
   function updateZones(field: "paceZones" | "heartRateZones", draft: ZoneDraft | null) {
     setForm((current) => (current === null ? current : { ...current, [field]: draft }));
     setSaved(false);
@@ -101,20 +108,28 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     if (typeof selected === "string") update("folder", selected);
   }
 
-  /** Tras guardar con carpeta: el corredor exporta todas sus carreras y la entrenadora busca. */
-  async function syncFolder(mode: AppMode): Promise<FolderResult> {
-    if (mode === "runner") {
+  /** Tras guardar con carpeta: exporta las carreras propias si las comparte y busca las de sus
+   * atletas si entrena. */
+  async function syncFolder(shareOwn: boolean, coach: boolean): Promise<FolderResult | null> {
+    const messages: string[] = [];
+    const problems: string[] = [];
+    if (shareOwn) {
       const r = await shareAll();
       const parts = [`${plural(r.written, "carrera exportada", "carreras exportadas")}`];
       if (r.unchanged > 0) parts.push(`${r.unchanged} sin cambios`);
       if (r.not_shared > 0) parts.push(`${r.not_shared} sin compartir`);
-      return { message: `Carpeta compartida: ${parts.join(", ")}.`, problems: r.problems };
+      messages.push(parts.join(", "));
+      problems.push(...r.problems);
     }
-    const r = await receivePackages();
-    return {
-      message: `Carpeta compartida: ${plural(r.packages, "paquete", "paquetes")} de ${plural(r.runners, "corredor", "corredores")}.`,
-      problems: r.problems,
-    };
+    if (coach) {
+      const r = await receivePackages();
+      messages.push(
+        `${plural(r.packages, "paquete", "paquetes")} de ${plural(r.runners, "atleta", "atletas")}`,
+      );
+      problems.push(...r.problems);
+    }
+    if (messages.length === 0) return null;
+    return { message: `Carpeta compartida: ${messages.join("; ")}.`, problems };
   }
 
   async function save() {
@@ -156,7 +171,8 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           full_name: form.fullName.trim() === "" ? null : form.fullName.trim(),
         },
         sharing: {
-          mode: form.mode,
+          share_own: form.shareOwn,
+          coach: form.coach,
           folder: folder === "" ? null : folder,
           default_choice: form.defaultChoice,
         },
@@ -164,7 +180,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       });
       setSaved(true);
       onSaved();
-      if (folder !== "") setFolderResult(await syncFolder(form.mode));
+      if (folder !== "") setFolderResult(await syncFolder(form.shareOwn, form.coach));
     } catch (err) {
       setError(String(err));
     }
@@ -214,6 +230,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       </div>
       <span className="field-hint">
         Una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace falta servidor.
+        La misma sirve para compartir lo tuyo y para recibir lo de tus atletas.
       </span>
     </div>
   );
@@ -251,9 +268,15 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
         {
           id: "sharing",
           title: "Qué compartes",
-          text: "Con la entrenadora, por la carpeta compartida. Tus carreras se exportan solas cuando cambian.",
+          text: "Con quien te entrena, por la carpeta compartida. Tus carreras se exportan solas cuando cambian.",
           fields: (
             <>
+              <Toggle
+                label="Compartir mis carreras"
+                hint="Se exportan a la carpeta compartida. Si lo quitas, las que ya están se quedan."
+                checked={form.shareOwn}
+                onChange={(v) => toggle("shareOwn", v)}
+              />
               {folderField}
               <label className="field">
                 <span className="field-label">Qué compartes de cada carrera</span>
@@ -277,34 +300,22 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
         },
       ];
     }
-    const mode: Section = {
-      id: "mode",
-      title: "Uso de la app",
-      text: "Corredor o entrenadora. Cambia lo que se ve en el menú.",
+    const coach: Section = {
+      id: "coach",
+      title: "Entrenar",
+      text: "Para ver las carreras de tus atletas. Tus carreras siguen igual.",
       fields: (
         <>
-          <label className="field">
-            <span className="field-label">Uso la app como</span>
-            <select
-              className="select"
-              value={form.mode}
-              onChange={(e) => update("mode", e.target.value)}
-            >
-              <option value="runner">Corredor</option>
-              <option value="coach">Entrenadora</option>
-            </select>
-            <span className="field-hint">
-              {form.mode === "runner"
-                ? "Tus carreras se exportan solas a la carpeta compartida (en Mi perfil) cuando cambian."
-                : "Cada minuto se importan los paquetes nuevos que dejen los corredores. Sus carreras se ven en solo lectura y con sus propios umbrales."}
-            </span>
-          </label>
-          {form.mode === "coach" && folderField}
+          <Toggle
+            label="Entreno a otros atletas"
+            hint="Añade la sección Atletas al menú. Cada minuto se importan de la carpeta compartida los paquetes nuevos de tus atletas, que se ven en solo lectura y con sus propios umbrales."
+            checked={form.coach}
+            onChange={(v) => toggle("coach", v)}
+          />
+          {form.coach && folderField}
         </>
       ),
     };
-    // La entrenadora ve a cada corredor con sus umbrales: el resto es de corredor.
-    if (form.mode === "coach") return [mode, panelsSection];
     return [
       {
         id: "errors",
@@ -377,7 +388,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
         ),
       },
       panelsSection,
-      mode,
+      coach,
     ];
   };
 
@@ -449,6 +460,29 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       )}
       {form === null && error !== null && <Notice kind="error">{error}</Notice>}
     </>
+  );
+}
+
+/** Casilla con su explicación debajo. */
+function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="check check-block">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        <span className="strong">{label}</span>
+        <span className="field-hint">{hint}</span>
+      </span>
+    </label>
   );
 }
 

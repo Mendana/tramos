@@ -40,7 +40,7 @@ function RaceList({
   onStateChange?: (state: RaceListState) => void;
   onOpen: (resultId: number) => void;
   onImport: () => void;
-  /** En modo entrenadora, las carreras compartidas solo con el resumen. */
+  /** Al ver a un atleta, las carreras que ha compartido solo con el resumen. */
   summaryOnly?: SummaryRace[];
 }) {
   const { readOnly, runnerName } = useViewer();

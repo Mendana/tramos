@@ -23,9 +23,11 @@
   sincronización los guarda en sus servidores. Lo más privado es que cada corredor comparta con
   la entrenadora su propia carpeta. Al dejar de compartir una carrera se borra su fichero de la
   carpeta, pero lo que la entrenadora ya hubiera importado sigue en su app.
-- La entrenadora solo lee (modo entrenadora, `docs/app.md`): su app no tiene controles de edición
-  y el núcleo rechaza cualquier cambio; los datos de un corredor solo cambian desde su propia app.
-  Lo recibido se guarda en su base local y no sale de ella.
+- Quien entrena solo lee lo de sus atletas (`docs/app.md`, "Atletas"): mientras ve a un atleta, la
+  app no tiene controles de edición y el núcleo rechaza cualquier cambio; los datos de un
+  corredor solo cambian desde su propia app. Lo recibido se guarda en su base local y no sale de
+  ella: si quien entrena también corre y comparte lo suyo, solo exporta sus propias carreras,
+  nunca lo recibido de sus atletas, y no reimporta sus propios paquetes.
 - Cuando llegue el LLM, a proveedores externos solo se envían agregados anónimos.
 - La ventana de la app tiene una CSP restrictiva (`app/src-tauri/tauri.conf.json`), porque va a
   mostrar textos leídos de ficheros externos (nombres, clubes, categorías). Solo carga scripts,

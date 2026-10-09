@@ -15,7 +15,7 @@ const MAX_OTHERS = SERIES_COLORS.length - 1;
 
 const keyOf = (r: ComparedRunner) => `${r.result.class_index}-${r.result.result_index}`;
 const fullName = (r: ComparedRunner) => `${r.given_name} ${r.family_name}`.trim();
-/** «Ana P.»; sin apellidos (los compañeros en modo entrenadora), el nombre tal cual. */
+/** «Ana P.»; sin apellidos (los compañeros al ver a un atleta), el nombre tal cual. */
 const shortName = (r: ComparedRunner, self: string) =>
   r.is_self
     ? self

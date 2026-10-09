@@ -570,6 +570,22 @@ corredor más.
   (`worse`); los empates no cuentan en ninguna. Además, `mean_difference` = media de
   `IR(corredor) − IR(otro)` en esas carreras (1 = 100 puntos).
 
+- **Grupos de atletas** (#120): la vista se puede limitar a los miembros de un grupo
+  (`docs/app.md`, "Atletas"). La tabla, el cara a cara y las carreras compartidas se calculan
+  igual, solo con ellos. Debajo de la tabla, una fila de **totales** (`group_total`) con todas
+  las carreras y todos los tramos de los que salen en ella juntos, con las definiciones del total
+  del histórico: el IR medio de cada miembro ponderado por sus carreras (= media del rendimiento
+  habitual de todas las carreras del grupo), y la tasa de error y la pérdida media por tramo (s y
+  %) ponderadas por sus tramos (= las de todos los tramos del grupo juntos). La consistencia no
+  se junta: la de cada uno ya es una media de carreras y no se sabe de cuántas. Un atleta en dos
+  grupos cuenta entero en los dos.
+
+  Ejemplo (`group::tests`): tres atletas con (carreras, tramos, errores, IR, pérdida s, pérdida
+  %) = (2, 20, 4, 0,90, 6, 5), (3, 30, 3, 0,80, 3, 2) y (1, 10, 5, 0,70, 12, 10). El grupo de los
+  dos primeros: 5 carreras, 50 tramos, 7 errores, IR (0,90 × 2 + 0,80 × 3) / 5 = **0,84**, tasa
+  7 / 50 = **14 %**, pérdida (6 × 20 + 3 × 30) / 50 = **4,2 s** y (5 × 20 + 2 × 30) / 50 =
+  **3,2 %**. El de los dos últimos: IR **0,775**, tasa **20 %**, **5,25 s** y **4 %**.
+
 ### Ejemplo de test
 
 Tres corredores sintéticos (0, 1 y 2) en cinco carreras (`group::tests`):

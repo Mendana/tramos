@@ -76,6 +76,40 @@ pub fn group_row(
     }
 }
 
+/// Totales de un grupo de corredores (#120): todas las carreras y todos los tramos de sus
+/// miembros juntos, con las mismas definiciones que el total del histórico de uno
+/// ([`HistoryStats`]). Los de cada miembro se suman ponderados: el IR medio por sus carreras y
+/// las tasas y pérdidas por sus tramos. La consistencia no se junta (`None`): la de cada uno es
+/// ya una media de las carreras que la tienen, y no se sabe cuántas son.
+pub fn group_total(members: &[HistoryStats]) -> HistoryStats {
+    let mut races = 0;
+    let mut legs = 0;
+    let mut errors = 0;
+    let mut performance_sum = 0.0;
+    let mut loss_sum_s = 0.0;
+    let mut loss_sum_pct = 0.0;
+    for m in members {
+        races += m.races;
+        legs += m.legs;
+        errors += m.errors;
+        performance_sum += m.mean_performance.unwrap_or(0.0) * m.races as f64;
+        loss_sum_s += m.mean_loss_s.unwrap_or(0.0) * m.legs as f64;
+        loss_sum_pct += m.mean_loss_pct.unwrap_or(0.0) * m.legs as f64;
+    }
+    let per_race = |sum: f64| (races > 0).then(|| sum / races as f64);
+    let per_leg = |sum: f64| (legs > 0).then(|| sum / legs as f64);
+    HistoryStats {
+        races,
+        legs,
+        errors,
+        mean_performance: per_race(performance_sum),
+        error_rate: per_leg(errors as f64),
+        mean_loss_s: per_leg(loss_sum_s),
+        mean_loss_pct: per_leg(loss_sum_pct),
+        mean_consistency: None,
+    }
+}
+
 /// Una carrera de un corredor del grupo, con sus números.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroupEntry {
@@ -226,6 +260,69 @@ mod tests {
     use crate::common_errors::{ErrorTypes, TypeCount};
     use crate::history::HistoryFilter;
     use crate::slope::{SlopeClass, SlopeConfig};
+
+    /// Un atleta sintético con sus totales: carreras, tramos, errores, IR medio y pérdida media
+    /// por tramo en segundos y en %.
+    fn athlete(
+        races: usize,
+        legs: usize,
+        errors: usize,
+        ir: f64,
+        s: f64,
+        pct: f64,
+    ) -> HistoryStats {
+        HistoryStats {
+            races,
+            legs,
+            errors,
+            mean_performance: Some(ir),
+            error_rate: Some(errors as f64 / legs as f64),
+            mean_loss_s: Some(s),
+            mean_loss_pct: Some(pct),
+            mean_consistency: Some(0.05),
+        }
+    }
+
+    fn close_to(actual: Option<f64>, expected: f64) {
+        let actual = actual.unwrap();
+        assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
+    }
+
+    /// Tres atletas sintéticos en dos grupos: A = {0, 1} y B = {1, 2} (1 está en los dos).
+    #[test]
+    fn group_totals_pool_the_races_and_legs_of_their_members() {
+        let athletes = [
+            athlete(2, 20, 4, 0.90, 6.0, 5.0),
+            athlete(3, 30, 3, 0.80, 3.0, 2.0),
+            athlete(1, 10, 5, 0.70, 12.0, 10.0),
+        ];
+
+        // A: IR (0,90 × 2 + 0,80 × 3) / 5 = 0,84; errores 7 / 50; pérdida (6 × 20 + 3 × 30) / 50.
+        let a = group_total(&[athletes[0], athletes[1]]);
+        assert_eq!((a.races, a.legs, a.errors), (5, 50, 7));
+        close_to(a.mean_performance, 0.84);
+        close_to(a.error_rate, 0.14);
+        close_to(a.mean_loss_s, 4.2);
+        close_to(a.mean_loss_pct, 3.2);
+        assert_eq!(a.mean_consistency, None);
+
+        // B: IR (0,80 × 3 + 0,70) / 4 = 0,775; errores 8 / 40; pérdida (3 × 30 + 12 × 10) / 40.
+        let b = group_total(&[athletes[1], athletes[2]]);
+        assert_eq!((b.races, b.legs, b.errors), (4, 40, 8));
+        close_to(b.mean_performance, 0.775);
+        close_to(b.error_rate, 0.2);
+        close_to(b.mean_loss_s, 5.25);
+        close_to(b.mean_loss_pct, 4.0);
+
+        // Uno sin carreras no cambia nada; un grupo sin nadie no tiene medias.
+        let with_empty = group_total(&[athletes[0], athletes[1], HistoryStats::default()]);
+        assert_eq!(with_empty, a);
+        let empty = group_total(&[]);
+        assert_eq!(
+            (empty.races, empty.mean_performance, empty.error_rate),
+            (0, None, None)
+        );
+    }
 
     fn stats(ir: Option<f64>) -> Option<HistoryStats> {
         Some(HistoryStats {

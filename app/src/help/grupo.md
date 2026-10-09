@@ -5,7 +5,11 @@ paquetes, juntos. Arriba, los mismos filtros que en [Estadísticas](estadisticas
 formato), que se aplican a todos. Solo cuentan las carreras compartidas con los tramos: las de
 solo resumen no traen bastante.
 
-**Incluirme**: con esta casilla marcada, tus propias carreras cuentan como las de un atleta más
+**Grupo**: si tienes [grupos](grupos.md), elige «Todos los atletas» o uno de ellos. Con un grupo
+salen solo sus miembros (tú, si estás en él), con su nombre y su descripción arriba. Cambiar de
+grupo no cuenta para el botón de volver.
+
+**Incluirme** (solo con «Todos los atletas»): con esta casilla marcada, tus propias carreras cuentan como las de un atleta más
 («Tu nombre (tú)», la primera fila), en la tabla, en el cara a cara y en las carreras
 compartidas. Desmarcada por defecto; se queda como la dejes.
 
@@ -22,6 +26,13 @@ Una fila por atleta, con sus carreras y:
 - **IR en subida, llano y bajada**, si ha compartido el track.
 
 Un clic en la fila abre sus carreras (en la tuya, las tuyas).
+
+Con dos o más, la última fila (**Todos** o **Total de** el grupo) junta todas sus carreras y
+todos sus tramos: el IR medio de todas las carreras, y la tasa de error y la pérdida media de
+todos los tramos.
+
+> Ana tiene 2 carreras con IR medio 90 % y Bruno 3 con 80 %. La fila de totales dice 5 carreras e
+> IR medio 84 %: (90 × 2 + 80 × 3) / 5. Cuenta más quien más ha corrido. (Nombres inventados.)
 
 ## Cara a cara
 

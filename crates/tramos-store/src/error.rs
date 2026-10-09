@@ -45,6 +45,17 @@ pub enum StoreError {
     #[error("el resultado {result} ya está vinculado a la persona {person}")]
     ResultAlreadyLinked { result: i64, person: i64 },
 
+    #[error("no existe el grupo {0}")]
+    GroupNotFound(i64),
+
+    /// El nombre de un grupo no puede estar vacío ni ser solo espacios.
+    #[error("el grupo necesita un nombre")]
+    EmptyGroupName,
+
+    /// Los colores se guardan como `#rrggbb`.
+    #[error("color no válido: {0:?} (tiene que ser #rrggbb)")]
+    InvalidColor(String),
+
     /// Los tramos se numeran desde 1.
     #[error("tramo inválido: {0} (se numeran desde 1)")]
     InvalidLegIndex(usize),

@@ -98,6 +98,18 @@ a {
   border-color: var(--accent-hover);
 }
 
+/* Acción que borra algo; siempre detrás de una confirmación. */
+.btn-danger {
+  background: var(--error-strong);
+  border-color: var(--error-strong);
+  color: var(--error-text);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--error);
+  border-color: var(--error);
+}
+
 .btn-ghost {
   border-color: transparent;
   background: transparent;

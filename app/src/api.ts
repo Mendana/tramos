@@ -664,11 +664,70 @@ export interface HeadToHead {
 export interface GroupView {
   runners: GroupRunnerRow[];
   comparison: { shared_races: SharedRace[]; head_to_head: HeadToHead[] };
-  /** Si cuentan las carreras propias (ajuste «Incluirme»). */
+  /** Totales de todos los que salen: sus carreras y tramos juntos (#120). */
+  total: HistoryStats;
+  /** Si las carreras propias cuentan en «Todos» (ajuste «Incluirme»). */
   include_self: boolean;
+  /** El grupo de atletas al que se limita; `null` = todos. */
+  group: number | null;
 }
 
-export const groupView = (filter: HistoryFilter) => invoke<GroupView>("group_view", { filter });
+/** La vista de grupo; con `group`, solo los miembros de ese grupo de atletas. */
+export const groupView = (filter: HistoryFilter, group: number | null = null) =>
+  invoke<GroupView>("group_view", { filter, group });
+
+/** Colores para los grupos de atletas, en este orden (el nuevo grupo toma el primero libre). */
+export const GROUP_COLORS = [
+  "#2563eb",
+  "#d97706",
+  "#15803d",
+  "#be185d",
+  "#7e22ce",
+  "#0e7490",
+  "#b91c1c",
+  "#6b7280",
+];
+
+/** Lo que se edita de un grupo de atletas. */
+export interface GroupFields {
+  name: string;
+  description: string;
+  /** `#rrggbb`. */
+  color: string;
+}
+
+export interface GroupInfo extends GroupFields {
+  id: number;
+  /** `runner_id` de sus miembros. */
+  members: string[];
+}
+
+/** Alguien a quien se puede meter en un grupo. */
+export interface GroupCandidate {
+  runner_id: string;
+  display_name: string;
+  /** Quien usa la app, con su propio identificador. */
+  is_self: boolean;
+}
+
+export interface GroupsView {
+  groups: GroupInfo[];
+  candidates: GroupCandidate[];
+}
+
+export const athleteGroups = () => invoke<GroupsView>("athlete_groups");
+
+export const createAthleteGroup = (group: GroupFields) =>
+  invoke<number>("create_athlete_group", { group });
+
+export const updateAthleteGroup = (id: number, group: GroupFields) =>
+  invoke<void>("update_athlete_group", { id, group });
+
+export const deleteAthleteGroup = (id: number) => invoke<void>("delete_athlete_group", { id });
+
+/** Mete (`member = true`) o saca a un atleta de un grupo. */
+export const setAthleteGroupMember = (id: number, runnerId: string, member: boolean) =>
+  invoke<void>("set_athlete_group_member", { id, runnerId, member });
 
 /** Guarda si las carreras propias cuentan en la vista de grupo. */
 export const setIncludeSelf = (include: boolean) => invoke<void>("set_include_self", { include });

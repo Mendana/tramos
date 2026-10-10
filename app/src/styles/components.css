@@ -1575,6 +1575,7 @@
   gap: var(--space-1);
   color: var(--accent);
   font-weight: 600;
+}
 
 /* --- Ayuda (docs/app.md, "Ayuda") --- */
 
@@ -1669,6 +1670,7 @@
   .help-index-label {
     width: 100%;
   }
+}
 
 /* Casilla con su explicación debajo (Ajustes). */
 .check-block {

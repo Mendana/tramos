@@ -21,6 +21,7 @@ import GroupsScreen from "./GroupsScreen";
 import CompareGroupsScreen from "./CompareGroupsScreen";
 import HelpScreen from "./help/HelpScreen";
 import { HelpPageId, helpTitle } from "./help/pages";
+import { useHelpShortcut } from "./help/shortcut";
 import { helpFor } from "./help/views";
 import HistoryScreen, { HistoryTab } from "./HistoryScreen";
 import Home from "./Home";
@@ -29,6 +30,7 @@ import ImportScreen from "./ImportScreen";
 import RaceList, { RACE_LIST_START, RaceListState } from "./RaceList";
 import RaceView, { RaceTab } from "./RaceView";
 import SettingsView from "./SettingsView";
+import Tour, { useTour } from "./Tour";
 import Welcome from "./Welcome";
 import { ViewerContext } from "./viewer";
 import {
@@ -123,6 +125,7 @@ function NavItem({
   current,
   count,
   countLabel,
+  tour,
   onClick,
 }: {
   icon: ReactNode;
@@ -131,12 +134,15 @@ function NavItem({
   /** Contador a la derecha (p. ej. errores por revisar); no sale si es 0. */
   count?: number;
   countLabel?: string;
+  /** Lo que señala el recorrido guiado (`Tour.tsx`). */
+  tour?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       className="nav-item"
+      data-tour={tour}
       aria-current={current ? "page" : undefined}
       onClick={onClick}
     >
@@ -151,9 +157,17 @@ function NavItem({
   );
 }
 
-function NavSection({ label, children }: { label: string; children: ReactNode }) {
+function NavSection({
+  label,
+  tour,
+  children,
+}: {
+  label: string;
+  tour?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="nav-section" role="group" aria-label={label}>
+    <div className="nav-section" role="group" aria-label={label} data-tour={tour}>
       <span className="nav-section-label">{label}</span>
       {children}
     </div>
@@ -269,7 +283,9 @@ function TopBar({
           className="btn btn-ghost btn-icon topbar-help"
           onClick={onHelp}
           aria-label="Ayuda de esta pantalla"
-          title="Ayuda de esta pantalla"
+          aria-keyshortcuts="F1"
+          title="Ayuda de esta pantalla (F1)"
+          data-tour="help"
         >
           <HelpIcon />
         </button>
@@ -403,6 +419,14 @@ function App() {
   // Las carreras y las estadísticas son de quien se ve; la lista, la de esa misma base.
   const showRaces = () => navigate({ kind: "races" });
   const openRace = (resultId: number, tab?: RaceTab) => navigate({ kind: "race", resultId, tab });
+  // Recorrido guiado tras la bienvenida (#141) y F1 para la ayuda de lo que se ve.
+  const onTourError = useCallback((err: unknown) => setError(String(err)), []);
+  const tour = useTour(chosen === true, onTourError);
+  const helpHere =
+    screen.kind === "help"
+      ? null
+      : () => navigate({ kind: "help", page: helpFor(screen, historyTab) });
+  useHelpShortcut(chosen === true && !tour.open ? helpHere : null);
 
   if (chosen === false) {
     return (
@@ -444,6 +468,7 @@ function App() {
                   icon={<ListIcon />}
                   label="Mis carreras"
                   current={!viewing && at("races", "race")}
+                  tour="races"
                   count={unreviewed}
                   countLabel={`${unreviewed} ${unreviewed === 1 ? "error" : "errores"} por revisar`}
                   onClick={() => goOwn({ kind: "races" })}
@@ -452,17 +477,19 @@ function App() {
                   icon={<ChartIcon />}
                   label="Estadísticas"
                   current={!viewing && at("history")}
+                  tour="history"
                   onClick={() => goOwn({ kind: "history" })}
                 />
                 <NavItem
                   icon={<UploadIcon />}
                   label="Importar"
                   current={at("import")}
+                  tour="import"
                   onClick={showImport}
                 />
               </NavSection>
               {coach && (
-                <NavSection label="Atletas">
+                <NavSection label="Atletas" tour="athletes">
                   <RunnerPicker
                     runners={runners}
                     current={runner?.runner.runner_id ?? null}
@@ -529,12 +556,12 @@ function App() {
             </div>
           </aside>
 
-          <main className="content">
+          <main className="content" data-tour="content">
             <TopBar
               crumbs={crumbsFor(screen, races, viewer.runnerName)}
               onBack={previous.length > 0 ? goBack : null}
               onNavigate={navigate}
-              onHelp={screen.kind === "help" ? null : () => openHelp(helpFor(screen, historyTab))}
+              onHelp={helpHere}
             />
             {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
             <div className="page" key={runner?.runner.runner_id ?? "self"}>
@@ -624,10 +651,30 @@ function App() {
               )}
               {screen.kind === "profile" && <SettingsView page="profile" onSaved={refresh} />}
               {screen.kind === "settings" && <SettingsView page="settings" onSaved={refresh} />}
-              {screen.kind === "help" && <HelpScreen page={screen.page} onOpen={openHelp} />}
+              {screen.kind === "help" && (
+                <HelpScreen
+                  page={screen.page}
+                  onOpen={openHelp}
+                  // Desde Inicio, para que esté el «?» que señala el último paso.
+                  onTour={() => {
+                    goOwn({ kind: "home" });
+                    tour.start();
+                  }}
+                />
+              )}
             </div>
           </main>
         </div>
+        {tour.open && (
+          <Tour
+            coach={coach}
+            onClose={tour.close}
+            onHelp={(page) => {
+              tour.close();
+              openHelp(page);
+            }}
+          />
+        )}
       </PanelVisibilityProvider>
     </ViewerContext.Provider>
   );

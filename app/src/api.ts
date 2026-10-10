@@ -606,6 +606,11 @@ export const roleChosen = () => invoke<boolean>("role_chosen");
 
 export const chooseRole = (role: Role) => invoke<void>("choose_role", { role });
 
+/** Si ya se ha visto (terminado o saltado) el recorrido guiado de la primera vez (#141). */
+export const tourSeen = () => invoke<boolean>("tour_seen");
+
+export const setTourSeen = (seen: boolean) => invoke<void>("set_tour_seen", { seen });
+
 export const coachRunners = () => invoke<CoachRunner[]>("coach_runners");
 
 /** Elige el atleta que se ve, en solo lectura (`null` = volver a lo propio). */

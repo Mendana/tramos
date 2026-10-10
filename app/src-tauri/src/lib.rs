@@ -167,6 +167,19 @@ fn choose_role(state: tauri::State<'_, AppState>, role: Role) -> Result<(), Stri
     Ok(())
 }
 
+/// Si ya se ha visto el recorrido guiado de la primera vez (#141). Es de quien usa la app: se lee
+/// en la base propia también mientras se ve a un atleta.
+#[tauri::command]
+fn tour_seen(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    settings::tour_seen(&*state.store()?).map_err(|e| e.to_string())
+}
+
+/// Guarda que se ha visto (o saltado) el recorrido guiado.
+#[tauri::command]
+fn set_tour_seen(state: tauri::State<'_, AppState>, seen: bool) -> Result<(), String> {
+    settings::set_tour_seen(&mut *state.store()?, seen).map_err(|e| e.to_string())
+}
+
 /// Si entrena, atletas de los que hay paquetes.
 #[tauri::command]
 fn coach_runners(state: tauri::State<'_, AppState>) -> Result<Vec<CoachRunner>, String> {
@@ -527,6 +540,8 @@ pub fn run() -> tauri::Result<()> {
             coach_runners,
             view_runner,
             viewed_runner,
+            tour_seen,
+            set_tour_seen,
             group_view,
             set_include_self,
             athlete_groups,

@@ -36,6 +36,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_athlete_group_member(id, runnerId, member)` | Mete (`true`) o saca (`false`) a un atleta de un grupo. |
 | `compare_athlete_groups(filter, a, b, options)` | Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro del histórico. `options` = `{overlap, races}`: quien está en los dos cuenta en los dos (`count_in_both`) o en ninguno (`exclude`); entran solo las carreras de los dos grupos (`shared`) o todas (`all`). Devuelve cada lado junto (atletas, cifras, P7, P13 y tipos de error), cuántos están en los dos, cuántas carreras entran y las diferencias A − B. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
+| `tour_seen` / `set_tour_seen(seen)` | Si ya se ha visto el recorrido guiado (#141, abajo, "Ayuda") y guardarlo (`ui.tour_seen`). Van a la base propia también mientras se ve a un atleta. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
@@ -203,6 +204,7 @@ Se guardan en la tabla `settings` de la base:
 | `sharing.share_own` | «Compartir mis carreras»: `true` o `false`. | `true` | Exporta las carreras propias a la carpeta compartida (`docs/paquete.md`, "Carpeta compartida"). |
 | `athletes.enabled` | «Entreno a otros atletas»: `true` o `false`. | `false` | Importa los paquetes de los atletas de la carpeta compartida y añade la sección Atletas (abajo). |
 | `athletes.include_self` | «Incluirme» en la vista de grupo: `true` o `false`. | `false` | Las carreras propias cuentan como un atleta más en la tabla, el cara a cara y las carreras compartidas. Se cambia en la vista de grupo, sin «Guardar». |
+| `ui.tour_seen` | Ya se ha terminado o saltado el recorrido guiado (#141): `true` o `false`. | `false` | Mientras sea `false`, el recorrido sale al abrir la app (abajo, "Ayuda"). Se escribe al cerrarlo, sin «Guardar». |
 | `sharing.mode` | Modo de antes de #119: `runner` o `coach`. Ya no se escribe. | — | Solo si faltan los dos de arriba: `coach` es entrenar sin compartir lo propio; `runner`, al revés. |
 | `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
 | `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
@@ -246,7 +248,8 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   cosas, ambas. Una base de antes que ya tiene carreras se toma por quien corre y no pregunta;
   una con el modo de antes `coach` entrena y no comparte lo propio. Se cambia después en Mi
   perfil («Compartir mis carreras») y en Ajustes («Entreno a otros atletas»). Al elegir Entreno o
-  las dos cosas se abren los Ajustes, porque sin carpeta compartida no le llega nada.
+  las dos cosas se abren los Ajustes, porque sin carpeta compartida no le llega nada. Justo
+  después sale el recorrido guiado (abajo, "Ayuda").
 - **Recibir.** Los paquetes llegan por la misma carpeta compartida en la que se exportan los
   propios (`docs/paquete.md`, "Carpeta compartida"). Los suyos no vuelven a entrar.
 - **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: un selector «Ver a» con los
@@ -685,10 +688,11 @@ de conceptos (tiempo perdido, IR, tipos de error, ¿lento o desorientado?, zonas
 desfase, formatos, compartir y atletas). Código en `app/src/help/`.
 
 - **Abrirla.** «Ayuda», en el bloque «Cuenta» de la barra lateral, abre la
-  portada. El botón «?» a la derecha de la cabecera abre la página de la pantalla abierta y, en
-  la vista de carrera y en Estadísticas, la de la pestaña abierta (`views.ts`). En la propia
-  ayuda no sale. La ayuda es una pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo
-  perdido»), y no lleva delante el nombre del atleta que se esté viendo.
+  portada. El botón «?» a la derecha de la cabecera, o la tecla **F1** (`help/shortcut.ts`),
+  abre la página de la pantalla abierta y, en la vista de carrera y en Estadísticas, la de la
+  pestaña abierta (`views.ts`). En la propia ayuda no sale y F1 no hace nada. La ayuda es una
+  pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo perdido»), y no lleva delante
+  el nombre del atleta que se esté viendo.
 - **Pantalla** (`HelpScreen.tsx`): a la izquierda, el índice de todas las páginas por bloques
   (Ayuda, Pantallas, Una carrera, Estadísticas y Conceptos); a la derecha, la página. Un enlace
   a otra página la abre como otra pantalla, desde arriba.
@@ -705,6 +709,38 @@ desfase, formatos, compartir y atletas). Código en `app/src/help/`.
 - **Enlaces**: `otra-pagina.md` abre esa página de la ayuda;
   `https://github.com/Mendana/tramos/blob/main/...` se abre en el navegador del sistema (abajo,
   "Seguridad"); cualquier otro destino sale como texto.
+
+**Recorrido guiado** (#141, `app/src/Tour.tsx`). La primera vez, justo después de la bienvenida
+(o al abrir la app, si aún no se ha visto: `ui.tour_seen`), unos bocadillos señalan en orden las
+partes de la pantalla, cada uno con su página de ayuda:
+
+| Paso | Señala | Ayuda |
+| --- | --- | --- |
+| Importa tu primera carrera | «Importar» en la barra lateral | Importar |
+| Mis carreras | «Mis carreras» (y su contador) | Mis carreras |
+| Una carrera y sus pestañas | el contenido, donde se abren las carreras | Una carrera |
+| Estadísticas | «Estadísticas» de «Lo mío» | Estadísticas |
+| Atletas (solo si entrena) | el bloque «Atletas» | Atletas |
+| Ayuda | el botón «?» de la cabecera, y F1 | la portada |
+
+- **Controles.** «Paso n de m», «Saltar», «Anterior» y «Siguiente» («Terminar» en el último), y
+  «Más en la ayuda: …», que cierra el recorrido y abre la página del paso (F1 hace lo mismo).
+  Esc lo salta.
+- **Una sola vez.** Terminarlo, saltarlo o irse a la ayuda desde él lo guarda como visto
+  (`set_tour_seen`). Si se cierra la app a medias, sale otra vez al abrirla. Se repite con «Ver el
+  recorrido guiado», arriba en la portada de la Ayuda, que antes vuelve a Inicio (en la ayuda no
+  está el «?» que señala el último paso).
+- **Accesible.** Es un cuadro modal (`role="dialog"`, `aria-modal`): al abrirse, el foco va a
+  «Siguiente» y Tab no sale del bocadillo; el paso se anuncia (`aria-live`) y al cerrarlo el foco
+  vuelve a donde estaba.
+- **Sin estilos en línea (CSP).** Lo señalado lleva `data-tour="…"` en `App.tsx`; se mide con
+  `getBoundingClientRect` y todo se dibuja en un SVG a pantalla completa: un velo con un hueco
+  (máscara) sobre lo señalado, un marco, el bocadillo dentro de un `foreignObject` y su pico (un
+  `polygon`). Las posiciones son atributos SVG (`x`, `y`, `width`, `height`, `points`) y los
+  colores, clases de `components.css`. El bocadillo va a la derecha de lo señalado si cabe (la
+  barra lateral), si no debajo (el «?»), si no encima y, si no cabe en ningún lado (el
+  contenido), centrado sobre él; siempre dentro de la ventana. Se recoloca al cambiar el tamaño
+  de la ventana o de lo señalado.
 
 **Que no se quede vieja.**
 

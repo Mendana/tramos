@@ -21,6 +21,7 @@ import AthletesScreen from "./AthletesScreen";
 import GroupScreen from "./GroupScreen";
 import GroupsScreen from "./GroupsScreen";
 import CompareGroupsScreen from "./CompareGroupsScreen";
+import GroupStatsScreen from "./GroupStatsScreen";
 import HelpScreen from "./help/HelpScreen";
 import { HelpPageId, helpTitle } from "./help/pages";
 import { useHelpShortcut } from "./help/shortcut";
@@ -116,6 +117,7 @@ export type Screen =
   | { kind: "group"; groupId?: number }
   | { kind: "groups" }
   | { kind: "compare-groups" }
+  | { kind: "group-stats"; groupId: number }
   | { kind: "import" }
   | { kind: "profile" }
   | { kind: "settings" }
@@ -207,6 +209,8 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
         return [{ label: "Grupos" }];
       case "compare-groups":
         return [{ label: "Grupos", to: { kind: "groups" } }, { label: "Comparar grupos" }];
+      case "group-stats":
+        return [{ label: "Grupos", to: { kind: "groups" } }, { label: "Estadísticas del grupo" }];
       case "import":
         return [{ label: "Importar" }];
       case "profile":
@@ -228,6 +232,7 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
     screen.kind === "group" ||
     screen.kind === "groups" ||
     screen.kind === "compare-groups" ||
+    screen.kind === "group-stats" ||
     screen.kind === "settings" ||
     screen.kind === "help";
   return runnerName === null || general ? own : [{ label: runnerName }, ...own];
@@ -398,7 +403,8 @@ function App() {
         s.kind === "athletes" ||
         s.kind === "group" ||
         s.kind === "groups" ||
-        s.kind === "compare-groups"
+        s.kind === "compare-groups" ||
+        s.kind === "group-stats"
           ? { kind: "home" }
           : s,
       );
@@ -460,7 +466,8 @@ function App() {
     runnerName: runner?.runner.display_name ?? null,
   };
   const at = (...kinds: Screen["kind"][]) => kinds.includes(screen.kind);
-  const goTo = (kind: Exclude<Screen["kind"], "race" | "help">) => navigate({ kind });
+  const goTo = (kind: Exclude<Screen["kind"], "race" | "help" | "group-stats">) =>
+    navigate({ kind });
   const openHelp = (page: HelpPageId) => navigate({ kind: "help", page });
   // Lo que se ve de un atleta (y lleva la franja de solo lectura).
   const athleteScreen = viewing && at("races", "race", "history");
@@ -545,7 +552,7 @@ function App() {
                   <NavItem
                     icon={<TagIcon />}
                     label="Grupos"
-                    current={at("groups", "compare-groups")}
+                    current={at("groups", "compare-groups", "group-stats")}
                     onClick={() => goTo("groups")}
                   />
                 </NavSection>
@@ -668,11 +675,14 @@ function App() {
               )}
               {screen.kind === "groups" && coach && (
                 <GroupsScreen
-                  onStats={(groupId) => navigate({ kind: "group", groupId })}
+                  onStats={(groupId) => navigate({ kind: "group-stats", groupId })}
                   onCompare={() => goTo("compare-groups")}
                 />
               )}
               {screen.kind === "compare-groups" && coach && <CompareGroupsScreen />}
+              {screen.kind === "group-stats" && coach && (
+                <GroupStatsScreen group={screen.groupId} />
+              )}
               {screen.kind === "import" && !viewing && (
                 <ImportScreen
                   onImported={refresh}

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common_errors::ErrorTypes;
 use crate::group::group_total;
+use crate::group_stats::{pool_error_types, pool_leg_length, pool_slope_classes};
 use crate::history::HistoryStats;
 use crate::leg_length::LegLengthStats;
 use crate::slope::SlopeStats;
@@ -136,7 +137,8 @@ pub struct GroupSide {
     pub orientation_errors: usize,
     /// De ellos, sin tipo.
     pub untyped: usize,
-    /// Errores con tipo, de más a menos (a igualdad, por clave).
+    /// Errores con tipo, de más a menos (a igualdad, más pérdida primero y luego por clave, como
+    /// en P9).
     pub by_type: Vec<TypeShare>,
 }
 
@@ -145,90 +147,30 @@ pub fn pool_side(members: &[MemberStats<'_>]) -> GroupSide {
     let counted: Vec<&MemberStats<'_>> = members.iter().filter(|m| m.total.races > 0).collect();
     let stats = group_total(&counted.iter().map(|m| m.total).collect::<Vec<_>>());
 
-    // P7: los cubos son los mismos para todos; se suman por su inicio.
-    let mut by_leg_length: Vec<(LegLengthStats, f64, f64)> = Vec::new();
-    for bucket in counted.iter().flat_map(|m| m.by_leg_length) {
-        let sums = match by_leg_length
-            .iter_mut()
-            .find(|(b, _, _)| b.from_s == bucket.from_s)
-        {
-            Some(found) => found,
-            None => {
-                by_leg_length.push((
-                    LegLengthStats {
-                        legs: 0,
-                        errors: 0,
-                        ..*bucket
-                    },
-                    0.0,
-                    0.0,
-                ));
-                let last = by_leg_length.len() - 1;
-                &mut by_leg_length[last]
-            }
-        };
-        sums.0.legs += bucket.legs;
-        sums.0.errors += bucket.errors;
-        sums.1 += bucket.mean_loss_s.unwrap_or(0.0) * bucket.legs as f64;
-        sums.2 += bucket.mean_loss_pct.unwrap_or(0.0) * bucket.legs as f64;
-    }
-    let by_leg_length = by_leg_length
-        .into_iter()
-        .map(|(b, loss_s, loss_pct)| {
-            let per_leg = |sum: f64| (b.legs > 0).then(|| sum / b.legs as f64);
-            LegLengthStats {
-                error_rate: per_leg(b.errors as f64),
-                mean_loss_s: per_leg(loss_s),
-                mean_loss_pct: per_leg(loss_pct),
-                ..b
-            }
-        })
-        .collect();
-
-    // P13: por clase, con el IR ponderado por la suma de referencias.
-    let mut by_slope: Vec<(SlopeStats, f64)> = Vec::new();
-    for class in counted.iter().flat_map(|m| m.by_slope) {
-        let weighted = class.mean_performance.unwrap_or(0.0) * class.reference_s;
-        match by_slope.iter_mut().find(|(c, _)| c.class == class.class) {
-            Some((sum, w)) => {
-                sum.legs += class.legs;
-                sum.errors += class.errors;
-                sum.reference_s += class.reference_s;
-                *w += weighted;
-            }
-            None => by_slope.push((*class, weighted)),
-        }
-    }
-    let by_slope = by_slope
-        .into_iter()
-        .map(|(c, weighted)| SlopeStats {
-            error_rate: (c.legs > 0).then(|| c.errors as f64 / c.legs as f64),
-            mean_performance: (c.reference_s > 0.0).then(|| weighted / c.reference_s),
-            ..c
-        })
-        .collect();
+    // P7 y P13, como en las estadísticas de un grupo (`crate::group_stats`).
+    let lengths: Vec<&[LegLengthStats]> = counted.iter().map(|m| m.by_leg_length).collect();
+    let by_leg_length = pool_leg_length(&lengths);
+    let classes: Vec<&[SlopeStats]> = counted.iter().map(|m| m.by_slope).collect();
+    let by_slope = pool_slope_classes(&classes);
 
     // P9: errores por tipo, sobre todos los de orientación.
-    let orientation_errors: usize = counted.iter().map(|m| m.errors.errors).sum();
-    let untyped = counted.iter().map(|m| m.errors.untyped).sum();
-    let mut types: BTreeMap<&str, usize> = BTreeMap::new();
-    for t in counted.iter().flat_map(|m| &m.errors.by_type) {
-        *types.entry(t.error_type.as_str()).or_default() += t.errors;
-    }
-    let mut by_type: Vec<TypeShare> = types
+    let errors: Vec<&ErrorTypes> = counted.iter().map(|m| m.errors).collect();
+    let errors = pool_error_types(&errors);
+    let orientation_errors = errors.errors;
+    let untyped = errors.untyped;
+    let by_type: Vec<TypeShare> = errors
+        .by_type
         .into_iter()
-        .map(|(error_type, errors)| TypeShare {
-            error_type: error_type.to_string(),
-            errors,
+        .map(|t| TypeShare {
             share: if orientation_errors == 0 {
                 0.0
             } else {
-                errors as f64 / orientation_errors as f64
+                t.errors as f64 / orientation_errors as f64
             },
+            error_type: t.error_type,
+            errors: t.errors,
         })
         .collect();
-    // Estable: a igualdad de errores, queda el orden por clave.
-    by_type.sort_by_key(|t| std::cmp::Reverse(t.errors));
 
     GroupSide {
         runners: counted.len(),

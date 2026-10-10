@@ -20,6 +20,7 @@ use tramos_core::group_compare::{
     CompareOptions, GroupsComparison, MemberRaces, MemberStats, RaceSelection, compare_groups,
     pool_side, races_of_both, sides,
 };
+use tramos_core::group_stats::{GroupStats, MemberAnalyses, group_stats};
 use tramos_core::history::{HistoryFilter, HistoryStats};
 use tramos_core::package::{RacePackage, RaceSummary, race_id};
 use tramos_core::race_format::RaceFormat;
@@ -696,6 +697,97 @@ pub fn athlete_cards(main: &Store) -> Result<Vec<AthleteCard>, CoachError> {
         });
     }
     Ok(cards)
+}
+
+/// Un miembro en las estadísticas de un grupo.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct GroupStatsMember {
+    pub runner: CoachRunner,
+    /// Es quien usa la app, con sus carreras propias.
+    pub is_self: bool,
+    /// Sus carreras que cuentan con el filtro (las que tienen números).
+    pub races: usize,
+    /// Si su histórico no se ha podido calcular, por qué: entonces no cuenta.
+    pub problem: Option<String>,
+}
+
+/// Estadísticas de un grupo de atletas (#145): los análisis de Estadísticas con todos sus
+/// miembros juntos.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct GroupStatsView {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub color: String,
+    /// Quien usa la app primero, si es miembro y tiene carreras; después, como en
+    /// `coach_runners`.
+    pub members: Vec<GroupStatsMember>,
+    /// Miembros de los que ya no hay carreras (ni son quien usa la app con carreras): no
+    /// cuentan.
+    pub missing: usize,
+    pub stats: GroupStats,
+}
+
+/// Las estadísticas del grupo `group` con el filtro del histórico (`docs/historico.md`,
+/// "Estadísticas de un grupo"): el histórico de cada miembro, con sus umbrales, como en sus
+/// Estadísticas (`history_view`), y todos juntos con `tramos_core::group_stats`.
+pub fn athlete_group_stats(
+    main: &mut Store,
+    filter: &HistoryFilter,
+    group: AthleteGroupId,
+) -> Result<GroupStatsView, CoachError> {
+    let group = main
+        .athlete_groups()?
+        .into_iter()
+        .find(|g| g.id == group)
+        .ok_or(StoreError::GroupNotFound(group.0))?;
+    let is_member = |runner_id: &str| group.members.iter().any(|m| m == runner_id);
+    let mut loaded: Vec<(CoachRunner, bool, Result<HistoryView, RaceError>)> = Vec::new();
+    if let Some(me) = own_runner(main)?.filter(|me| is_member(&me.runner_id)) {
+        let view = history_view(main, filter);
+        loaded.push((me, true, view));
+    }
+    for runner in coach_runners(main)?
+        .into_iter()
+        .filter(|r| is_member(&r.runner_id))
+    {
+        let base = runner_view(main, &runner.runner_id)?;
+        let view = history_view(&base.store, filter);
+        loaded.push((runner, false, view));
+    }
+    let analyses: Vec<MemberAnalyses<'_>> = loaded
+        .iter()
+        .filter_map(|(_, _, view)| view.as_ref().ok())
+        .map(|v| MemberAnalyses {
+            history: &v.history,
+            by_leg_length: &v.by_leg_length,
+            by_slope: &v.by_slope,
+            loss_breakdown: &v.loss_breakdown,
+            after_error: &v.after_error,
+            common_errors: &v.common_errors,
+            fatigue: &v.fatigue,
+            days_off: &v.days_off,
+        })
+        .collect();
+    let stats = group_stats(filter, &analyses);
+    let members: Vec<GroupStatsMember> = loaded
+        .iter()
+        .map(|(runner, is_self, view)| GroupStatsMember {
+            runner: runner.clone(),
+            is_self: *is_self,
+            races: view.as_ref().map_or(0, |v| v.history.total.races),
+            problem: view.as_ref().err().map(ToString::to_string),
+        })
+        .collect();
+    Ok(GroupStatsView {
+        id: group.id.0,
+        missing: group.members.len().saturating_sub(members.len()),
+        name: group.name,
+        description: group.description,
+        color: group.color,
+        members,
+        stats,
+    })
 }
 
 /// ¿Entrena a otros atletas? (ajuste «Entreno a otros atletas», #119).

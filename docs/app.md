@@ -38,6 +38,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `delete_athlete_group(id)` | Borra un grupo; sus atletas y sus paquetes siguen ahí. |
 | `set_athlete_group_member(id, runnerId, member)` | Mete (`true`) o saca (`false`) a un atleta de un grupo. |
 | `compare_athlete_groups(filter, a, b, options)` | Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro del histórico. `options` = `{overlap, races}`: quien está en los dos cuenta en los dos (`count_in_both`) o en ninguno (`exclude`); entran solo las carreras de los dos grupos (`shared`) o todas (`all`). Devuelve cada lado junto (atletas, cifras, P7, P13 y tipos de error), cuántos están en los dos, cuántas carreras entran y las diferencias A − B. |
+| `athlete_group_stats(filter, id)` | Estadísticas de un grupo de atletas (#145, `docs/historico.md`, "Estadísticas de un grupo") con el filtro del histórico: el nombre, la descripción y el color del grupo, sus miembros (quien usa la app primero, si es miembro y tiene carreras; cada uno con sus carreras que cuentan o por qué no cuenta), cuántos miembros ya no tienen carreras y los análisis de Estadísticas con todos juntos (`stats`: por formato y total, P7, P13, P2, P8, P9, P11 y P14; sin consistencia). Si no entrena, error. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
 | `tour_seen` / `set_tour_seen(seen)` | Si ya se ha visto el recorrido guiado (#141, abajo, "Ayuda") y guardarlo (`ui.tour_seen`). Van a la base propia también mientras se ve a un atleta. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
@@ -332,8 +333,23 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   dice cuántos son. «Nuevo grupo» y el lápiz de cada tarjeta abren el formulario: nombre
   (obligatorio), descripción y uno de 8 colores (el nuevo toma el primero libre). Desde el
   lápiz, «Borrar…» pide confirmar y avisa de que sus atletas y sus carreras se quedan.
-  «Estadísticas del grupo» abre Comparar atletas con ese grupo. Con dos grupos o más, arriba,
-  «Comparar grupos».
+  «Estadísticas del grupo» (desactivado sin miembros) abre las estadísticas de ese grupo (abajo).
+  Con dos grupos o más, arriba, «Comparar grupos».
+- **Estadísticas del grupo** (#145, desde Grupos; migas «Grupos / Estadísticas del grupo»;
+  `GroupStatsScreen.tsx`). Las pestañas y los paneles de Estadísticas con todos los miembros
+  juntos, cada uno con sus umbrales (`docs/historico.md`, "Estadísticas de un grupo"). Arriba, el
+  nombre y la descripción del grupo y los filtros del histórico; debajo, sus miembros con sus
+  carreras (los que no cuentan, con el motivo), y las cifras del grupo: carreras (y de cuántos
+  atletas), IR medio, tasa de error y pérdida por tramo. Mismas pestañas que Estadísticas:
+  - Resumen: la tabla por formato (sin la columna de consistencia) y sus tres paneles;
+  - ¿Dónde falla?: duración del tramo, tipos de error, desnivel y ¿lento o desorientado?;
+  - ¿Cómo evoluciona?: días sin competir, con una nota de por qué no sale la consistencia;
+  - Cabeza y piernas: después de fallar y cansancio.
+
+  Son los mismos componentes y los mismos identificadores de panel que en Estadísticas, así que
+  ocultar un panel lo oculta en las dos pantallas. No salen la consistencia, la lista de carreras
+  ni el resumen en frases. La pestaña no se recuerda al salir. Si ningún miembro tiene carreras,
+  se dice; si ninguna pasa los filtros, se ofrece quitarlos.
 - **Comparar grupos** (#121, desde Grupos; migas «Grupos / Comparar grupos»). Un grupo A frente
   a otro B (de entrada, los dos primeros), con dos opciones (`docs/historico.md`, "Comparar
   grupos"): «Si alguien está en los dos» (cuenta en los dos o se deja fuera) y «Carreras» (las

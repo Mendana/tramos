@@ -196,23 +196,7 @@ impl Accumulator {
                 loss_s: *loss_s,
             });
         }
-        for t in &mut by_type {
-            // «Sin subtipo» al final; el resto, de más a menos.
-            t.subtypes.sort_by(|a, b| {
-                a.subtype
-                    .is_none()
-                    .cmp(&b.subtype.is_none())
-                    .then(b.errors.cmp(&a.errors))
-                    .then(b.loss_s.total_cmp(&a.loss_s))
-                    .then(a.subtype.cmp(&b.subtype))
-            });
-        }
-        by_type.sort_by(|a, b| {
-            b.errors
-                .cmp(&a.errors)
-                .then(b.loss_s.total_cmp(&a.loss_s))
-                .then(a.error_type.cmp(&b.error_type))
-        });
+        sort_types(&mut by_type);
         ErrorTypes {
             legs: self.legs,
             errors: self.errors,
@@ -225,6 +209,28 @@ impl Accumulator {
             physical_loss_s: self.physical_loss_s,
         }
     }
+}
+
+/// Ordena los tipos de más a menos errores (a igualdad, más pérdida primero y luego por clave) y,
+/// dentro de cada uno, los subtipos igual, con «sin subtipo» al final. También lo usa
+/// [`crate::group_stats`] al juntar los de varios atletas.
+pub(crate) fn sort_types(by_type: &mut [TypeCount]) {
+    for t in by_type.iter_mut() {
+        t.subtypes.sort_by(|a, b| {
+            a.subtype
+                .is_none()
+                .cmp(&b.subtype.is_none())
+                .then(b.errors.cmp(&a.errors))
+                .then(b.loss_s.total_cmp(&a.loss_s))
+                .then(a.subtype.cmp(&b.subtype))
+        });
+    }
+    by_type.sort_by(|a, b| {
+        b.errors
+            .cmp(&a.errors)
+            .then(b.loss_s.total_cmp(&a.loss_s))
+            .then(a.error_type.cmp(&b.error_type))
+    });
 }
 
 /// Las sumas de un formato: el total y una por cubo.

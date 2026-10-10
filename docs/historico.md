@@ -633,7 +633,10 @@ umbrales:
 - **P13**: en cada clase se suman tramos y errores, y el IR medio se pondera por `reference_s`
   (`Σ ref_i`), así que sale igual que si todos los tramos fueran de un solo corredor.
 - **P9**: los errores de cada tipo de todos, sobre **todos** sus errores de orientación (también
-  los sin tipo), de más a menos.
+  los sin tipo), de más a menos (a igualdad, más pérdida primero, como en P9).
+
+P7, P13 y P9 se juntan con las mismas funciones que las estadísticas de un grupo (abajo,
+"Estadísticas de un grupo (#145)").
 
 Las **diferencias** (`a − b`) de IR medio, tasa de error y pérdida media también salen del
 núcleo. Un lado sin carreras no tiene medias ni diferencias.
@@ -645,3 +648,66 @@ Dos miembros sintéticos (`group_compare::tests`): uno con 2 carreras, IR 0,90 y
 tramos, 3 errores y 2 s. Juntos: IR (0,90 × 2 + 0,80 × 3) / 5 = **0,84**; en el cubo, 40 tramos,
 5 errores (**12,5 %**) y (6 × 10 + 2 × 30) / 40 = **3 s**. En subida, IR 0,80 con 400 s de
 referencia y 0,90 con 100 s: (0,80 × 400 + 0,90 × 100) / 500 = **0,82**.
+
+## Estadísticas de un grupo (#145)
+
+Las pestañas y los paneles de Estadísticas con **todos los miembros de un grupo juntos**
+(`docs/app.md`, "Atletas"). Implementado en `tramos_core::group_stats`; en la app,
+`coach::athlete_group_stats` y la pantalla «Estadísticas del grupo».
+
+- **Quién cuenta:** los miembros del grupo de los que hay paquetes y quien usa la app si es
+  miembro y tiene carreras. Cada uno, con **su histórico**: sus carreras con el filtro (fechas y
+  formato, el mismo para todos), sus tramos que cuentan y **sus umbrales**, exactamente como en
+  sus Estadísticas (`history_view`). Un atleta en varios grupos cuenta entero en cada uno. Un
+  miembro sin paquetes no cuenta (se dice cuántos son), y uno cuyo histórico no se puede
+  calcular tampoco (se dice por qué).
+- **Cómo se junta:** con los resultados de cada miembro, no con sus carreras. Los recuentos
+  (carreras, tramos, errores, segundos) se suman y cada media se pondera por el número de casos
+  de la que sale. Así cada análisis da **lo mismo que si todas las carreras fueran de un solo
+  corredor**, sin aproximar nada.
+- **Solo lo que se puede juntar sin aproximar.** Todo lo de abajo. No sale la **consistencia**
+  (P10), ni la media ni la serie por carrera: la de cada miembro es ya una media de las carreras
+  que la tienen, sin saber cuántas, y la serie por carrera mezclaría a corredores distintos. Tampoco
+  la lista de carreras ni el resumen en frases (#126): no son agregados.
+
+| Análisis | Cómo se junta |
+| --- | --- |
+| Por formato y total (P6) | `group_total` en cada formato y en el total: IR medio ponderado por carreras; tasa de error y pérdida media (s y %) ponderadas por tramos. Sprint, media y larga siempre (o solo la del filtro) y, al final, sin formato si algún miembro tiene carreras sin formato. `races_without_data`, sumadas. Consistencia, `null`. |
+| Duración del tramo (P7) | En cada cubo, tramos y errores sumados; la pérdida media (s y %), ponderada por tramos. |
+| Desnivel (P13) | En cada clase, tramos y errores sumados; el IR medio, ponderado por `reference_s` (`Σ ref_i`). Los recuentos de carreras con y sin track y de tramos sin clasificar, sumados. |
+| ¿Lento o desorientado? (P2) | Los segundos de los errores repartidos (pérdida, desvío, paradas, ritmo) y los recuentos, sumados. |
+| Después de fallar (P8) | En cada grupo de tramos (tras error, tras limpio, acelerando, sin acelerar y cada cubo de rachas), tramos y errores sumados; la tasa se recalcula. |
+| Errores más comunes (P9) | Todo son recuentos y sumas de pérdida: se suman en el total, por cubo, por formato y por formato y cubo, también por tipo y por subtipo, y se ordenan como los de un corredor. |
+| Días sin competir (P11) | Cada miembro, con los días desde **su** carrera anterior. En cada cubo, carreras y tramos del primer tercio sumados; el IR de entrada en mapa, ponderado por `first_legs`. |
+| Cansancio (P14) | Por tercio, cada media ponderada por sus tramos: la deriva (pulso, velocidad y cociente relativo), el pulso antes del error o de un limpio y el esfuerzo. Las medias ya son relativas a la carrera de cada uno (`p_c`, `r_c`), así que juntarlas no mezcla días. Los recuentos de carreras y errores, sumados. |
+
+`runners` cuenta los miembros con alguna carrera que cuente.
+
+### Ejemplo de test
+
+`crates/tramos-core/src/group_stats.rs`, con dos atletas sintéticos, Ana y Bea:
+
+- **Por formato:** Ana, 2 sprints (20 tramos, 4 errores, IR 0,90, 6 s y 5 %); Bea, 1 sprint (10,
+  1, 0,80, 3 s y 2 %), 2 medias y 1 sin formato. Sprint: 3 carreras, IR (0,90 × 2 + 0,80) / 3 =
+  **86,7 %**, tasa 5 / 30, pérdida (6 × 20 + 3 × 10) / 30 = **5 s** y (5 × 20 + 2 × 10) / 30 =
+  **4 %**. Total: 6 carreras, IR (0,90 × 2 + 0,875 × 4) / 6 = **88,3 %** y tasa 13 / 65 =
+  **20 %**. La consistencia de cada una no pasa al grupo.
+- **P7:** en 20–30 s, 10 tramos (2 errores, 6 s) y 30 (3, 2 s): 40 tramos, **12,5 %** y
+  (6 × 10 + 2 × 30) / 40 = **3 s**.
+- **P13:** en subida, IR 0,80 con 400 s de referencia y 0,90 con 100 s: **0,82**; 10 tramos,
+  4 errores.
+- **P2:** 3 errores (90 s: 50 de desvío, 10 de paradas y 30 de ritmo) y 1 (30 s: 0, 20 y 10): 4
+  errores, 120 s, desvío 50 / 120 = **41,7 %**.
+- **P8:** tras un error, 1 de 4 y 1 de 2: **2 de 6**; rachas 1–2, 1 de 6 y 0 de 3: **1 de 9**.
+- **P9:** navegación, 2 errores y 60 s de Ana y 1 y 20 s de Bea; ataque, 1 y 20 s y 2 y 50 s.
+  Juntos, 3 y 3 errores: va primero navegación (**80 s** frente a 70 s). Sus subtipos se suman
+  (paralelo, 2 y 60 s) y «sin subtipo» queda al final.
+- **P11:** en ≤ 7 días, IR de entrada 0,90 en 6 tramos y 0,75 en 2: (0,90 × 6 + 0,75 × 2) / 8 =
+  **86,25 %**; primer tercio 2 de 8 y 3 de 5: **5 de 13**.
+- **P14:** en el primer tercio, deriva 0,95 en 3 tramos y 1,15 en 1: (0,95 × 3 + 1,15) / 4 =
+  **100 %**, pulso (150 × 3 + 170) / 4 = **155 ppm**; esfuerzo en los errores 8 (1 tramo) y 6,5
+  (2): **7**.
+
+El test del comando (`app/src-tauri/src/groups.rs`) comprueba con tres atletas sintéticos que lo
+del grupo es lo de las Estadísticas de cada miembro juntas y que un miembro sin paquetes no
+cuenta.

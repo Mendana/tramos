@@ -7,7 +7,8 @@ solo resumen no traen bastante.
 
 **Grupo**: si tienes [grupos](grupos.md), elige «Todos los atletas» o uno de ellos. Con un grupo
 salen solo sus miembros (tú, si estás en él), con su nombre y su descripción arriba. Cambiar de
-grupo no cuenta para el botón de volver.
+grupo no cuenta para el botón de volver. Las gráficas con todo el grupo junto están en
+[Estadísticas del grupo](estadisticas-grupo.md).
 
 **Incluirme** (solo con «Todos los atletas»): con esta casilla marcada, tus propias carreras cuentan como las de un atleta más
 («Tu nombre (tú)», la primera fila), en la tabla, en el cara a cara y en las carreras

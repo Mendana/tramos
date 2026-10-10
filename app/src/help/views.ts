@@ -19,6 +19,7 @@ const SCREEN_HELP: Record<Screen["kind"], HelpPageId> = {
   group: "grupo",
   groups: "grupos",
   "compare-groups": "comparar-grupos",
+  "group-stats": "estadisticas-grupo",
   import: "importar",
   profile: "perfil",
   settings: "ajustes",

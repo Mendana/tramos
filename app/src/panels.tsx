@@ -1,7 +1,8 @@
 // Paneles de análisis que se pueden ocultar (#130, `docs/app.md`, "Gráficas"): el catálogo, por
 // pantalla y pestaña, el contexto con los ocultos y el cuadro «Personalizar». Lo oculto se guarda
 // en los ajustes del usuario (`ui.hidden_panels`) y vale para todas sus carreras y las que vea de
-// otros corredores.
+// otros corredores. Las Estadísticas de un grupo (#145) usan los mismos paneles, con los mismos
+// identificadores: ocultar uno lo oculta en las dos pantallas.
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from "react";
 import { hiddenPanels, setHiddenPanels } from "./api";
 import { CloseIcon, Notice } from "./ui";

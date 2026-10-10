@@ -13,6 +13,7 @@ import estadisticas from "./estadisticas.md?raw";
 import estadisticasCabeza from "./estadisticas-cabeza.md?raw";
 import estadisticasDonde from "./estadisticas-donde.md?raw";
 import estadisticasEvolucion from "./estadisticas-evolucion.md?raw";
+import estadisticasGrupo from "./estadisticas-grupo.md?raw";
 import formatos from "./formatos.md?raw";
 import grupo from "./grupo.md?raw";
 import grupos from "./grupos.md?raw";
@@ -43,6 +44,7 @@ export type HelpPageId =
   | "grupo"
   | "grupos"
   | "comparar-grupos"
+  | "estadisticas-grupo"
   | "carrera"
   | "carrera-tramos"
   | "carrera-mapa"
@@ -90,6 +92,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   grupo: { source: grupo, group: "screens" },
   grupos: { source: grupos, group: "screens" },
   "comparar-grupos": { source: compararGrupos, group: "screens" },
+  "estadisticas-grupo": { source: estadisticasGrupo, group: "screens" },
   carrera: { source: carrera, group: "race" },
   "carrera-tramos": { source: carreraTramos, group: "race" },
   "carrera-mapa": { source: carreraMapa, group: "race" },

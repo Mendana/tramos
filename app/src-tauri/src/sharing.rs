@@ -4,7 +4,7 @@
 //! misma carpeta (#119). No hay servidor: solo ficheros.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use serde::Serialize;
@@ -189,25 +189,50 @@ pub struct ReceiveReport {
     pub runners: usize,
 }
 
-/// Si entrena a otros, importa los paquetes nuevos o cambiados de la carpeta (`tramos-*.json`;
-/// los demás ficheros se ignoran). Los suyos (los que exporta esta misma app, con su
-/// identificador de corredor en el nombre) no se importan. Uno que no se puede leer no impide
-/// importar los demás y se vuelve a intentar la próxima vez. Si no entrena o no hay carpeta, no
-/// importa nada.
-pub fn receive(store: &mut Store, seen: &mut SeenFiles) -> Result<ReceiveReport, PackageAppError> {
-    let mut report = ReceiveReport::default();
-    let sharing = settings::load(store)?.sharing;
-    if let (true, Some(folder)) = (sharing.coach, sharing.folder) {
-        let own = format!("-{}.json", store.package_runner_id()?);
-        let folder_error = |source| PackageAppError::Folder {
-            path: folder.clone(),
-            source,
-        };
-        let mut files: Vec<(PathBuf, (SystemTime, u64))> = Vec::new();
-        for entry in std::fs::read_dir(&folder).map_err(folder_error)? {
-            let entry = entry.map_err(folder_error)?;
+/// Cuántos niveles de subcarpetas se miran por debajo de la carpeta elegida: carpeta madre ->
+/// una por atleta -> (por ejemplo) una por temporada. Más hondo no se lee.
+pub const MAX_FOLDER_DEPTH: usize = 3;
+
+type Stamp = (SystemTime, u64);
+
+/// Los paquetes de `folder` y de sus subcarpetas (hasta `MAX_FOLDER_DEPTH` niveles), nuevos o
+/// cambiados respecto a `seen`, en orden de ruta. Se salta los ficheros que no son `tramos-*.json`,
+/// los que terminan en `own`, las carpetas ocultas y todo enlace simbólico (a fichero o a
+/// carpeta). Una subcarpeta que no se puede leer se anota en `problems` y no impide leer el resto.
+fn find_packages(
+    folder: &Path,
+    own: &str,
+    seen: &SeenFiles,
+    problems: &mut Vec<String>,
+) -> std::io::Result<Vec<(PathBuf, Stamp)>> {
+    fn walk(
+        dir: &Path,
+        depth: usize,
+        own: &str,
+        seen: &SeenFiles,
+        files: &mut Vec<(PathBuf, Stamp)>,
+        problems: &mut Vec<String>,
+    ) -> std::io::Result<()> {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            if !(name.starts_with("tramos-") && name.ends_with(".json")) || name.ends_with(&own) {
+            // `file_type` no sigue los enlaces: uno a fichero o a carpeta no es ni lo uno ni lo otro.
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                if depth < MAX_FOLDER_DEPTH
+                    && !name.starts_with('.')
+                    && let Err(source) = walk(&entry.path(), depth + 1, own, seen, files, problems)
+                {
+                    let path = entry.path().to_string_lossy().into_owned();
+                    problems.push(PackageAppError::Folder { path, source }.to_string());
+                }
+                continue;
+            }
+            let is_package =
+                kind.is_file() && name.starts_with("tramos-") && name.ends_with(".json");
+            if !is_package || name.ends_with(own) {
                 continue;
             }
             let Ok(meta) = entry.metadata() else { continue };
@@ -215,12 +240,38 @@ pub fn receive(store: &mut Store, seen: &mut SeenFiles) -> Result<ReceiveReport,
                 meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
                 meta.len(),
             );
-            if meta.is_file() && seen.get(&entry.path()) != Some(&stamp) {
+            if seen.get(&entry.path()) != Some(&stamp) {
                 files.push((entry.path(), stamp));
             }
         }
-        // En orden de nombre, para que el resultado no dependa del sistema de ficheros.
-        files.sort();
+        Ok(())
+    }
+    let mut files = Vec::new();
+    walk(folder, 0, own, seen, &mut files, problems)?;
+    // En orden de ruta, para que el resultado no dependa del sistema de ficheros.
+    files.sort();
+    Ok(files)
+}
+
+/// Si entrena a otros, importa los paquetes nuevos o cambiados de la carpeta y de sus subcarpetas
+/// (`tramos-*.json`, hasta `MAX_FOLDER_DEPTH` niveles; los demás ficheros se ignoran, igual que
+/// los enlaces simbólicos y las carpetas ocultas). Así sirve una carpeta madre con una subcarpeta
+/// por atleta. Los suyos (los que exporta esta misma app, con su identificador de corredor en el
+/// nombre) no se importan, estén donde estén. Si el mismo paquete (mismo corredor y carrera) está
+/// en varios sitios, se queda el exportado más recientemente, sea cual sea su carpeta; los demás
+/// cuentan como «sin cambios». Uno que no se puede leer no impide importar los demás y se vuelve
+/// a intentar la próxima vez. Si no entrena o no hay carpeta, no importa nada.
+pub fn receive(store: &mut Store, seen: &mut SeenFiles) -> Result<ReceiveReport, PackageAppError> {
+    let mut report = ReceiveReport::default();
+    let sharing = settings::load(store)?.sharing;
+    if let (true, Some(folder)) = (sharing.coach, sharing.folder) {
+        let own = format!("-{}.json", store.package_runner_id()?);
+        let files = find_packages(Path::new(&folder), &own, seen, &mut report.problems).map_err(
+            |source| PackageAppError::Folder {
+                path: folder.clone(),
+                source,
+            },
+        )?;
         for (path, stamp) in files {
             let text = path.to_string_lossy().into_owned();
             match import_package(store, &text) {
@@ -444,5 +495,159 @@ mod tests {
         assert_ne!(received[0].runner_id, both.package_runner_id().unwrap());
         // Sus carreras siguen siendo editables y suyas.
         assert!(race_sharing(&mut both, result_id).unwrap().available);
+    }
+
+    /// Un atleta nuevo (otra base, otro identificador) que exporta su carrera a `folder`.
+    fn athlete_exports(folder: &Path) -> Store {
+        let (mut athlete, _) = imported(false);
+        configure(&mut athlete, Role::Runner, folder);
+        assert_eq!(share_all(&mut athlete).unwrap().written, 1);
+        athlete
+    }
+
+    fn coach_of(folder: &Path) -> Store {
+        let mut coach = Store::open_in_memory().unwrap();
+        configure(&mut coach, Role::Coach, folder);
+        coach
+    }
+
+    #[test]
+    fn the_coach_reads_one_subfolder_per_athlete() {
+        let mother = tempfile::tempdir().unwrap();
+        for name in ["ana", "beto"] {
+            let sub = mother.path().join(name);
+            std::fs::create_dir(&sub).unwrap();
+            athlete_exports(&sub);
+        }
+        let mut coach = coach_of(mother.path());
+        let mut seen = SeenFiles::new();
+        let report = receive(&mut coach, &mut seen).unwrap();
+        assert_eq!((report.created, report.packages, report.runners), (2, 2, 2));
+        assert!(report.problems.is_empty());
+        // Lo ya leído, en cualquier subcarpeta, no se vuelve a leer.
+        let again = receive(&mut coach, &mut seen).unwrap();
+        assert_eq!((again.created, again.replaced, again.unchanged), (0, 0, 0));
+    }
+
+    #[test]
+    fn subfolders_are_read_down_to_the_depth_limit_and_no_further() {
+        let mother = tempfile::tempdir().unwrap();
+        let mut deepest = mother.path().to_path_buf();
+        for level in 1..=MAX_FOLDER_DEPTH {
+            deepest = deepest.join(format!("n{level}"));
+            std::fs::create_dir(&deepest).unwrap();
+        }
+        athlete_exports(&deepest);
+        let too_deep = deepest.join("mas-hondo");
+        std::fs::create_dir(&too_deep).unwrap();
+        athlete_exports(&too_deep);
+        let report = receive(&mut coach_of(mother.path()), &mut SeenFiles::new()).unwrap();
+        assert_eq!((report.created, report.runners), (1, 1));
+    }
+
+    #[test]
+    fn hidden_folders_and_other_files_are_skipped() {
+        let mother = tempfile::tempdir().unwrap();
+        let hidden = mother.path().join(".oculta");
+        std::fs::create_dir(&hidden).unwrap();
+        athlete_exports(&hidden);
+        let sub = mother.path().join("ana");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(sub.join("notas.json"), "{}").unwrap();
+        std::fs::write(sub.join("tramos-no-es-un-paquete.txt"), "x").unwrap();
+        let report = receive(&mut coach_of(mother.path()), &mut SeenFiles::new()).unwrap();
+        assert_eq!((report.created, report.problems.len()), (0, 0));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symbolic_links_are_not_followed() {
+        let outside = tempfile::tempdir().unwrap();
+        athlete_exports(outside.path());
+        let package = std::fs::read_dir(outside.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let mother = tempfile::tempdir().unwrap();
+        // Un enlace a una carpeta con paquetes y otro a un paquete suelto.
+        std::os::unix::fs::symlink(outside.path(), mother.path().join("enlace-carpeta")).unwrap();
+        std::os::unix::fs::symlink(
+            &package,
+            mother
+                .path()
+                .join(package.file_name().unwrap().to_str().unwrap()),
+        )
+        .unwrap();
+        let report = receive(&mut coach_of(mother.path()), &mut SeenFiles::new()).unwrap();
+        assert_eq!((report.created, report.problems.len()), (0, 0));
+    }
+
+    #[test]
+    fn own_packages_are_skipped_in_subfolders_too() {
+        let mother = tempfile::tempdir().unwrap();
+        let sub = mother.path().join("ana");
+        std::fs::create_dir(&sub).unwrap();
+        athlete_exports(&sub);
+        // Quien entrena y corre exporta lo suyo a su subcarpeta de la carpeta madre.
+        let (mut both, result_id) = imported(false);
+        configure(&mut both, Role::Both, mother.path());
+        let mine = mother.path().join("entrenador");
+        std::fs::create_dir(&mine).unwrap();
+        let mut settings = settings::load(&both).unwrap();
+        settings.sharing.folder = Some(mine.to_string_lossy().into_owned());
+        settings::save(&mut both, &settings).unwrap();
+        export_result(&mut both, result_id).unwrap();
+        settings.sharing.folder = Some(mother.path().to_string_lossy().into_owned());
+        settings::save(&mut both, &settings).unwrap();
+
+        let report = receive(&mut both, &mut SeenFiles::new()).unwrap();
+        assert_eq!((report.created, report.packages, report.runners), (1, 1, 1));
+    }
+
+    #[test]
+    fn the_same_package_in_two_folders_keeps_the_most_recent_in_any_order() {
+        // Dos copias del mismo paquete (mismo corredor y carrera): una vieja y una nueva.
+        // Se prueba con la vieja antes y después de la nueva en el orden de rutas.
+        for (old_folder, new_folder) in [("a-vieja", "z-nueva"), ("z-vieja", "a-nueva")] {
+            let mother = tempfile::tempdir().unwrap();
+            let old = mother.path().join(old_folder);
+            let new = mother.path().join(new_folder);
+            std::fs::create_dir(&old).unwrap();
+            std::fs::create_dir(&new).unwrap();
+            let mut athlete = athlete_exports(&old);
+            // `exported_at` va en segundos: hay que dejar pasar uno entero.
+            std::thread::sleep(std::time::Duration::from_millis(1100));
+            // El atleta cambia lo que comparte y lo exporta a otra carpeta: más reciente.
+            let mut s = settings::load(&athlete).unwrap();
+            s.sharing.default_choice = ShareChoice::Aggregates;
+            s.sharing.folder = Some(new.to_string_lossy().into_owned());
+            settings::save(&mut athlete, &s).unwrap();
+            assert_eq!(share_all(&mut athlete).unwrap().written, 1);
+
+            let mut coach = coach_of(mother.path());
+            let report = receive(&mut coach, &mut SeenFiles::new()).unwrap();
+            assert_eq!((report.packages, report.runners), (1, 1), "{old_folder}");
+            assert_eq!(report.created + report.replaced + report.unchanged, 2);
+            assert_eq!(
+                coach.received_packages().unwrap()[0].level,
+                ShareLevel::Aggregates,
+                "{old_folder}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unreadable_root_folder_is_an_error() {
+        let mother = tempfile::tempdir().unwrap();
+        let missing = mother.path().join("no-existe");
+        std::fs::create_dir(&missing).unwrap();
+        let mut coach = coach_of(&missing);
+        std::fs::remove_dir(&missing).unwrap();
+        assert!(matches!(
+            receive(&mut coach, &mut SeenFiles::new()),
+            Err(PackageAppError::Folder { .. })
+        ));
     }
 }

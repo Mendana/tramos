@@ -213,7 +213,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     ),
   };
 
-  const folderField = (
+  const folderField = (view: "profile" | "settings") => (
     <div className="field">
       <span className="field-label">Carpeta compartida</span>
       <div className="row">
@@ -229,8 +229,9 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
         </button>
       </div>
       <span className="field-hint">
-        Una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace falta servidor.
-        La misma sirve para compartir lo tuyo y para recibir lo de tus atletas.
+        {view === "profile"
+          ? "Tu carpeta: la subcarpeta que quien te entrena ha compartido contigo (Drive, OneDrive, Dropbox…). Ahí se dejan tus carreras. No hace falta servidor."
+          : "La carpeta madre, con una subcarpeta por atleta (Drive, OneDrive, Dropbox…). Se leen los paquetes de la carpeta y de sus subcarpetas, hasta tres niveles. No hace falta servidor."}
       </span>
     </div>
   );
@@ -277,7 +278,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
                 checked={form.shareOwn}
                 onChange={(v) => toggle("shareOwn", v)}
               />
-              {folderField}
+              {folderField("profile")}
               <label className="field">
                 <span className="field-label">Qué compartes de cada carrera</span>
                 <select
@@ -312,7 +313,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
             checked={form.coach}
             onChange={(v) => toggle("coach", v)}
           />
-          {form.coach && folderField}
+          {form.coach && folderField("settings")}
         </>
       ),
     };

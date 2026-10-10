@@ -34,7 +34,8 @@ Los mismos botones están en [Estadísticas](estadisticas.md).
 
 **Entreno a otros atletas** añade a la barra lateral el bloque [Atletas](atletas.md), para ver
 las carreras que te comparten tus atletas. Tus carreras siguen igual. Con la casilla marcada, aquí
-eliges también la carpeta compartida de la que llegan (la misma que en [Mi perfil](perfil.md)).
+eliges también la carpeta compartida de la que llegan: la carpeta madre, con una subcarpeta por
+atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)).
 Ver [Compartir](compartir.md).
 
 Detalle técnico:

@@ -556,6 +556,29 @@
       }
     ]
   },
+  "insights": [
+    {
+      "rule": "concentrated_loss",
+      "text": "Un solo tramo, el 9, se llevó el 79 % del tiempo perdido (4:44 de 6:00).",
+      "few_data": false,
+      "caveat": null,
+      "target": "legs"
+    },
+    {
+      "rule": "losing_streak",
+      "text": "Del tramo 7 al 10 encadenaste 4 tramos perdiendo tiempo: 5:47 en total.",
+      "few_data": false,
+      "caveat": null,
+      "target": "gain_loss"
+    },
+    {
+      "rule": "errors_by_third",
+      "text": "La mayoría de tus errores (2 de 3) llegaron en la mitad de la carrera (segundo tercio).",
+      "few_data": false,
+      "caveat": null,
+      "target": "legs"
+    }
+  ],
   "alignment": {
     "offset_s": 0.1352450405827966,
     "offset_estimated": true,

@@ -35,7 +35,7 @@ import { HistoryBreakdownPanel } from "./BreakdownPanel";
 import { AfterErrorPanel } from "./AfterErrorPanel";
 import { CommonErrorsPanel } from "./CommonErrorsPanel";
 import { FatiguePanel } from "./FatiguePanel";
-import { Insights } from "./Insights";
+import { InsightPlace, Insights, useInsightFocus } from "./Insights";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 
@@ -62,15 +62,16 @@ const TABS: (TabItem<HistoryTab> & { intro: string })[] = [
 ];
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
 
-/** Pestaña donde está el análisis que justifica cada frase del resumen (#126). */
-const INSIGHT_TABS: Record<HistoryInsightTarget, HistoryTab> = {
-  formats: "summary",
-  leg_length: "where",
-  common_errors: "where",
-  slope: "where",
-  loss_breakdown: "where",
-  after_error: "body",
-  days_off: "progress",
+/** Pestaña y panel donde está el análisis que justifica cada frase del resumen (#126, #144). */
+const INSIGHT_PLACES: Record<HistoryInsightTarget, InsightPlace<HistoryTab>> = {
+  formats: { tab: "summary", panels: ["format-error-rate"] },
+  leg_length: { tab: "where", panels: ["leg-length"] },
+  common_errors: { tab: "where", panels: ["common-errors"] },
+  slope: { tab: "where", panels: ["slope-performance"] },
+  loss_breakdown: { tab: "where", panels: ["breakdown"] },
+  after_error: { tab: "body", panels: ["after-error"] },
+  days_off: { tab: "progress", panels: ["days-off-entry"] },
+  consistency: { tab: "progress", panels: ["consistency"] },
 };
 
 function HistoryScreen({
@@ -252,9 +253,10 @@ function Summary({
   // El título de un apartado sale si queda alguno de sus paneles.
   const shown = (...ids: string[]) => !allHidden(visibility, ids);
   const intro = TABS.find((t) => t.id === tab)?.intro;
+  const focus = useInsightFocus(INSIGHT_PLACES, tab, onTab);
   return (
     <>
-      <Insights insights={view.insights} onOpen={(target) => onTab(INSIGHT_TABS[target])} />
+      <Insights insights={view.insights} focus={focus} />
 
       <div className="stats">
         <Stat label="Carreras" value={total.races} />

@@ -283,8 +283,10 @@ export type InsightRule =
   | "slope"
   | "format"
   | "days_off"
+  | "consistency"
   | "clean_race"
   | "concentrated_loss"
+  | "race_breakdown"
   | "losing_streak"
   | "errors_by_third";
 
@@ -296,10 +298,11 @@ export type HistoryInsightTarget =
   | "slope"
   | "loss_breakdown"
   | "after_error"
-  | "days_off";
+  | "days_off"
+  | "consistency";
 
 /** Parte de la carrera que justifica una frase. */
-export type RaceInsightTarget = "legs" | "gain_loss";
+export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";
 
 /**
  * Una frase del resumen (#126, `docs/frases.md`). La escribe el núcleo con sus números; la app

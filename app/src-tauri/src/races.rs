@@ -74,7 +74,7 @@ pub struct RaceDetail {
     /// Umbrales y tiempo ideal con los que se ha calculado.
     pub config: LostTimeConfig,
     /// Resumen en frases de la carrera (#126, `docs/frases.md`): como mucho tres, sacadas del
-    /// informe.
+    /// informe y, con track, del reparto de P2.
     pub insights: Vec<Insight>,
     pub report: RunnerReport,
 }
@@ -144,10 +144,14 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
     let event = store.load_event(event_id)?;
     let config = settings::lost_time_config(store)?;
     let report = runner_report(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))?;
-    let (Some(class), Some(result)) = (event.classes.get(at.class_index), at.get(&event)) else {
+    let (Some(class), Some(race_result)) = (event.classes.get(at.class_index), at.get(&event))
+    else {
         return Err(RaceError::NotAnalyzed(result_id));
     };
-    let insights = race_insights(&report);
+    // El reparto de P2 solo existe con track: sin él, la carrera no tiene esa frase.
+    let breakdown = stored_leg_metrics(store, result, race_result)?
+        .map(|metrics| breakdown(&report.lost_time, &metrics));
+    let insights = race_insights(&report, breakdown.as_ref());
     Ok(RaceDetail {
         event_id: event_id.0,
         result_id,
@@ -155,12 +159,12 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
         name: event.name.clone(),
         format: store.event_format(event_id)?,
         class_name: class.name.clone(),
-        given_name: result.runner.given_name.clone(),
-        family_name: result.runner.family_name.clone(),
-        club: result.runner.club.clone(),
-        si_card: result.runner.si_card,
-        status: result.status,
-        place: result.place,
+        given_name: race_result.runner.given_name.clone(),
+        family_name: race_result.runner.family_name.clone(),
+        club: race_result.runner.club.clone(),
+        si_card: race_result.runner.si_card,
+        status: race_result.status,
+        place: race_result.place,
         config,
         insights,
         report,
@@ -268,7 +272,8 @@ pub(crate) mod tests {
     fn detail_has_the_race_insights() {
         let (store, result_id) = imported();
         let detail = race_detail(&store, result_id).unwrap();
-        assert_eq!(detail.insights, race_insights(&detail.report));
+        // Sin track no hay reparto de P2, así que no hay esa frase.
+        assert_eq!(detail.insights, race_insights(&detail.report, None));
         assert!(!detail.insights.is_empty());
         assert!(detail.insights.len() <= tramos_core::insights::MAX_INSIGHTS);
         let json = serde_json::to_value(&detail).unwrap();
@@ -500,5 +505,7 @@ pub(crate) mod tests {
             .filter(|l| l.is_error)
             .count();
         assert_eq!(b.errors.legs + b.errors_without_breakdown, errors);
+        // Con track, las frases de la carrera se apoyan en ese mismo reparto.
+        assert_eq!(detail.insights, race_insights(&detail.report, Some(&b)));
     }
 }

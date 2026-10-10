@@ -2,7 +2,7 @@
 //! carrera, para que quien no es de datos vea lo esencial sin abrir ningún análisis.
 //!
 //! Las frases salen de reglas sencillas **sobre los resultados de los análisis que ya existen**
-//! (P1, P2, P5, P6, P7, P8, P9, P11 y P13): aquí no se recalcula nada, solo se comparan sus
+//! (P1, P2, P5, P6, P7, P8, P9, P10, P11 y P13): aquí no se recalcula nada, solo se comparan sus
 //! números con un umbral. Cada regla tiene:
 //!
 //! - un **umbral** para salir;
@@ -20,7 +20,7 @@ use crate::common_errors::CommonErrors;
 use crate::days_off::DaysOff;
 use crate::history::{History, race_third};
 use crate::leg_length::LegLengthStats;
-use crate::loss_breakdown::BreakdownHistory;
+use crate::loss_breakdown::{BreakdownHistory, BreakdownTotals, RaceBreakdown};
 use crate::race_format::RaceFormat;
 use crate::runner_report::RunnerReport;
 use crate::slope::{SlopeClass, SlopeHistory, SlopeStats};
@@ -61,6 +61,15 @@ pub const BREAKDOWN_SHARE: f64 = 0.5;
 /// Días sin competir (P11): carreras mínimas del cubo (y [`MIN_LEGS`] tramos de entrada).
 pub const MIN_DAYS_OFF_RACES: usize = 2;
 
+/// Consistencia (P10): carreras con consistencia mínimas para comparar las más recientes con las
+/// anteriores, las suficientes para que no lleve el aviso «con pocas carreras», cuántas son «las
+/// más recientes», y el cambio mínimo (en puntos de IR y en parte de la consistencia anterior).
+pub const MIN_TREND_RACES: usize = 5;
+pub const SUFFICIENT_TREND_RACES: usize = 8;
+pub const RECENT_RACES: usize = 3;
+pub const CONSISTENCY_GAP: f64 = 0.05;
+pub const CONSISTENCY_CHANGE: f64 = 0.2;
+
 /// Carrera: tramos con pérdida mínimos para que salga alguna frase, y los suficientes para que
 /// no lleve el aviso «con pocos tramos».
 pub const MIN_RACE_LEGS: usize = 3;
@@ -74,6 +83,11 @@ pub const STREAK_LOSS_S: f64 = 30.0;
 /// fracción `(numerador, denominador)` para comparar sin redondeos).
 pub const THIRD_MIN_ERRORS: usize = 3;
 pub const THIRD_SHARE: (usize, usize) = (2, 3);
+/// ¿Lento o desorientado? (P2) en una carrera: errores repartidos mínimos (con uno solo, la
+/// parte dominante es la de ese error: sería obvio) y los suficientes. La parte mínima es
+/// [`BREAKDOWN_SHARE`], como en el histórico.
+pub const MIN_RACE_BREAKDOWN_ERRORS: usize = 2;
+pub const SUFFICIENT_RACE_BREAKDOWN_ERRORS: usize = 4;
 
 /// Aviso de una frase del histórico con pocas carreras (decisión de #126).
 pub const FEW_RACES: &str = "con pocas carreras";
@@ -103,6 +117,8 @@ pub enum InsightRule {
     Format,
     /// P11: tras muchos días sin competir se entra peor en mapa.
     DaysOff,
+    /// P10: la consistencia de las últimas carreras es claramente distinta de la de antes.
+    Consistency,
     // Carrera.
     /// P1: ningún error.
     CleanRace,
@@ -112,6 +128,8 @@ pub enum InsightRule {
     LosingStreak,
     /// P1: la mayoría de los errores, en un mismo tercio de la carrera.
     ErrorsByThird,
+    /// P2: lo perdido en los errores de la carrera es sobre todo desvío, paradas o ritmo.
+    RaceBreakdown,
 }
 
 impl InsightRule {
@@ -126,10 +144,12 @@ impl InsightRule {
             InsightRule::Slope => 5,
             InsightRule::Format => 6,
             InsightRule::DaysOff => 7,
+            InsightRule::Consistency => 8,
             InsightRule::CleanRace => 1,
             InsightRule::ConcentratedLoss => 2,
-            InsightRule::LosingStreak => 3,
-            InsightRule::ErrorsByThird => 4,
+            InsightRule::RaceBreakdown => 3,
+            InsightRule::LosingStreak => 4,
+            InsightRule::ErrorsByThird => 5,
         }
     }
 }
@@ -154,11 +174,15 @@ pub enum InsightTarget {
     AfterError,
     /// P11: días sin competir.
     DaysOff,
+    /// P10: consistencia por carrera.
+    Consistency,
     // Carrera.
     /// P1: la tabla de tramos.
     Legs,
     /// P5: dónde gano y dónde pierdo.
     GainLoss,
+    /// P2 en la carrera: ¿lento o desorientado?
+    RaceBreakdown,
 }
 
 /// Una frase del resumen.
@@ -197,6 +221,9 @@ pub struct HistoryAnalyses<'a> {
     pub after_error: &'a AfterError,
     pub days_off: &'a DaysOff,
     pub loss_breakdown: &'a BreakdownHistory,
+    /// Consistencia (P10) de cada carrera que la tiene, de la más antigua a la más reciente, con
+    /// el mismo filtro ([`crate::consistency::consistency_series`]).
+    pub consistency: &'a [f64],
     /// Para el nombre de los tipos de error; sin ella, sale la clave.
     pub taxonomy: Option<&'a Taxonomy>,
 }
@@ -213,6 +240,7 @@ pub fn history_insights(a: &HistoryAnalyses<'_>) -> Vec<Insight> {
             slope_insight(a.by_slope),
             format_insight(a.history),
             days_off_insight(a.days_off, a.history),
+            consistency_insight(a.consistency),
         ]
         .into_iter()
         .flatten()
@@ -222,7 +250,10 @@ pub fn history_insights(a: &HistoryAnalyses<'_>) -> Vec<Insight> {
 
 /// Las frases de una carrera: como mucho [`MAX_INSIGHTS`], las más importantes. Ninguna si la
 /// carrera no tiene rendimiento habitual o tiene menos de [`MIN_RACE_LEGS`] tramos con pérdida.
-pub fn race_insights(report: &RunnerReport) -> Vec<Insight> {
+///
+/// `breakdown` es el reparto de la pérdida de P2 (`None` sin track): sin él no sale la frase de
+/// ¿lento o desorientado?
+pub fn race_insights(report: &RunnerReport, breakdown: Option<&RaceBreakdown>) -> Vec<Insight> {
     let lost = &report.lost_time;
     let with_loss = lost.legs.iter().filter(|l| l.loss_s.is_some()).count();
     if lost.usual_performance.is_none() || with_loss < MIN_RACE_LEGS {
@@ -239,6 +270,7 @@ pub fn race_insights(report: &RunnerReport) -> Vec<Insight> {
         [
             clean_race_insight(report, caveat),
             concentrated_loss_insight(report, caveat),
+            race_breakdown_insight(breakdown, caveat),
             losing_streak_insight(report, caveat),
             errors_by_third_insight(report, caveat),
         ]
@@ -413,36 +445,49 @@ fn after_error_insight(after: &AfterError, races: usize) -> Option<Insight> {
     ))
 }
 
-/// P2: si una de las tres partes (desvío, paradas o ritmo) se lleva al menos
-/// [`BREAKDOWN_SHARE`] de la pérdida de los errores repartidos.
-fn loss_breakdown_insight(b: &BreakdownHistory) -> Option<Insight> {
-    let e = &b.errors;
-    if e.legs < MIN_BREAKDOWN_ERRORS || e.loss_s <= 0.0 {
+/// Las tres partes de la pérdida de P2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LossPart {
+    Detour,
+    Stopped,
+    Pace,
+}
+
+/// La parte (desvío, paradas o ritmo) que se lleva al menos [`BREAKDOWN_SHARE`] de la pérdida
+/// de `e`, con su parte (0–1) y sus segundos. `None` si no hay pérdida, hay menos de
+/// `min_errors` errores o ninguna parte llega.
+fn main_loss_part(e: &BreakdownTotals, min_errors: usize) -> Option<(LossPart, f64, f64)> {
+    if e.legs < min_errors || e.loss_s <= 0.0 {
         return None;
     }
     let (part, seconds) = [
-        ("detour", e.detour_s),
-        ("stopped", e.stopped_s),
-        ("pace", e.pace_s),
+        (LossPart::Detour, e.detour_s),
+        (LossPart::Stopped, e.stopped_s),
+        (LossPart::Pace, e.pace_s),
     ]
     .into_iter()
     .max_by(|a, b| a.1.total_cmp(&b.1))?;
     let share = seconds / e.loss_s;
-    if !at_least(share, BREAKDOWN_SHARE) {
-        return None;
-    }
+    at_least(share, BREAKDOWN_SHARE).then_some((part, share, seconds))
+}
+
+/// P2: si una de las tres partes (desvío, paradas o ritmo) se lleva al menos
+/// [`BREAKDOWN_SHARE`] de la pérdida de los errores repartidos.
+fn loss_breakdown_insight(b: &BreakdownHistory) -> Option<Insight> {
+    let e = &b.errors;
+    let (part, share, _) = main_loss_part(e, MIN_BREAKDOWN_ERRORS)?;
     let text = match part {
-        "detour" => format!(
+        LossPart::Detour => format!(
             "Cuando fallas, sobre todo te desvías: el {} del tiempo de tus errores es por \
              correr de más.",
             pct(share)
         ),
-        "stopped" => format!(
+        LossPart::Stopped => format!(
             "Cuando fallas, sobre todo te paras: el {} del tiempo de tus errores es tiempo \
              parado.",
             pct(share)
         ),
-        _ => format!(
+        LossPart::Pace => format!(
             "Cuando fallas, sobre todo vas más lento: el {} del tiempo de tus errores es ritmo, \
              no desvío ni paradas.",
             pct(share)
@@ -577,6 +622,45 @@ fn days_off_insight(days: &DaysOff, history: &History) -> Option<Insight> {
     ))
 }
 
+/// P10: la consistencia media de las [`RECENT_RACES`] últimas carreras frente a la de las
+/// anteriores. Sale si cambia al menos [`CONSISTENCY_GAP`] puntos de IR y [`CONSISTENCY_CHANGE`]
+/// de la anterior. `series` va de la más antigua a la más reciente.
+fn consistency_insight(series: &[f64]) -> Option<Insight> {
+    if series.len() < MIN_TREND_RACES {
+        return None;
+    }
+    let (earlier, recent) = series.split_at(series.len() - RECENT_RACES);
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let (before, now) = (mean(earlier), mean(recent));
+    // Menor consistencia = más regular.
+    let (better, change) = (now < before, (now - before).abs());
+    if !at_least(change, CONSISTENCY_GAP) || !at_least(change, CONSISTENCY_CHANGE * before) {
+        return None;
+    }
+    let text = if better {
+        format!(
+            "Cada vez eres más regular: en tus últimas {RECENT_RACES} carreras tu IR varía \
+             ± {} de un tramo a otro, frente a ± {} antes.",
+            pct(now),
+            pct(before)
+        )
+    } else {
+        format!(
+            "Eres menos regular que antes: en tus últimas {RECENT_RACES} carreras tu IR varía \
+             ± {} de un tramo a otro, frente a ± {} antes.",
+            pct(now),
+            pct(before)
+        )
+    };
+    let caveat = (series.len() < SUFFICIENT_TREND_RACES).then_some(FEW_RACES);
+    Some(Insight::new(
+        InsightRule::Consistency,
+        InsightTarget::Consistency,
+        text,
+        caveat,
+    ))
+}
+
 // --- Carrera ----------------------------------------------------------------------------------
 
 /// P1: carrera sin ningún error.
@@ -625,6 +709,39 @@ fn concentrated_loss_insight(report: &RunnerReport, caveat: Option<&str>) -> Opt
         InsightRule::ConcentratedLoss,
         InsightTarget::Legs,
         text,
+        caveat,
+    ))
+}
+
+/// P2: lo perdido en los errores de la carrera es sobre todo desvío, paradas o ritmo (al menos
+/// [`BREAKDOWN_SHARE`] de la pérdida de los errores repartidos, que son al menos
+/// [`MIN_RACE_BREAKDOWN_ERRORS`]).
+fn race_breakdown_insight(
+    breakdown: Option<&RaceBreakdown>,
+    caveat: Option<&str>,
+) -> Option<Insight> {
+    let e = &breakdown?.errors;
+    let (part, share, seconds) = main_loss_part(e, MIN_RACE_BREAKDOWN_ERRORS)?;
+    let amounts = format!("{} de {}", clock(seconds), clock(e.loss_s));
+    let how = match part {
+        LossPart::Detour => format!(
+            "por desviarte: el {} ({amounts}) es por correr de más",
+            pct(share)
+        ),
+        LossPart::Stopped => format!(
+            "por pararte: el {} ({amounts}) es tiempo parado",
+            pct(share)
+        ),
+        LossPart::Pace => format!(
+            "por ir más lento: el {} ({amounts}) es ritmo, no desvío ni paradas",
+            pct(share)
+        ),
+    };
+    let caveat = caveat.or((e.legs < SUFFICIENT_RACE_BREAKDOWN_ERRORS).then_some(FEW_ERRORS));
+    Some(Insight::new(
+        InsightRule::RaceBreakdown,
+        InsightTarget::RaceBreakdown,
+        format!("En esta carrera la mayor parte de lo perdido en tus errores fue {how}."),
         caveat,
     ))
 }
@@ -1234,9 +1351,86 @@ mod tests {
         assert_eq!(caveat(&i), Some(FEW_RACES));
     }
 
+    // --- Consistencia (P10) -------------------------------------------------------------------
+
+    /// Cinco carreras al 20 % y las tres últimas al 10 %: la media de las tres últimas (10 %)
+    /// frente a la de las anteriores (20 %) cambia 10 puntos, la mitad. Ocho carreras: datos
+    /// suficientes.
+    #[test]
+    fn consistency_fires_when_the_recent_races_are_more_regular() {
+        let series = [0.20, 0.20, 0.20, 0.20, 0.20, 0.10, 0.10, 0.10];
+        let i = consistency_insight(&series).unwrap();
+        assert_eq!(i.rule, InsightRule::Consistency);
+        assert_eq!(i.target, InsightTarget::Consistency);
+        assert_eq!(
+            i.text,
+            "Cada vez eres más regular: en tus últimas 3 carreras tu IR varía ± 10 % de un \
+             tramo a otro, frente a ± 20 % antes."
+        );
+        assert_eq!(caveat(&i), None);
+    }
+
+    /// Lo contrario: antes 10 %, ahora 20 %.
+    #[test]
+    fn consistency_fires_when_the_recent_races_are_less_regular() {
+        let series = [0.10, 0.10, 0.10, 0.10, 0.10, 0.20, 0.20, 0.20];
+        let i = consistency_insight(&series).unwrap();
+        assert_eq!(
+            i.text,
+            "Eres menos regular que antes: en tus últimas 3 carreras tu IR varía ± 20 % de un \
+             tramo a otro, frente a ± 10 % antes."
+        );
+    }
+
+    /// Un cambio de 2 puntos (20 % a 18 %) no llega a los 5; uno de 5 puntos sobre 40 % (35 %)
+    /// llega a los 5 puntos pero no a la quinta parte de 40 % (8 puntos).
+    #[test]
+    fn consistency_does_not_fire_without_a_clear_change() {
+        let small = [0.20, 0.20, 0.20, 0.20, 0.20, 0.18, 0.18, 0.18];
+        assert_eq!(consistency_insight(&small), None);
+        let relative = [0.40, 0.40, 0.40, 0.40, 0.40, 0.35, 0.35, 0.35];
+        assert_eq!(consistency_insight(&relative), None);
+        assert_eq!(consistency_insight(&[0.20; 8]), None);
+    }
+
+    /// Cinco carreras (dos anteriores y las tres últimas): sale, con «pocas carreras». Con
+    /// cuatro, no.
+    #[test]
+    fn consistency_with_few_data_carries_a_caveat() {
+        let i = consistency_insight(&[0.20, 0.20, 0.10, 0.10, 0.10]).unwrap();
+        assert_eq!(caveat(&i), Some(FEW_RACES));
+        assert_eq!(consistency_insight(&[0.20, 0.10, 0.10, 0.10]), None);
+        assert_eq!(consistency_insight(&[]), None);
+    }
+
+    /// 25 % a 20 % son justo 5 puntos y justo la quinta parte de 25 %: entra.
+    #[test]
+    fn consistency_thresholds_are_inclusive() {
+        let series = [0.25, 0.25, 0.25, 0.25, 0.25, 0.20, 0.20, 0.20];
+        assert!(consistency_insight(&series).is_some());
+    }
+
+    /// Es la última por prioridad: con tres reglas más importantes, no sale.
+    #[test]
+    fn consistency_is_the_least_important_rule() {
+        let mut all = AllRules::new();
+        all.consistency = vec![0.20, 0.20, 0.20, 0.20, 0.20, 0.10, 0.10, 0.10];
+        assert!(!rules(&all.insights()).contains(&InsightRule::Consistency));
+        all.history = history(0, 0, 0);
+        all.history.total.mean_performance = None;
+        all.buckets = Vec::new();
+        all.slope = slope(0, (0, 0.0), (0, 0.0), (0, 0.0));
+        all.common = common(0, Vec::new());
+        all.after = after(Rate::default(), Rate::default());
+        all.days = days_off(Vec::new());
+        all.breakdown = breakdown(0, 0, 0.0, 0.0, 0.0);
+        assert_eq!(rules(&all.insights()), [InsightRule::Consistency]);
+    }
+
     // --- Selección en el histórico ------------------------------------------------------------
 
-    /// Análisis que disparan las siete reglas, todas con datos suficientes.
+    /// Análisis que disparan las siete primeras reglas (la octava, la de consistencia, no), todas con
+    /// datos suficientes.
     struct AllRules {
         history: History,
         buckets: Vec<LegLengthStats>,
@@ -1245,6 +1439,7 @@ mod tests {
         after: AfterError,
         days: DaysOff,
         breakdown: BreakdownHistory,
+        consistency: Vec<f64>,
     }
 
     impl AllRules {
@@ -1266,6 +1461,8 @@ mod tests {
                 after: after(rate(20, 8), rate(80, 12)),
                 days: days_off(vec![days(31, None, 5, 15, 0.80)]),
                 breakdown: breakdown(6, 12, 180.0, 60.0, 60.0),
+                // Sin cambio de consistencia: ocho carreras al 20 %.
+                consistency: vec![0.20; 8],
             }
         }
 
@@ -1278,6 +1475,7 @@ mod tests {
                 after_error: &self.after,
                 days_off: &self.days,
                 loss_breakdown: &self.breakdown,
+                consistency: &self.consistency,
                 taxonomy: None,
             })
         }
@@ -1339,6 +1537,7 @@ mod tests {
         all.after = after(Rate::default(), Rate::default());
         all.days = days_off(Vec::new());
         all.breakdown = breakdown(0, 0, 0.0, 0.0, 0.0);
+        all.consistency = Vec::new();
         assert!(all.insights().is_empty());
     }
 
@@ -1428,7 +1627,7 @@ mod tests {
         assert_eq!(i.rule, InsightRule::CleanRace);
         assert_eq!(i.target, InsightTarget::Legs);
         assert_eq!(i.text, "Carrera limpia: no fallaste en ningún tramo.");
-        let all = race_insights(&r);
+        let all = race_insights(&r, None);
         assert_eq!(rules(&all), [InsightRule::CleanRace]);
         assert!(!all[0].few_data);
     }
@@ -1438,23 +1637,23 @@ mod tests {
         let r = report(&with_errors(10, &[(4, 40.0)]), false);
         assert_eq!(clean_race_insight(&r, None), None);
         // Un solo error: tampoco «pérdida concentrada», que sería obvio.
-        assert!(race_insights(&r).is_empty());
+        assert!(race_insights(&r, None).is_empty());
     }
 
     /// 5 tramos con pérdida: con pocos tramos; con referencia débil, lo dice. Con 2 tramos o
     /// sin rendimiento habitual, ninguna frase.
     #[test]
     fn clean_race_with_few_data_carries_a_caveat() {
-        let i = race_insights(&report(&clean(5), false));
+        let i = race_insights(&report(&clean(5), false), None);
         assert_eq!(rules(&i), [InsightRule::CleanRace]);
         assert_eq!(caveat(&i[0]), Some(FEW_LEGS));
-        let i = race_insights(&report(&clean(10), true));
+        let i = race_insights(&report(&clean(10), true), None);
         assert_eq!(caveat(&i[0]), Some(WEAK_REFERENCE));
         assert!(i[0].few_data);
-        assert!(race_insights(&report(&clean(2), false)).is_empty());
+        assert!(race_insights(&report(&clean(2), false), None).is_empty());
         let mut no_usual = report(&clean(10), false);
         no_usual.lost_time.usual_performance = None;
-        assert!(race_insights(&no_usual).is_empty());
+        assert!(race_insights(&no_usual, None).is_empty());
     }
 
     /// Errores de 60, 50, 30 y 20 s (2:40): el más caro, 37,5 %; los dos más caros, 110 s,
@@ -1495,7 +1694,7 @@ mod tests {
     #[test]
     fn concentrated_loss_with_few_data_carries_a_caveat() {
         let r = report(&with_errors(6, &[(2, 90.0), (5, 30.0)]), false);
-        let i = race_insights(&r);
+        let i = race_insights(&r, None);
         assert_eq!(rules(&i), [InsightRule::ConcentratedLoss]);
         assert_eq!(caveat(&i[0]), Some(FEW_LEGS));
     }
@@ -1535,7 +1734,7 @@ mod tests {
     #[test]
     fn losing_streak_with_few_data_carries_a_caveat() {
         let legs = vec![ok(-5.0), ok(20.0), ok(20.0), ok(20.0), ok(-5.0)];
-        let i = race_insights(&report(&legs, true));
+        let i = race_insights(&report(&legs, true), None);
         // Sin errores: también sale «carrera limpia», que va delante.
         assert_eq!(
             rules(&i),
@@ -1575,7 +1774,7 @@ mod tests {
     #[test]
     fn errors_by_third_with_few_data_carries_a_caveat() {
         let r = report(&with_errors(6, &[(1, 30.0), (2, 30.0), (5, 30.0)]), true);
-        let i = race_insights(&r);
+        let i = race_insights(&r, None);
         let third = i
             .iter()
             .find(|i| i.rule == InsightRule::ErrorsByThird)
@@ -1596,11 +1795,117 @@ mod tests {
         legs[7] = ok(5.0);
         let r = report(&legs, false);
         assert_eq!(
-            rules(&race_insights(&r)),
+            rules(&race_insights(&r, None)),
             [
                 InsightRule::ConcentratedLoss,
                 InsightRule::LosingStreak,
                 InsightRule::ErrorsByThird
+            ]
+        );
+    }
+
+    // --- ¿Lento o desorientado? en la carrera (P2) --------------------------------------------
+
+    /// Reparto con `errors` errores que suman `loss` s: `detour`, `stopped` y `pace`.
+    fn race_breakdown_of(
+        errors: usize,
+        loss: f64,
+        detour: f64,
+        stopped: f64,
+        pace: f64,
+    ) -> RaceBreakdown {
+        RaceBreakdown {
+            usual_ratio: Some(1.1),
+            clean_legs: 6,
+            legs: Vec::new(),
+            errors: BreakdownTotals {
+                legs: errors,
+                loss_s: loss,
+                detour_s: detour,
+                stopped_s: stopped,
+                pace_s: pace,
+            },
+            errors_without_breakdown: 0,
+        }
+    }
+
+    /// Cuatro errores que suman 200 s: 140 parado (70 %), 40 de desvío y 20 de ritmo.
+    #[test]
+    fn race_breakdown_fires_on_the_main_part() {
+        let r = report(
+            &with_errors(10, &[(2, 60.0), (4, 50.0), (6, 50.0), (8, 40.0)]),
+            false,
+        );
+        let b = race_breakdown_of(4, 200.0, 40.0, 140.0, 20.0);
+        let i = race_breakdown_insight(Some(&b), None).unwrap();
+        assert_eq!(i.rule, InsightRule::RaceBreakdown);
+        assert_eq!(i.target, InsightTarget::RaceBreakdown);
+        assert_eq!(
+            i.text,
+            "En esta carrera la mayor parte de lo perdido en tus errores fue por pararte: el \
+             70 % (2:20 de 3:20) es tiempo parado."
+        );
+        assert_eq!(caveat(&i), None);
+        // Y sale entre las frases de la carrera.
+        let all = race_insights(&r, Some(&b));
+        assert!(rules(&all).contains(&InsightRule::RaceBreakdown));
+    }
+
+    /// Desvío: 90 de 120 s (75 %); ritmo: 100 de 120 s (83 %).
+    #[test]
+    fn race_breakdown_names_each_part() {
+        let detour = race_breakdown_of(4, 120.0, 90.0, 20.0, 10.0);
+        assert_eq!(
+            race_breakdown_insight(Some(&detour), None).unwrap().text,
+            "En esta carrera la mayor parte de lo perdido en tus errores fue por desviarte: el \
+             75 % (1:30 de 2:00) es por correr de más."
+        );
+        let pace = race_breakdown_of(4, 120.0, 10.0, 10.0, 100.0);
+        assert_eq!(
+            race_breakdown_insight(Some(&pace), None).unwrap().text,
+            "En esta carrera la mayor parte de lo perdido en tus errores fue por ir más lento: \
+             el 83 % (1:40 de 2:00) es ritmo, no desvío ni paradas."
+        );
+    }
+
+    /// Repartido (50, 40 y 30 de 120: la mayor es el 42 %), con un solo error repartido, sin
+    /// pérdida o sin track: no sale.
+    #[test]
+    fn race_breakdown_does_not_fire_when_mixed_or_obvious() {
+        let mixed = race_breakdown_of(4, 120.0, 50.0, 40.0, 30.0);
+        assert_eq!(race_breakdown_insight(Some(&mixed), None), None);
+        let single = race_breakdown_of(1, 100.0, 0.0, 100.0, 0.0);
+        assert_eq!(race_breakdown_insight(Some(&single), None), None);
+        let no_loss = race_breakdown_of(4, 0.0, 0.0, 0.0, 0.0);
+        assert_eq!(race_breakdown_insight(Some(&no_loss), None), None);
+        assert_eq!(race_breakdown_insight(None, None), None);
+    }
+
+    /// Dos errores (el mínimo): sale, con «pocos errores». Con referencia débil, el aviso de la
+    /// carrera va primero. El 50 % justo entra.
+    #[test]
+    fn race_breakdown_with_few_data_carries_a_caveat() {
+        let b = race_breakdown_of(2, 100.0, 50.0, 30.0, 20.0);
+        let i = race_breakdown_insight(Some(&b), None).unwrap();
+        assert!(i.text.contains("por desviarte: el 50 % (0:50 de 1:40)"));
+        assert_eq!(caveat(&i), Some(FEW_ERRORS));
+        let weak = race_breakdown_insight(Some(&b), Some(WEAK_REFERENCE)).unwrap();
+        assert_eq!(caveat(&weak), Some(WEAK_REFERENCE));
+    }
+
+    /// Entre las de la carrera va tercera: delante de la racha y de los tercios.
+    #[test]
+    fn race_breakdown_goes_before_streaks_and_thirds() {
+        let mut legs = with_errors(12, &[(9, 90.0), (10, 20.0), (11, 15.0)]);
+        legs[7] = ok(5.0);
+        let r = report(&legs, false);
+        let b = race_breakdown_of(4, 125.0, 100.0, 15.0, 10.0);
+        assert_eq!(
+            rules(&race_insights(&r, Some(&b))),
+            [
+                InsightRule::ConcentratedLoss,
+                InsightRule::RaceBreakdown,
+                InsightRule::LosingStreak
             ]
         );
     }

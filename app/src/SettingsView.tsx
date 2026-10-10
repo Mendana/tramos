@@ -4,11 +4,15 @@ import {
   SHARE_HINTS,
   SHARE_LABELS,
   ShareChoice,
+  Theme,
   getSettings,
+  getTheme,
   receivePackages,
   saveSettings,
+  setTheme,
   shareAll,
 } from "./api";
+import { THEMES, applyTheme } from "./theme";
 import { Notice, PageHeader } from "./ui";
 import { PANEL_GROUPS, usePanelVisibility } from "./panels";
 import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
@@ -65,6 +69,13 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [folderResult, setFolderResult] = useState<FolderResult | null>(null);
+  const [theme, setThemeState] = useState<Theme>("system");
+
+  useEffect(() => {
+    getTheme()
+      .then(setThemeState)
+      .catch((err: unknown) => setError(String(err)));
+  }, []);
 
   useEffect(() => {
     getSettings()
@@ -185,6 +196,43 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       setError(String(err));
     }
   }
+
+  /** El tema se aplica y se guarda al momento, sin «Guardar». */
+  function chooseTheme(next: Theme) {
+    setThemeState(next);
+    applyTheme(next);
+    setError(null);
+    setTheme(next).catch((err: unknown) => setError(String(err)));
+  }
+
+  const themeSection: Section = {
+    id: "theme",
+    title: "Apariencia",
+    text: "Claro, oscuro o el del sistema. Cambia al momento, sin guardar.",
+    fields: (
+      <div className="field">
+        <span className="field-label" id="theme-label">
+          Tema
+        </span>
+        <div className="segmented" role="radiogroup" aria-labelledby="theme-label">
+          {THEMES.map(({ value, label }) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name="theme"
+                checked={theme === value}
+                onChange={() => chooseTheme(value)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <span className="field-hint">
+          «Sistema» sigue el modo claro u oscuro de tu equipo y cambia con él.
+        </span>
+      </div>
+    ),
+  };
 
   const visibility = usePanelVisibility();
   const hiddenCount = visibility?.hidden.size ?? 0;
@@ -387,6 +435,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           </>
         ),
       },
+      themeSection,
       panelsSection,
       coach,
     ];

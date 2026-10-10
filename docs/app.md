@@ -855,6 +855,12 @@ Base visual común a todas las pantallas (#88), en CSS propio y sin librerías d
 CSP no deja inyectar estilos en tiempo de ejecución y no hay fuentes externas: se usan las del
 sistema.
 
+- **Icono de la app** (#156): la baliza de la barra lateral (`ControlFlag`, cuadrado partido en
+  diagonal, blanco y naranja) sobre un cuadrado redondeado con el magenta del acento. La fuente es
+  `app/src-tauri/icons/icon.svg`; los PNG, el `.ico` y el `.icns` de `bundle.icon` salen de ella
+  con `npx tauri icon src-tauri/icons/icon.svg -o <carpeta temporal>` (desde `app/`), copiando
+  solo los ficheros que ya hay en `icons/` (el comando genera también los de Android, iOS y la
+  tienda de Windows, que no se usan).
 - **Variables** (`app/src/styles/tokens.css`): colores, tipografía, espaciado (múltiplos de 4),
   radios y sombras, con modo claro y oscuro según el sistema (`prefers-color-scheme`) o según lo
   que elija el usuario en Ajustes (`data-theme` en la raíz, arriba, "Apariencia"). Ninguna

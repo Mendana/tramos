@@ -259,6 +259,15 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
 - Sin estilos en línea: la CSP no los deja, y el tema es solo un atributo más reglas en
   `tokens.css`.
 
+### Versión (#40)
+
+Último apartado de Ajustes (`app/src/updates.tsx`): la versión instalada (`getVersion` de
+`@tauri-apps/api/app`), el botón **Buscar actualizaciones** y, si hay versión nueva, **Instalar y
+reiniciar**. El estado de las actualizaciones es uno para toda la app: el mismo que el aviso de
+arriba que sale en todas las pantallas cuando la búsqueda al arrancar encuentra una versión
+(`UpdateBanner`, en `App.tsx`). Cuándo se busca, qué se descarga y cómo se firma:
+`docs/distribucion.md`, "Actualizaciones". No es un ajuste guardado: no pasa por «Guardar».
+
 ## Atletas (#37, #119)
 
 Quien entrena ve todo lo de cada atleta como si fuera él, sin poder modificar nada
@@ -957,7 +966,10 @@ solo para el diálogo de abrir ficheros o elegir una carpeta (la carpeta la reco
 ventana no tiene permisos de sistema de ficheros), y `opener:allow-open-url` limitado a
 `https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa, y a
 `https://github.com/Mendana/tramos/blob/main/*`, para los enlaces de la Ayuda a los documentos
-técnicos. Los dos se abren en el navegador del sistema, no en la ventana.
+técnicos. Los dos se abren en el navegador del sistema, no en la ventana. Para las
+actualizaciones (#40), `updater:default` (buscar, descargar e instalar; la URL y la clave pública
+las fija `tauri.conf.json`, no la ventana) y `process:allow-restart`, para reiniciar la app con la
+versión nueva.
 
 MapLibre y la CSP:
 

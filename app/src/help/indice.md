@@ -41,7 +41,8 @@ app: funciona sin conexión.
 
 Todo se guarda en tu equipo. Solo sale lo que decides compartir con quien te entrena, carrera a
 carrera ([Compartir](compartir.md)). El mapa pide el fondo a OpenStreetMap,
-y eso revela la zona que miras ([Mapa](carrera-mapa.md)).
+y eso revela la zona que miras ([Mapa](carrera-mapa.md)). Al arrancar, la app pregunta a GitHub
+si hay versión nueva ([Ajustes](ajustes.md)), sin mandar nada tuyo.
 
 Detalle técnico:
 [datos y privacidad](https://github.com/Mendana/tramos/blob/main/docs/datos-y-privacidad.md).

@@ -53,6 +53,7 @@ import {
   UploadIcon,
   UserIcon,
 } from "./ui";
+import { UpdateBanner, checkForUpdate } from "./updates";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -366,6 +367,11 @@ function App() {
     refresh();
   }, [refresh]);
 
+  // Versión nueva: se busca una vez al arrancar, sin molestar si falla. En desarrollo no.
+  useEffect(() => {
+    if (!import.meta.env.DEV) void checkForUpdate(true);
+  }, []);
+
   useEffect(() => {
     if (!viewing && races !== null) {
       setUnreviewed(races.reduce((n, r) => n + r.unreviewed_count, 0));
@@ -595,6 +601,7 @@ function App() {
             />
             {/* Otro corredor, otras pantallas: no se arrastra nada del anterior. */}
             <div className="page" key={runner?.runner.runner_id ?? "self"}>
+              <UpdateBanner />
               {athleteScreen && runner !== null && (
                 <div className="viewing-banner" role="status">
                   <EyeIcon />

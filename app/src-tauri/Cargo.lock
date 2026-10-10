@@ -4547,7 +4547,7 @@ dependencies = [
 
 [[package]]
 name = "tramos-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -4567,7 +4567,7 @@ dependencies = [
 
 [[package]]
 name = "tramos-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -4580,7 +4580,7 @@ dependencies = [
 
 [[package]]
 name = "tramos-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "rusqlite",

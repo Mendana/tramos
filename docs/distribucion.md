@@ -61,7 +61,10 @@ GitHub.
 
 1. Sube la versión en los cuatro sitios, con el mismo número: `version` de `Cargo.toml` (workspace),
    `app/src-tauri/Cargo.toml`, `app/src-tauri/tauri.conf.json` y `app/package.json`. El MSI solo
-   admite versiones numéricas (`0.2.0`; una pre-versión, como mucho numérica: `0.2.0-1`).
+   admite versiones numéricas (`0.2.0`; una pre-versión, como mucho numérica: `0.2.0-1`). El
+   test `version_matches_manifest` de `crates/tramos-core/src/lib.rs` también lleva el número, y
+   los `Cargo.lock` y `package-lock.json` cambian con él (`cargo check` y
+   `npm install --package-lock-only`).
 2. Mergea ese cambio en `main` y crea el tag desde `main`:
 
    ```bash

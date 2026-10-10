@@ -16,11 +16,17 @@ Todo lo de una carrera: arriba la cabecera y las cifras, y debajo las pestañas 
 
 Arriba de la pestaña **Resumen**, hasta **tres frases** con lo esencial de la carrera: si fue
 limpia, si casi todo lo perdido se fue en uno o dos tramos, si encadenaste varios tramos perdiendo
-tiempo o si los errores llegaron juntos en una parte de la carrera. Cada una lleva a la pestaña
-que la justifica. Con pocos tramos o con la referencia débil, lo dice al lado.
+tiempo o si los errores llegaron juntos en una parte de la carrera. Con track, también si lo que
+perdiste en tus errores fue sobre todo por desviarte, por pararte o por ir más lento
+([¿Lento o desorientado?](lento-o-desorientado.md)). Cada una lleva al panel que la justifica:
+abre su pestaña, baja hasta él y lo marca un momento; si lo tienes oculto, puedes enseñarlo con
+**Enseñar este panel**. Con pocos tramos o con la referencia débil, lo dice al lado.
 
 > «Dos tramos, el 3 y el 7, se llevaron el 70 % del tiempo perdido.» Si pulsas **Ver**, se abre
-> la pestaña Tramos para mirar esos dos.
+> la pestaña Tramos y te lleva a la tabla para mirar esos dos.
+
+> «En esta carrera la mayor parte de lo perdido en tus errores fue por pararte.» Si pulsas **Ver**,
+> se abre Análisis y te lleva al panel ¿Lento o desorientado?
 
 ## Cifras
 

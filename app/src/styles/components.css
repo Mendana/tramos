@@ -1518,6 +1518,89 @@
   padding: 0;
 }
 
+/* --- Recorrido guiado (#141, Tour.tsx) ---
+   Todo va en un SVG a pantalla completa; las posiciones son atributos SVG, no estilos. */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.tour-layer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tour-veil {
+  fill: rgb(0 0 0 / 45%);
+}
+
+.tour-ring {
+  fill: none;
+  stroke: var(--side-accent);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.tour-arrow {
+  fill: var(--surface);
+}
+
+.tour-arrow-edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+/* El ancho es el de WIDTH en Tour.tsx. */
+.tour-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  width: 320px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.tour-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tour-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.tour-text {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.tour-help {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tour-spacer {
+  flex: 1;
+}
+
 /* --- Resumen en frases (#126) --- */
 
 .insights {
@@ -1566,6 +1649,19 @@
   flex: 1;
   min-width: 0;
   font-size: var(--text-md);
+}
+
+/* Panel al que lleva una frase (#144): al llegar se resalta un momento. */
+
+[data-panel] {
+  scroll-margin-top: calc(var(--topbar-height) + var(--space-4));
+}
+
+[data-panel].is-highlighted {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+  box-shadow: var(--focus);
 }
 
 .insight-caveat {

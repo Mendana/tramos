@@ -283,8 +283,10 @@ export type InsightRule =
   | "slope"
   | "format"
   | "days_off"
+  | "consistency"
   | "clean_race"
   | "concentrated_loss"
+  | "race_breakdown"
   | "losing_streak"
   | "errors_by_third";
 
@@ -296,10 +298,11 @@ export type HistoryInsightTarget =
   | "slope"
   | "loss_breakdown"
   | "after_error"
-  | "days_off";
+  | "days_off"
+  | "consistency";
 
 /** Parte de la carrera que justifica una frase. */
-export type RaceInsightTarget = "legs" | "gain_loss";
+export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";
 
 /**
  * Una frase del resumen (#126, `docs/frases.md`). La escribe el núcleo con sus números; la app
@@ -606,6 +609,11 @@ export const roleChosen = () => invoke<boolean>("role_chosen");
 
 export const chooseRole = (role: Role) => invoke<void>("choose_role", { role });
 
+/** Si ya se ha visto (terminado o saltado) el recorrido guiado de la primera vez (#141). */
+export const tourSeen = () => invoke<boolean>("tour_seen");
+
+export const setTourSeen = (seen: boolean) => invoke<void>("set_tour_seen", { seen });
+
 export const coachRunners = () => invoke<CoachRunner[]>("coach_runners");
 
 /** Elige el atleta que se ve, en solo lectura (`null` = volver a lo propio). */
@@ -848,6 +856,13 @@ export const checkZones = (zones: Zones) => invoke<string[]>("check_zones", { zo
 export const hiddenPanels = () => invoke<string[]>("hidden_panels");
 
 export const setHiddenPanels = (ids: string[]) => invoke<void>("set_hidden_panels", { ids });
+
+/** Tema de la interfaz (#143): el del sistema, claro u oscuro. */
+export type Theme = "system" | "light" | "dark";
+
+export const getTheme = () => invoke<Theme>("theme");
+
+export const setTheme = (theme: Theme) => invoke<void>("set_theme", { theme });
 
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });

@@ -12,6 +12,10 @@ más baja, más regular**. Si la línea baja con el tiempo, cada vez corres más
 > En otoño tus carreras rondan ± 20 % y en primavera ± 11 %: ya no alternas tramos muy buenos con
 > tramos muy malos.
 
+Si tus tres últimas carreras se distancian claramente de las anteriores (al menos 5 puntos y una
+quinta parte), arriba de [Estadísticas](estadisticas.md) sale una frase y **Ver** te trae a este
+panel.
+
 ## Días sin competir
 
 Las carreras se agrupan por los días que pasaron desde la carrera anterior que tengas importada:

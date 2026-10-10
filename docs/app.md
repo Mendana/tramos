@@ -52,7 +52,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_sharing(resultId)` | Qué se comparte de una carrera del usuario y cómo está en la carpeta compartida (`docs/paquete.md`, "Carpeta compartida"): si se puede compartir (comparte lo suyo, con carpeta y la carrera es suya), lo elegido para ella, lo de por defecto, el nivel con el que está en la carpeta y, si no se ha podido exportar, por qué. Antes la exporta si hace falta. |
 | `set_race_sharing(resultId, choice)` | Cambia lo que se comparte de una carrera (`none`, `aggregates`, `legs`, `track`; `null` = lo de por defecto), la exporta o la quita de la carpeta y devuelve lo mismo que `race_sharing`. |
 | `share_all` | Exporta todas las carreras del usuario a la carpeta compartida: cuántas se han escrito, cuántas ya estaban igual, cuántas no se comparten y las que han fallado. Si no comparte lo suyo o no hay carpeta, no hace nada. |
-| `receive_packages` | Si entrena, importa los paquetes nuevos o cambiados de la carpeta compartida, salvo los suyos: cuántos nuevos, sustituidos y sin cambios, los ficheros que no se han podido leer y cuántos paquetes y atletas hay guardados. Si no entrena, no importa nada. |
+| `receive_packages` | Si entrena, importa los paquetes nuevos o cambiados de la carpeta compartida y de sus subcarpetas (hasta 3 niveles, sin enlaces simbólicos; `docs/paquete.md`, "Carpeta compartida"), salvo los suyos: cuántos nuevos, sustituidos y sin cambios, los ficheros que no se han podido leer y cuántos paquetes y atletas hay guardados. Si no entrena, no importa nada. |
 | `taxonomy` | La taxonomía de errores con la que se etiqueta (`tramos_core::taxonomy`, `docs/taxonomia.md`). |
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
@@ -205,7 +205,7 @@ Se guardan en la tabla `settings` de la base:
 | `athletes.enabled` | «Entreno a otros atletas»: `true` o `false`. | `false` | Importa los paquetes de los atletas de la carpeta compartida y añade la sección Atletas (abajo). |
 | `athletes.include_self` | «Incluirme» en la vista de grupo: `true` o `false`. | `false` | Las carreras propias cuentan como un atleta más en la tabla, el cara a cara y las carreras compartidas. Se cambia en la vista de grupo, sin «Guardar». |
 | `sharing.mode` | Modo de antes de #119: `runner` o `coach`. Ya no se escribe. | — | Solo si faltan los dos de arriba: `coach` es entrenar sin compartir lo propio; `runner`, al revés. |
-| `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
+| `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. Quien corre elige su subcarpeta de la carpeta madre de quien le entrena; quien entrena elige la carpeta madre, y se leen también sus subcarpetas. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
 | `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
 | `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
 | `map.pace_zones` | Zonas de ritmo del mapa (#96), en JSON: `limits` (s/km, de menor a mayor) y `colors` (`#rrggbb`, uno más que límites). Vacío = ninguna. | — | Sin zonas, el mapa colorea por cuantiles de cada carrera. Con ellas, por las zonas del usuario (ver "Mapa"). |
@@ -266,8 +266,10 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   una con el modo de antes `coach` entrena y no comparte lo propio. Se cambia después en Mi
   perfil («Compartir mis carreras») y en Ajustes («Entreno a otros atletas»). Al elegir Entreno o
   las dos cosas se abren los Ajustes, porque sin carpeta compartida no le llega nada.
-- **Recibir.** Los paquetes llegan por la misma carpeta compartida en la que se exportan los
-  propios (`docs/paquete.md`, "Carpeta compartida"). Los suyos no vuelven a entrar.
+- **Recibir.** Los paquetes llegan por la carpeta compartida (`docs/paquete.md`, "Carpeta
+  compartida"): quien entrena elige una carpeta madre con una subcarpeta por atleta y la app lee
+  la carpeta y sus subcarpetas; cada atleta exporta a su subcarpeta (#140). Los suyos no vuelven
+  a entrar.
 - **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: un selector «Ver a» con los
   atletas de los que hay paquetes (nombre visible y número de carreras; sin elegir, «Elige un
   atleta…»), y, mientras se ve a uno, sus **Carreras** y **Estadísticas**; **Comparar

@@ -20,8 +20,11 @@
   identificador al azar.
 - Los paquetes viajan por una **carpeta compartida** (Drive, OneDrive, Dropbox…, #36,
   `docs/paquete.md`): cualquiera con acceso a esa carpeta puede leerlos, y el proveedor de la
-  sincronización los guarda en sus servidores. Lo más privado es que cada corredor comparta con
-  la entrenadora su propia carpeta. Al dejar de compartir una carrera se borra su fichero de la
+  sincronización los guarda en sus servidores. El modelo previsto (#140) es una carpeta madre de
+  la entrenadora con una subcarpeta por atleta, compartida solo con ese atleta: cada uno deja
+  los suyos en su subcarpeta y no ve los de los demás, y la entrenadora lee la carpeta madre
+  entera. Si en cambio se comparte una carpeta común del grupo, todos los del grupo ven los
+  paquetes de todos. Al dejar de compartir una carrera se borra su fichero de la
   carpeta, pero lo que la entrenadora ya hubiera importado sigue en su app.
 - Quien entrena solo lee lo de sus atletas (`docs/app.md`, "Atletas"): mientras ve a un atleta, la
   app no tiene controles de edición y el núcleo rechaza cualquier cambio; los datos de un

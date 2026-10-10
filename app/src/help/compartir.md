@@ -7,13 +7,15 @@ ve en solo lectura ([Atletas](atletas.md)). Para compartir, marca **Compartir mi
 ## Cómo viaja: paquetes y carpeta compartida
 
 No hay servidor. Cada carrera que compartes es un fichero (un **paquete**) que la app deja en una
-**carpeta compartida**: una carpeta de Drive, OneDrive, Dropbox… que tienen tu app y la de quien
-te entrena. Tú la eliges en [Mi perfil](perfil.md); quien entrena, en [Ajustes](ajustes.md). Si
-corres y entrenas, la misma carpeta sirve para las dos cosas.
+**carpeta compartida** de Drive, OneDrive, Dropbox… Quien te entrena crea una carpeta madre y,
+dentro, una subcarpeta para ti, compartida solo contigo. Tú eliges esa subcarpeta en
+[Mi perfil](perfil.md) y ahí deja tu app los paquetes; quien entrena elige la carpeta madre en
+[Ajustes](ajustes.md) y su app lee todas las subcarpetas. Si corres y entrenas, la carpeta de
+Ajustes es la misma que la de Mi perfil.
 
 - La app deja el paquete al importar la carrera y lo actualiza sola cada vez que cambias algo de
   lo que lleva (etiquetas, formato, desfase, qué se comparte).
-- La app de quien te entrena mira la carpeta al abrirse y cada minuto, y recoge lo nuevo.
+- La app de quien te entrena mira la carpeta madre y sus subcarpetas al abrirse y cada minuto, y recoge lo nuevo.
 - Si un paquete no se puede escribir (la carpeta no está, no hay permiso), la carrera te lo dice y
   se vuelve a intentar.
 
@@ -44,7 +46,8 @@ cabecera.
 ## Ojo con
 
 - **Quien tenga acceso a la carpeta puede leer los paquetes**, y el servicio de sincronización los
-  guarda en sus servidores.
+  guarda en sus servidores. Con una subcarpeta por atleta, compartida solo con él o ella y con
+  quien entrena, los demás atletas no ven lo tuyo.
 - **Dejar de compartir** una carrera (pasarla a «nada») borra su fichero de la carpeta, pero lo que
   quien te entrena ya hubiera recibido se queda en su app.
 

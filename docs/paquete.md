@@ -83,11 +83,16 @@ algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene e
 
 ## Carpeta compartida (#36)
 
-Sin servidor: el corredor y quien le entrena comparten una carpeta sincronizada (Drive, OneDrive,
-Dropbox…). Cada app la tiene en sus ajustes (`sharing.folder`, `docs/app.md`, "Ajustes") junto
+Sin servidor: el corredor y quien le entrena comparten carpetas sincronizadas (Drive, OneDrive,
+Dropbox…) con esta estructura (#140): quien entrena crea una **carpeta madre** y dentro una
+**subcarpeta por atleta**, compartida solo con ese atleta. Cada atleta elige en su app su
+subcarpeta y exporta ahí; quien entrena elige la carpeta madre y su app lee los paquetes de ella
+y de todas sus subcarpetas. Así un atleta no ve lo de los demás y quien entrena no tiene que
+añadir una carpeta por atleta. Cada app la tiene en sus ajustes (`sharing.folder`, `docs/app.md`, "Ajustes") junto
 con dos casillas independientes (#119): **«Compartir mis carreras»** (`sharing.share_own`)
 exporta y **«Entreno a otros atletas»** (`athletes.enabled`) recibe. Quien entrena y también
-corre marca las dos y usa **la misma carpeta** para las dos cosas. Implementado en
+corre marca las dos y usa **la misma carpeta** para las dos cosas (la carpeta madre: sus
+paquetes quedan en su raíz y al leer se saltan). Implementado en
 `app/src-tauri/src/sharing.rs`.
 
 **Qué se comparte de cada carrera.** Lo elegido para esa carrera en la vista de carrera
@@ -116,10 +121,20 @@ carpeta (`receive`) al arrancar, al guardar los ajustes y **cada minuto** mientr
 No usa avisos del sistema de ficheros: las carpetas sincronizadas no siempre los dan bien y
 mirar cada minuto basta.
 
-- Solo lee los ficheros `tramos-*.json`; el resto de la carpeta se ignora. Tampoco lee los suyos:
-  los que terminan en su propio `runner_id` (`tramos-<race_id>-<runner_id>.json`), que son las
-  carreras propias que exporta esta misma app.
-- Recuerda la fecha de modificación y el tamaño de cada fichero importado y no vuelve a leer los
+- Lee la carpeta y **sus subcarpetas, hasta 3 niveles por debajo** (carpeta madre, atleta y, por
+  ejemplo, temporada); lo que esté más hondo no se lee. No entra en carpetas ocultas (las que
+  empiezan por `.`) ni **sigue enlaces simbólicos**, ni a carpetas ni a ficheros. Una subcarpeta
+  que no se puede leer se anota entre los problemas y no impide leer el resto; si no se puede leer
+  la carpeta elegida, es un error.
+- Solo lee los ficheros `tramos-*.json`; el resto se ignora. Tampoco lee los suyos, estén en la
+  subcarpeta que estén: los que terminan en su propio `runner_id`
+  (`tramos-<race_id>-<runner_id>.json`), que son las carreras propias que exporta esta misma app.
+- **Ficheros repetidos.** Un paquete se identifica por (`runner_id`, `race_id`), no por su
+  ruta. Si hay varios ficheros del mismo corredor y carrera (una copia en otra subcarpeta, un
+  paquete que un atleta ha movido), se queda **el exportado más recientemente** (`exported_at`, en
+  segundos), sea cual sea su carpeta y el orden en que se lean; los demás cuentan como «sin cambios». Con el
+  mismo `exported_at` y distinto contenido, el último en orden de ruta sustituye al anterior.
+- Recuerda (por ruta completa) la fecha de modificación y el tamaño de cada fichero importado y no vuelve a leer los
   que no cambian (un paquete con track puede pesar varios MB). Al reabrir la app los lee todos
   una vez; los que no aportan nada salen como «sin cambios».
 - Un fichero que no se puede importar (JSON roto, versión más nueva) no impide importar los demás

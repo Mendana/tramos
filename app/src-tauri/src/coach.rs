@@ -6,6 +6,9 @@
 //! formato, las etiquetas, el track y sus umbrales. Así todas las vistas de corredor (lista,
 //! carrera, mapa, histórico) funcionan sin cambios y recalculan con la versión del algoritmo de
 //! esta app. Lo que no se puede volcar (paquetes con solo el resumen) va aparte.
+//!
+//! «Mis atletas» (#142): una tarjeta por atleta con lo principal de su histórico y las
+//! novedades, lo recibido después de la última vez que se entró en él.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -20,7 +23,7 @@ use tramos_core::group_compare::{
 use tramos_core::history::{HistoryFilter, HistoryStats};
 use tramos_core::package::{RacePackage, RaceSummary, race_id};
 use tramos_core::race_format::RaceFormat;
-use tramos_store::{AthleteGroupId, ReceivedRunner, ResultId, Store, StoreError};
+use tramos_store::{AthleteGroupId, ReceivedPackage, ReceivedRunner, ResultId, Store, StoreError};
 
 use crate::history::{HistoryView, history_view, history_view_where};
 use crate::import::{SELF_PERSON_KEY, stored_self_person};
@@ -38,7 +41,7 @@ pub enum CoachError {
     Race(#[from] RaceError),
 }
 
-/// Un atleta en el selector de la sección Atletas.
+/// Un atleta de la sección Atletas.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CoachRunner {
     pub runner_id: String,
@@ -366,15 +369,7 @@ fn group_row_of(
                     stats: race.stats,
                 });
             }
-            (
-                Some(group_row(
-                    &h.history,
-                    &h.by_leg_length,
-                    &h.by_slope,
-                    &h.common_errors,
-                )),
-                None,
-            )
+            (Some(row_of(&h)), None)
         }
         Err(e) => (None, Some(e.to_string())),
     };
@@ -384,6 +379,12 @@ fn group_row_of(
         row,
         problem,
     }
+}
+
+/// La fila de la tabla del grupo de un histórico: la misma en Comparar atletas y en la tarjeta de
+/// Mis atletas.
+fn row_of(h: &HistoryView) -> GroupRow {
+    group_row(&h.history, &h.by_leg_length, &h.by_slope, &h.common_errors)
 }
 
 /// Quien usa la app como corredor del grupo: su identificador de paquetes, su nombre y sus
@@ -537,6 +538,164 @@ pub fn compare_athlete_groups(
         sides.in_both.len(),
         shared,
     ))
+}
+
+/// ¿Es nuevo un paquete recibido en `received_at` para quien entró en el atleta por última vez en
+/// `last_seen`? Si nunca ha entrado, todo es nuevo. Un paquete que vuelve a llegar cambiado (el
+/// atleta etiquetó un error, por ejemplo) se recibe otra vez y también cuenta.
+pub fn is_new(received_at: DateTime<Utc>, last_seen: Option<DateTime<Utc>>) -> bool {
+    last_seen.is_none_or(|seen| received_at > seen)
+}
+
+/// Los paquetes del atleta recibidos después de `last_seen`.
+fn new_packages(
+    main: &Store,
+    runner_id: &str,
+    last_seen: Option<DateTime<Utc>>,
+) -> Result<Vec<ReceivedPackage>, StoreError> {
+    Ok(main
+        .received_packages_of(runner_id)?
+        .into_iter()
+        .filter(|p| is_new(p.imported_at, last_seen))
+        .collect())
+}
+
+/// Una carrera nueva de un atleta.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NewRace {
+    pub date: NaiveDate,
+    pub name: Option<String>,
+    pub format: Option<RaceFormat>,
+    pub received_at: DateTime<Utc>,
+}
+
+/// Lo nuevo de un atleta desde la última vez que se entró en él.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct AthleteNews {
+    pub runner: CoachRunner,
+    /// `None` si nunca se ha entrado en él.
+    pub last_seen: Option<DateTime<Utc>>,
+    /// De la más reciente a la más antigua (por fecha de la carrera). Los paquetes que no se
+    /// pueden leer no salen: se ven al entrar en el atleta.
+    pub new_races: Vec<NewRace>,
+}
+
+/// Las novedades de cada atleta del que hay paquetes, en el orden de [`coach_runners`]. Solo lee
+/// los paquetes nuevos.
+pub fn athlete_news(main: &Store) -> Result<Vec<AthleteNews>, CoachError> {
+    let seen = settings::last_seen(main)?;
+    let mut news = Vec::new();
+    for runner in coach_runners(main)? {
+        let last_seen = seen.get(&runner.runner_id).copied();
+        let mut new_races: Vec<NewRace> = new_packages(main, &runner.runner_id, last_seen)?
+            .into_iter()
+            .filter_map(|received| {
+                let package = RacePackage::parse(&received.content).ok()?;
+                Some(NewRace {
+                    date: package.race.date,
+                    name: package.race.name,
+                    format: package.race.format,
+                    received_at: received.imported_at,
+                })
+            })
+            .collect();
+        new_races.sort_by(|a, b| b.date.cmp(&a.date).then(b.received_at.cmp(&a.received_at)));
+        news.push(AthleteNews {
+            runner,
+            last_seen,
+            new_races,
+        });
+    }
+    Ok(news)
+}
+
+/// Entra en un atleta: lo vuelca como [`runner_view`] y apunta que se le ha visto ahora, así que
+/// sus novedades se quedan a cero.
+pub fn enter_runner(main: &mut Store, runner_id: &str) -> Result<RunnerView, CoachError> {
+    let view = runner_view(main, runner_id)?;
+    settings::set_last_seen(main, runner_id, Utc::now())?;
+    Ok(view)
+}
+
+/// Carreras de la línea de evolución de la tarjeta.
+pub const TREND_RACES: usize = 10;
+
+/// Una carrera en la línea de evolución de un atleta.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TrendPoint {
+    pub date: NaiveDate,
+    pub name: Option<String>,
+    /// Su rendimiento habitual (IR de la carrera, 1 = 100 %).
+    pub performance: f64,
+}
+
+/// La tarjeta de un atleta en Mis atletas.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct AthleteCard {
+    pub runner: CoachRunner,
+    /// Lo mismo que su fila en Comparar atletas sin filtros: carreras, IR medio, tasa de error,
+    /// error más común… `None` si su histórico no se ha podido calcular (`problem` dice por qué).
+    pub row: Option<GroupRow>,
+    pub problem: Option<String>,
+    /// El rendimiento de sus [`TREND_RACES`] últimas carreras con rendimiento, de la más antigua a
+    /// la más reciente.
+    pub trend: Vec<TrendPoint>,
+    /// Fecha de su carrera más reciente, también de las compartidas solo con el resumen.
+    pub last_race: Option<NaiveDate>,
+    /// Los grupos de atletas en los que está.
+    pub groups: Vec<i64>,
+    /// Carreras recibidas desde la última vez que se entró en él ([`athlete_news`]).
+    pub new_races: usize,
+}
+
+/// Una tarjeta por atleta del que hay paquetes, en el orden de [`coach_runners`]. Cada uno se
+/// calcula como en su histórico sin filtros, con sus umbrales.
+pub fn athlete_cards(main: &Store) -> Result<Vec<AthleteCard>, CoachError> {
+    let seen = settings::last_seen(main)?;
+    let groups = main.athlete_groups()?;
+    let mut cards = Vec::new();
+    for runner in coach_runners(main)? {
+        let view = runner_view(main, &runner.runner_id)?;
+        let last_seen = seen.get(&runner.runner_id).copied();
+        let new_races = new_packages(main, &runner.runner_id, last_seen)?.len();
+        let (row, problem, trend, last_race) =
+            match history_view(&view.store, &HistoryFilter::default()) {
+                Ok(h) => {
+                    // `races` va de la más reciente a la más antigua.
+                    let mut trend: Vec<TrendPoint> = h
+                        .races
+                        .iter()
+                        .filter_map(|race| {
+                            Some(TrendPoint {
+                                date: race.date,
+                                name: race.name.clone(),
+                                performance: race.stats?.mean_performance?,
+                            })
+                        })
+                        .take(TREND_RACES)
+                        .collect();
+                    trend.reverse();
+                    let last = h.races.first().map(|r| r.date);
+                    (Some(row_of(&h)), None, trend, last)
+                }
+                Err(e) => (None, Some(e.to_string()), Vec::new(), None),
+            };
+        let last_race = last_race.max(view.summary_only.first().map(|r| r.date));
+        cards.push(AthleteCard {
+            groups: groups
+                .iter()
+                .filter(|g| g.members.contains(&runner.runner_id))
+                .map(|g| g.id.0)
+                .collect(),
+            runner,
+            row,
+            problem,
+            trend,
+            last_race,
+            new_races,
+        });
+    }
+    Ok(cards)
 }
 
 /// ¿Entrena a otros atletas? (ajuste «Entreno a otros atletas», #119).
@@ -779,6 +938,145 @@ mod tests {
         let group = group_view(&mut coach, &HistoryFilter::default(), true, None).unwrap();
         assert_eq!(group.runners.len(), 1);
         assert!(!group.runners[0].is_self);
+    }
+
+    #[test]
+    fn a_package_is_new_if_it_arrived_after_the_last_visit() {
+        let at = |s: &str| s.parse::<DateTime<Utc>>().unwrap();
+        let received = at("2026-10-05T10:00:00Z");
+        // Nunca visto: todo es nuevo.
+        assert!(is_new(received, None));
+        assert!(is_new(received, Some(at("2026-10-05T09:59:59Z"))));
+        // Recibido justo al entrar o antes: ya visto.
+        assert!(!is_new(received, Some(received)));
+        assert!(!is_new(received, Some(at("2026-10-06T08:00:00Z"))));
+    }
+
+    /// Cuántas carreras nuevas hay del atleta `runner_id`, según las novedades y su tarjeta.
+    fn new_count(coach: &Store, runner_id: &str) -> (usize, usize) {
+        let news = athlete_news(coach).unwrap();
+        let cards = athlete_cards(coach).unwrap();
+        let of_news = news
+            .iter()
+            .find(|n| n.runner.runner_id == runner_id)
+            .unwrap();
+        let of_card = cards
+            .iter()
+            .find(|c| c.runner.runner_id == runner_id)
+            .unwrap();
+        (of_news.new_races.len(), of_card.new_races)
+    }
+
+    #[test]
+    fn the_new_races_count_drops_when_entering_the_athlete() {
+        let (_, _, mut coach, runner_id) = received(ShareLevel::Legs, false);
+        let package = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+
+        // Nunca se ha entrado en él: su carrera es nueva, con su fecha y su nombre.
+        let news = athlete_news(&coach).unwrap();
+        assert_eq!(news.len(), 1);
+        assert_eq!(news[0].last_seen, None);
+        assert_eq!(news[0].new_races.len(), 1);
+        assert_eq!(news[0].new_races[0].date, package.race.date);
+        assert_eq!(news[0].new_races[0].name, package.race.name);
+        assert_eq!(new_count(&coach, &runner_id), (1, 1));
+
+        // Al entrar, baja a cero.
+        let view = enter_runner(&mut coach, &runner_id).unwrap();
+        assert_eq!(list_races(&view.store).unwrap().len(), 1);
+        assert!(athlete_news(&coach).unwrap()[0].last_seen.is_some());
+        assert_eq!(new_count(&coach, &runner_id), (0, 0));
+
+        // Lo que llega después vuelve a contar: otra carrera y la misma reexportada cambiada.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let mut changed = package.clone();
+        changed.exported_at += chrono::Duration::seconds(1);
+        changed.tags.clear();
+        assert_eq!(
+            coach.save_received_package(&changed).unwrap(),
+            tramos_store::SaveOutcome::Replaced
+        );
+        assert_eq!(new_count(&coach, &runner_id), (1, 1));
+        let mut other = package.clone();
+        other.race.race_id = "otra".into();
+        coach.save_received_package(&other).unwrap();
+        assert_eq!(new_count(&coach, &runner_id), (2, 2));
+
+        // Otro atleta no cuenta para este, y entrar en él no toca lo de este.
+        let mut someone = package.clone();
+        someone.runner.runner_id = "otro".into();
+        coach.save_received_package(&someone).unwrap();
+        enter_runner(&mut coach, "otro").unwrap();
+        assert_eq!(new_count(&coach, "otro"), (0, 0));
+        assert_eq!(new_count(&coach, &runner_id), (2, 2));
+    }
+
+    #[test]
+    fn the_card_has_the_same_numbers_as_the_row_in_compare_athletes() {
+        let (_, _, mut coach, runner_id) = received(ShareLevel::Legs, false);
+        let mut other = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        other.runner.runner_id = "otro".into();
+        other.runner.display_name = "Berta".into();
+        if let Some(course) = other.course.as_mut() {
+            course.result.result_index = 0;
+        }
+        coach.save_received_package(&other).unwrap();
+        let juniors = coach
+            .create_athlete_group("Juveniles", "", "#2563eb")
+            .unwrap();
+        coach.add_athlete_group_member(juniors, &runner_id).unwrap();
+
+        let group = group_view(&mut coach, &HistoryFilter::default(), false, None).unwrap();
+        let cards = athlete_cards(&coach).unwrap();
+        assert_eq!(cards.len(), 2);
+        for card in &cards {
+            let row = group
+                .runners
+                .iter()
+                .find(|r| r.runner.runner_id == card.runner.runner_id)
+                .unwrap();
+            assert_eq!(card.row, row.row);
+            assert!(card.row.is_some() && card.problem.is_none());
+            assert_eq!(card.runner, row.runner);
+            // Una carrera: la línea es un punto, su IR, que es también el IR medio.
+            let stats = card.row.as_ref().unwrap().stats;
+            assert_eq!(card.trend.len(), 1);
+            assert_eq!(Some(card.trend[0].performance), stats.mean_performance);
+            assert_eq!(Some(card.trend[0].date), card.last_race);
+        }
+        let mine = cards
+            .iter()
+            .find(|c| c.runner.runner_id == runner_id)
+            .unwrap();
+        assert_eq!(mine.groups, vec![juniors.0]);
+        let berta = cards.iter().find(|c| c.runner.runner_id == "otro").unwrap();
+        assert!(berta.groups.is_empty());
+    }
+
+    #[test]
+    fn the_trend_keeps_the_last_races_from_oldest_to_newest() {
+        let (_, _, mut coach, runner_id) = received(ShareLevel::Legs, false);
+        let package = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        // La misma carrera en 12 fechas distintas: la línea se queda con las 10 últimas.
+        for days in 1..12 {
+            let mut copy = package.clone();
+            copy.race.race_id = format!("copia-{days}");
+            copy.race.date = package.race.date + chrono::Duration::days(days);
+            coach.save_received_package(&copy).unwrap();
+        }
+        let cards = athlete_cards(&coach).unwrap();
+        let card = cards
+            .iter()
+            .find(|c| c.runner.runner_id == runner_id)
+            .unwrap();
+        assert_eq!(card.row.as_ref().unwrap().stats.races, 12);
+        assert_eq!(card.trend.len(), TREND_RACES);
+        let dates: Vec<NaiveDate> = card.trend.iter().map(|p| p.date).collect();
+        let expected: Vec<NaiveDate> = (2..12)
+            .map(|days| package.race.date + chrono::Duration::days(days))
+            .collect();
+        assert_eq!(dates, expected);
+        assert_eq!(card.last_race, dates.last().copied());
     }
 
     #[test]

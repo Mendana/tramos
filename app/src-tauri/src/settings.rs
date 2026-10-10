@@ -4,8 +4,10 @@
 //! Se guardan en la tabla de ajustes clave-valor de la base (`docs/almacenamiento.md`). Las
 //! claves y su efecto están en `docs/app.md`, "Ajustes".
 
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
+use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -36,6 +38,9 @@ pub const COACH_KEY: &str = "athletes.enabled";
 pub const SHARE_OWN_KEY: &str = "sharing.share_own";
 /// En la vista de grupo, las carreras propias cuentan como un atleta más (`true`/`false`).
 pub const INCLUDE_SELF_KEY: &str = "athletes.include_self";
+/// Última vez que se entró en cada atleta (#142): JSON `{runner_id: instante RFC 3339}`. Lo
+/// recibido después cuenta como novedad.
+pub const LAST_SEEN_KEY: &str = "athletes.last_seen";
 /// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
 pub const FOLDER_KEY: &str = "sharing.folder";
 /// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
@@ -246,6 +251,27 @@ pub fn include_self(store: &Store) -> Result<bool, StoreError> {
 /// Guarda si en la vista de grupo cuentan las carreras propias.
 pub fn set_include_self(store: &mut Store, include: bool) -> Result<(), StoreError> {
     set_flag(store, INCLUDE_SELF_KEY, include)
+}
+
+/// Última vez que se entró en cada atleta, por `runner_id`. Sin nada guardado (o con algo que no
+/// se entiende), ninguna: todo lo recibido es nuevo.
+pub fn last_seen(store: &Store) -> Result<BTreeMap<String, DateTime<Utc>>, StoreError> {
+    Ok(store
+        .setting(LAST_SEEN_KEY)?
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default())
+}
+
+/// Apunta que se ha entrado en el atleta `runner_id` en el instante `at`.
+pub fn set_last_seen(
+    store: &mut Store,
+    runner_id: &str,
+    at: DateTime<Utc>,
+) -> Result<(), StoreError> {
+    let mut seen = last_seen(store)?;
+    seen.insert(runner_id.to_string(), at);
+    let json = serde_json::to_string(&seen).map_err(|e| StoreError::InvalidData(e.to_string()))?;
+    store.set_setting(LAST_SEEN_KEY, &json)
 }
 
 /// Un ajuste `true`/`false`; `None` si no está o no se entiende.

@@ -7,8 +7,10 @@ lectura**. Si además corres, usas las dos cosas a la vez, sin cambiar de modo.
 
 ## El bloque Atletas
 
-- **Ver a**: un selector con los atletas que te han enviado algo y cuántas carreras. Al elegir
-  uno, debajo salen sus **Carreras** y sus **Estadísticas**, exactamente como las ve él.
+- **Mis atletas**: una tarjeta por atleta con sus cifras, su evolución, sus grupos y sus carreras
+  nuevas ([Mis atletas](mis-atletas.md)); a su lado, cuántas carreras nuevas hay entre todos. Un
+  clic en una tarjeta entra en el atleta: debajo salen su nombre, sus **Carreras** y sus
+  **Estadísticas**, exactamente como las ve él.
 - **Comparar atletas**: todos juntos, o los de un grupo ([Comparar atletas](grupo.md)).
 - **Grupos**: para organizarlos ([Grupos](grupos.md)).
 

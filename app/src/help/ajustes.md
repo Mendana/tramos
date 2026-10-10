@@ -28,7 +28,8 @@ Explicado en [Zonas del mapa](zonas-del-mapa.md).
 ## Paneles de análisis
 
 Cuántos paneles tienes ocultos, con **Personalizar** para elegir cuáles ver y **Enseñar todos**.
-Los mismos botones están en [Estadísticas](estadisticas.md).
+Los mismos botones están en [Estadísticas](estadisticas.md). Si entrenas, ahí también eliges qué
+lleva cada tarjeta de [Mis atletas](mis-atletas.md).
 
 ## Entrenar
 

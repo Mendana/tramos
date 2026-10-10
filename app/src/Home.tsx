@@ -1,12 +1,31 @@
 // Inicio (#127, `docs/app.md`, "Inicio"): qué hay nuevo y qué queda por hacer. La última
 // carrera, lo pendiente y el rendimiento de las últimas carreras; los análisis, en Estadísticas.
+// Si entrena, también las novedades de sus atletas (#142).
 import { useEffect, useState } from "react";
-import { FORMAT_LABELS, RaceRow, clock, getHistory, getSettings, statusLabel } from "./api";
+import {
+  AthleteNews,
+  FORMAT_LABELS,
+  RaceRow,
+  clock,
+  getHistory,
+  getSettings,
+  statusLabel,
+} from "./api";
+import { newRacesLabel } from "./AthletesScreen";
 import type { RaceTab } from "./RaceView";
 import { LineChart } from "./charts/LineChart";
 import { percent, tickPercent } from "./HistoryPanels";
 import { TrackThumb } from "./TrackThumb";
-import { ChevronRight, EmptyState, FileIcon, PageHeader, Stat, TagIcon, WatchIcon } from "./ui";
+import {
+  AthletesIcon,
+  ChevronRight,
+  EmptyState,
+  FileIcon,
+  PageHeader,
+  Stat,
+  TagIcon,
+  WatchIcon,
+} from "./ui";
 
 /** Carreras de la gráfica de rendimiento. */
 const TREND_RACES = 10;
@@ -18,19 +37,85 @@ const shortDate = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}/${
 
 const errorsLabel = (n: number) => `${n} ${n === 1 ? "error" : "errores"}`;
 
+/** Novedades de tus atletas: los que tienen carreras recibidas desde la última vez que entraste. */
+function AthleteNewsCard({
+  news,
+  onOpenRunner,
+  onAthletes,
+}: {
+  news: AthleteNews[];
+  onOpenRunner: (runnerId: string) => void;
+  onAthletes: () => void;
+}) {
+  const fresh = news.filter((a) => a.new_races.length > 0);
+  return (
+    <section className="card">
+      <div className="card-title">
+        <h3>Novedades de tus atletas</h3>
+        <button type="button" className="btn btn-ghost" onClick={onAthletes}>
+          Mis atletas <ChevronRight size={16} />
+        </button>
+      </div>
+      {news.length === 0 ? (
+        <p className="muted">Aún no ha llegado nada de tus atletas.</p>
+      ) : fresh.length === 0 ? (
+        <p className="muted">Nada nuevo desde la última vez que entraste en cada atleta.</p>
+      ) : (
+        <ul className="tasks">
+          {fresh.map((a) => {
+            const latest = a.new_races[0];
+            return (
+              <li key={a.runner.runner_id} className="task">
+                <span className="task-icon">
+                  <AthletesIcon />
+                </span>
+                <div className="task-text">
+                  <span className="strong">
+                    {a.runner.display_name || "Sin nombre"}{" "}
+                    <span className="pill pill-accent">{newRacesLabel(a.new_races.length)}</span>
+                  </span>
+                  <span className="small muted">
+                    {latest.name ?? "Sin nombre"} · {latest.date}
+                    {a.new_races.length > 1 && ` y ${a.new_races.length - 1} más`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => onOpenRunner(a.runner.runner_id)}
+                >
+                  Ver
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function Home({
   races,
+  news,
   onOpen,
   onImport,
   onRaces,
   onHistory,
+  onAthletes,
+  onOpenRunner,
 }: {
   /** De la más reciente a la más antigua. */
   races: RaceRow[] | null;
+  /** Si entrena, lo nuevo de sus atletas; `null` si no entrena. */
+  news: AthleteNews[] | null;
   onOpen: (resultId: number, tab?: RaceTab) => void;
   onImport: () => void;
   onRaces: () => void;
   onHistory: () => void;
+  onAthletes: () => void;
+  /** Entra en un atleta. */
+  onOpenRunner: (runnerId: string) => void;
 }) {
   const [name, setName] = useState<string | null>(null);
   const [meanPerformance, setMeanPerformance] = useState<number | null>(null);
@@ -51,6 +136,9 @@ function Home({
   }, [count]);
 
   const title = name === null ? "Inicio" : `Hola, ${name}`;
+  const athletes = news !== null && (
+    <AthleteNewsCard news={news} onOpenRunner={onOpenRunner} onAthletes={onAthletes} />
+  );
   if (races === null) {
     return (
       <>
@@ -71,6 +159,7 @@ function Home({
             </button>
           </EmptyState>
         </div>
+        {athletes}
       </>
     );
   }
@@ -239,6 +328,8 @@ function Home({
           )}
         </section>
       </div>
+
+      {athletes}
     </>
   );
 }

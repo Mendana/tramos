@@ -1,6 +1,7 @@
 // Grupos de atletas (#120, docs/app.md, "Atletas"): quien entrena los crea, les pone nombre,
-// descripción y color, y mete o saca atletas. Cada grupo lleva a sus estadísticas en Comparar
-// atletas. Se guardan en la base propia; los miembros van por el identificador de sus paquetes.
+// descripción y color, y mete o saca atletas. Cada grupo lleva a sus estadísticas (#145), con
+// todos sus miembros juntos. Se guardan en la base propia; los miembros van por el identificador
+// de sus paquetes.
 import { useCallback, useEffect, useState } from "react";
 import {
   GROUP_COLORS,
@@ -36,6 +37,7 @@ function GroupsScreen({
   onStats,
   onCompare,
 }: {
+  /** Abre «Estadísticas del grupo» (#145). */
   onStats: (groupId: number) => void;
   /** Abre «Comparar grupos» (#121). */
   onCompare: () => void;

@@ -378,20 +378,24 @@ function Summary({
   );
 }
 
-const performance = (s: HistoryStats) =>
+export const performance = (s: HistoryStats) =>
   s.mean_performance === null ? "—" : percent(s.mean_performance * 100);
-const errorRate = (s: HistoryStats) => (s.error_rate === null ? "—" : percent(s.error_rate * 100));
-const lossS = (s: HistoryStats) =>
+export const errorRate = (s: HistoryStats) =>
+  s.error_rate === null ? "—" : percent(s.error_rate * 100);
+export const lossS = (s: HistoryStats) =>
   s.mean_loss_s === null ? "—" : `${decimal(s.mean_loss_s, 1)} s`;
 
-function StatsRow({
+/** Fila de la tabla por formato. Sin `consistency`, sin su columna (grupos, #145). */
+export function StatsRow({
   label,
   stats,
   strong,
+  consistency = true,
 }: {
   label: string;
   stats: HistoryStats;
   strong?: boolean;
+  consistency?: boolean;
 }) {
   return (
     <tr className={strong ? "total-row" : undefined}>
@@ -407,7 +411,7 @@ function StatsRow({
           <span className="muted"> · {percent1(stats.mean_loss_pct)}</span>
         )}
       </td>
-      <td className="num">{spread(stats.mean_consistency)}</td>
+      {consistency && <td className="num">{spread(stats.mean_consistency)}</td>}
     </tr>
   );
 }

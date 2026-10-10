@@ -55,7 +55,7 @@ impl BreakdownTotals {
         self.pace_s += leg.pace_s;
     }
 
-    fn merge(&mut self, other: &BreakdownTotals) {
+    pub(crate) fn merge(&mut self, other: &BreakdownTotals) {
         self.legs += other.legs;
         self.loss_s += other.loss_s;
         self.detour_s += other.detour_s;

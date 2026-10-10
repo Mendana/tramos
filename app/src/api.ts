@@ -783,6 +783,42 @@ export const compareAthleteGroups = (
   options: CompareOptions,
 ) => invoke<GroupsComparison>("compare_athlete_groups", { filter, a, b, options });
 
+/** Los análisis de Estadísticas con todos los miembros de un grupo juntos (#145). */
+export interface GroupStats {
+  /** Miembros con alguna carrera que cuenta. */
+  runners: number;
+  /** Por formato y total; la consistencia no se junta y va siempre a `null`. */
+  history: HistoryView["history"];
+  by_leg_length: LegLengthStats[];
+  by_slope: SlopeHistory;
+  loss_breakdown: BreakdownHistory;
+  after_error: AfterError;
+  common_errors: CommonErrors;
+  fatigue: Fatigue;
+  days_off: HistoryView["days_off"];
+}
+
+export interface GroupStatsMember {
+  runner: CoachRunner;
+  is_self: boolean;
+  /** Sus carreras que cuentan con el filtro. */
+  races: number;
+  /** Si su histórico no se ha podido calcular, por qué: no cuenta. */
+  problem: string | null;
+}
+
+/** Estadísticas de un grupo de atletas (`docs/historico.md`, "Estadísticas de un grupo"). */
+export interface GroupStatsView extends GroupFields {
+  id: number;
+  members: GroupStatsMember[];
+  /** Miembros de los que ya no hay carreras: no cuentan. */
+  missing: number;
+  stats: GroupStats;
+}
+
+export const athleteGroupStats = (filter: HistoryFilter, id: number) =>
+  invoke<GroupStatsView>("athlete_group_stats", { filter, id });
+
 /** Mete (`member = true`) o saca a un atleta de un grupo. */
 export const setAthleteGroupMember = (id: number, runnerId: string, member: boolean) =>
   invoke<void>("set_athlete_group_member", { id, runnerId, member });

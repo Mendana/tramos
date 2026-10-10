@@ -297,6 +297,65 @@ mod tests {
     }
 
     #[test]
+    fn the_group_stats_pool_the_statistics_of_its_members() {
+        use crate::coach::athlete_group_stats;
+        use crate::history::history_view;
+        use tramos_core::group::group_total;
+
+        let mut coach = three_athletes();
+        let id = create(&mut coach, &fields("Juveniles")).unwrap();
+        // «fantasma» no tiene paquetes: no cuenta.
+        for runner in ["a", "b", "fantasma"] {
+            set_member(&mut coach, id, runner, true).unwrap();
+        }
+        let filter = HistoryFilter::default();
+        let group = athlete_group_stats(&mut coach, &filter, AthleteGroupId(id)).unwrap();
+        assert_eq!(group.name, "Juveniles");
+        let names: Vec<&str> = group
+            .members
+            .iter()
+            .map(|m| m.runner.display_name.as_str())
+            .collect();
+        assert_eq!(names, ["A", "B"]);
+        assert!(group.members.iter().all(|m| m.races == 1 && !m.is_self));
+        assert_eq!(group.missing, 1);
+        assert_eq!(group.stats.runners, 2);
+
+        // Lo mismo que las Estadísticas de cada uno, juntas.
+        let own: Vec<_> = ["a", "b"]
+            .iter()
+            .map(|r| history_view(&runner_view(&coach, r).unwrap().store, &filter).unwrap())
+            .collect();
+        let stats = &group.stats;
+        assert_eq!(
+            stats.history.total,
+            group_total(&[own[0].history.total, own[1].history.total])
+        );
+        assert_eq!(stats.history.total.races, 2);
+        let legs: usize = stats.by_leg_length.iter().map(|b| b.legs).sum();
+        assert_eq!(legs, stats.history.total.legs);
+        assert_eq!(
+            stats.common_errors.total.errors,
+            own[0].common_errors.total.errors + own[1].common_errors.total.errors
+        );
+        assert_eq!(
+            stats.after_error.after_clean.legs,
+            own[0].after_error.after_clean.legs + own[1].after_error.after_clean.legs
+        );
+        assert_eq!(
+            stats.by_slope.races_without_track,
+            own[0].by_slope.races_without_track + own[1].by_slope.races_without_track
+        );
+        assert_eq!(
+            stats.days_off.without_previous,
+            own[0].days_off.without_previous + own[1].days_off.without_previous
+        );
+
+        // Un grupo que no existe es un error.
+        assert!(athlete_group_stats(&mut coach, &filter, AthleteGroupId(99)).is_err());
+    }
+
+    #[test]
     fn groups_are_edited_and_deleting_one_keeps_the_packages() {
         let mut coach = three_athletes();
         let id = create(&mut coach, &fields("Juveniles")).unwrap();

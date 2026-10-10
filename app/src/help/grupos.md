@@ -10,8 +10,10 @@ sacarlo del grupo; el cambio se guarda al momento. Si tienes carreras propias, t
 («Tu nombre (tú)»). Si de algún miembro ya no hay carreras, la tarjeta dice cuántos son: siguen en
 el grupo.
 
-**Estadísticas del grupo** abre [Comparar atletas](grupo.md) solo con sus miembros. Con dos
-grupos o más, arriba, **Comparar grupos** pone uno frente a otro ([Comparar grupos](comparar-grupos.md)).
+**Estadísticas del grupo** abre las gráficas de Estadísticas con todos sus miembros juntos
+([Estadísticas del grupo](estadisticas-grupo.md)). Para ver a sus miembros uno a uno, elige el grupo
+en [Comparar atletas](grupo.md). Con dos grupos o más, arriba, **Comparar grupos** pone uno frente
+a otro ([Comparar grupos](comparar-grupos.md)).
 
 ## Crear, cambiar y borrar
 
@@ -23,7 +25,7 @@ grupos o más, arriba, **Comparar grupos** pone uno frente a otro ([Comparar gru
 
 > Creas «Juveniles» en azul y marcas a tres atletas, y «Relevos» en naranja con cuatro. Una de las
 > juveniles corre también relevos: la marcas en los dos. En Estadísticas del grupo de Juveniles
-> ves a las tres juntas y sus totales. (Nombres inventados.)
+> ves las gráficas de las tres juntas, y en Comparar atletas, a cada una. (Nombres inventados.)
 
 Los atletas siguen en sus grupos aunque cambien el nombre con el que comparten: el grupo los
 recuerda por un identificador de sus carreras, no por el nombre.

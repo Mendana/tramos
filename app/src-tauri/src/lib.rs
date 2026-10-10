@@ -30,7 +30,7 @@ use tramos_store::{AthleteGroupId, SaveOutcome, Store};
 
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
-use crate::coach::{CoachRunner, GroupView, RunnerView, RunnerViewInfo};
+use crate::coach::{CoachRunner, GroupStatsView, GroupView, RunnerView, RunnerViewInfo};
 use crate::groups::{GroupFields, GroupsView};
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
@@ -236,6 +236,18 @@ fn compare_athlete_groups(
         options,
     )
     .map_err(|e| e.to_string())
+}
+
+/// Estadísticas de un grupo de atletas (#145): los análisis de Estadísticas con todos sus
+/// miembros juntos, con el filtro del histórico.
+#[tauri::command]
+fn athlete_group_stats(
+    state: tauri::State<'_, AppState>,
+    filter: HistoryFilter,
+    id: i64,
+) -> Result<GroupStatsView, String> {
+    coach::athlete_group_stats(&mut *state.coach_store()?, &filter, AthleteGroupId(id))
+        .map_err(|e| e.to_string())
 }
 
 /// Mete (`member = true`) o saca a un atleta de un grupo.
@@ -535,6 +547,7 @@ pub fn run() -> tauri::Result<()> {
             delete_athlete_group,
             set_athlete_group_member,
             compare_athlete_groups,
+            athlete_group_stats,
             preview_import,
             import_race,
             import_folder,

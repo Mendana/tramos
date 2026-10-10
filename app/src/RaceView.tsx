@@ -22,7 +22,7 @@ import {
 import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { ClockOffset } from "./ClockOffset";
 import { GroupComparison } from "./GroupComparison";
-import { Insights } from "./Insights";
+import { InsightPlace, Insights, useInsightFocus } from "./Insights";
 import { LegTagsState, TagControls, TagEditor, TagSummary, typeLabel, useLegTags } from "./LegTags";
 import { PanelsOpen } from "./charts/ChartPanel";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
@@ -36,10 +36,11 @@ const MapView = lazy(() => import("./MapView"));
 /** Pestañas de la vista de carrera (#129). */
 export type RaceTab = "summary" | "legs" | "map" | "group" | "analysis";
 
-/** Pestaña donde está lo que justifica cada frase del resumen (#126). */
-const INSIGHT_TABS: Record<RaceInsightTarget, RaceTab> = {
-  legs: "legs",
-  gain_loss: "analysis",
+/** Pestaña y panel donde está lo que justifica cada frase del resumen (#126, #144). */
+const INSIGHT_PLACES: Record<RaceInsightTarget, InsightPlace<RaceTab>> = {
+  legs: { tab: "legs", panels: ["race-legs"] },
+  gain_loss: { tab: "analysis", panels: ["race-gain-loss"] },
+  race_breakdown: { tab: "analysis", panels: ["race-breakdown"] },
 };
 
 /** Tramos que salen en «Lo más caro» del resumen. */
@@ -121,6 +122,7 @@ function Detail({
     if (editing !== leg) setSelectedLeg(leg);
     setEditing((e) => (e === leg ? null : leg));
   };
+  const focus = useInsightFocus(INSIGHT_PLACES, tab, onTab);
   const { readOnly } = useViewer();
   const sharing = useRaceSharing(detail.result_id, !readOnly);
   const lost = detail.report.lost_time;
@@ -229,7 +231,7 @@ function Detail({
       <div className="tab-panel" role="tabpanel">
         {tab === "summary" && (
           <>
-            <Insights insights={detail.insights} onOpen={(target) => onTab(INSIGHT_TABS[target])} />
+            <Insights insights={detail.insights} focus={focus} />
             {pending > 0 && (
               <div className="notice notice-warning notice-action">
                 <div>
@@ -267,7 +269,7 @@ function Detail({
         )}
 
         {tab === "legs" && (
-          <div className="card card-flush">
+          <div className="card card-flush" data-panel="race-legs">
             <div className="card-title card-head">
               <h3>Tramos</h3>
               <span className="small muted">

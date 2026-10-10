@@ -40,7 +40,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos tramos con error quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). |
-| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe; `docs/frases.md`). |
+| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe y, con track, sobre el reparto de P2; `docs/frases.md`). |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
@@ -387,7 +387,10 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
 
 - **Resumen** (la de entrada):
   - arriba, el **resumen en frases** de la carrera (#126, `docs/frases.md`): como mucho tres
-    frases, cada una un enlace a la pestaña que la justifica (Tramos o Análisis). Las de pocos
+    frases, cada una un enlace al panel que la justifica (la tabla de Tramos, o en Análisis
+    los paneles de dónde gano y pierdo y de ¿lento o desorientado?): abre su pestaña, se
+    desplaza hasta el panel y lo resalta un momento; si el panel está oculto, avisa con
+    «Enseñar este panel» (#144, `docs/frases.md`, "Destinos"). Las de pocos
     datos llevan su aviso escrito al lado («con pocos tramos», «referencia débil»), no solo un
     color. Sin frases no se pinta el bloque. También al ver a un atleta;
   - si quedan errores sin revisar, un aviso con «Revisar ahora», que lleva a Tramos;
@@ -568,8 +571,9 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
   uno vuelve a pedir el histórico. «Quitar filtros» los borra.
 - **Resumen en frases** (#126, `docs/frases.md`): debajo de los filtros y encima de las cifras,
   como mucho tres frases que resumen lo importante con los filtros puestos («Fallas más en los
-  tramos largos…»). Cada una es un enlace a la pestaña de su análisis (`docs/frases.md`,
-  "Destinos"). Las de pocos datos llevan su aviso escrito al lado («con pocas carreras»…), no
+  tramos largos…»). Cada una es un enlace al panel de su análisis: abre su pestaña, se
+  desplaza hasta él y lo resalta un momento; si el panel está oculto, avisa con «Enseñar este
+  panel» (#144, `docs/frases.md`, "Destinos"). Las de pocos datos llevan su aviso escrito al lado («con pocas carreras»…), no
   solo un color. Sin frases no se pinta el bloque. También al ver a un atleta.
 - **Cifras** del total: carreras, IR medio (con la consistencia media debajo, P10), tasa de
   error y pérdida media por tramo.

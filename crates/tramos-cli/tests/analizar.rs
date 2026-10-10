@@ -126,6 +126,36 @@ fn output_matches_expected_json() {
     assert!(diffs.is_empty(), "diferencias:\n{}", diffs.join("\n"));
 }
 
+/// Las frases (`docs/frases.md`) van en el JSON, con y sin FIT. Los números, a mano: el error del
+/// tramo 9 pierde 283,6 s (4:44) de los 360,4 s (6:00) que se pierden en total, el 79 %; la racha
+/// del 7 al 10 son 4 tramos; y 2 de los 3 errores caen en el segundo tercio (tramos 8 a 14).
+#[test]
+fn insights_are_in_the_json() {
+    for args in [
+        vec!["--corredor", "143"],
+        vec!["--fit", &fit_path(), "--corredor", "143"],
+    ] {
+        let got = analyze_json(&args);
+        let insights = got["insights"].as_array().unwrap();
+        let rules: Vec<&str> = insights
+            .iter()
+            .map(|i| i["rule"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            rules,
+            ["concentrated_loss", "losing_streak", "errors_by_third"],
+            "{args:?}"
+        );
+        assert_eq!(
+            insights[0]["text"],
+            "Un solo tramo, el 9, se llevó el 79 % del tiempo perdido (4:44 de 6:00)."
+        );
+        assert_eq!(insights[0]["target"], "legs");
+        assert_eq!(insights[0]["few_data"], false);
+        assert_eq!(got["warnings"].as_array().unwrap().len(), 0);
+    }
+}
+
 /// Los números del corredor coinciden con los del oráculo de Python (no con la propia CLI).
 #[test]
 fn lost_time_matches_reference_oracle() {

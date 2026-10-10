@@ -48,7 +48,7 @@ export function ChartPanel({
       </button>
     ) : null;
   return (
-    <section className={open ? "chart-panel is-open" : "chart-panel"}>
+    <section className={open ? "chart-panel is-open" : "chart-panel"} data-panel={id}>
       <div className="chart-panel-head">
         {alwaysOpen ? (
           <div className="chart-panel-header is-static">

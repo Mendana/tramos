@@ -1,7 +1,7 @@
 //! Consistencia (P10 de `docs/preguntas.md`): la desviación típica de los `IR_i` de una carrera,
 //! ponderada por `ref_i`. Menor = más consistente. Ver `docs/tiempo-perdido.md`, "Consistencia".
 
-use crate::history::pattern_legs;
+use crate::history::{HistoryFilter, HistoryRace, pattern_legs};
 use crate::runner_report::RunnerLostTime;
 
 /// Tramos mínimos para que la consistencia tenga sentido: con uno solo siempre sería 0.
@@ -35,6 +35,22 @@ pub fn race_consistency(lost_time: &RunnerLostTime) -> Option<f64> {
         .filter_map(|leg| Some((leg.performance_index?, leg.reference_s?)))
         .collect();
     weighted_std_dev(&values)
+}
+
+/// La consistencia de cada carrera que pasa `filter` y que la tiene, de la más antigua a la más
+/// reciente (a igual fecha, en el orden en que vienen). Cuenta las mismas carreras que
+/// `mean_consistency` del histórico: las que tienen rendimiento habitual. Es la serie de la
+/// gráfica de consistencia y de la que sale la frase de P10 (`docs/frases.md`).
+pub fn consistency_series(races: &[HistoryRace], filter: &HistoryFilter) -> Vec<f64> {
+    let mut series: Vec<(chrono::NaiveDate, f64)> = races
+        .iter()
+        .filter(|r| filter.includes(r.date, r.format))
+        .filter(|r| r.lost_time.usual_performance.is_some())
+        .filter_map(|r| Some((r.date, r.lost_time.consistency?)))
+        .collect();
+    // Estable: a igual fecha se respeta el orden de entrada.
+    series.sort_by_key(|(date, _)| *date);
+    series.into_iter().map(|(_, c)| c).collect()
 }
 
 #[cfg(test)]
@@ -142,5 +158,48 @@ mod tests {
             leg(2, Some(1.3), 10.0, true),
         ];
         assert_eq!(race_consistency(&lost_time(legs)), None);
+    }
+
+    fn race(date: &str, consistency: Option<f64>, usual: Option<f64>) -> HistoryRace {
+        let mut lost = lost_time(Vec::new());
+        lost.consistency = consistency;
+        lost.usual_performance = usual;
+        HistoryRace {
+            date: date.parse().unwrap(),
+            format: None,
+            lost_time: lost,
+        }
+    }
+
+    #[test]
+    fn series_is_chronological_and_skips_races_without_a_value() {
+        // Entran fuera de orden. La de 2026-03-01 no tiene consistencia y la de 2026-04-01 no
+        // tiene rendimiento habitual: no cuentan, como en la media del histórico.
+        let races = [
+            race("2026-05-01", Some(0.30), Some(0.9)),
+            race("2026-01-01", Some(0.10), Some(0.9)),
+            race("2026-03-01", None, Some(0.9)),
+            race("2026-04-01", Some(0.40), None),
+            race("2026-02-01", Some(0.20), Some(0.9)),
+        ];
+        assert_eq!(
+            consistency_series(&races, &HistoryFilter::default()),
+            [0.10, 0.20, 0.30]
+        );
+    }
+
+    #[test]
+    fn series_respects_the_filter() {
+        let races = [
+            race("2026-01-01", Some(0.10), Some(0.9)),
+            race("2026-02-01", Some(0.20), Some(0.9)),
+            race("2026-03-01", Some(0.30), Some(0.9)),
+        ];
+        let filter = HistoryFilter {
+            from: Some("2026-02-01".parse().unwrap()),
+            to: Some("2026-02-28".parse().unwrap()),
+            format: None,
+        };
+        assert_eq!(consistency_series(&races, &filter), [0.20]);
     }
 }

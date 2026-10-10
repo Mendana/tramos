@@ -1,5 +1,6 @@
 //! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras, identidad,
-//! carpeta compartida, zonas de color del mapa y paneles de análisis ocultos.
+//! carpeta compartida, zonas de color del mapa, paneles de análisis ocultos y tema de la
+//! interfaz.
 //!
 //! Se guardan en la tabla de ajustes clave-valor de la base (`docs/almacenamiento.md`). Las
 //! claves y su efecto están en `docs/app.md`, "Ajustes".
@@ -49,6 +50,8 @@ pub const PACE_ZONES_KEY: &str = "map.pace_zones";
 pub const HEART_RATE_ZONES_KEY: &str = "map.heart_rate_zones";
 /// Paneles de análisis ocultos (JSON con la lista de sus identificadores, #130).
 pub const HIDDEN_PANELS_KEY: &str = "ui.hidden_panels";
+/// Tema de la interfaz: `system`, `light` o `dark` (#143).
+pub const THEME_KEY: &str = "ui.theme";
 
 /// Paneles ocultos mientras el usuario no elija: los que menos se miran (rachas limpias, pulso
 /// antes del error y esfuerzo percibido), para no abrumar de entrada.
@@ -104,6 +107,36 @@ pub struct MapSettings {
     pub pace_zones: Option<Zones>,
     /// En ppm.
     pub heart_rate_zones: Option<Zones>,
+}
+
+/// Tema de la interfaz (`docs/app.md`, "Apariencia").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    /// El del sistema operativo.
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Theme {
+    fn key(self) -> &'static str {
+        match self {
+            Theme::System => "system",
+            Theme::Light => "light",
+            Theme::Dark => "dark",
+        }
+    }
+
+    fn from_key(key: &str) -> Option<Theme> {
+        match key {
+            "system" => Some(Theme::System),
+            "light" => Some(Theme::Light),
+            "dark" => Some(Theme::Dark),
+            _ => None,
+        }
+    }
 }
 
 /// Cómo se usa la app, en la bienvenida (`docs/app.md`, "Primera vez").
@@ -285,6 +318,19 @@ pub fn set_hidden_panels(store: &mut Store, ids: &[String]) -> Result<(), Settin
     ids.dedup();
     store.set_setting(HIDDEN_PANELS_KEY, &serde_json::to_string(&ids)?)?;
     Ok(())
+}
+
+/// Tema de la interfaz. Sin nada guardado (o con algo que no se entiende), el del sistema.
+pub fn theme(store: &Store) -> Result<Theme, StoreError> {
+    Ok(store
+        .setting(THEME_KEY)?
+        .and_then(|v| Theme::from_key(&v))
+        .unwrap_or_default())
+}
+
+/// Guarda el tema de la interfaz.
+pub fn set_theme(store: &mut Store, theme: Theme) -> Result<(), StoreError> {
+    store.set_setting(THEME_KEY, theme.key())
 }
 
 /// Configuración del tiempo perdido con los umbrales guardados.
@@ -577,6 +623,25 @@ mod tests {
         // Un valor que no se entiende se trata como si no estuviera.
         store.set_setting(HIDDEN_PANELS_KEY, "no es json").unwrap();
         assert_eq!(hidden_panels(&store).unwrap(), defaults);
+    }
+
+    #[test]
+    fn theme_default_round_trip_and_unknown_value() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert_eq!(theme(&store).unwrap(), Theme::System);
+
+        for chosen in [Theme::Dark, Theme::Light, Theme::System] {
+            set_theme(&mut store, chosen).unwrap();
+            assert_eq!(theme(&store).unwrap(), chosen);
+        }
+        set_theme(&mut store, Theme::Dark).unwrap();
+        assert_eq!(store.setting(THEME_KEY).unwrap().as_deref(), Some("dark"));
+
+        // Un valor que no se entiende vuelve al del sistema.
+        store.set_setting(THEME_KEY, "sepia").unwrap();
+        assert_eq!(theme(&store).unwrap(), Theme::System);
+        // Elegir un tema no toca los demás ajustes.
+        assert_eq!(load(&store).unwrap().time_zone, "Europe/Madrid");
     }
 
     #[test]

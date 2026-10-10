@@ -1646,6 +1646,19 @@
   font-size: var(--text-md);
 }
 
+/* Panel al que lleva una frase (#144): al llegar se resalta un momento. */
+
+[data-panel] {
+  scroll-margin-top: calc(var(--topbar-height) + var(--space-4));
+}
+
+[data-panel].is-highlighted {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+  box-shadow: var(--focus);
+}
+
 .insight-caveat {
   margin-left: var(--space-2);
   vertical-align: middle;
@@ -1658,6 +1671,7 @@
   gap: var(--space-1);
   color: var(--accent);
   font-weight: 600;
+}
 
 /* --- Ayuda (docs/app.md, "Ayuda") --- */
 
@@ -1752,6 +1766,7 @@
   .help-index-label {
     width: 100%;
   }
+}
 
 /* Casilla con su explicación debajo (Ajustes). */
 .check-block {

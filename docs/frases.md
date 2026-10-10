@@ -6,19 +6,21 @@ ejemplo: «Fallas más en los tramos largos (de 4 a 8 min): el 40 % son error, f
 media».
 
 Implementado en `tramos_core::insights`. La app las recibe hechas en los comandos `history` y
-`race_detail` (`docs/app.md`) y no calcula nada: solo las enseña y enlaza.
+`race_detail` (`docs/app.md`) y no calcula nada: solo las enseña y enlaza. La CLI las da en la
+clave `insights` de `tramos analizar` (`docs/cli.md`).
 
 ## Principios
 
 - **Sobre los análisis que ya existen.** Las reglas no recalculan nada: comparan con un umbral los
-  números que ya dan P1, P2, P5, P6, P7, P8, P9, P11 y P13 (`docs/preguntas.md`), con sus
+  números que ya dan P1, P2, P5, P6, P7, P8, P9, P10, P11 y P13 (`docs/preguntas.md`), con sus
   definiciones (`docs/historico.md`, `docs/tiempo-perdido.md`). Por eso las frases del histórico
   respetan los filtros: salen de los mismos análisis, con el mismo filtro.
 - **Como mucho 3 frases**, las más importantes (`MAX_INSIGHTS`, decisión de #126).
 - **Con pocos datos la frase sale, pero con aviso** («con pocas carreras», decisión de #126). Cada
   regla tiene dos mínimos: por debajo del **mínimo** no sale; entre el mínimo y el **suficiente**
   sale marcada (`few_data`) con su aviso (`caveat`).
-- **Cada frase enlaza a la vista que la justifica** (`target`): el análisis que la enseña entero.
+- **Cada frase enlaza al panel que la justifica** (`target`): el análisis que la enseña entero
+  (#144; abajo, "Destinos").
 - **Los umbrales entran**: «al menos 10 puntos» incluye justo 10 (con una tolerancia de 10⁻⁹
   para que el redondeo binario no deje fuera el caso justo).
 
@@ -69,6 +71,7 @@ filtro) y la taxonomía para el nombre de los tipos de error.
 | 5 | `slope` | P13, `by_slope` | El IR de la peor clase (subida o bajada) está ≥ 10 puntos por debajo del llano. | 5 tramos en la clase y en llano (a igual IR, la subida). | 5 carreras con track y 10 tramos en las dos clases. | `slope` |
 | 6 | `format` | P6, `history.by_format` | La tasa de error del peor formato es claramente mayor que la del mejor. | Dos formatos con ≥ 2 carreras cada uno (con filtro de formato no sale; las carreras sin formato no cuentan). | 5 carreras en los dos. | `formats` |
 | 7 | `days_off` | P11, `days_off` y el IR medio del total | El IR de entrada (tres primeros tramos) del peor cubo de **más de 7 días** está ≥ 10 puntos por debajo del IR medio del total (la misma referencia que el panel). | 2 carreras y 5 tramos de entrada en el cubo. | 5 carreras en el cubo. | `days_off` |
+| 8 | `consistency` | P10, la serie de consistencia de cada carrera (`consistency::consistency_series`) | La consistencia media de las **3 últimas carreras** cambia, frente a la media de las anteriores, al menos 5 puntos de IR **y** una quinta parte de la anterior. | 5 carreras con consistencia (las 3 últimas y al menos 2 anteriores). | 8 carreras («con pocas carreras»). | `consistency` |
 
 Textos (los números entre llaves salen de cada caso):
 
@@ -90,12 +93,21 @@ Textos (los números entre llaves salen de cada caso):
   {10 %}.»
 - `days_off`: «Tras {entre 15 y 30 | más de 30} días sin competir entras peor en mapa: rindes al
   {80 %} en los tres primeros tramos, frente a tu {92 %} de media.»
+- `consistency`, según el sentido (menos consistencia = más regular):
+  - mejora: «Cada vez eres más regular: en tus últimas 3 carreras tu IR varía ± {10 %} de un
+    tramo a otro, frente a ± {20 %} antes.»
+  - empeora: «Eres menos regular que antes: en tus últimas 3 carreras tu IR varía ± {20 %} de un
+    tramo a otro, frente a ± {10 %} antes.»
 
 **Por qué** solo los cubos de más de 7 días en `days_off`: la pregunta es por el descanso; entrar
 peor compitiendo seguido no es lo que pregunta P11. **Por qué** errores *con tipo* en
 `common_error`: si la mitad de los errores no tiene tipo, «el 30 % de tus errores» escondería que
-casi todos los que tienen tipo son del mismo; la frase dice sobre cuántos se apoya. P10
-(consistencia) y P14 (cansancio, dato débil) no tienen frase por ahora.
+casi todos los que tienen tipo son del mismo; la frase dice sobre cuántos se apoya.
+**Por qué** una tendencia en `consistency`: la consistencia de una sola carrera no dice nada
+sin algo con lo que compararla, y la de la media del histórico ya está en las cifras; lo que
+cuenta es si las últimas carreras se parecen a las de antes. Por eso es la última en prioridad
+(evolución, no un fallo que entrenar). La serie sale de las carreras con el mismo filtro y se
+ordena por fecha. P14 (cansancio, dato débil) no tiene frase por ahora.
 
 ## Reglas de la carrera
 
@@ -111,9 +123,15 @@ llevan todas sus frases.
 | --- | --- | --- | --- | --- |
 | 1 | `clean_race` | P1, `error_count` | Ningún error. | `legs` |
 | 2 | `concentrated_loss` | P1, los tramos con error y `lost_time_s` | El tramo con error más caro se lleva ≥ 50 % del tiempo perdido y hay al menos 2 errores; o, si no, los dos más caros, y hay al menos 3 errores. Con un solo error no sale: sería obvio. | `legs` |
-| 3 | `losing_streak` | P5, `losing_streaks` | La racha perdiendo más cara tiene ≥ 3 tramos y ≥ 30 s. | `gain_loss` |
-| 4 | `errors_by_third` | P1, los tramos con error y los tercios de `history::race_third` | Al menos 3 errores y ≥ 2/3 de ellos en el mismo tercio (por número de tramos del recorrido, como P11 y P14). | `legs` |
+| 3 | `race_breakdown` | P2, `RaceBreakdown.errors` (solo con track) | Una parte (desvío, paradas o ritmo) es ≥ 50 % de la pérdida de los errores repartidos de la carrera, y hay al menos 2 errores repartidos y pérdida > 0. Sin track no sale. | `race_breakdown` |
+| 4 | `losing_streak` | P5, `losing_streaks` | La racha perdiendo más cara tiene ≥ 3 tramos y ≥ 30 s. | `gain_loss` |
+| 5 | `errors_by_third` | P1, los tramos con error y los tercios de `history::race_third` | Al menos 3 errores y ≥ 2/3 de ellos en el mismo tercio (por número de tramos del recorrido, como P11 y P14). | `legs` |
 
+`race_breakdown` va tercera: dice **cómo** se pierde (por pararte, por desviarte o por ir más
+lento), que se entrena más directamente que cuándo llegaron los errores. Es una frase de pocos
+datos (aviso «con pocos errores») con menos de 4 errores repartidos; si la carrera tiene un aviso
+propio (referencia débil o pocos tramos), va ese. `race_insights(report, breakdown)` recibe el
+reparto de `loss_breakdown::race_breakdown` (`None` sin track).
 Textos:
 
 - `clean_race`: «Carrera limpia: no fallaste en ningún tramo.»
@@ -122,30 +140,46 @@ Textos:
   {2:40}).»
 - `losing_streak`: «Del tramo {2} al {4} encadenaste {3} tramos perdiendo tiempo: {0:37} en
   total.»
+- `race_breakdown`, según la parte: «En esta carrera la mayor parte de lo perdido en tus errores
+  fue {por desviarte: el {75 %} ({1:30} de {2:00}) es por correr de más | por pararte: el
+  {67 %} ({1:40} de {2:30}) es tiempo parado | por ir más lento: el {83 %} ({1:40} de {2:00}) es
+  ritmo, no desvío ni paradas}.»
 - `errors_by_third`: «La mayoría de tus errores ({3} de {4}) llegaron {al principio de la carrera
   (primer tercio) | en la mitad de la carrera (segundo tercio) | al final de la carrera (último
   tercio)}.»
 
 ## Destinos
 
-`target` es el análisis que justifica la frase. La app sabe dónde está cada uno:
+`target` es el análisis que justifica la frase. La app sabe en qué pestaña y en qué **panel**
+está cada uno (#144). Al pulsar una frase abre la pestaña, se desplaza hasta el panel y lo
+resalta un momento (sin movimiento si el sistema pide menos animación). Si ese panel está oculto
+(`docs/app.md`, "Gráficas"), no se enseña solo: sale un aviso con el botón «Enseñar este panel»,
+que lo muestra y se desplaza hasta él.
 
-| `target` | Pantalla | Pestaña |
-| --- | --- | --- |
-| `formats` | Estadísticas | Resumen |
-| `leg_length`, `common_errors`, `slope`, `loss_breakdown` | Estadísticas | ¿Dónde fallo? |
-| `days_off` | Estadísticas | ¿Cómo evoluciono? |
-| `after_error` | Estadísticas | Cabeza y piernas |
-| `legs` | Carrera | Tramos |
-| `gain_loss` | Carrera | Análisis |
+| `target` | Pantalla | Pestaña | Panel (id) |
+| --- | --- | --- | --- |
+| `formats` | Estadísticas | Resumen | Tasa de error por formato (`format-error-rate`) |
+| `leg_length` | Estadísticas | ¿Dónde fallo? | Pérdida según duración del tramo (`leg-length`) |
+| `common_errors` | Estadísticas | ¿Dónde fallo? | Tipos de error (`common-errors`) |
+| `slope` | Estadísticas | ¿Dónde fallo? | IR medio según desnivel (`slope-performance`) |
+| `loss_breakdown` | Estadísticas | ¿Dónde fallo? | De qué está hecha la pérdida de tus errores (`breakdown`) |
+| `days_off` | Estadísticas | ¿Cómo evoluciono? | IR al entrar en mapa (`days-off-entry`) |
+| `consistency` | Estadísticas | ¿Cómo evoluciono? | Consistencia por carrera (`consistency`) |
+| `after_error` | Estadísticas | Cabeza y piernas | ¿Un error trae otro? (`after-error`) |
+| `legs` | Carrera | Tramos | La tabla de tramos (no se oculta) |
+| `gain_loss` | Carrera | Análisis | Dónde gano y dónde pierdo (`race-gain-loss`) |
+| `race_breakdown` | Carrera | Análisis | ¿Lento o desorientado? (`race-breakdown`) |
 
 ## Tests
 
 En `crates/tramos-core/src/insights.rs`, con datos sintéticos y números calculados a mano: cada
 regla tiene un test que la dispara, otro que no y otro con pocos datos. Además: que salen como
 mucho 3 y por prioridad, que las de pocos datos van detrás, que los umbrales entran y la forma
-JSON. En la app (`app/src-tauri`), que el comando `history` da las frases de sus análisis con el
-mismo filtro (y ninguna si el filtro no deja carreras) y que `race_detail` da las de su informe.
+JSON. En `consistency.rs`, que la serie de P10 va por fecha, salta las carreras sin valor y
+respeta el filtro. En la app (`app/src-tauri`), que el comando `history` da las frases de sus
+análisis con el mismo filtro (y ninguna si el filtro no deja carreras) y que `race_detail` da las
+de su informe y, con track, de su reparto de P2. En la CLI (`crates/tramos-cli/tests/analizar.rs`),
+que `insights` sale en el JSON.
 
 Ejemplos (los de los tests):
 
@@ -155,5 +189,11 @@ Ejemplos (los de los tests):
 - `concentrated_loss`: errores de 60, 50, 30 y 20 s (2:40). El más caro es el 37,5 %; los dos más
   caros, 110 s, el 68,75 % → «Dos tramos, el 3 y el 7, se llevaron el 69 %…». Cinco errores de
   40 s: los dos más caros son el 40 % → no sale.
+- `race_breakdown`: 4 errores que suman 200 s, 140 de ellos parado (70 %) → «…por pararte: el
+  70 % (2:20 de 3:20) es tiempo parado». Reparto 50/40/30 de 120 s (el mayor, 42 %) → no sale.
+  Con 2 errores y un 50 % justo → sale con «con pocos errores».
+- `consistency`: cinco carreras al 20 % y las tres últimas al 10 % → cambio de 10 puntos, la
+  mitad → «Cada vez eres más regular…». 40 % a 35 %: 5 puntos pero menos de una quinta parte
+  (8 puntos) → no sale. Con 5 carreras sale «con pocas carreras»; con 4, no.
 - `errors_by_third`: 12 tramos (tercios 1–4, 5–8 y 9–12) con errores en 2, 9, 10 y 12 → 3 de 4 al
   final → sale. Uno en cada tercio → no sale.

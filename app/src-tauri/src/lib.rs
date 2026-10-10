@@ -152,6 +152,18 @@ fn set_hidden_panels(state: tauri::State<'_, AppState>, ids: Vec<String>) -> Res
     settings::set_hidden_panels(&mut *state.store()?, &ids).map_err(|e| e.to_string())
 }
 
+/// Tema de la interfaz (#143): `system`, `light` o `dark`.
+#[tauri::command]
+fn theme(state: tauri::State<'_, AppState>) -> Result<settings::Theme, String> {
+    settings::theme(&*state.store()?).map_err(|e| e.to_string())
+}
+
+/// Guarda el tema de la interfaz. Se aplica al momento, sin pasar por `save_settings`.
+#[tauri::command]
+fn set_theme(state: tauri::State<'_, AppState>, theme: settings::Theme) -> Result<(), String> {
+    settings::set_theme(&mut *state.store()?, theme).map_err(|e| e.to_string())
+}
+
 /// Si ya se ha dicho cómo se usa la app (corre, entrena o las dos cosas). Al instalar, no: la
 /// app lo pregunta.
 #[tauri::command]
@@ -535,6 +547,8 @@ pub fn run() -> tauri::Result<()> {
             check_zones,
             hidden_panels,
             set_hidden_panels,
+            theme,
+            set_theme,
             role_chosen,
             choose_role,
             coach_runners,

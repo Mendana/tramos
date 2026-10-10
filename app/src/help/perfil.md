@@ -13,20 +13,21 @@ Quién eres y qué compartes. Se guarda en tu equipo con **Guardar**.
 
 - **Compartir mis carreras**: con la casilla marcada, tus carreras se dejan en la carpeta
   compartida. Si la quitas, las que ya están se quedan.
-- **Carpeta compartida**: una carpeta sincronizada (Drive, OneDrive, Dropbox…) que también tiene
-  quien te entrena. Sin carpeta no se comparte nada. Si tú también entrenas, es la misma carpeta
-  de la que te llegan las carreras de tus atletas.
+- **Carpeta compartida**: tu subcarpeta de la carpeta madre de quien te entrena (Drive, OneDrive,
+  Dropbox…), la que ha compartido solo contigo. Sin carpeta no se comparte nada. Si tú también
+  entrenas, es la misma carpeta de la que te llegan las carreras de tus atletas: elige la carpeta
+  madre y tus paquetes quedan en su raíz.
 - **Qué se comparte por defecto** de cada carrera: nada, el resumen, los tramos (lo normal) o el
   track completo. En cada carrera lo puedes cambiar.
 
 Al guardar con carpeta, la app deja en ella todas tus carreras con lo que hayas elegido. A partir
 de ahí, cada cambio (importar, etiquetar un tramo, cambiar el formato…) se comparte solo.
 
-> Quien te entrena ha compartido contigo la carpeta «Tramos grupo» de su Drive: la eliges aquí y
-> dejas «tramos» por defecto. En la carrera en la que el reloj te grabó también el calentamiento
+> Quien te entrena ha compartido contigo la subcarpeta «Ana» de su carpeta «Tramos grupo» de
+> Drive: la eliges aquí y dejas «tramos» por defecto. En la carrera en la que el reloj te grabó también el calentamiento
 > por el barrio eliges «resumen», para no compartir ni el pulso ni el GPS.
 
-Quien tenga acceso a la carpeta puede leer lo que dejes en ella, también otros corredores si la
-carpeta es de todo el grupo.
+Quien tenga acceso a la carpeta puede leer lo que dejes en ella. Si es tu subcarpeta, solo tú y
+quien te entrena; si la carpeta es de todo el grupo, también los demás corredores.
 
 Qué lleva cada nivel y qué ve quien te entrena: [Compartir](compartir.md).

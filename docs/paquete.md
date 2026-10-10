@@ -78,7 +78,7 @@ algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene e
   buena. Uno idéntico al guardado no cambia nada. Reimportar nunca duplica.
 - Sustituir vale también para bajar de nivel: si el corredor reexporta con `aggregates` una
   carrera que había compartido con `track`, el track desaparece de la app de la entrenadora.
-- Qué hace la app de quien entrena con los paquetes (selector de atleta y vistas en solo
+- Qué hace la app de quien entrena con los paquetes (Mis atletas, novedades y vistas en solo
   lectura) está en `docs/app.md`, "Atletas" (#37, #119).
 
 ## Carpeta compartida (#36)

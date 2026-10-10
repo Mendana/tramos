@@ -1,13 +1,13 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import {
-  CoachRunner,
+  AthleteNews,
   RaceRow,
   ReceiveReport,
   Role,
   RunnerViewInfo,
   SharingSettings,
+  athleteNews,
   chooseRole,
-  coachRunners,
   coreVersion,
   getSettings,
   getTheme,
@@ -17,6 +17,7 @@ import {
   viewRunner,
   viewedRunner,
 } from "./api";
+import AthletesScreen from "./AthletesScreen";
 import GroupScreen from "./GroupScreen";
 import GroupsScreen from "./GroupsScreen";
 import CompareGroupsScreen from "./CompareGroupsScreen";
@@ -36,6 +37,7 @@ import Welcome from "./Welcome";
 import { applyTheme } from "./theme";
 import { ViewerContext } from "./viewer";
 import {
+  AthletesIcon,
   ChartIcon,
   ChevronLeft,
   ControlFlag,
@@ -110,6 +112,7 @@ export type Screen =
   | { kind: "races" }
   | { kind: "race"; resultId: number; tab?: RaceTab }
   | { kind: "history" }
+  | { kind: "athletes" }
   | { kind: "group"; groupId?: number }
   | { kind: "groups" }
   | { kind: "compare-groups" }
@@ -196,6 +199,8 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
       }
       case "history":
         return [{ label: "Estadísticas" }];
+      case "athletes":
+        return [{ label: "Mis atletas" }];
       case "group":
         return [{ label: "Comparar atletas" }];
       case "groups":
@@ -219,6 +224,7 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
   })();
   // Se ve a un atleta: su nombre va delante, salvo en lo que es de todos.
   const general =
+    screen.kind === "athletes" ||
     screen.kind === "group" ||
     screen.kind === "groups" ||
     screen.kind === "compare-groups" ||
@@ -309,8 +315,8 @@ function App() {
   const [historyTab, setHistoryTab] = useState<HistoryTab>("summary");
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [sharing, setSharing] = useState<SharingSettings | null>(null);
-  // Si entrena: sus atletas y el que se está viendo (`null` = lo propio, editable).
-  const [runners, setRunners] = useState<CoachRunner[]>([]);
+  // Si entrena: lo nuevo de cada atleta y el que se está viendo (`null` = lo propio, editable).
+  const [news, setNews] = useState<AthleteNews[]>([]);
   const [runner, setRunner] = useState<RunnerViewInfo | null>(null);
   // Errores por revisar de lo propio: `races` es de quien se ve.
   const [unreviewed, setUnreviewed] = useState(0);
@@ -326,16 +332,20 @@ function App() {
       .catch((err: unknown) => setError(String(err)));
   }, []);
 
+  const loadNews = useCallback(() => {
+    athleteNews()
+      .then(setNews)
+      .catch((err: unknown) => setError(String(err)));
+  }, []);
+
   // Ha llegado algo por la carpeta: el atleta que se ve ya está al día en el núcleo.
   const onReceived = useCallback(() => {
-    coachRunners()
-      .then(setRunners)
-      .catch((err: unknown) => setError(String(err)));
+    loadNews();
     viewedRunner()
       .then(setRunner)
       .catch((err: unknown) => setError(String(err)));
     refresh();
-  }, [refresh]);
+  }, [refresh, loadNews]);
   const receiving = useReceivePackages(sharing, onReceived);
 
   useEffect(() => {
@@ -366,6 +376,8 @@ function App() {
       viewRunner(runnerId)
         .then((info) => {
           setRunner(info);
+          // Al entrar en un atleta, sus novedades se quedan a cero.
+          if (runnerId !== null) loadNews();
           // Las pantallas anteriores y los filtros eran de otra base.
           setPrevious([]);
           setRaceList(RACE_LIST_START);
@@ -374,25 +386,26 @@ function App() {
         })
         .catch((err: unknown) => setError(String(err)));
     },
-    [refresh],
+    [refresh, loadNews],
   );
 
-  // Si entrena, sus atletas; si deja de entrenar, ya no se ve a nadie.
+  // Si entrena, lo nuevo de sus atletas; si deja de entrenar, ya no se ve a nadie.
   useEffect(() => {
     if (!coach) {
-      setRunners([]);
+      setNews([]);
       setRunner(null);
       setScreen((s) =>
-        s.kind === "group" || s.kind === "groups" || s.kind === "compare-groups"
+        s.kind === "athletes" ||
+        s.kind === "group" ||
+        s.kind === "groups" ||
+        s.kind === "compare-groups"
           ? { kind: "home" }
           : s,
       );
       return;
     }
-    coachRunners()
-      .then(setRunners)
-      .catch((err: unknown) => setError(String(err)));
-  }, [coach]);
+    loadNews();
+  }, [coach, loadNews]);
 
   const choose = (role: Role) => {
     chooseRole(role)
@@ -451,6 +464,7 @@ function App() {
   const openHelp = (page: HelpPageId) => navigate({ kind: "help", page });
   // Lo que se ve de un atleta (y lleva la franja de solo lectura).
   const athleteScreen = viewing && at("races", "race", "history");
+  const newRaces = news.reduce((n, a) => n + a.new_races.length, 0);
 
   return (
     <ViewerContext.Provider value={viewer}>
@@ -495,15 +509,19 @@ function App() {
               </NavSection>
               {coach && (
                 <NavSection label="Atletas" tour="athletes">
-                  <RunnerPicker
-                    runners={runners}
-                    current={runner?.runner.runner_id ?? null}
-                    onChange={(id) =>
-                      selectRunner(id, at("history") ? { kind: "history" } : { kind: "races" })
-                    }
+                  <NavItem
+                    icon={<AthletesIcon />}
+                    label="Mis atletas"
+                    current={at("athletes")}
+                    count={newRaces}
+                    countLabel={`${newRaces} ${newRaces === 1 ? "carrera nueva" : "carreras nuevas"}`}
+                    onClick={() => goTo("athletes")}
                   />
-                  {viewing && (
+                  {viewing && runner !== null && (
                     <>
+                      <span className="nav-runner small" title="El atleta que estás viendo">
+                        {runner.runner.display_name || "Sin nombre"}
+                      </span>
                       <NavItem
                         icon={<ListIcon />}
                         label="Carreras"
@@ -599,10 +617,13 @@ function App() {
               {screen.kind === "home" && !viewing && (
                 <Home
                   races={races}
+                  news={coach ? news : null}
                   onOpen={openRace}
                   onImport={showImport}
                   onRaces={showRaces}
                   onHistory={() => goTo("history")}
+                  onAthletes={() => goTo("athletes")}
+                  onOpenRunner={(runnerId) => selectRunner(runnerId, { kind: "races" })}
                 />
               )}
               {screen.kind === "races" && (
@@ -630,6 +651,11 @@ function App() {
                   onTab={setHistoryTab}
                   onImport={showImport}
                   onOpen={openRace}
+                />
+              )}
+              {screen.kind === "athletes" && coach && (
+                <AthletesScreen
+                  onOpenRunner={(runnerId) => selectRunner(runnerId, { kind: "races" })}
                 />
               )}
               {screen.kind === "group" && coach && (
@@ -682,34 +708,6 @@ function App() {
         )}
       </PanelVisibilityProvider>
     </ViewerContext.Provider>
-  );
-}
-
-/** De qué atleta se ven las carreras; sin elegir, se ve lo propio. */
-function RunnerPicker({
-  runners,
-  current,
-  onChange,
-}: {
-  runners: CoachRunner[];
-  current: string | null;
-  onChange: (runnerId: string) => void;
-}) {
-  if (runners.length === 0) {
-    return <p className="small muted runner-picker">Aún no ha llegado nada de tus atletas.</p>;
-  }
-  return (
-    <label className="field runner-picker">
-      <span className="field-label">Ver a</span>
-      <select className="select" value={current ?? ""} onChange={(e) => onChange(e.target.value)}>
-        {current === null && <option value="">Elige un atleta…</option>}
-        {runners.map((r) => (
-          <option key={r.runner_id} value={r.runner_id}>
-            {r.display_name === "" ? "Sin nombre" : r.display_name} ({r.races})
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

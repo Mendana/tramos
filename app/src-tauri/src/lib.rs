@@ -30,7 +30,7 @@ use tramos_store::{AthleteGroupId, SaveOutcome, Store};
 
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
-use crate::coach::{CoachRunner, GroupView, RunnerView, RunnerViewInfo};
+use crate::coach::{AthleteCard, AthleteNews, CoachRunner, GroupView, RunnerView, RunnerViewInfo};
 use crate::groups::{GroupFields, GroupsView};
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
@@ -198,6 +198,18 @@ fn coach_runners(state: tauri::State<'_, AppState>) -> Result<Vec<CoachRunner>, 
     coach::coach_runners(&*state.store()?).map_err(|e| e.to_string())
 }
 
+/// Si entrena, lo nuevo de cada atleta desde la última vez que se entró en él (#142).
+#[tauri::command]
+fn athlete_news(state: tauri::State<'_, AppState>) -> Result<Vec<AthleteNews>, String> {
+    coach::athlete_news(&*state.coach_store()?).map_err(|e| e.to_string())
+}
+
+/// Si entrena, las tarjetas de Mis atletas (#142): una por atleta.
+#[tauri::command]
+fn athlete_cards(state: tauri::State<'_, AppState>) -> Result<Vec<AthleteCard>, String> {
+    coach::athlete_cards(&*state.coach_store()?).map_err(|e| e.to_string())
+}
+
 /// Si entrena, vista de grupo (P15): una fila por atleta y todos contra todos; con «Incluirme»,
 /// también las carreras propias. Con `group`, solo los miembros de ese grupo de atletas.
 #[tauri::command]
@@ -288,18 +300,19 @@ fn viewed_runner(state: tauri::State<'_, AppState>) -> Result<Option<RunnerViewI
 }
 
 /// Elige el atleta que se ve; `null` vuelve a lo propio. A partir de ahí las vistas de
-/// corredor muestran sus carreras, en solo lectura. Devuelve lo que no sale en ellas.
+/// corredor muestran sus carreras, en solo lectura, y sus novedades se quedan a cero. Devuelve lo
+/// que no sale en ellas.
 #[tauri::command]
 fn view_runner(
     state: tauri::State<'_, AppState>,
     runner_id: Option<String>,
 ) -> Result<Option<RunnerViewInfo>, String> {
-    let store = state.store()?;
+    let mut store = state.store()?;
     if runner_id.is_some() && !coach::is_coach(&store).map_err(|e| e.to_string())? {
         return Err("solo quien entrena ve las carreras de otros atletas".to_string());
     }
     let view = runner_id
-        .map(|id| coach::runner_view(&store, &id))
+        .map(|id| coach::enter_runner(&mut store, &id))
         .transpose()
         .map_err(|e| e.to_string())?;
     let info = view.as_ref().map(RunnerView::info);
@@ -478,11 +491,12 @@ fn receive_packages(state: tauri::State<'_, AppState>) -> Result<ReceiveReport, 
         .map_err(|_| "la carpeta compartida quedó bloqueada por un error anterior".to_string())?;
     let store = &mut *state.store()?;
     let report = sharing::receive(store, &mut seen).map_err(|e| e.to_string())?;
-    // Si ha llegado algo, el corredor que se está viendo se vuelve a volcar.
+    // Si ha llegado algo, el corredor que se está viendo se vuelve a volcar; como se está
+    // viendo, lo suyo no queda como novedad.
     if report.created + report.replaced > 0 {
         let mut viewed = state.viewed()?;
         if let Some(id) = viewed.as_ref().map(|v| v.runner.runner_id.clone()) {
-            *viewed = Some(coach::runner_view(store, &id).map_err(|e| e.to_string())?);
+            *viewed = Some(coach::enter_runner(store, &id).map_err(|e| e.to_string())?);
         }
     }
     Ok(report)
@@ -552,6 +566,8 @@ pub fn run() -> tauri::Result<()> {
             role_chosen,
             choose_role,
             coach_runners,
+            athlete_news,
+            athlete_cards,
             view_runner,
             viewed_runner,
             tour_seen,

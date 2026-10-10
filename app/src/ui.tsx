@@ -92,6 +92,20 @@ export function GroupIcon(props: IconProps) {
   );
 }
 
+/** Tres personas: Mis atletas. */
+export function AthletesIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="7.5" r="2.8" />
+      <path d="M7 19a5 5 0 0 1 10 0" />
+      <circle cx="5.5" cy="9.5" r="2" />
+      <path d="M2.5 17.5a3.5 3.5 0 0 1 3.5-3.2" />
+      <circle cx="18.5" cy="9.5" r="2" />
+      <path d="M21.5 17.5a3.5 3.5 0 0 0-3.5-3.2" />
+    </Svg>
+  );
+}
+
 export function UploadIcon(props: IconProps) {
   return (
     <Svg {...props}>

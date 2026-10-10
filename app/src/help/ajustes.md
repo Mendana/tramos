@@ -45,5 +45,14 @@ eliges también la carpeta compartida de la que llegan: la carpeta madre, con un
 atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)).
 Ver [Compartir](compartir.md).
 
+## Versión
+
+La versión de Tramos que tienes. La app mira al arrancar si hay una nueva y, si la hay, te avisa
+arriba, en cualquier pantalla: **Instalar y reiniciar** la descarga y la instala, y la app se
+vuelve a abrir sola; **Más tarde** la deja para el próximo arranque. Nunca se instala sin que lo
+pidas. Tus carreras y ajustes se quedan como están. Con **Buscar actualizaciones** lo miras cuando
+quieras. Para buscarla hace falta conexión: la app pregunta a GitHub, donde se publica Tramos, y
+no le manda nada tuyo.
+
 Detalle técnico:
 [app, «Ajustes»](https://github.com/Mendana/tramos/blob/main/docs/app.md#ajustes).

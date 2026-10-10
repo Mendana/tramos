@@ -49,6 +49,12 @@
   deducir por dónde se ha corrido, aunque no el recorrido exacto ni el pulso. No se envía nada
   más (ni track, ni nombres, ni tiempos). Si una carrera no tiene track, no se pide ninguna
   tesela. Las teselas quedan en la caché del navegador del sistema según sus cabeceras.
+- **Actualizaciones** (#40, `docs/distribucion.md`). Al arrancar, y al pulsar «Buscar
+  actualizaciones» en Ajustes, la app pide `latest.json` a GitHub
+  (`https://github.com/Mendana/tramos/releases/latest/download/latest.json`) y, si se acepta
+  instalar, descarga el instalador de la misma release. La petición la hace el núcleo de Tauri
+  (Rust), no la ventana, así que no pasa por la CSP. GitHub ve la IP del equipo y que se usa
+  Tramos; no se envía ningún dato de carreras, ni nombres, ni la versión instalada en la URL.
 - El enlace de la atribución de OSM se abre en el navegador del sistema; la app solo puede
   abrir URL de `https://www.openstreetmap.org/` y de los documentos del repositorio
   (`https://github.com/Mendana/tramos/blob/main/`), a los que enlaza la Ayuda. La Ayuda va dentro

@@ -27,6 +27,9 @@ tramos-store = { path = "../../crates/tramos-store" }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+# Actualizaciones desde las releases de GitHub (docs/distribucion.md) y reinicio tras instalarlas.
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
 chrono = { version = "0.4", default-features = false, features = ["serde", "std"] }
 chrono-tz = "0.10"
 serde = { version = "1", features = ["derive"] }

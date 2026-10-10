@@ -55,10 +55,14 @@ jobs:
         run: npm ci
 
       # Compila el frontend (beforeBuildCommand) y la app, y genera los instaladores NSIS (.exe)
-      # y MSI de bundle.targets.
+      # y MSI de bundle.targets. Con createUpdaterArtifacts, los firma con la clave de
+      # actualizaciones y sube `latest.json`, que es lo que consulta la app instalada para saber si
+      # hay versión nueva (docs/distribucion.md, "Actualizaciones").
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}
@@ -69,5 +73,8 @@ jobs:
             El instalador aún no está firmado: Windows SmartScreen avisará de que la aplicación
             no es de un editor reconocido. Pulsa «Más información» y luego «Ejecutar de todas
             formas».
+
+            Si ya tienes Tramos instalado, no hace falta descargar nada: la app te avisará al
+            arrancar de que hay versión nueva.
           releaseDraft: true
           prerelease: false

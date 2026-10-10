@@ -37,6 +37,8 @@ pub const COACH_KEY: &str = "athletes.enabled";
 pub const SHARE_OWN_KEY: &str = "sharing.share_own";
 /// En la vista de grupo, las carreras propias cuentan como un atleta más (`true`/`false`).
 pub const INCLUDE_SELF_KEY: &str = "athletes.include_self";
+/// Ya se ha terminado o saltado el recorrido guiado de la primera vez (`true`/`false`, #141).
+pub const TOUR_SEEN_KEY: &str = "ui.tour_seen";
 /// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
 pub const FOLDER_KEY: &str = "sharing.folder";
 /// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
@@ -279,6 +281,16 @@ pub fn include_self(store: &Store) -> Result<bool, StoreError> {
 /// Guarda si en la vista de grupo cuentan las carreras propias.
 pub fn set_include_self(store: &mut Store, include: bool) -> Result<(), StoreError> {
     set_flag(store, INCLUDE_SELF_KEY, include)
+}
+
+/// Si ya se ha visto el recorrido guiado (#141). Por defecto, no: sale tras la bienvenida.
+pub fn tour_seen(store: &Store) -> Result<bool, StoreError> {
+    Ok(flag(store, TOUR_SEEN_KEY)?.unwrap_or(false))
+}
+
+/// Guarda que se ha visto (o saltado) el recorrido guiado, para que no vuelva a salir solo.
+pub fn set_tour_seen(store: &mut Store, seen: bool) -> Result<(), StoreError> {
+    set_flag(store, TOUR_SEEN_KEY, seen)
 }
 
 /// Un ajuste `true`/`false`; `None` si no está o no se entiende.
@@ -568,6 +580,27 @@ mod tests {
         assert!(include_self(&store).unwrap());
         set_include_self(&mut store, false).unwrap();
         assert!(!include_self(&store).unwrap());
+    }
+
+    #[test]
+    fn the_tour_is_seen_once_and_saved() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert!(!tour_seen(&store).unwrap());
+        set_tour_seen(&mut store, true).unwrap();
+        assert!(tour_seen(&store).unwrap());
+        assert_eq!(
+            store.setting(TOUR_SEEN_KEY).unwrap().as_deref(),
+            Some("true")
+        );
+        // Elegir cómo se usa la app o guardar los ajustes no lo toca.
+        choose_role(&mut store, Role::Both).unwrap();
+        save(&mut store, &settings()).unwrap();
+        assert!(tour_seen(&store).unwrap());
+        // Un valor que no se entiende es no haberlo visto.
+        store.set_setting(TOUR_SEEN_KEY, "quizá").unwrap();
+        assert!(!tour_seen(&store).unwrap());
+        set_tour_seen(&mut store, false).unwrap();
+        assert!(!tour_seen(&store).unwrap());
     }
 
     #[test]

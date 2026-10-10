@@ -17,7 +17,12 @@ La primera pantalla del corredor: qué hay de nuevo y qué te queda por hacer. L
 - **Tu rendimiento**: una línea con tu rendimiento habitual en las 10 últimas carreras, de la más
   antigua a la más reciente.
 
-Sin carreras, la pantalla te invita a [importar](importar.md) la primera.
+- **Novedades de tus atletas**, si entrenas: los atletas con carreras nuevas desde la última vez
+  que entraste en ellos, cuántas y la más reciente. **Ver** entra en el atleta y sus nuevas
+  vuelven a cero; **Mis atletas** abre sus tarjetas ([Mis atletas](mis-atletas.md)).
+
+Sin carreras, la pantalla te invita a [importar](importar.md) la primera; si entrenas, debajo
+siguen las novedades de tus atletas.
 
 > Tu última carrera dice «Tiempo perdido 1:40 · 3 errores» y «Rendimiento 92 %», con «Tu media
 > 95 %». Has ido algo más lento que de costumbre y tres tramos se te torcieron. «Revisar 3

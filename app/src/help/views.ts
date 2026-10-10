@@ -15,6 +15,7 @@ const SCREEN_HELP: Record<Screen["kind"], HelpPageId> = {
   races: "mis-carreras",
   race: "carrera",
   history: "estadisticas",
+  athletes: "mis-atletas",
   group: "grupo",
   groups: "grupos",
   "compare-groups": "comparar-grupos",

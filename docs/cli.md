@@ -60,8 +60,9 @@ RFC 3339 y UTC, `null` lo que no se puede calcular):
 | `course` | `controls` (balizas sin salida ni meta), `classes` (categorías que comparten el recorrido: `index`, `id`, `name`), `valid_runners` (clasificados del recorrido) y `weak_reference`. |
 | `config` | `error_threshold_s`, `error_threshold_pct` e `ideal_time` (`sum_of_references` o `sum_of_best_splits`) con los que se ha calculado. |
 | `lost_time` | Totales del corredor y `legs[]` (abajo). |
+| `insights` | Resumen en frases de la carrera (`docs/frases.md`): como mucho tres, cada una con `rule`, `text`, `few_data`, `caveat` y `target`. Las mismas que la vista de carrera de la app. La de ¿lento o desorientado? (`race_breakdown`) solo sale con `--fit`; si el track no se puede trocear, la CLI sigue sin esa frase y lo avisa en `warnings`. |
 | `alignment` | Solo con `--fit`; `null` sin él (abajo). |
-| `warnings` | Avisos de la identificación, en español (normalmente vacío). |
+| `warnings` | Avisos de la identificación y del reparto de P2, en español (normalmente vacío). |
 
 `lost_time` reúne el `RunnerAnalysis` del corredor y las referencias del recorrido
 (`docs/tiempo-perdido.md`, "Salida"):
@@ -127,7 +128,7 @@ Ejemplo recortado (fixture público de Baltanás, M-SEN, tarjeta 143, con el FIT
 La salida completa está en `fixtures/cli/baltanas-msen-143.expected.json`.
 
 Todavía **no** incluye el corte del track en tramos (#11) ni las métricas del FIT por tramo
-(#13): las añade el PR de #13.
+(#13); con FIT, la CLI los usa por dentro solo para la frase de ¿lento o desorientado?.
 
 ## Salida en tabla
 

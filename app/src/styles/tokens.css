@@ -116,8 +116,13 @@
   --content-max: 1160px;
 }
 
+/*
+ * Tema oscuro (docs/app.md, "Apariencia"). Los mismos valores valen en dos casos: el usuario
+ * elige «Oscuro» (`data-theme="dark"` en <html>) o elige «Sistema» (sin `data-theme`) y el
+ * sistema es oscuro. Con `data-theme="light"` nunca. Si cambias un bloque, cambia el otro.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
 
     --bg: #141312;
@@ -169,4 +174,57 @@
     --side-active: #2e1b28;
     --side-line: #22252a;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #141312;
+  --surface: #1d1c1a;
+  --surface-sunken: #181716;
+  --surface-hover: #262422;
+  --border: #312e2a;
+  --border-strong: #45413b;
+  --text: #edeae4;
+  --text-muted: #a8a197;
+  --text-faint: #777168;
+
+  --accent: #e66db5;
+  --accent-hover: #f08cc7;
+  --accent-soft: #3a1f30;
+  --accent-text: #1d0d17;
+
+  --error: #f28a45;
+  --error-strong: #ffa366;
+  --error-soft: #3a2416;
+  --error-text: #1f1006;
+  --warning: #e0b23e;
+  --warning-soft: #352b14;
+  --success: #6cc690;
+  --success-soft: #1a3324;
+  --info: #86b4e3;
+  --info-soft: #1b2a3a;
+
+  --chart-series-1: #d45ca3;
+  --chart-series-2: #3987e5;
+  --chart-series-3: #0f8f62;
+  --chart-series-4: #c98500;
+  --chart-error: #dc7430;
+  --chart-muted: #7a756c;
+  --chart-grid: #2a2826;
+  --chart-axis: #45413b;
+  --chart-reference: #a8a197;
+  --chart-gain: #4f95d0;
+  --chart-loss: #dc7430;
+  --chart-line-neutral: #c9c3b8;
+  --chart-highlight: #33241a;
+
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-raised: 0 6px 20px rgb(0 0 0 / 45%);
+  --focus: 0 0 0 3px rgb(230 109 181 / 35%);
+
+  --side-bg: #0e0f11;
+  --side-hover: #1a1c20;
+  --side-active: #2e1b28;
+  --side-line: #22252a;
 }

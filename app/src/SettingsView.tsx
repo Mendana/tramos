@@ -4,11 +4,15 @@ import {
   SHARE_HINTS,
   SHARE_LABELS,
   ShareChoice,
+  Theme,
   getSettings,
+  getTheme,
   receivePackages,
   saveSettings,
+  setTheme,
   shareAll,
 } from "./api";
+import { THEMES, applyTheme } from "./theme";
 import { Notice, PageHeader } from "./ui";
 import { PANEL_GROUPS, usePanelVisibility } from "./panels";
 import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
@@ -65,6 +69,13 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [folderResult, setFolderResult] = useState<FolderResult | null>(null);
+  const [theme, setThemeState] = useState<Theme>("system");
+
+  useEffect(() => {
+    getTheme()
+      .then(setThemeState)
+      .catch((err: unknown) => setError(String(err)));
+  }, []);
 
   useEffect(() => {
     getSettings()
@@ -186,6 +197,43 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     }
   }
 
+  /** El tema se aplica y se guarda al momento, sin «Guardar». */
+  function chooseTheme(next: Theme) {
+    setThemeState(next);
+    applyTheme(next);
+    setError(null);
+    setTheme(next).catch((err: unknown) => setError(String(err)));
+  }
+
+  const themeSection: Section = {
+    id: "theme",
+    title: "Apariencia",
+    text: "Claro, oscuro o el del sistema. Cambia al momento, sin guardar.",
+    fields: (
+      <div className="field">
+        <span className="field-label" id="theme-label">
+          Tema
+        </span>
+        <div className="segmented" role="radiogroup" aria-labelledby="theme-label">
+          {THEMES.map(({ value, label }) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name="theme"
+                checked={theme === value}
+                onChange={() => chooseTheme(value)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <span className="field-hint">
+          «Sistema» sigue el modo claro u oscuro de tu equipo y cambia con él.
+        </span>
+      </div>
+    ),
+  };
+
   const visibility = usePanelVisibility();
   const hiddenCount = visibility?.hidden.size ?? 0;
   const panelsSection: Section = {
@@ -213,7 +261,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     ),
   };
 
-  const folderField = (
+  const folderField = (view: "profile" | "settings") => (
     <div className="field">
       <span className="field-label">Carpeta compartida</span>
       <div className="row">
@@ -229,8 +277,9 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
         </button>
       </div>
       <span className="field-hint">
-        Una carpeta sincronizada (Drive, OneDrive, Dropbox…) que compartís. No hace falta servidor.
-        La misma sirve para compartir lo tuyo y para recibir lo de tus atletas.
+        {view === "profile"
+          ? "Tu carpeta: la subcarpeta que quien te entrena ha compartido contigo (Drive, OneDrive, Dropbox…). Ahí se dejan tus carreras. No hace falta servidor."
+          : "La carpeta madre, con una subcarpeta por atleta (Drive, OneDrive, Dropbox…). Se leen los paquetes de la carpeta y de sus subcarpetas, hasta tres niveles. No hace falta servidor."}
       </span>
     </div>
   );
@@ -277,7 +326,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
                 checked={form.shareOwn}
                 onChange={(v) => toggle("shareOwn", v)}
               />
-              {folderField}
+              {folderField("profile")}
               <label className="field">
                 <span className="field-label">Qué compartes de cada carrera</span>
                 <select
@@ -312,7 +361,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
             checked={form.coach}
             onChange={(v) => toggle("coach", v)}
           />
-          {form.coach && folderField}
+          {form.coach && folderField("settings")}
         </>
       ),
     };
@@ -387,6 +436,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           </>
         ),
       },
+      themeSection,
       panelsSection,
       coach,
     ];

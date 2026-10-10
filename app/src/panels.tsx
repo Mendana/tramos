@@ -57,6 +57,18 @@ export const PANEL_GROUPS: PanelGroup[] = [
     ],
   },
   {
+    // Lo que lleva cada tarjeta de Mis atletas (#142).
+    label: "Atletas · Tarjetas de Mis atletas",
+    panels: [
+      { id: "athlete-races", title: "Carreras" },
+      { id: "athlete-performance", title: "Rendimiento" },
+      { id: "athlete-error-rate", title: "Tasa de error" },
+      { id: "athlete-top-error", title: "Error más común" },
+      { id: "athlete-trend", title: "Evolución del rendimiento" },
+      { id: "athlete-groups", title: "Grupos" },
+    ],
+  },
+  {
     label: "Atletas · Comparar grupos",
     panels: [
       { id: "groups-error-types", title: "Tipos de error de cada grupo" },

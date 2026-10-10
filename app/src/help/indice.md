@@ -7,8 +7,11 @@ app: funciona sin conexión.
 
 ## Cómo usarla
 
-- En cualquier pantalla, el botón **?** de arriba a la derecha abre la página de lo que estás
-  viendo (en una carrera o en Estadísticas, la de la pestaña abierta).
+- En cualquier pantalla, el botón **?** de arriba a la derecha (o la tecla **F1**) abre la página
+  de lo que estás viendo (en una carrera o en Estadísticas, la de la pestaña abierta).
+- **Ver el recorrido guiado**, arriba en esta página, te lleva a Inicio y repite el paseo de la
+  primera vez: unos bocadillos que señalan las partes de la app, cada uno con su página de ayuda.
+  **Siguiente** y **Anterior** van de un paso a otro; **Saltar** (o Esc) lo cierra.
 - **Ayuda**, en la barra lateral, abre esta página. A la izquierda tienes el índice de todas.
 - Los enlaces llevan de una página a otra; **volver** y las migas de arriba funcionan igual que en
   el resto de la app.

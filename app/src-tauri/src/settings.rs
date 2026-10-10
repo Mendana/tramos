@@ -1,11 +1,14 @@
 //! Ajustes del usuario: umbrales del tiempo perdido, zona horaria de las carreras, identidad,
-//! carpeta compartida, zonas de color del mapa y paneles de análisis ocultos.
+//! carpeta compartida, zonas de color del mapa, paneles de análisis ocultos y tema de la
+//! interfaz.
 //!
 //! Se guardan en la tabla de ajustes clave-valor de la base (`docs/almacenamiento.md`). Las
 //! claves y su efecto están en `docs/app.md`, "Ajustes".
 
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
+use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -36,6 +39,12 @@ pub const COACH_KEY: &str = "athletes.enabled";
 pub const SHARE_OWN_KEY: &str = "sharing.share_own";
 /// En la vista de grupo, las carreras propias cuentan como un atleta más (`true`/`false`).
 pub const INCLUDE_SELF_KEY: &str = "athletes.include_self";
+/// Ya se ha terminado o saltado el recorrido guiado de la primera vez (`true`/`false`, #141).
+pub const TOUR_SEEN_KEY: &str = "ui.tour_seen";
+
+/// Última vez que se entró en cada atleta (#142): JSON `{runner_id: instante RFC 3339}`. Lo
+/// recibido después cuenta como novedad.
+pub const LAST_SEEN_KEY: &str = "athletes.last_seen";
 /// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
 pub const FOLDER_KEY: &str = "sharing.folder";
 /// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
@@ -47,6 +56,8 @@ pub const PACE_ZONES_KEY: &str = "map.pace_zones";
 pub const HEART_RATE_ZONES_KEY: &str = "map.heart_rate_zones";
 /// Paneles de análisis ocultos (JSON con la lista de sus identificadores, #130).
 pub const HIDDEN_PANELS_KEY: &str = "ui.hidden_panels";
+/// Tema de la interfaz: `system`, `light` o `dark` (#143).
+pub const THEME_KEY: &str = "ui.theme";
 
 /// Paneles ocultos mientras el usuario no elija: los que menos se miran (rachas limpias, pulso
 /// antes del error y esfuerzo percibido), para no abrumar de entrada.
@@ -102,6 +113,36 @@ pub struct MapSettings {
     pub pace_zones: Option<Zones>,
     /// En ppm.
     pub heart_rate_zones: Option<Zones>,
+}
+
+/// Tema de la interfaz (`docs/app.md`, "Apariencia").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    /// El del sistema operativo.
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Theme {
+    fn key(self) -> &'static str {
+        match self {
+            Theme::System => "system",
+            Theme::Light => "light",
+            Theme::Dark => "dark",
+        }
+    }
+
+    fn from_key(key: &str) -> Option<Theme> {
+        match key {
+            "system" => Some(Theme::System),
+            "light" => Some(Theme::Light),
+            "dark" => Some(Theme::Dark),
+            _ => None,
+        }
+    }
 }
 
 /// Cómo se usa la app, en la bienvenida (`docs/app.md`, "Primera vez").
@@ -248,6 +289,37 @@ pub fn set_include_self(store: &mut Store, include: bool) -> Result<(), StoreErr
     set_flag(store, INCLUDE_SELF_KEY, include)
 }
 
+/// Si ya se ha visto el recorrido guiado (#141). Por defecto, no: sale tras la bienvenida.
+pub fn tour_seen(store: &Store) -> Result<bool, StoreError> {
+    Ok(flag(store, TOUR_SEEN_KEY)?.unwrap_or(false))
+}
+
+/// Guarda que se ha visto (o saltado) el recorrido guiado, para que no vuelva a salir solo.
+pub fn set_tour_seen(store: &mut Store, seen: bool) -> Result<(), StoreError> {
+    set_flag(store, TOUR_SEEN_KEY, seen)
+}
+
+/// Última vez que se entró en cada atleta, por `runner_id`. Sin nada guardado (o con algo que no
+/// se entiende), ninguna: todo lo recibido es nuevo.
+pub fn last_seen(store: &Store) -> Result<BTreeMap<String, DateTime<Utc>>, StoreError> {
+    Ok(store
+        .setting(LAST_SEEN_KEY)?
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default())
+}
+
+/// Apunta que se ha entrado en el atleta `runner_id` en el instante `at`.
+pub fn set_last_seen(
+    store: &mut Store,
+    runner_id: &str,
+    at: DateTime<Utc>,
+) -> Result<(), StoreError> {
+    let mut seen = last_seen(store)?;
+    seen.insert(runner_id.to_string(), at);
+    let json = serde_json::to_string(&seen).map_err(|e| StoreError::InvalidData(e.to_string()))?;
+    store.set_setting(LAST_SEEN_KEY, &json)
+}
+
 /// Un ajuste `true`/`false`; `None` si no está o no se entiende.
 fn flag(store: &Store, key: &str) -> Result<Option<bool>, StoreError> {
     Ok(store.setting(key)?.and_then(|v| v.parse().ok()))
@@ -273,6 +345,19 @@ pub fn set_hidden_panels(store: &mut Store, ids: &[String]) -> Result<(), Settin
     ids.dedup();
     store.set_setting(HIDDEN_PANELS_KEY, &serde_json::to_string(&ids)?)?;
     Ok(())
+}
+
+/// Tema de la interfaz. Sin nada guardado (o con algo que no se entiende), el del sistema.
+pub fn theme(store: &Store) -> Result<Theme, StoreError> {
+    Ok(store
+        .setting(THEME_KEY)?
+        .and_then(|v| Theme::from_key(&v))
+        .unwrap_or_default())
+}
+
+/// Guarda el tema de la interfaz.
+pub fn set_theme(store: &mut Store, theme: Theme) -> Result<(), StoreError> {
+    store.set_setting(THEME_KEY, theme.key())
 }
 
 /// Configuración del tiempo perdido con los umbrales guardados.
@@ -525,6 +610,27 @@ mod tests {
     }
 
     #[test]
+    fn the_tour_is_seen_once_and_saved() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert!(!tour_seen(&store).unwrap());
+        set_tour_seen(&mut store, true).unwrap();
+        assert!(tour_seen(&store).unwrap());
+        assert_eq!(
+            store.setting(TOUR_SEEN_KEY).unwrap().as_deref(),
+            Some("true")
+        );
+        // Elegir cómo se usa la app o guardar los ajustes no lo toca.
+        choose_role(&mut store, Role::Both).unwrap();
+        save(&mut store, &settings()).unwrap();
+        assert!(tour_seen(&store).unwrap());
+        // Un valor que no se entiende es no haberlo visto.
+        store.set_setting(TOUR_SEEN_KEY, "quizá").unwrap();
+        assert!(!tour_seen(&store).unwrap());
+        set_tour_seen(&mut store, false).unwrap();
+        assert!(!tour_seen(&store).unwrap());
+    }
+
+    #[test]
     fn hidden_panels_default_round_trip_and_reset() {
         let mut store = Store::open_in_memory().unwrap();
         let defaults: Vec<String> = DEFAULT_HIDDEN_PANELS.map(String::from).to_vec();
@@ -544,6 +650,25 @@ mod tests {
         // Un valor que no se entiende se trata como si no estuviera.
         store.set_setting(HIDDEN_PANELS_KEY, "no es json").unwrap();
         assert_eq!(hidden_panels(&store).unwrap(), defaults);
+    }
+
+    #[test]
+    fn theme_default_round_trip_and_unknown_value() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert_eq!(theme(&store).unwrap(), Theme::System);
+
+        for chosen in [Theme::Dark, Theme::Light, Theme::System] {
+            set_theme(&mut store, chosen).unwrap();
+            assert_eq!(theme(&store).unwrap(), chosen);
+        }
+        set_theme(&mut store, Theme::Dark).unwrap();
+        assert_eq!(store.setting(THEME_KEY).unwrap().as_deref(), Some("dark"));
+
+        // Un valor que no se entiende vuelve al del sistema.
+        store.set_setting(THEME_KEY, "sepia").unwrap();
+        assert_eq!(theme(&store).unwrap(), Theme::System);
+        // Elegir un tema no toca los demás ajustes.
+        assert_eq!(load(&store).unwrap().time_zone, "Europe/Madrid");
     }
 
     #[test]

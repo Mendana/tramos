@@ -7,10 +7,13 @@ import { HELP_GROUPS, HELP_PAGES, HelpPageId, helpPagesOf, helpTitle, isHelpPage
 function HelpScreen({
   page,
   onOpen,
+  onTour,
 }: {
   page: HelpPageId;
   /** Abre otra página: es otra pantalla, así que entra en «volver». */
   onOpen: (page: HelpPageId) => void;
+  /** Repite el recorrido guiado de la primera vez (#141); se ofrece en la portada. */
+  onTour: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Una página nueva se lee desde arriba.
@@ -23,6 +26,13 @@ function HelpScreen({
       <PageHeader
         title={helpTitle(page)}
         subtitle={page === "indice" ? "Funciona sin conexión." : `Ayuda · ${group?.label ?? ""}`}
+        actions={
+          page === "indice" ? (
+            <button type="button" className="btn" onClick={onTour}>
+              Ver el recorrido guiado
+            </button>
+          ) : undefined
+        }
       />
       <div className="with-index" ref={ref}>
         <nav className="page-index help-index" aria-label="Páginas de ayuda">

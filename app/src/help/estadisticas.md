@@ -9,12 +9,17 @@ y las cifras; debajo, una pestaña por pregunta: **Resumen**,
 
 Debajo de los filtros, hasta **tres frases** con lo más importante de tus carreras, por ejemplo
 «Fallas más en los tramos largos» o «Un error suele traer otro». Cambian con los filtros. Cada
-una lleva a la pestaña que la justifica (**Ver**). Si se apoya en pocos datos, lo dice al lado
-(«con pocas carreras»): tómala como una pista, no como una conclusión. Sin nada que destacar, no
-sale ninguna.
+una lleva al panel que la justifica (**Ver**): abre su pestaña, baja hasta él y lo marca un
+momento. Si ese panel lo tienes oculto, la app te lo dice y puedes enseñarlo con **Enseñar este
+panel**. Si se apoya en pocos datos, lo dice al lado («con pocas carreras»): tómala como una pista,
+no como una conclusión. Sin nada que destacar, no sale ninguna.
 
 > «Fallas más en los tramos largos (de 4 a 8 min): el 30 % son error, frente al 12 % de media.»
-> Si pulsas **Ver**, se abre ¿Dónde fallo?, con la gráfica por duración del tramo.
+> Si pulsas **Ver**, se abre ¿Dónde fallo? y te lleva a la gráfica por duración del tramo.
+
+También hay una sobre tu regularidad: si en tus últimas tres carreras tu consistencia ha cambiado
+claramente respecto a las de antes, te lo dice («Cada vez eres más regular…»). Necesita al menos
+cinco carreras con consistencia.
 
 ## Filtros
 

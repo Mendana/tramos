@@ -25,9 +25,12 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
 | `check_zones(zones)` | Unas zonas del mapa mientras se editan (#96): por qué no se pueden guardar o, si se puede, los avisos sobre sus colores, en español. |
 | `hidden_panels` / `set_hidden_panels(ids)` | Paneles de análisis ocultos (#130), por identificador. Se leen y guardan en la base propia también mientras se ve a un atleta, así que valen para todos. |
+| `theme` / `set_theme(theme)` | Tema de la interfaz (#143): `system`, `light` o `dark`. Se lee y guarda al momento, sin pasar por `save_settings`; un valor que no se entiende es `system`. |
 | `role_chosen` / `choose_role(role)` | Si ya se ha dicho cómo se usa la app y decirlo sin tocar los demás ajustes: `runner` (corre), `coach` (entrena) o `both` (las dos cosas; abajo, "Atletas"). |
 | `coach_runners` | Si entrena, los atletas de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
-| `view_runner(runnerId)` | Elige el atleta que se ve (`null` = volver a lo propio): vuelca sus paquetes y, a partir de ahí, las vistas de corredor muestran sus carreras en solo lectura. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. Elegir un atleta sin entrenar da error. |
+| `athlete_news` | Si entrena, lo nuevo de cada atleta de los que hay paquetes (#142, abajo, "Atletas"): el atleta, la última vez que se entró en él (`athletes.last_seen`; `null` = nunca) y las carreras recibidas después (fecha, nombre, formato e instante de recepción), de la más reciente a la más antigua. Solo lee los paquetes nuevos; los que no se pueden leer no salen. Si no entrena, error. |
+| `athlete_cards` | Si entrena, una tarjeta por atleta para Mis atletas (#142): su fila de la vista de grupo sin filtros (`row`, la misma que en `group_view`; o `problem`), el rendimiento habitual de sus 10 últimas carreras con rendimiento, de la más antigua a la más reciente (`trend`), la fecha de su última carrera (también de las de solo resumen), los grupos de atletas en los que está y cuántas carreras nuevas tiene. Si no entrena, error. |
+| `view_runner(runnerId)` | Elige el atleta que se ve (`null` = volver a lo propio): vuelca sus paquetes, apunta la visita en `athletes.last_seen` (sus novedades se quedan a cero) y, a partir de ahí, las vistas de corredor muestran sus carreras en solo lectura. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. Elegir un atleta sin entrenar da error. |
 | `group_view(filter, group)` | Si entrena, la vista de grupo (P15, `docs/historico.md`): una fila por atleta de los que hay paquetes (o por qué no se ha podido calcular), todos contra todos en las carreras compartidas y los totales de todos juntos (`total`, #120), con el filtro del histórico. Con `group` (un grupo de atletas), solo sus miembros: quien usa la app sale si es miembro. Sin grupo, con `athletes.include_self`, las carreras propias cuentan como un atleta más (la primera fila, `is_self`). Si no entrena, error. |
 | `set_include_self(include)` | Guarda «Incluirme» (`athletes.include_self`) de la vista de grupo. |
 | `athlete_groups` | Si entrena, sus grupos de atletas (#120: identificador, nombre, descripción, color y `runner_id` de los miembros) y a quién puede meter en ellos: quien usa la app (con su `package_runner_id`, si tiene carreras) y los atletas de los que hay paquetes. |
@@ -37,11 +40,12 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `compare_athlete_groups(filter, a, b, options)` | Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro del histórico. `options` = `{overlap, races}`: quien está en los dos cuenta en los dos (`count_in_both`) o en ninguno (`exclude`); entran solo las carreras de los dos grupos (`shared`) o todas (`all`). Devuelve cada lado junto (atletas, cifras, P7, P13 y tipos de error), cuántos están en los dos, cuántas carreras entran y las diferencias A − B. |
 | `athlete_group_stats(filter, id)` | Estadísticas de un grupo de atletas (#145, `docs/historico.md`, "Estadísticas de un grupo") con el filtro del histórico: el nombre, la descripción y el color del grupo, sus miembros (quien usa la app primero, si es miembro y tiene carreras; cada uno con sus carreras que cuentan o por qué no cuenta), cuántos miembros ya no tienen carreras y los análisis de Estadísticas con todos juntos (`stats`: por formato y total, P7, P13, P2, P8, P9, P11 y P14; sin consistencia). Si no entrena, error. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
+| `tour_seen` / `set_tour_seen(seen)` | Si ya se ha visto el recorrido guiado (#141, abajo, "Ayuda") y guardarlo (`ui.tour_seen`). Van a la base propia también mientras se ve a un atleta. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos tramos con error quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). |
-| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe; `docs/frases.md`). |
+| `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe y, con track, sobre el reparto de P2; `docs/frases.md`). |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
@@ -52,7 +56,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `race_sharing(resultId)` | Qué se comparte de una carrera del usuario y cómo está en la carpeta compartida (`docs/paquete.md`, "Carpeta compartida"): si se puede compartir (comparte lo suyo, con carpeta y la carrera es suya), lo elegido para ella, lo de por defecto, el nivel con el que está en la carpeta y, si no se ha podido exportar, por qué. Antes la exporta si hace falta. |
 | `set_race_sharing(resultId, choice)` | Cambia lo que se comparte de una carrera (`none`, `aggregates`, `legs`, `track`; `null` = lo de por defecto), la exporta o la quita de la carpeta y devuelve lo mismo que `race_sharing`. |
 | `share_all` | Exporta todas las carreras del usuario a la carpeta compartida: cuántas se han escrito, cuántas ya estaban igual, cuántas no se comparten y las que han fallado. Si no comparte lo suyo o no hay carpeta, no hace nada. |
-| `receive_packages` | Si entrena, importa los paquetes nuevos o cambiados de la carpeta compartida, salvo los suyos: cuántos nuevos, sustituidos y sin cambios, los ficheros que no se han podido leer y cuántos paquetes y atletas hay guardados. Si no entrena, no importa nada. |
+| `receive_packages` | Si entrena, importa los paquetes nuevos o cambiados de la carpeta compartida y de sus subcarpetas (hasta 3 niveles, sin enlaces simbólicos; `docs/paquete.md`, "Carpeta compartida"), salvo los suyos: cuántos nuevos, sustituidos y sin cambios, los ficheros que no se han podido leer y cuántos paquetes y atletas hay guardados. Si no entrena, no importa nada. |
 | `taxonomy` | La taxonomía de errores con la que se etiqueta (`tramos_core::taxonomy`, `docs/taxonomia.md`). |
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
@@ -188,7 +192,7 @@ Dos pantallas de la barra lateral guardan el mismo formulario (`SettingsView.tsx
 - **Mi perfil**: quién eres (nombre y apellidos, tarjeta SI) y qué compartes («Compartir mis
   carreras», la carpeta compartida y qué se comparte por defecto de cada carrera).
 - **Ajustes**: tramo con error (umbrales), hora de las carreras (zona horaria), colores del mapa,
-  paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
+  apariencia (tema), paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
   con un índice a la izquierda que salta a cada apartado.
 
 Se guardan en la tabla `settings` de la base:
@@ -204,12 +208,15 @@ Se guardan en la tabla `settings` de la base:
 | `sharing.share_own` | «Compartir mis carreras»: `true` o `false`. | `true` | Exporta las carreras propias a la carpeta compartida (`docs/paquete.md`, "Carpeta compartida"). |
 | `athletes.enabled` | «Entreno a otros atletas»: `true` o `false`. | `false` | Importa los paquetes de los atletas de la carpeta compartida y añade la sección Atletas (abajo). |
 | `athletes.include_self` | «Incluirme» en la vista de grupo: `true` o `false`. | `false` | Las carreras propias cuentan como un atleta más en la tabla, el cara a cara y las carreras compartidas. Se cambia en la vista de grupo, sin «Guardar». |
+| `ui.tour_seen` | Ya se ha terminado o saltado el recorrido guiado (#141): `true` o `false`. | `false` | Mientras sea `false`, el recorrido sale al abrir la app (abajo, "Ayuda"). Se escribe al cerrarlo, sin «Guardar». |
+| `athletes.last_seen` | Última vez que se entró en cada atleta (#142), en JSON: `{runner_id: instante RFC 3339}`. No se edita. | — (nunca) | Lo recibido después es novedad (abajo, "Atletas"). Se escribe al entrar en un atleta (`view_runner`) y cuando llega algo del que se está viendo. |
 | `sharing.mode` | Modo de antes de #119: `runner` o `coach`. Ya no se escribe. | — | Solo si faltan los dos de arriba: `coach` es entrenar sin compartir lo propio; `runner`, al revés. |
-| `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
+| `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. Quien corre elige su subcarpeta de la carpeta madre de quien le entrena; quien entrena elige la carpeta madre, y se leen también sus subcarpetas. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
 | `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
 | `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
 | `map.pace_zones` | Zonas de ritmo del mapa (#96), en JSON: `limits` (s/km, de menor a mayor) y `colors` (`#rrggbb`, uno más que límites). Vacío = ninguna. | — | Sin zonas, el mapa colorea por cuantiles de cada carrera. Con ellas, por las zonas del usuario (ver "Mapa"). |
 | `map.heart_rate_zones` | Igual, para el pulso (ppm). | — | Igual. |
+| `ui.theme` | Tema de la interfaz (#143): `system`, `light` o `dark`. | `system` | Inmediato: se aplica al elegirlo (abajo, "Apariencia"). No pasa por «Guardar». |
 | `ui.hidden_panels` | Paneles de análisis ocultos (#130), en JSON: lista ordenada de identificadores (`app/src/panels.tsx`). `[]` = todos a la vista. | Rachas limpias, pulso antes del error y esfuerzo percibido | Inmediato: el panel desaparece de Estadísticas o de la carrera. No pasa por «Guardar». |
 
 Un valor guardado que no se entiende (número negativo, zona desconocida, zonas que no valen) se
@@ -235,6 +242,23 @@ y para pulso, «Por cuantiles de cada carrera» (lo de siempre) o «Mis zonas»:
 Con una zona horaria equivocada, el FIT no se solapa con la carrera y la alineación lo dice, con
 la sugerencia de desplazamiento (`docs/alineacion.md`).
 
+### Apariencia (#143)
+
+Apartado de Ajustes con un control segmentado **Sistema / Claro / Oscuro** (`ui.theme`). Se aplica
+y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
+
+- Al abrir la app se lee el tema y se pone en la raíz del documento (`theme.ts`): `data-theme="light"`
+  o `"dark"` fuerzan el modo; con **Sistema** no hay atributo y manda el del sistema operativo
+  (`prefers-color-scheme`), que sigue cambiando con él.
+- Los colores oscuros de `tokens.css` valen para dos selectores con los mismos valores:
+  `@media (prefers-color-scheme: dark)` sobre `:root:not([data-theme="light"])` y
+  `:root[data-theme="dark"]`. Si cambias uno, cambia el otro.
+- Las gráficas, la barra lateral y todo el CSS usan los tokens, así que cambian con el tema. El
+  mapa no: las teselas de OSM son claras en los dos modos, y los colores del track y de la
+  leyenda (`--map-*`) no cambian con el tema (ver "Mapa").
+- Sin estilos en línea: la CSP no los deja, y el tema es solo un atributo más reglas en
+  `tokens.css`.
+
 ## Atletas (#37, #119)
 
 Quien entrena ve todo lo de cada atleta como si fuera él, sin poder modificar nada
@@ -247,14 +271,43 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   cosas, ambas. Una base de antes que ya tiene carreras se toma por quien corre y no pregunta;
   una con el modo de antes `coach` entrena y no comparte lo propio. Se cambia después en Mi
   perfil («Compartir mis carreras») y en Ajustes («Entreno a otros atletas»). Al elegir Entreno o
-  las dos cosas se abren los Ajustes, porque sin carpeta compartida no le llega nada.
-- **Recibir.** Los paquetes llegan por la misma carpeta compartida en la que se exportan los
-  propios (`docs/paquete.md`, "Carpeta compartida"). Los suyos no vuelven a entrar.
-- **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: un selector «Ver a» con los
-  atletas de los que hay paquetes (nombre visible y número de carreras; sin elegir, «Elige un
-  atleta…»), y, mientras se ve a uno, sus **Carreras** y **Estadísticas**; **Comparar
-  atletas**, la vista de grupo; y **Grupos**. Las entradas de «Lo mío» (y Mi perfil) vuelven siempre a lo
-  propio.
+  las dos cosas se abren los Ajustes, porque sin carpeta compartida no le llega nada. Justo
+  después sale el recorrido guiado (abajo, "Ayuda").
+- **Recibir.** Los paquetes llegan por la carpeta compartida (`docs/paquete.md`, "Carpeta
+  compartida"): quien entrena elige una carpeta madre con una subcarpeta por atleta y la app lee
+  la carpeta y sus subcarpetas; cada atleta exporta a su subcarpeta (#140). Los suyos no vuelven
+  a entrar.
+- **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: **Mis atletas** (abajo), con
+  el total de carreras nuevas de todos a la derecha; mientras se ve a uno, su nombre y sus
+  **Carreras** y **Estadísticas**; **Comparar atletas**, la vista de grupo; y **Grupos**. Las
+  entradas de «Lo mío» (y Mi perfil) vuelven siempre a lo propio. Se entra en un atleta desde
+  Mis atletas, desde las novedades de Inicio o desde su fila en Comparar atletas.
+- **Mis atletas** (#142, `AthletesScreen.tsx`, `athlete_cards`). Sustituye al selector «Ver a»
+  de antes. Una tarjeta por atleta de los que hay paquetes, por nombre visible; un clic entra en
+  él y abre sus Carreras. Cada tarjeta lleva:
+  - su nombre, cuántas carreras **nuevas** tiene («2 nuevas», si alguna) y la fecha de su última
+    carrera;
+  - una **línea con la evolución de su rendimiento**: el rendimiento habitual de sus 10 últimas
+    carreras con rendimiento, de la más antigua a la más reciente, en SVG sin ejes (cada punto
+    con la carrera y su cifra al pasar el ratón);
+  - **carreras, rendimiento y tasa de error** y su **error más común** (tipo y parte de sus
+    errores): los de su fila en Comparar atletas sin filtros (`group_row` del núcleo sobre su
+    histórico; un test comprueba que coinciden);
+  - sus **grupos**, con su color.
+
+  Arriba, un buscador por nombre (sin distinguir mayúsculas ni tildes) y, si hay grupos, un botón
+  por grupo para dejar solo a sus miembros («Todos» los vuelve a enseñar). **«Personalizar»**
+  abre el cuadro de los paneles ocultos (abajo, "Ocultar paneles"): cada parte de la tarjeta
+  (`athlete-races`, `athlete-performance`, `athlete-error-rate`, `athlete-top-error`,
+  `athlete-trend` y `athlete-groups`) se puede quitar y se guarda en `ui.hidden_panels`. Sin
+  atletas, lo dice.
+- **Novedades** (#142, `coach::athlete_news`). Una carrera de un atleta es **nueva** si su
+  paquete se recibió (`imported_at` del paquete guardado) después de la última vez que se entró
+  en ese atleta (`athletes.last_seen`); si nunca se ha entrado, todas lo son. Entrar en él
+  (`view_runner`) apunta el instante y sus nuevas vuelven a cero; si llega algo del atleta que se
+  está viendo, también. Un paquete que vuelve a llegar cambiado (`replaced`: por ejemplo, el
+  atleta ha etiquetado sus errores) se ha recibido otra vez y cuenta como nuevo; uno idéntico
+  (`unchanged`) no.
 - **Qué se está viendo.** Las vistas de un atleta llevan arriba una franja «Estás viendo a
   Nombre. Solo lectura: no se puede etiquetar ni cambiar nada.» con «Volver a lo mío», que
   vuelve a Inicio. Las migas de pan llevan su nombre delante. En la barra lateral se marca su
@@ -351,6 +404,12 @@ análisis van en Estadísticas.
   antigua a la más reciente, y un enlace a Estadísticas.
 - Sin carreras, invita a importar la primera.
 
+- **Novedades de tus atletas** (#142), si entrena: los atletas con carreras nuevas
+  (`athlete_news`), cada uno con cuántas, la más reciente (nombre y fecha) y cuántas más, y
+  «Ver», que entra en él y abre sus Carreras. «Mis atletas» abre sus tarjetas. Sin nada nuevo, o
+  sin atletas, lo dice. Va al final, y también debajo de la invitación a importar si no hay
+  carreras propias.
+
 Inicio es siempre de lo propio: con «Entreno» y sin carreras propias, invita a importar.
 
 ## Lista de carreras
@@ -403,7 +462,10 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
 
 - **Resumen** (la de entrada):
   - arriba, el **resumen en frases** de la carrera (#126, `docs/frases.md`): como mucho tres
-    frases, cada una un enlace a la pestaña que la justifica (Tramos o Análisis). Las de pocos
+    frases, cada una un enlace al panel que la justifica (la tabla de Tramos, o en Análisis
+    los paneles de dónde gano y pierdo y de ¿lento o desorientado?): abre su pestaña, se
+    desplaza hasta el panel y lo resalta un momento; si el panel está oculto, avisa con
+    «Enseñar este panel» (#144, `docs/frases.md`, "Destinos"). Las de pocos
     datos llevan su aviso escrito al lado («con pocos tramos», «referencia débil»), no solo un
     color. Sin frases no se pinta el bloque. También al ver a un atleta;
   - si quedan errores sin revisar, un aviso con «Revisar ahora», que lleva a Tramos;
@@ -584,8 +646,9 @@ pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
   uno vuelve a pedir el histórico. «Quitar filtros» los borra.
 - **Resumen en frases** (#126, `docs/frases.md`): debajo de los filtros y encima de las cifras,
   como mucho tres frases que resumen lo importante con los filtros puestos («Fallas más en los
-  tramos largos…»). Cada una es un enlace a la pestaña de su análisis (`docs/frases.md`,
-  "Destinos"). Las de pocos datos llevan su aviso escrito al lado («con pocas carreras»…), no
+  tramos largos…»). Cada una es un enlace al panel de su análisis: abre su pestaña, se
+  desplaza hasta él y lo resalta un momento; si el panel está oculto, avisa con «Enseñar este
+  panel» (#144, `docs/frases.md`, "Destinos"). Las de pocos datos llevan su aviso escrito al lado («con pocas carreras»…), no
   solo un color. Sin frases no se pinta el bloque. También al ver a un atleta.
 - **Cifras** del total: carreras, IR medio (con la consistencia media debajo, P10), tasa de
   error y pérdida media por tramo.
@@ -620,7 +683,8 @@ recuentos de cada análisis ocupan la fila entera.
 
 - Cada panel tiene un aspa para ocultarlo.
 - «Personalizar», junto a las pestañas, abre un cuadro con todos los paneles, también los de la
-  vista de carrera, con una casilla cada uno y «Enseñar todos».
+  vista de carrera, con una casilla cada uno y «Enseñar todos». También están ahí las partes de
+  las tarjetas de Mis atletas («Atletas · Tarjetas de Mis atletas», #142), que no llevan aspa.
 - En Ajustes, «Paneles de análisis» dice cuántos hay ocultos y tiene los mismos dos botones.
 - Se guarda al momento en `ui.hidden_panels`. De entrada están ocultos los que menos se miran:
   rachas limpias, pulso antes del error y esfuerzo percibido.
@@ -701,10 +765,11 @@ de conceptos (tiempo perdido, IR, tipos de error, ¿lento o desorientado?, zonas
 desfase, formatos, compartir y atletas). Código en `app/src/help/`.
 
 - **Abrirla.** «Ayuda», en el bloque «Cuenta» de la barra lateral, abre la
-  portada. El botón «?» a la derecha de la cabecera abre la página de la pantalla abierta y, en
-  la vista de carrera y en Estadísticas, la de la pestaña abierta (`views.ts`). En la propia
-  ayuda no sale. La ayuda es una pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo
-  perdido»), y no lleva delante el nombre del atleta que se esté viendo.
+  portada. El botón «?» a la derecha de la cabecera, o la tecla **F1** (`help/shortcut.ts`),
+  abre la página de la pantalla abierta y, en la vista de carrera y en Estadísticas, la de la
+  pestaña abierta (`views.ts`). En la propia ayuda no sale y F1 no hace nada. La ayuda es una
+  pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo perdido»), y no lleva delante
+  el nombre del atleta que se esté viendo.
 - **Pantalla** (`HelpScreen.tsx`): a la izquierda, el índice de todas las páginas por bloques
   (Ayuda, Pantallas, Una carrera, Estadísticas y Conceptos); a la derecha, la página. Un enlace
   a otra página la abre como otra pantalla, desde arriba.
@@ -721,6 +786,38 @@ desfase, formatos, compartir y atletas). Código en `app/src/help/`.
 - **Enlaces**: `otra-pagina.md` abre esa página de la ayuda;
   `https://github.com/Mendana/tramos/blob/main/...` se abre en el navegador del sistema (abajo,
   "Seguridad"); cualquier otro destino sale como texto.
+
+**Recorrido guiado** (#141, `app/src/Tour.tsx`). La primera vez, justo después de la bienvenida
+(o al abrir la app, si aún no se ha visto: `ui.tour_seen`), unos bocadillos señalan en orden las
+partes de la pantalla, cada uno con su página de ayuda:
+
+| Paso | Señala | Ayuda |
+| --- | --- | --- |
+| Importa tu primera carrera | «Importar» en la barra lateral | Importar |
+| Mis carreras | «Mis carreras» (y su contador) | Mis carreras |
+| Una carrera y sus pestañas | el contenido, donde se abren las carreras | Una carrera |
+| Estadísticas | «Estadísticas» de «Lo mío» | Estadísticas |
+| Atletas (solo si entrena) | el bloque «Atletas» | Atletas |
+| Ayuda | el botón «?» de la cabecera, y F1 | la portada |
+
+- **Controles.** «Paso n de m», «Saltar», «Anterior» y «Siguiente» («Terminar» en el último), y
+  «Más en la ayuda: …», que cierra el recorrido y abre la página del paso (F1 hace lo mismo).
+  Esc lo salta.
+- **Una sola vez.** Terminarlo, saltarlo o irse a la ayuda desde él lo guarda como visto
+  (`set_tour_seen`). Si se cierra la app a medias, sale otra vez al abrirla. Se repite con «Ver el
+  recorrido guiado», arriba en la portada de la Ayuda, que antes vuelve a Inicio (en la ayuda no
+  está el «?» que señala el último paso).
+- **Accesible.** Es un cuadro modal (`role="dialog"`, `aria-modal`): al abrirse, el foco va a
+  «Siguiente» y Tab no sale del bocadillo; el paso se anuncia (`aria-live`) y al cerrarlo el foco
+  vuelve a donde estaba.
+- **Sin estilos en línea (CSP).** Lo señalado lleva `data-tour="…"` en `App.tsx`; se mide con
+  `getBoundingClientRect` y todo se dibuja en un SVG a pantalla completa: un velo con un hueco
+  (máscara) sobre lo señalado, un marco, el bocadillo dentro de un `foreignObject` y su pico (un
+  `polygon`). Las posiciones son atributos SVG (`x`, `y`, `width`, `height`, `points`) y los
+  colores, clases de `components.css`. El bocadillo va a la derecha de lo señalado si cabe (la
+  barra lateral), si no debajo (el «?»), si no encima y, si no cabe en ningún lado (el
+  contenido), centrado sobre él; siempre dentro de la ventana. Se recoloca al cambiar el tamaño
+  de la ventana o de lo señalado.
 
 **Que no se quede vieja.**
 
@@ -750,7 +847,8 @@ CSP no deja inyectar estilos en tiempo de ejecución y no hay fuentes externas: 
 sistema.
 
 - **Variables** (`app/src/styles/tokens.css`): colores, tipografía, espaciado (múltiplos de 4),
-  radios y sombras, con modo claro y oscuro según el sistema (`prefers-color-scheme`). Ninguna
+  radios y sombras, con modo claro y oscuro según el sistema (`prefers-color-scheme`) o según lo
+  que elija el usuario en Ajustes (`data-theme` en la raíz, arriba, "Apariencia"). Ninguna
   pantalla usa colores ni medidas sueltas.
 - **Paleta** inspirada en el mapa de orientación: el **magenta** de los recorridos es el acento
   (navegación, botón principal, selección) y el **naranja** de la baliza marca los errores (filas
@@ -764,8 +862,9 @@ sistema.
   Los iconos son SVG en línea en `ui.tsx`; el de la app es una baliza.
 - **Estructura** (#127, #119, boceto en `docs/bocetos/navegacion.html`): barra lateral oscura
   (`--side-*`) con bloques: Inicio; «Lo mío», con Mis carreras (y un contador de errores sin
-  revisar de lo propio), Estadísticas e Importar; si entrena, «Atletas», con el selector, las
-  Carreras y Estadísticas del atleta que se ve, Comparar atletas y Grupos; «Cuenta», con Mi
+  revisar de lo propio), Estadísticas e Importar; si entrena, «Atletas», con Mis atletas (y un
+  contador de carreras nuevas), el nombre, las Carreras y las Estadísticas del atleta que se ve,
+  Comparar atletas y Grupos; «Cuenta», con Mi
   perfil, Ajustes y Ayuda.
 
   Encima del contenido, una cabecera fija con el botón de volver (a la pantalla anterior, hasta

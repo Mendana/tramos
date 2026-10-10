@@ -102,9 +102,14 @@
   color: var(--side-muted);
 }
 
-.runner-picker {
-  padding: 0 var(--space-2);
-  margin-bottom: var(--space-3);
+/* El atleta que se ve, encima de sus Carreras y Estadísticas. */
+.nav-runner {
+  overflow: hidden;
+  padding: var(--space-2) var(--space-3) 0;
+  color: var(--side-muted);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- Vista de grupo (P15) --- */
@@ -1513,6 +1518,89 @@
   padding: 0;
 }
 
+/* --- Recorrido guiado (#141, Tour.tsx) ---
+   Todo va en un SVG a pantalla completa; las posiciones son atributos SVG, no estilos. */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.tour-layer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tour-veil {
+  fill: rgb(0 0 0 / 45%);
+}
+
+.tour-ring {
+  fill: none;
+  stroke: var(--side-accent);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.tour-arrow {
+  fill: var(--surface);
+}
+
+.tour-arrow-edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+/* El ancho es el de WIDTH en Tour.tsx. */
+.tour-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  width: 320px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.tour-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tour-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.tour-text {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.tour-help {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tour-spacer {
+  flex: 1;
+}
+
 /* --- Resumen en frases (#126) --- */
 
 .insights {
@@ -1563,6 +1651,19 @@
   font-size: var(--text-md);
 }
 
+/* Panel al que lleva una frase (#144): al llegar se resalta un momento. */
+
+[data-panel] {
+  scroll-margin-top: calc(var(--topbar-height) + var(--space-4));
+}
+
+[data-panel].is-highlighted {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+  box-shadow: var(--focus);
+}
+
 .insight-caveat {
   margin-left: var(--space-2);
   vertical-align: middle;
@@ -1575,6 +1676,7 @@
   gap: var(--space-1);
   color: var(--accent);
   font-weight: 600;
+}
 
 /* --- Ayuda (docs/app.md, "Ayuda") --- */
 
@@ -1669,6 +1771,7 @@
   .help-index-label {
     width: 100%;
   }
+}
 
 /* Casilla con su explicación debajo (Ajustes). */
 .check-block {
@@ -1807,4 +1910,90 @@
 
 .compare-note {
   padding: var(--space-3) var(--space-4);
+}
+
+/* --- Mis atletas (#142) --- */
+
+.athletes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.athletes-chip {
+  gap: var(--space-2);
+}
+
+.athlete-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.athlete-card {
+  gap: var(--space-3);
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.athlete-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-raised);
+}
+
+.athlete-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.athlete-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.athlete-card-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.athlete-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.athlete-card-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.athlete-card-value {
+  font-size: var(--text-xl);
+  font-weight: 650;
+}
+
+.spark {
+  flex-shrink: 0;
+}
+
+.spark-line {
+  stroke: var(--chart-series-1);
+}
+
+.spark-marker {
+  fill: var(--chart-series-1);
+}
+
+.spark-last {
+  stroke: var(--surface);
+  stroke-width: 1.5;
 }

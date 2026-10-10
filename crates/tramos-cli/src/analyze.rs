@@ -5,12 +5,16 @@ use anyhow::{Context, Result, bail};
 use chrono::NaiveDate;
 use serde::Serialize;
 use tramos_core::alignment::{
-    AlignmentOptions, AlignmentQuality, AlignmentWarning, Coverage, align,
+    Alignment, AlignmentOptions, AlignmentQuality, AlignmentWarning, Coverage, align,
 };
 use tramos_core::identify::{Candidate, Identification, RunnerIdentity, identify_runner};
+use tramos_core::insights::{Insight, race_insights};
+use tramos_core::loss_breakdown::{RaceBreakdown, race_breakdown};
 use tramos_core::lost_time::LostTimeConfig;
-use tramos_core::model::{Event, RaceResult, RaceStatus, Track};
+use tramos_core::metrics::{MetricsOptions, leg_metrics};
+use tramos_core::model::{Event, RaceStatus, Track};
 use tramos_core::runner_report::{CourseSummary, RunnerLostTime, runner_report};
+use tramos_core::segmentation::segment;
 
 /// Cómo se busca al corredor: un `--corredor` numérico es la tarjeta SI; si no, el nombre.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +55,9 @@ pub struct Analysis {
     /// Umbrales y tiempo ideal con los que se ha calculado el tiempo perdido.
     pub config: LostTimeConfig,
     pub lost_time: RunnerLostTime,
+    /// Resumen en frases de la carrera (`docs/frases.md`): como mucho tres. La de ¿lento o
+    /// desorientado? solo sale con `--fit`.
+    pub insights: Vec<Insight>,
     /// Solo si se ha pasado `--fit`.
     pub alignment: Option<AlignmentSummary>,
     /// Avisos de la identificación, en español.
@@ -153,8 +160,24 @@ pub fn analyze(
     };
 
     let alignment = track
-        .map(|track| align_summary(track, result))
+        .map(|track| {
+            align(track, result, &AlignmentOptions::default())
+                .context("no se puede alinear el FIT con las picadas del corredor")
+        })
         .transpose()?;
+    let breakdown = match (track, &alignment) {
+        (Some(track), Some(alignment)) => match breakdown_of(track, alignment, &report.lost_time) {
+            Ok(breakdown) => Some(breakdown),
+            Err(reason) => {
+                warnings.push(format!(
+                    "no se ha podido repartir la pérdida en desvío, paradas y ritmo: {reason}"
+                ));
+                None
+            }
+        },
+        _ => None,
+    };
+    let insights = race_insights(&report, breakdown.as_ref());
 
     Ok(Analysis {
         event: EventInfo {
@@ -177,22 +200,34 @@ pub fn analyze(
         course: report.course,
         config: *config,
         lost_time: report.lost_time,
-        alignment,
+        insights,
+        alignment: alignment.map(align_summary),
         warnings,
     })
 }
 
-fn align_summary(track: &Track, result: &RaceResult) -> Result<AlignmentSummary> {
-    let alignment = align(track, result, &AlignmentOptions::default())
-        .context("no se puede alinear el FIT con las picadas del corredor")?;
-    Ok(AlignmentSummary {
+fn align_summary(alignment: Alignment) -> AlignmentSummary {
+    AlignmentSummary {
         offset_s: alignment.offset_s,
         offset_estimated: alignment.offset_estimated,
         confidence: alignment.confidence,
         quality: alignment.quality,
         coverage: alignment.coverage,
         warnings: alignment.warnings,
-    })
+    }
+}
+
+/// ¿Lento o desorientado? (P2): corta el track en tramos, mide cada uno y reparte la pérdida.
+/// Si no se puede, el motivo (sin él, la carrera solo pierde esa frase).
+fn breakdown_of(
+    track: &Track,
+    alignment: &Alignment,
+    lost_time: &RunnerLostTime,
+) -> Result<RaceBreakdown, String> {
+    let segmentation = segment(track, alignment).map_err(|e| e.to_string())?;
+    let metrics =
+        leg_metrics(track, &segmentation, &MetricsOptions::default()).map_err(|e| e.to_string())?;
+    Ok(race_breakdown(lost_time, &metrics))
 }
 
 fn query_label(query: &RunnerQuery) -> String {
@@ -237,7 +272,7 @@ pub fn status_label(status: RaceStatus, place: Option<u16>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tramos_core::model::{Class, Course, Runner};
+    use tramos_core::model::{Class, Course, RaceResult, Runner};
 
     #[test]
     fn numeric_query_is_si_card() {

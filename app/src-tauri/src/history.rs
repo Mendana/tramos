@@ -19,6 +19,7 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use tramos_core::after_error::{AfterError, after_error};
 use tramos_core::common_errors::{CommonErrors, TaggedRace, common_errors};
+use tramos_core::consistency::consistency_series;
 use tramos_core::days_off::{DaysOff, days_off};
 use tramos_core::fatigue::{Fatigue, FatigueRace, fatigue};
 use tramos_core::history::{
@@ -195,6 +196,7 @@ pub fn history_view_where(
     let common_errors = common_errors(&tagged, filter);
     // Sin la taxonomía, las frases llevan la clave del tipo de error en vez de su nombre.
     let taxonomy = Taxonomy::builtin().ok();
+    let consistency = consistency_series(&races, filter);
     let insights = history_insights(&HistoryAnalyses {
         history: &history,
         by_leg_length: &by_leg_length,
@@ -203,6 +205,7 @@ pub fn history_view_where(
         after_error: &after_error,
         days_off: &days_off,
         loss_breakdown: &loss_breakdown,
+        consistency: &consistency,
         taxonomy: taxonomy.as_ref(),
     });
     Ok(HistoryView {
@@ -490,6 +493,13 @@ mod tests {
             },
         ] {
             let view = history_view(&store, &filter).unwrap();
+            // La consistencia de cada carrera con filtro, de la más antigua a la más reciente.
+            let consistency: Vec<f64> = view
+                .races
+                .iter()
+                .rev()
+                .filter_map(|r| r.stats?.mean_consistency)
+                .collect();
             let expected = history_insights(&HistoryAnalyses {
                 history: &view.history,
                 by_leg_length: &view.by_leg_length,
@@ -498,6 +508,7 @@ mod tests {
                 after_error: &view.after_error,
                 days_off: &view.days_off,
                 loss_breakdown: &view.loss_breakdown,
+                consistency: &consistency,
                 taxonomy: Some(&taxonomy),
             });
             assert_eq!(view.insights, expected);

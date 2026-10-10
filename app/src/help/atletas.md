@@ -7,8 +7,10 @@ lectura**. Si además corres, usas las dos cosas a la vez, sin cambiar de modo.
 
 ## El bloque Atletas
 
-- **Ver a**: un selector con los atletas que te han enviado algo y cuántas carreras. Al elegir
-  uno, debajo salen sus **Carreras** y sus **Estadísticas**, exactamente como las ve él.
+- **Mis atletas**: una tarjeta por atleta con sus cifras, su evolución, sus grupos y sus carreras
+  nuevas ([Mis atletas](mis-atletas.md)); a su lado, cuántas carreras nuevas hay entre todos. Un
+  clic en una tarjeta entra en el atleta: debajo salen su nombre, sus **Carreras** y sus
+  **Estadísticas**, exactamente como las ve él.
 - **Comparar atletas**: todos juntos, o los de un grupo ([Comparar atletas](grupo.md)).
 - **Grupos**: para organizarlos y ver las estadísticas de cada grupo ([Grupos](grupos.md)).
 
@@ -28,14 +30,20 @@ carreras, Estadísticas e Importar del bloque «Lo mío».
 
 ## Cómo te llegan las carreras
 
-Por la misma carpeta compartida (Drive, OneDrive, Dropbox…) que usas para compartir las tuyas, si
-compartes. La eliges en Ajustes. La app la mira (sin entrar en subcarpetas) al abrirse y cada
-minuto, y no vuelve a recoger tus propias carreras. Al pie de la barra lateral dice cuántos
-paquetes y de cuántos atletas ha recibido, y si alguno no se ha podido leer.
+Por una **carpeta madre** en Drive, OneDrive, Dropbox… con **una subcarpeta por atleta**. La
+eliges en Ajustes. La app mira esa carpeta y todas las que tiene dentro (hasta tres niveles, sin
+las ocultas ni los enlaces) al abrirse y cada minuto, y recoge los paquetes nuevos. No vuelve a
+recoger tus propias carreras, si compartes, estén en la subcarpeta que estén. Al pie de la barra
+lateral dice cuántos paquetes y de cuántos atletas ha recibido, y si alguno no se ha podido leer.
 
-> Creas en tu Drive una carpeta «Tramos grupo», la compartes con tus atletas y la eliges en
-> Ajustes; cada uno la elige en Mi perfil. Cuando uno etiqueta un error en su casa, te aparece,
-> como mucho, un minuto después de que se sincronice la carpeta.
+Si el mismo paquete (la misma carrera del mismo atleta) está en dos sitios, te quedas con el más
+reciente.
+
+> Creas en tu Drive una carpeta «Tramos grupo» y dentro una subcarpeta por atleta («Ana»,
+> «Beto»…). Cada subcarpeta la compartes solo con su atleta, que la elige en Mi perfil y deja ahí
+> sus carreras; así no ve las de los demás. Tú eliges la carpeta madre en Ajustes. Cuando uno
+> etiqueta un error en su casa, te aparece, como mucho, un minuto después de que se sincronice la
+> carpeta.
 
 Más en [Compartir](compartir.md).
 

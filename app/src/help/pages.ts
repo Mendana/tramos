@@ -22,6 +22,7 @@ import indice from "./indice.md?raw";
 import inicio from "./inicio.md?raw";
 import ir from "./ir.md?raw";
 import lentoODesorientado from "./lento-o-desorientado.md?raw";
+import misAtletas from "./mis-atletas.md?raw";
 import misCarreras from "./mis-carreras.md?raw";
 import atletas from "./atletas.md?raw";
 import perfil from "./perfil.md?raw";
@@ -39,6 +40,7 @@ export type HelpPageId =
   | "importar"
   | "perfil"
   | "ajustes"
+  | "mis-atletas"
   | "grupo"
   | "grupos"
   | "comparar-grupos"
@@ -86,6 +88,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   importar: { source: importar, group: "screens" },
   perfil: { source: perfil, group: "screens" },
   ajustes: { source: ajustes, group: "screens" },
+  "mis-atletas": { source: misAtletas, group: "screens" },
   grupo: { source: grupo, group: "screens" },
   grupos: { source: grupos, group: "screens" },
   "comparar-grupos": { source: compararGrupos, group: "screens" },

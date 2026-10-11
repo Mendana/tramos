@@ -250,6 +250,17 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
 - Al abrir la app se lee el tema y se pone en la raíz del documento (`theme.ts`): `data-theme="light"`
   o `"dark"` fuerzan el modo; con **Sistema** no hay atributo y manda el del sistema operativo
   (`prefers-color-scheme`), que sigue cambiando con él.
+- **Sin parpadeo (#162).** El núcleo se lee cuando la ventana ya está abierta, así que con «Oscuro» y el
+  sistema en claro (o al revés) se vería un instante el tema equivocado. Por eso hay una copia del
+  tema en `localStorage` (clave `tramos.theme`, solo `light` o `dark`; con «Sistema» se borra) que
+  aplica `app/public/theme-init.js` antes de pintar. Es un `<script>` sin `type="module"` en el
+  `<head>` de `index.html`, así que bloquea el análisis del HTML y corre antes del primer pintado;
+  la CSP no admite scripts en línea, de ahí que sea un fichero aparte. Un módulo de `main.tsx` no
+  basta: se ejecuta ya con la ventana pintada. La copia se escribe al elegir el tema y al leerlo del
+  núcleo (`applyAndStoreTheme`, `theme.ts`). **El núcleo manda**: si al leerlo no coincide con la
+  copia, se aplica el del núcleo y se corrige la copia. Todo acceso a `localStorage` va en
+  `try/catch`: sin él (vacío o bloqueado) todo funciona igual, solo que el primer pintado usa el
+  tema del sistema. Si cambias la clave o los valores, cámbialos en `theme.ts` y en `theme-init.js`.
 - Los colores oscuros de `tokens.css` valen para dos selectores con los mismos valores:
   `@media (prefers-color-scheme: dark)` sobre `:root:not([data-theme="light"])` y
   `:root[data-theme="dark"]`. Si cambias uno, cambia el otro.

@@ -42,7 +42,7 @@ use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
 use crate::settings::{Role, Settings};
-use crate::sharing::{RaceSharing, ReceiveReport, SeenFiles, ShareReport};
+use crate::sharing::{MoveReport, RaceSharing, ReceiveReport, SeenFiles, ShareReport};
 use crate::tags::TagView;
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
@@ -124,14 +124,31 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Result<Settings, String> {
     settings::load(&*state.store()?).map_err(|e| e.to_string())
 }
 
-/// Valida y guarda los ajustes; si alguno no vale, no se guarda ninguno.
+/// Valida y guarda los ajustes; si alguno no vale, no se guarda ninguno. Si quien entrena y
+/// comparte lo suyo cambia de subcarpeta propia, mueve a ella los paquetes propios de la carpeta
+/// anterior (#167) y dice qué ha movido.
 #[tauri::command]
-fn save_settings(state: tauri::State<'_, AppState>, settings: Settings) -> Result<(), String> {
-    settings::save(&mut *state.store()?, &settings).map_err(|e| e.to_string())?;
+fn save_settings(
+    state: tauri::State<'_, AppState>,
+    settings: Settings,
+) -> Result<MoveReport, String> {
+    let mut store = state.store()?;
+    let before = settings::load(&store).map_err(|e| e.to_string())?.sharing;
+    settings::save(&mut store, &settings).map_err(|e| e.to_string())?;
+    let saved = settings::load(&store).map_err(|e| e.to_string())?.sharing;
+    let report =
+        sharing::move_own_packages(&mut store, &before, &saved).map_err(|e| e.to_string())?;
+    drop(store);
     if !settings.sharing.coach {
         *state.viewed()? = None;
     }
-    Ok(())
+    Ok(report)
+}
+
+/// La subcarpeta propia que se propone dentro de la carpeta madre (`<madre>/<nombre>`).
+#[tauri::command]
+fn propose_own_folder(mother: String, full_name: String) -> String {
+    sharing::propose_own_folder(&mother, &full_name)
 }
 
 /// Qué falla en unas zonas del mapa (lo que impide guardarlas) y los avisos sobre sus colores,
@@ -618,6 +635,7 @@ pub fn run() -> tauri::Result<()> {
             core_version,
             get_settings,
             save_settings,
+            propose_own_folder,
             check_zones,
             hidden_panels,
             set_hidden_panels,

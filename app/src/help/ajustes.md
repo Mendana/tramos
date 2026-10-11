@@ -43,7 +43,9 @@ lleva cada tarjeta de [Mis atletas](mis-atletas.md).
 **Entreno a otros atletas** añade a la barra lateral el bloque [Atletas](atletas.md), para ver
 las carreras que te comparten tus atletas. Tus carreras siguen igual. Con la casilla marcada, aquí
 eliges también la carpeta compartida de la que llegan: la carpeta madre, con una subcarpeta por
-atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)).
+atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)). Si
+además compartes tus carreras, aquí y en Mi perfil sale también **Tu subcarpeta**, donde dejas las
+tuyas (se propone una con tu nombre dentro de la carpeta madre y se crea sola al guardar).
 Ver [Compartir](compartir.md).
 
 ## Acerca de Tramos

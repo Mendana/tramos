@@ -101,9 +101,14 @@ y de todas sus subcarpetas. Así un atleta no ve lo de los demás y quien entren
 añadir una carpeta por atleta. Cada app la tiene en sus ajustes (`sharing.folder`, `docs/app.md`, "Ajustes") junto
 con dos casillas independientes (#119): **«Compartir mis carreras»** (`sharing.share_own`)
 exporta y **«Entreno a otros atletas»** (`athletes.enabled`) recibe. Quien entrena y también
-corre marca las dos y usa **la misma carpeta** para las dos cosas (la carpeta madre: sus
-paquetes quedan en su raíz y al leer se saltan). Implementado en
-`app/src-tauri/src/sharing.rs`.
+corre marca las dos y tiene **dos carpetas** (#167): la **carpeta madre** (`sharing.folder`), de la
+que lee, y **su propia subcarpeta** (`sharing.export_folder`), donde exporta, como un atleta más.
+Al marcar las dos casillas la app propone `<carpeta madre>/<su nombre>` (el nombre, saneado para
+el sistema de ficheros: sin `/ \ : * ? " < > |` ni puntos al principio o al final) y la crea al
+guardar si no existe (un solo nivel: la carpeta madre tiene que existir); se puede elegir otra.
+Quien solo corre o solo entrena usa una sola carpeta (`sharing.folder`), como antes, y quien
+entrena y corre sin `export_folder` (una base de antes) sigue exportando en la carpeta madre.
+Implementado en `app/src-tauri/src/sharing.rs`.
 
 **Qué se comparte de cada carrera.** Lo elegido para esa carrera en la vista de carrera
 (tabla `result_sharing`, `docs/almacenamiento.md`) o, si no se ha elegido nada, el ajuste
@@ -125,6 +130,14 @@ umbrales cambian el resumen.
 - Un fallo al exportar (carpeta que no está, sin permiso) no deshace el cambio que lo provocó: la
   vista de carrera lo muestra y se reintenta al abrirla o al volver a cambiar algo.
 - Una carrera que no se puede analizar (sin picadas) no se exporta.
+- **Cambio de subcarpeta propia (#167).** Al guardar los ajustes, si quien entrena y comparte lo
+  suyo pasa a tener otra carpeta de exportación (la primera vez, la carpeta madre donde ya estaban
+  sus paquetes), los paquetes propios de la carpeta anterior (`tramos-<race_id>-<runner_id>.json`
+  con su `runner_id`, solo los ficheros de esa carpeta, no los de sus subcarpetas) **se mueven** a
+  la nueva (`move_own_packages`): así no quedan duplicados ni los atletas con copias viejas. Si
+  la carpeta nueva ya tiene uno igual, no se duplica: se queda el de la nueva y se quita el viejo
+  (la exportación siguiente lo pone al día si hace falta). Los paquetes de otros corredores no se
+  tocan. Quien solo corre y cambia de carpeta no mueve nada.
 
 **Recibir.** Si entrena y hay carpeta, la app importa los paquetes de la
 carpeta (`receive`) al arrancar, al guardar los ajustes y **cada minuto** mientras está abierta.
@@ -137,7 +150,7 @@ mirar cada minuto basta.
   que no se puede leer se anota entre los problemas y no impide leer el resto; si no se puede leer
   la carpeta elegida, es un error.
 - Solo lee los ficheros `tramos-*.json`; el resto se ignora. Tampoco lee los suyos, estén en la
-  subcarpeta que estén: los que terminan en su propio `runner_id`
+  carpeta madre, en su subcarpeta o en cualquier otra: los que terminan en su propio `runner_id`
   (`tramos-<race_id>-<runner_id>.json`), que son las carreras propias que exporta esta misma app.
 - **Ficheros repetidos.** Un paquete se identifica por (`runner_id`, `race_id`), no por su
   ruta. Si hay varios ficheros del mismo corredor y carrera (una copia en otra subcarpeta, un

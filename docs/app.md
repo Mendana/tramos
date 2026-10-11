@@ -22,7 +22,8 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | Comando | Qué hace |
 | --- | --- |
 | `core_version` | Versión del núcleo. |
-| `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno. |
+| `get_settings` / `save_settings(settings)` | Ajustes del usuario (abajo). Guardar valida todos y, si alguno no vale, no guarda ninguno; devuelve los paquetes propios que haya movido a una subcarpeta nueva (`sharing.export_folder`). |
+| `propose_own_folder(mother, fullName)` | La subcarpeta propia que se propone dentro de la carpeta madre: `<madre>/<nombre>`, con el nombre saneado para el sistema de ficheros (sin nombre, «Mis carreras»). No crea nada. |
 | `check_zones(zones)` | Unas zonas del mapa mientras se editan (#96): por qué no se pueden guardar o, si se puede, los avisos sobre sus colores, en español. |
 | `hidden_panels` / `set_hidden_panels(ids)` | Paneles de análisis ocultos (#130), por identificador. Se leen y guardan en la base propia también mientras se ve a un atleta, así que valen para todos. |
 | `theme` / `set_theme(theme)` | Tema de la interfaz (#143): `system`, `light` o `dark`. Se lee y guarda al momento, sin pasar por `save_settings`; un valor que no se entiende es `system`. |
@@ -193,9 +194,10 @@ arriba (importadas, con reloj, sin pareja y con avisos):
 Dos pantallas de la barra lateral guardan el mismo formulario (`SettingsView.tsx`, #127):
 
 - **Mi perfil**: quién eres (nombre y apellidos, tarjeta SI) y qué compartes («Compartir mis
-  carreras», la carpeta compartida y qué se comparte por defecto de cada carrera).
+  carreras», la carpeta compartida —y, si también entrenas, tu subcarpeta— y qué se comparte por
+  defecto de cada carrera).
 - **Ajustes**: tramo con error (umbrales), hora de las carreras (zona horaria), colores del mapa,
-  apariencia (tema), paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
+  apariencia (tema), paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida o, si también compartes lo tuyo, la carpeta madre y tu subcarpeta),
   con un índice a la izquierda que salta a cada apartado.
 
 Se guardan en la tabla `settings` de la base:
@@ -215,6 +217,7 @@ Se guardan en la tabla `settings` de la base:
 | `athletes.last_seen` | Última vez que se entró en cada atleta (#142), en JSON: `{runner_id: instante RFC 3339}`. No se edita. | — (nunca) | Las carreras que llegan por primera vez después son novedad (abajo, "Atletas"). Se escribe al entrar en un atleta (`view_runner`) y cuando llega algo del que se está viendo. |
 | `sharing.mode` | Modo de antes de #119: `runner` o `coach`. Ya no se escribe. | — | Solo si faltan los dos de arriba: `coach` es entrenar sin compartir lo propio; `runner`, al revés. |
 | `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. Quien corre elige su subcarpeta de la carpeta madre de quien le entrena; quien entrena elige la carpeta madre, y se leen también sus subcarpetas. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
+| `sharing.export_folder` | Tu subcarpeta (#167): donde exportas tus carreras cuando entrenas y compartes lo tuyo; `sharing.folder` pasa a ser la carpeta madre de la que lees. Si no existe se crea al guardar (un solo nivel; la carpeta madre tiene que existir). Se olvida si dejas de entrenar. | — | Vacía = se exporta en `sharing.folder`, como quien solo corre. En Mi perfil y en Ajustes se ven dos campos, «Carpeta madre» y «Tu subcarpeta», solo con las dos casillas marcadas; al marcarlas se propone `<carpeta madre>/<tu nombre>` (`propose_own_folder`). Al guardar con otra subcarpeta, los paquetes propios de la carpeta anterior se mueven a ella (`save_settings` devuelve cuántos: `moved`, `already_there` y `problems`; `docs/paquete.md`, "Carpeta compartida"). |
 | `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
 | `package_runner_id` | Identificador al azar del corredor en los paquetes (no se edita, `docs/paquete.md`). | — | — |
 | `map.pace_zones` | Zonas de ritmo del mapa (#96), en JSON: `limits` (s/km, de menor a mayor) y `colors` (`#rrggbb`, uno más que límites). Vacío = ninguna. | — | Sin zonas, el mapa colorea por cuantiles de cada carrera. Con ellas, por las zonas del usuario (ver "Mapa"). |
@@ -320,8 +323,8 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   después sale el recorrido guiado (abajo, "Ayuda").
 - **Recibir.** Los paquetes llegan por la carpeta compartida (`docs/paquete.md`, "Carpeta
   compartida"): quien entrena elige una carpeta madre con una subcarpeta por atleta y la app lee
-  la carpeta y sus subcarpetas; cada atleta exporta a su subcarpeta (#140). Los suyos no vuelven
-  a entrar.
+  la carpeta y sus subcarpetas; cada atleta exporta a su subcarpeta (#140), y quien entrena y corre, a la suya (#167). Los
+  suyos no vuelven a entrar, estén donde estén.
 - **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: **Mis atletas** (abajo), con
   el total de carreras nuevas de todos a la derecha; **Carreras de atletas**, las de todos
   (abajo, #163); mientras se ve a uno, su nombre y sus **Carreras** y **Estadísticas**;

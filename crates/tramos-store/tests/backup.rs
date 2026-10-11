@@ -123,10 +123,14 @@ fn export_and_restore_into_another_database_keeps_races_tags_and_settings() {
     assert_eq!(prepared.info(), &info);
     let outcome = prepared.apply(&mut other).unwrap();
 
-    // La base de antes se guarda al lado y los temporales desaparecen.
+    // La base de antes se guarda al lado y los temporales desaparecen. Rutas canónicas: en
+    // Windows la carpeta temporal puede salir con su nombre corto (`RUNNER~1`).
     assert_eq!(
-        outcome.saved_previous,
-        dir.path().join("otro.sqlite.antes-de-restaurar")
+        outcome.saved_previous.canonicalize().unwrap(),
+        dir.path()
+            .join("otro.sqlite.antes-de-restaurar")
+            .canonicalize()
+            .unwrap()
     );
     assert_eq!(
         dir_files(dir.path()),

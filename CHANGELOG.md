@@ -14,6 +14,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+- Carreras de OReplay: en Importar, pega el enlace de la carrera en OReplay y la app descarga los
+  resultados con sus parciales, sin tener que buscar el .spl en WinSplits. Vale para carreras
+  individuales con parciales (no relevos ni score).
 - Sincronizar el reloj con una baliza: en «Reloj y cronometraje», elige una baliza que recuerdes
   dónde picaste y pulsa ese punto en tu track del mapa. La app saca de ahí la diferencia entre tu
   reloj y el cronometraje, aunque el cálculo automático no haya encajado.

@@ -1,4 +1,4 @@
-//! Ficheros originales importados (.spl, FIT), guardados con su contenido.
+//! Ficheros originales importados (.spl o descarga de OReplay, FIT), guardados con su contenido.
 //!
 //! El .spl incluye nombres y fechas de nacimiento: estos datos nunca salen de la base local
 //! (ver `docs/datos-y-privacidad.md`).
@@ -19,7 +19,9 @@ pub struct SourceFileId(pub i64);
 /// Tipo de fichero original.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceFileKind {
-    /// Splits de WinSplits.
+    /// Splits del cronometraje: un .spl de WinSplits o una descarga de OReplay (JSON), que se
+    /// distinguen por el contenido (`docs/formato-oreplay.md`). Se guardan con el mismo tipo para
+    /// no cambiar el esquema.
     Spl,
     /// Registro del reloj.
     Fit,

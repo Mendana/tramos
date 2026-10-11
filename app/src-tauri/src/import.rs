@@ -1,4 +1,5 @@
-//! Importar una carrera: el .spl y, si lo hay, el FIT del corredor.
+//! Importar una carrera: los splits (el .spl de WinSplits o una descarga de OReplay,
+//! [`crate::oreplay`]) y, si lo hay, el FIT del corredor.
 //!
 //! Va en dos pasos para que la interfaz pueda preguntar entre medias:
 //!
@@ -15,11 +16,13 @@
 use std::path::Path;
 
 use chrono::NaiveDate;
+use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tramos_core::alignment::{AlignmentError, AlignmentOptions, align};
 use tramos_core::identify::{Identification, ResultRef, RunnerIdentity, identify_runner};
 use tramos_core::importers::fit::{self, FitError};
+use tramos_core::importers::oreplay::{self, OReplayError};
 use tramos_core::importers::spl::{self, SplError};
 use tramos_core::model::{Event, RaceStatus, Track};
 use tramos_core::race_format::{RaceFormat, median_winner_time_s, suggest_format};
@@ -42,6 +45,8 @@ pub enum ImportError {
     },
     #[error("el .spl no es válido: {0}")]
     Spl(#[from] SplError),
+    #[error("la descarga de OReplay no es válida: {0}")]
+    OReplay(#[from] OReplayError),
     #[error("el FIT no es válido: {0}")]
     Fit(#[from] FitError),
     #[error("la carrera no tiene ese resultado (categoría {class_index}, posición {result_index})")]
@@ -146,7 +151,7 @@ pub fn preview(
     identity: &RunnerIdentity,
 ) -> Result<ImportPreview, ImportError> {
     let spl_bytes = read_file(spl_path)?;
-    let event = spl::read_with_time_zone(&spl_bytes, settings::time_zone(store)?)?;
+    let event = read_splits(&spl_bytes, settings::time_zone(store)?)?;
     let fit_points = fit_path
         .map(|path| read_track(path).map(|track| track.points.len()))
         .transpose()?;
@@ -187,7 +192,7 @@ pub fn preview(
 /// Lee y valida los dos ficheros antes de guardar nada: si alguno no vale, no se guarda nada.
 pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcome, ImportError> {
     let spl_bytes = read_file(&request.spl_path)?;
-    let event = spl::read_with_time_zone(&spl_bytes, settings::time_zone(store)?)?;
+    let event = read_splits(&spl_bytes, settings::time_zone(store)?)?;
     let race_result = request
         .result
         .get(&event)
@@ -278,6 +283,16 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
         alignment,
         warnings,
     })
+}
+
+/// Lee los splits de una carrera: una descarga de OReplay (JSON) o, si no, un .spl. La zona
+/// horaria solo hace falta para el .spl: OReplay da las horas en UTC.
+pub(crate) fn read_splits(bytes: &[u8], zone: Tz) -> Result<Event, ImportError> {
+    if oreplay::is_download(bytes) {
+        Ok(oreplay::read(bytes)?)
+    } else {
+        Ok(spl::read_with_time_zone(bytes, zone)?)
+    }
 }
 
 /// Si ya hay una carrera guardada a partir de este mismo .spl (mismo contenido).
@@ -466,6 +481,43 @@ mod tests {
         let people = store.people().unwrap();
         assert_eq!(people.len(), 1);
         assert_eq!(people[0].display_name, "N143 Apellido143");
+    }
+
+    /// La misma carrera que el .spl, descargada de OReplay (`fixtures/oreplay/`): se revisa y se
+    /// importa igual, y el FIT se alinea con sus picadas.
+    #[test]
+    fn an_oreplay_download_imports_like_the_spl() {
+        let mut store = Store::open_in_memory().unwrap();
+        let download = fixture("oreplay/baltanas-anon.json");
+        let p = preview(&store, &download, Some(&fit()), &identity()).unwrap();
+        assert_eq!(p.event_date, NaiveDate::from_ymd_opt(2026, 10, 3).unwrap());
+        assert_eq!(p.matched, Match::Unique);
+        let c = &p.candidates[0];
+        assert_eq!(
+            (c.class_name.as_str(), c.si_card, c.place),
+            ("M-SEN", Some(143), Some(16))
+        );
+        assert_eq!(p.suggested_format, Some(RaceFormat::Sprint));
+
+        let request = ImportRequest {
+            spl_path: download.clone(),
+            ..request(&p, Some(fit()))
+        };
+        let outcome = import(&mut store, &request).unwrap();
+        let alignment = outcome.alignment.unwrap();
+        assert!(alignment.track_saved);
+        assert!(alignment.offset_s.unwrap().abs() < 2.0);
+        assert!(alignment.confidence.unwrap() > 0.8);
+        assert_eq!(list_races(&store).unwrap().len(), 1);
+
+        // Volver a importar la misma descarga no duplica la carrera.
+        assert!(
+            preview(&store, &download, None, &identity())
+                .unwrap()
+                .already_imported
+        );
+        assert!(import(&mut store, &request).unwrap().already_imported);
+        assert_eq!(list_races(&store).unwrap().len(), 1);
     }
 
     #[test]

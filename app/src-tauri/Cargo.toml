@@ -37,6 +37,10 @@ serde = { version = "1", features = ["derive"] }
 # Ya viene con Tauri: las zonas del mapa se guardan como JSON en los ajustes.
 serde_json = "1"
 thiserror = "2"
+# Descarga de OReplay (#185). Ya vienen con el actualizador: mismas versiones y el mismo
+# proveedor de cifrado (`ring`), sin TLS del sistema.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [dev-dependencies]
 tempfile = "3"

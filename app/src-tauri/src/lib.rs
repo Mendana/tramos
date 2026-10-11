@@ -9,6 +9,7 @@ pub mod coach;
 pub mod groups;
 pub mod history;
 pub mod import;
+pub mod oreplay;
 pub mod package;
 pub mod race_map;
 pub mod races;
@@ -439,6 +440,26 @@ async fn import_folder(
     Ok(summary)
 }
 
+/// Descarga una carrera de OReplay a partir de su enlace (#185) y la deja en el directorio de
+/// datos, lista para revisar e importar como un .spl. Si el enlace es el de un evento con varias
+/// etapas, devuelve las etapas para elegir. No toca la base de datos.
+#[tauri::command]
+async fn download_oreplay(
+    app: tauri::AppHandle,
+    url: String,
+    stage_id: Option<String>,
+) -> Result<oreplay::DownloadOutcome, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(oreplay::DOWNLOAD_DIR);
+    let http = oreplay::Http::new().map_err(|e| e.to_string())?;
+    oreplay::download(&http, &url, stage_id.as_deref(), &dir)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido.
 #[tauri::command]
 fn list_races(state: tauri::State<'_, AppState>) -> Result<Vec<RaceRow>, String> {
@@ -714,6 +735,7 @@ pub fn run() -> tauri::Result<()> {
             preview_import,
             import_race,
             import_folder,
+            download_oreplay,
             list_races,
             race_detail,
             race_comparison,

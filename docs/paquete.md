@@ -84,6 +84,10 @@ algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene e
   esta columna toman como primera llegada la que tenían.
 - Sustituir vale también para bajar de nivel: si el corredor reexporta con `aggregates` una
   carrera que había compartido con `track`, el track desaparece de la app de la entrenadora.
+- Cruzar paquetes de la misma carrera (`Store::received_packages_of_race`): el `race_id` los
+  agrupa; cuál de los resultados de un evento reducido es de quien lo envió lo dice
+  `course.result`, y para encontrarlo en la copia de otro paquete se casa por categoría y nombre
+  (`docs/tiempo-perdido.md`, «Frente al grupo»).
 - Qué hace la app de quien entrena con los paquetes (Mis atletas, novedades y vistas en solo
   lectura) está en `docs/app.md`, "Atletas" (#37, #119).
 

@@ -2,7 +2,15 @@
 // mismo recorrido, en la diferencia acumulada respecto al tiempo ideal y en la pérdida por tramo.
 // Los números salen del núcleo (`race_comparison`); aquí solo se eligen y se dibujan.
 import { useEffect, useState } from "react";
-import { ComparedRunner, CourseComparison, clock, codeLabel, raceComparison, signed } from "./api";
+import {
+  ComparedRunner,
+  CourseComparison,
+  clock,
+  codeLabel,
+  raceComparison,
+  raceOwnAthletes,
+  signed,
+} from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { GroupedColumnChart } from "./charts/GroupedColumnChart";
 import { MultiLineChart } from "./charts/MultiLineChart";
@@ -12,6 +20,9 @@ import { useViewer } from "./viewer";
 
 /** Compañeros a la vez, además del corredor: una serie por color de la paleta. */
 const MAX_OTHERS = SERIES_COLORS.length - 1;
+
+/** La marca de los atletas de quien entrena (#164). */
+const ATHLETE_MARK = "tu atleta";
 
 const keyOf = (r: ComparedRunner) => `${r.result.class_index}-${r.result.result_index}`;
 const fullName = (r: ComparedRunner) => `${r.given_name} ${r.family_name}`.trim();
@@ -27,25 +38,38 @@ const shortName = (r: ComparedRunner, self: string) =>
 const behind = (v: number | null) => (v === null ? "—" : `${v > 0 ? "+" : ""}${clock(v)}`);
 const loss = (v: number | null) => (v === null ? "—" : `${signed(v)} s`);
 
-/** Por defecto, el ganador del recorrido (o el segundo, si el ganador es el corredor). */
-function defaultOthers(runners: ComparedRunner[]): string[] {
-  const first = runners.find((r) => !r.is_self && r.course_place !== null);
-  return first === undefined ? [] : [keyOf(first)];
+/**
+ * Por defecto, los atletas propios de la carrera (#164) y el ganador del recorrido (o el segundo,
+ * si el ganador es el corredor). Con más atletas que sitio, el ganador conserva el suyo.
+ */
+function defaultOthers(runners: ComparedRunner[], athletes: ReadonlySet<string>): string[] {
+  const winner = runners.find((r) => !r.is_self && r.course_place !== null);
+  const own = runners.filter((r) => athletes.has(keyOf(r)));
+  const room = winner === undefined || athletes.has(keyOf(winner)) ? MAX_OTHERS : MAX_OTHERS - 1;
+  const chosen = own.slice(0, room).map(keyOf);
+  if (winner !== undefined && !chosen.includes(keyOf(winner))) chosen.push(keyOf(winner));
+  return chosen;
 }
 
 export function GroupComparison({ resultId }: { resultId: number }) {
   const [comparison, setComparison] = useState<CourseComparison | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [others, setOthers] = useState<string[]>([]);
+  // Claves de los resultados que son de atletas de quien entrena en esta carrera.
+  const [athletes, setAthletes] = useState<ReadonlySet<string>>(new Set());
   const selfName = useViewer().runnerName ?? "Tú";
 
   useEffect(() => {
     setComparison(null);
     setError(null);
-    raceComparison(resultId)
-      .then((c) => {
+    setAthletes(new Set());
+    // Las marcas son un extra: si fallan, la pestaña queda como sin atletas.
+    Promise.all([raceComparison(resultId), raceOwnAthletes(resultId).catch(() => [])])
+      .then(([c, marks]) => {
+        const found = new Set(marks.map((m) => `${m.result.class_index}-${m.result.result_index}`));
         setComparison(c);
-        setOthers(defaultOthers(c.runners));
+        setAthletes(found);
+        setOthers(defaultOthers(c.runners, found));
       })
       .catch((err: unknown) => setError(String(err)));
   }, [resultId]);
@@ -57,7 +81,10 @@ export function GroupComparison({ resultId }: { resultId: number }) {
   if (self === undefined) return null;
   const chosen = others.flatMap((k) => comparison.runners.filter((r) => keyOf(r) === k));
   const shown = [self, ...chosen].map((r, i) => ({ runner: r, color: SERIES_COLORS[i] }));
-  const candidates = comparison.runners.filter((r) => !r.is_self && !others.includes(keyOf(r)));
+  // Los atletas propios, primero; dentro de cada grupo, el orden de la carrera.
+  const candidates = comparison.runners
+    .filter((r) => !r.is_self && !others.includes(keyOf(r)))
+    .sort((a, b) => Number(athletes.has(keyOf(b))) - Number(athletes.has(keyOf(a))));
   const legName = (i: number) => {
     const leg = comparison.legs[i];
     return `Tramo ${leg.index} · ${codeLabel(leg.from)} → ${codeLabel(leg.to)}`;
@@ -74,6 +101,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
         <span className="compare-chip" key={keyOf(r)}>
           <span className="legend-swatch" style={{ background: SERIES_COLORS[i + 1] }} />
           {fullName(r)}
+          {athletes.has(keyOf(r)) && <span className="compare-chip-mark">{ATHLETE_MARK}</span>}
           <button
             type="button"
             aria-label={`Quitar a ${fullName(r)}`}
@@ -97,7 +125,8 @@ export function GroupComparison({ resultId }: { resultId: number }) {
         </option>
         {candidates.map((r) => (
           <option key={keyOf(r)} value={keyOf(r)}>
-            {r.course_place === null ? "—" : `${r.course_place}.`} {fullName(r)} · {r.class_name} ·{" "}
+            {r.course_place === null ? "—" : `${r.course_place}.`} {fullName(r)}
+            {athletes.has(keyOf(r)) ? ` (${ATHLETE_MARK})` : ""} · {r.class_name} ·{" "}
             {clock(r.total_s)}
           </option>
         ))}

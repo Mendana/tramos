@@ -16,3 +16,28 @@ export function applyTheme(theme: Theme) {
   if (theme === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", theme);
 }
+
+/**
+ * Clave de la copia del tema en `localStorage`. La lee `public/theme-init.js` antes de pintar;
+ * si la cambias, cámbiala también allí.
+ */
+export const THEME_STORAGE_KEY = "tramos.theme";
+
+/**
+ * Guarda la copia del tema para que la próxima vez se aplique antes de pintar. El núcleo manda: la
+ * copia solo evita ver un instante el tema equivocado. Si `localStorage` falla, no pasa nada.
+ */
+export function storeThemeCopy(theme: Theme) {
+  try {
+    if (theme === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
+    else window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Sin copia, la app sigue igual: se ve el tema del sistema hasta que responde el núcleo.
+  }
+}
+
+/** Aplica el tema y guarda su copia: lo que se hace al elegirlo y al leerlo del núcleo. */
+export function applyAndStoreTheme(theme: Theme) {
+  applyTheme(theme);
+  storeThemeCopy(theme);
+}

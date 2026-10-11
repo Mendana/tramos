@@ -12,7 +12,7 @@ import {
   setTheme,
   shareAll,
 } from "./api";
-import { THEMES, applyTheme } from "./theme";
+import { THEMES, applyAndStoreTheme } from "./theme";
 import { AboutSection } from "./about";
 import { Notice, PageHeader } from "./ui";
 import { PANEL_GROUPS, usePanelVisibility } from "./panels";
@@ -201,7 +201,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
   /** El tema se aplica y se guarda al momento, sin «Guardar». */
   function chooseTheme(next: Theme) {
     setThemeState(next);
-    applyTheme(next);
+    applyAndStoreTheme(next);
     setError(null);
     setTheme(next).catch((err: unknown) => setError(String(err)));
   }

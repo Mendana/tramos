@@ -29,7 +29,8 @@ Explicado en [Zonas del mapa](zonas-del-mapa.md).
 
 El tema de la app: **Sistema**, **Claro** u **Oscuro**. Con «Sistema» la app sigue el modo de tu
 equipo y cambia con él. Se aplica al momento, sin Guardar. El mapa de la carrera se ve igual en los
-dos modos, porque sus teselas son claras.
+dos modos, porque sus teselas son claras. La app recuerda el tema elegido para abrirse ya con él, sin
+mostrar un instante el otro.
 
 ## Paneles de análisis
 

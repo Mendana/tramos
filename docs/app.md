@@ -29,8 +29,8 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `role_chosen` / `choose_role(role)` | Si ya se ha dicho cómo se usa la app y decirlo sin tocar los demás ajustes: `runner` (corre), `coach` (entrena) o `both` (las dos cosas; abajo, "Atletas"). |
 | `coach_runners` | Si entrena, los atletas de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `athlete_news` | Si entrena, lo nuevo de cada atleta de los que hay paquetes (#142, abajo, "Atletas"): el atleta, la última vez que se entró en él (`athletes.last_seen`; `null` = nunca) y las carreras recibidas después (fecha, nombre, formato e instante de recepción), de la más reciente a la más antigua. Solo lee los paquetes nuevos; los que no se pueden leer no salen. Si no entrena, error. |
-| `athlete_cards` | Si entrena, una tarjeta por atleta para Mis atletas (#142): su fila de la vista de grupo sin filtros (`row`, la misma que en `group_view`; o `problem`), el rendimiento habitual de sus 10 últimas carreras con rendimiento, de la más antigua a la más reciente (`trend`), la fecha de su última carrera (también de las de solo resumen), los grupos de atletas en los que está y cuántas carreras nuevas tiene. Si no entrena, error. |
-| `view_runner(runnerId)` | Elige el atleta que se ve (`null` = volver a lo propio): vuelca sus paquetes, apunta la visita en `athletes.last_seen` (sus novedades se quedan a cero) y, a partir de ahí, las vistas de corredor muestran sus carreras en solo lectura. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer. Elegir un atleta sin entrenar da error. |
+| `athlete_cards` | Si entrena, una tarjeta por atleta para Mis atletas (#142): su fila de la vista de grupo sin filtros (`row`, la misma que en `group_view`; o `problem`), el rendimiento habitual de sus 10 últimas carreras con rendimiento, de la más antigua a la más reciente (`trend`), la fecha de su última carrera (también de las de solo resumen), los grupos de atletas en los que está y cuántas carreras nuevas (`new_races`) y actualizadas (`updated_races`, ya vistas y reexportadas) tiene. Si no entrena, error. |
+| `view_runner(runnerId)` | Elige el atleta que se ve (`null` = volver a lo propio): vuelca sus paquetes, apunta la visita en `athletes.last_seen` (sus novedades se quedan a cero) y, a partir de ahí, las vistas de corredor muestran sus carreras en solo lectura. Devuelve lo que no sale en ellas: las carreras compartidas solo con el resumen y los paquetes que no se han podido leer, y los `result_id` de las carreras ya vistas que ha actualizado desde la visita anterior (`updated_results`, y `updated` en las de solo resumen). Elegir un atleta sin entrenar da error. |
 | `group_view(filter, group)` | Si entrena, la vista de grupo (P15, `docs/historico.md`): una fila por atleta de los que hay paquetes (o por qué no se ha podido calcular), todos contra todos en las carreras compartidas y los totales de todos juntos (`total`, #120), con el filtro del histórico. Con `group` (un grupo de atletas), solo sus miembros: quien usa la app sale si es miembro. Sin grupo, con `athletes.include_self`, las carreras propias cuentan como un atleta más (la primera fila, `is_self`). Si no entrena, error. |
 | `set_include_self(include)` | Guarda «Incluirme» (`athletes.include_self`) de la vista de grupo. |
 | `athlete_groups` | Si entrena, sus grupos de atletas (#120: identificador, nombre, descripción, color y `runner_id` de los miembros) y a quién puede meter en ellos: quien usa la app (con su `package_runner_id`, si tiene carreras) y los atletas de los que hay paquetes. |
@@ -209,7 +209,7 @@ Se guardan en la tabla `settings` de la base:
 | `athletes.enabled` | «Entreno a otros atletas»: `true` o `false`. | `false` | Importa los paquetes de los atletas de la carpeta compartida y añade la sección Atletas (abajo). |
 | `athletes.include_self` | «Incluirme» en la vista de grupo: `true` o `false`. | `false` | Las carreras propias cuentan como un atleta más en la tabla, el cara a cara y las carreras compartidas. Se cambia en la vista de grupo, sin «Guardar». |
 | `ui.tour_seen` | Ya se ha terminado o saltado el recorrido guiado (#141): `true` o `false`. | `false` | Mientras sea `false`, el recorrido sale al abrir la app (abajo, "Ayuda"). Se escribe al cerrarlo, sin «Guardar». |
-| `athletes.last_seen` | Última vez que se entró en cada atleta (#142), en JSON: `{runner_id: instante RFC 3339}`. No se edita. | — (nunca) | Lo recibido después es novedad (abajo, "Atletas"). Se escribe al entrar en un atleta (`view_runner`) y cuando llega algo del que se está viendo. |
+| `athletes.last_seen` | Última vez que se entró en cada atleta (#142), en JSON: `{runner_id: instante RFC 3339}`. No se edita. | — (nunca) | Las carreras que llegan por primera vez después son novedad (abajo, "Atletas"). Se escribe al entrar en un atleta (`view_runner`) y cuando llega algo del que se está viendo. |
 | `sharing.mode` | Modo de antes de #119: `runner` o `coach`. Ya no se escribe. | — | Solo si faltan los dos de arriba: `coach` es entrenar sin compartir lo propio; `runner`, al revés. |
 | `sharing.folder` | Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…). Tiene que existir. La misma para compartir y para recibir. Quien corre elige su subcarpeta de la carpeta madre de quien le entrena; quien entrena elige la carpeta madre, y se leen también sus subcarpetas. | — | Sin carpeta no se comparte nada. Al guardar con carpeta, se exportan todas las carreras propias (si las comparte) y se buscan paquetes nuevos (si entrena). |
 | `sharing.default_choice` | Qué se comparte de una carrera si no se ha elegido nada para ella: `none`, `aggregates`, `legs` o `track`. | `legs` | Se puede cambiar en cada carrera (vista de carrera). |
@@ -250,6 +250,17 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
 - Al abrir la app se lee el tema y se pone en la raíz del documento (`theme.ts`): `data-theme="light"`
   o `"dark"` fuerzan el modo; con **Sistema** no hay atributo y manda el del sistema operativo
   (`prefers-color-scheme`), que sigue cambiando con él.
+- **Sin parpadeo (#162).** El núcleo se lee cuando la ventana ya está abierta, así que con «Oscuro» y el
+  sistema en claro (o al revés) se vería un instante el tema equivocado. Por eso hay una copia del
+  tema en `localStorage` (clave `tramos.theme`, solo `light` o `dark`; con «Sistema» se borra) que
+  aplica `app/public/theme-init.js` antes de pintar. Es un `<script>` sin `type="module"` en el
+  `<head>` de `index.html`, así que bloquea el análisis del HTML y corre antes del primer pintado;
+  la CSP no admite scripts en línea, de ahí que sea un fichero aparte. Un módulo de `main.tsx` no
+  basta: se ejecuta ya con la ventana pintada. La copia se escribe al elegir el tema y al leerlo del
+  núcleo (`applyAndStoreTheme`, `theme.ts`). **El núcleo manda**: si al leerlo no coincide con la
+  copia, se aplica el del núcleo y se corrige la copia. Todo acceso a `localStorage` va en
+  `try/catch`: sin él (vacío o bloqueado) todo funciona igual, solo que el primer pintado usa el
+  tema del sistema. Si cambias la clave o los valores, cámbialos en `theme.ts` y en `theme-init.js`.
 - Los colores oscuros de `tokens.css` valen para dos selectores con los mismos valores:
   `@media (prefers-color-scheme: dark)` sobre `:root:not([data-theme="light"])` y
   `:root[data-theme="dark"]`. Si cambias uno, cambia el otro.
@@ -259,9 +270,28 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
 - Sin estilos en línea: la CSP no los deja, y el tema es solo un atributo más reglas en
   `tokens.css`.
 
-### Versión (#40)
+### Acerca de Tramos (#40, #159)
 
-Último apartado de Ajustes (`app/src/updates.tsx`): la versión instalada (`getVersion` de
+Último apartado de Ajustes (`app/src/about.tsx`, id `about`). Reúne, de arriba abajo:
+
+- La versión y las actualizaciones (#40, `app/src/updates.tsx`, abajo).
+- El autor («Mendaña»), la licencia MIT y el enlace al repositorio.
+- Los créditos: teselas de OpenStreetMap, formato de splits de WinSplits y Tauri.
+- **Informar de un fallo**: abre el cliente de correo del sistema (`openUrl` de
+  `@tauri-apps/plugin-opener` con un `mailto:`) con un mensaje a `diegodiazmenda@gmail.com`, con
+  asunto y cuerpo ya rellenos: versión de la app, sistema operativo y un hueco para contar qué
+  pasó. No adjunta carreras ni datos del usuario, y la app no manda nada: lo envía el usuario desde
+  su correo. Si el correo no se abre, se avisa.
+- **Copiar datos para el informe**: copia al portapapeles (`navigator.clipboard.writeText`) la
+  versión y el sistema, por si el correo no se abre.
+
+El sistema se saca del `userAgent` de la ventana web (Windows, macOS o Linux y los bits), sin
+plugin de sistema. En Windows 11 el `userAgent` sigue diciendo «Windows NT 10.0», así que sale
+«Windows 10 u 11».
+
+#### Versión y actualizaciones (#40)
+
+Lo de la versión (`app/src/updates.tsx`): la versión instalada (`getVersion` de
 `@tauri-apps/api/app`), el botón **Buscar actualizaciones** y, si hay versión nueva, **Instalar y
 reiniciar**. El estado de las actualizaciones es uno para toda la app: el mismo que el aviso de
 arriba que sale en todas las pantallas cuando la búsqueda al arrancar encuentra una versión
@@ -295,7 +325,8 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   de antes. Una tarjeta por atleta de los que hay paquetes, por nombre visible; un clic entra en
   él y abre sus Carreras. Cada tarjeta lleva:
   - su nombre, cuántas carreras **nuevas** tiene («2 nuevas», si alguna) y la fecha de su última
-    carrera;
+    carrera; si ha actualizado carreras que ya habías visto, debajo y en pequeño, «2
+    actualizadas» (no cuentan como nuevas);
   - una **línea con la evolución de su rendimiento**: el rendimiento habitual de sus 10 últimas
     carreras con rendimiento, de la más antigua a la más reciente, en SVG sin ejes (cada punto
     con la carrera y su cifra al pasar el ratón);
@@ -310,13 +341,20 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   (`athlete-races`, `athlete-performance`, `athlete-error-rate`, `athlete-top-error`,
   `athlete-trend` y `athlete-groups`) se puede quitar y se guarda en `ui.hidden_panels`. Sin
   atletas, lo dice.
-- **Novedades** (#142, `coach::athlete_news`). Una carrera de un atleta es **nueva** si su
-  paquete se recibió (`imported_at` del paquete guardado) después de la última vez que se entró
-  en ese atleta (`athletes.last_seen`); si nunca se ha entrado, todas lo son. Entrar en él
-  (`view_runner`) apunta el instante y sus nuevas vuelven a cero; si llega algo del atleta que se
-  está viendo, también. Un paquete que vuelve a llegar cambiado (`replaced`: por ejemplo, el
-  atleta ha etiquetado sus errores) se ha recibido otra vez y cuenta como nuevo; uno idéntico
-  (`unchanged`) no.
+- **Novedades** (#142, #166, `coach::athlete_news`). Una carrera de un atleta es **nueva** si
+  llegó **por primera vez** (`first_imported_at` del paquete guardado, `docs/paquete.md`
+  "Importar") después de la última vez que se entró en ese atleta (`athletes.last_seen`); si
+  nunca se ha entrado, todas lo son. Entrar en él (`view_runner`) apunta el instante y sus nuevas
+  vuelven a cero; si llega algo del atleta que se está viendo, también.
+  - Un paquete que vuelve a llegar cambiado (`replaced`: por ejemplo, el atleta ha etiquetado
+    sus errores) de una carrera **ya vista** no es una novedad: es una carrera **actualizada**
+    (llegó antes de la última visita y se sustituyó después, `coach::is_updated`). No suma en
+    las nuevas ni en el contador de la barra lateral ni de Inicio; la tarjeta del atleta la
+    cuenta aparte en pequeño («2 actualizadas», `updated_races`) y, al entrar en él, su lista de
+    Carreras la marca con «Actualizada» (también las de «Solo con el resumen»). La marca dura lo
+    que dura la visita: se calcula con la visita de antes de entrar (`RunnerView::visited_before`)
+    y se conserva si llega algo mientras se ve.
+  - Uno idéntico (`unchanged`) no cambia nada.
 - **Qué se está viendo.** Las vistas de un atleta llevan arriba una franja «Estás viendo a
   Nombre. Solo lectura: no se puede etiquetar ni cambiar nada.» con «Volver a lo mío», que
   vuelve a Inicio. Las migas de pan llevan su nombre delante. En la barra lateral se marca su
@@ -413,8 +451,9 @@ análisis van en Estadísticas.
   antigua a la más reciente, y un enlace a Estadísticas.
 - Sin carreras, invita a importar la primera.
 
-- **Novedades de tus atletas** (#142), si entrena: los atletas con carreras nuevas
-  (`athlete_news`), cada uno con cuántas, la más reciente (nombre y fecha) y cuántas más, y
+- **Novedades de tus atletas** (#142, #166), si entrena: los atletas con carreras nuevas, es
+  decir, que han llegado por primera vez desde la última visita (`athlete_news`; una carrera ya
+  vista que el atleta reexporta cambiada no cuenta), cada uno con cuántas, la más reciente (nombre y fecha) y cuántas más, y
   «Ver», que entra en él y abre sus Carreras. «Mis atletas» abre sus tarjetas. Sin nada nuevo, o
   sin atletas, lo dice. Va al final, y también debajo de la invitación a importar si no hay
   carreras propias.
@@ -636,7 +675,7 @@ y la tabla el recorrido (`docs/segmentacion.md`).
 - Atribución siempre visible, «© OpenStreetMap contributors», con enlace a
   `https://www.openstreetmap.org/copyright`. El enlace se abre en el navegador del sistema con
   `tauri-plugin-opener`, al que la ventana solo deja abrir URL de `https://www.openstreetmap.org/`
-  y de los documentos del repositorio (los de la Ayuda, abajo).
+  y del repositorio (los documentos de la Ayuda, abajo, y «Acerca de Tramos»).
 - Solo se piden las teselas de lo que se mira, al moverse por el mapa: nada de descargas
   masivas ni de precarga. Zoom máximo 19 (el de OSM). MapLibre no vuelve a pedir las teselas
   caducadas mientras el mapa está abierto (`refreshExpiredTiles: false`) y la caché del
@@ -977,8 +1016,10 @@ La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permiso
 solo para el diálogo de abrir ficheros o elegir una carpeta (la carpeta la recorre Rust: la
 ventana no tiene permisos de sistema de ficheros), y `opener:allow-open-url` limitado a
 `https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa, y a
-`https://github.com/Mendana/tramos/blob/main/*`, para los enlaces de la Ayuda a los documentos
-técnicos. Los dos se abren en el navegador del sistema, no en la ventana. Para las
+`https://github.com/Mendana/tramos` y `https://github.com/Mendana/tramos/*`, para los enlaces de la
+Ayuda a los documentos técnicos y el del repositorio en «Acerca de Tramos» (#159), y a
+`mailto:diegodiazmenda@gmail.com*`, solo para «Informar de un fallo». Las URL web se abren en el
+navegador del sistema, no en la ventana, y el `mailto:` en el cliente de correo. Para las
 actualizaciones (#40), `updater:default` (buscar, descargar e instalar; la URL y la clave pública
 las fija `tauri.conf.json`, no la ventana) y `process:allow-restart`, para reiniciar la app con la
 versión nueva.

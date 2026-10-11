@@ -522,8 +522,9 @@ fn receive_packages(state: tauri::State<'_, AppState>) -> Result<ReceiveReport, 
     // viendo, lo suyo no queda como novedad.
     if report.created + report.replaced > 0 {
         let mut viewed = state.viewed()?;
-        if let Some(id) = viewed.as_ref().map(|v| v.runner.runner_id.clone()) {
-            *viewed = Some(coach::enter_runner(store, &id).map_err(|e| e.to_string())?);
+        if let Some(view) = viewed.as_ref() {
+            let fresh = coach::refresh_runner(store, view).map_err(|e| e.to_string())?;
+            *viewed = Some(fresh);
         }
     }
     Ok(report)

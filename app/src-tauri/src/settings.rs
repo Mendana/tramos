@@ -42,8 +42,8 @@ pub const INCLUDE_SELF_KEY: &str = "athletes.include_self";
 /// Ya se ha terminado o saltado el recorrido guiado de la primera vez (`true`/`false`, #141).
 pub const TOUR_SEEN_KEY: &str = "ui.tour_seen";
 
-/// Última vez que se entró en cada atleta (#142): JSON `{runner_id: instante RFC 3339}`. Lo
-/// recibido después cuenta como novedad.
+/// Última vez que se entró en cada atleta (#142): JSON `{runner_id: instante RFC 3339}`. Las
+/// carreras que llegan por primera vez después cuentan como novedad.
 pub const LAST_SEEN_KEY: &str = "athletes.last_seen";
 /// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
 pub const FOLDER_KEY: &str = "sharing.folder";

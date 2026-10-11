@@ -51,9 +51,11 @@ Ver [Compartir](compartir.md).
 La versión de Tramos que tienes, quién la hace y cómo avisar de un fallo. La app mira al arrancar
 si hay una nueva y, si la hay, te avisa arriba, en cualquier pantalla: **Instalar y reiniciar** la
 descarga y la instala, y la app se vuelve a abrir sola; **Más tarde** la deja para el próximo
-arranque. Nunca se instala sin que lo pidas. Tus carreras y ajustes se quedan como están. Con
-**Buscar actualizaciones** lo miras cuando quieras. Para buscarla hace falta conexión: la app
-pregunta a GitHub, donde se publica Tramos, y no le manda nada tuyo.
+arranque. Con **Qué trae** lees, antes de decidir, qué cambia en la versión nueva; también sale
+aquí en Ajustes, junto al botón de instalar. Nunca se instala sin que lo pidas. Tus carreras y
+ajustes se quedan como están. Con **Buscar actualizaciones** lo miras cuando quieras. Para
+buscarla hace falta conexión: la app pregunta a GitHub, donde se publica Tramos, y no le manda
+nada tuyo.
 
 Debajo salen el autor (Mendaña), la licencia (MIT, código abierto) con el enlace al repositorio,
 y los créditos: las teselas del mapa son de OpenStreetMap, el formato de los splits es el de

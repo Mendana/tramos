@@ -5,8 +5,9 @@ carreras. Un clic en la tarjeta entra en el atleta y abre sus carreras, en solo 
 
 ## Cada tarjeta
 
-- **Nombre** y, si hay, cuántas carreras **nuevas** tiene: las que te han llegado desde la última
-  vez que entraste en él. Debajo, la fecha de su última carrera.
+- **Nombre** y, si hay, cuántas carreras **nuevas** tiene: las que te han llegado por primera
+  vez desde la última vez que entraste en él. Debajo, la fecha de su última carrera y, en
+  pequeño, cuántas carreras ya vistas ha **actualizado** («2 actualizadas»).
 - **Línea de evolución**: su [rendimiento](ir.md) en sus 10 últimas carreras, de la más antigua a
   la más reciente. Pasa el ratón por un punto para ver la carrera y su cifra.
 - **Carreras**, **rendimiento** (su IR medio) y **tasa de error** (qué parte de sus tramos fueron
@@ -28,11 +29,15 @@ grupos, sus botones dejan solo a los atletas de ese grupo; **Todos** los vuelve 
 
 ## Nuevas
 
-Una carrera es nueva si te ha llegado después de la última vez que entraste en ese atleta, desde
-esta página, desde [Inicio](inicio.md) o desde Comparar atletas. Al entrar, sus nuevas vuelven a
-cero. Cuenta también una carrera que vuelve a llegar cambiada, por ejemplo porque el atleta ha
-etiquetado sus errores. En la barra lateral, junto a **Mis atletas**, sale cuántas carreras nuevas
+Una carrera es nueva si te ha llegado por primera vez después de la última vez que entraste en
+ese atleta, desde esta página, desde [Inicio](inicio.md) o desde Comparar atletas. Al entrar, sus
+nuevas vuelven a cero. En la barra lateral, junto a **Mis atletas**, sale cuántas carreras nuevas
 hay entre todos.
+
+Una carrera que ya habías visto y que el atleta vuelve a compartir cambiada, por ejemplo porque
+ha etiquetado sus errores, **no cuenta como nueva**: sale aparte en su tarjeta («2
+actualizadas») y, al entrar en él, con la marca **Actualizada** en su lista de carreras. La marca
+dura lo que dura esa visita.
 
 > Llevas una semana sin mirar a una atleta y ves «2 nuevas» en su tarjeta: corrió el sábado una
 > media y el domingo un sprint. Entras, las miras y, al volver, su tarjeta ya no dice nada nuevo.

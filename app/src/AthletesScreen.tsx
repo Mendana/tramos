@@ -25,6 +25,7 @@ const ir = (v: number | null | undefined) =>
 const fold = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("es");
 
 export const newRacesLabel = (n: number) => `${n} ${n === 1 ? "nueva" : "nuevas"}`;
+export const updatedRacesLabel = (n: number) => `${n} ${n === 1 ? "actualizada" : "actualizadas"}`;
 
 /** Línea con el rendimiento de las últimas carreras, sin ejes: la forma, no los números. */
 function Sparkline({ points }: { points: TrendPoint[] }) {
@@ -199,6 +200,7 @@ function AthletesScreen({ onOpenRunner }: { onOpenRunner: (runnerId: string) => 
                         {card.last_race === null
                           ? "Sin carreras"
                           : `Última carrera: ${card.last_race}`}
+                        {card.updated_races > 0 && ` · ${updatedRacesLabel(card.updated_races)}`}
                       </span>
                     </span>
                     {shows("athlete-trend") && card.trend.length > 0 && (

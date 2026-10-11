@@ -648,6 +648,7 @@ function App() {
                   onOpen={openRace}
                   onImport={showImport}
                   summaryOnly={runner?.summary_only ?? []}
+                  updatedResults={runner?.updated_results ?? []}
                 />
               )}
               {screen.kind === "race" && (

@@ -19,6 +19,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0007_received_packages.sql"),
     include_str!("../migrations/0008_result_sharing.sql"),
     include_str!("../migrations/0009_athlete_groups.sql"),
+    include_str!("../migrations/0010_received_first_import.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -99,8 +100,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 9);
-        assert_eq!(user_version(&conn).unwrap(), 9);
+        assert_eq!(SCHEMA_VERSION, 10);
+        assert_eq!(user_version(&conn).unwrap(), 10);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -170,6 +171,41 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap()
+    }
+
+    #[test]
+    fn version_9_received_packages_take_their_import_as_first_arrival() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate_to(&conn, 9);
+        conn.execute_batch(
+            "INSERT INTO received_packages (runner_id, race_id, level, format_version, \
+                 exported_at_epoch_ms, imported_at_epoch_ms, content) \
+                 VALUES ('a1', 'r1', 'legs', 1, 1000, 2000, '{}'), \
+                        ('a1', 'r2', 'track', 1, 3000, 4000, '{}');",
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        assert_eq!(user_version(&conn).unwrap(), SCHEMA_VERSION);
+        let mut stmt = conn
+            .prepare(
+                "SELECT race_id, imported_at_epoch_ms, first_imported_at_epoch_ms, content \
+                 FROM received_packages ORDER BY race_id",
+            )
+            .unwrap();
+        let rows: Vec<(String, i64, i64, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            [
+                ("r1".to_string(), 2000, 2000, "{}".to_string()),
+                ("r2".to_string(), 4000, 4000, "{}".to_string()),
+            ]
+        );
     }
 
     #[test]

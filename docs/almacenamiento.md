@@ -39,7 +39,7 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `received_package_counts() -> (usize, usize)` | Cuántos paquetes recibidos hay y de cuántos corredores, sin leerlos. |
 | `received_runners() -> Vec<ReceivedRunner>` | Corredores de los que hay paquetes recibidos, por nombre visible (sin distinguir mayúsculas): identificador, nombre visible de su paquete más reciente (sale del JSON con `json_extract`, sin leer los paquetes enteros), cuántos paquetes y el instante de exportación del más reciente. |
 | `received_packages_of(runner_id) -> Vec<ReceivedPackage>` | Los paquetes recibidos de un corredor, por carrera. |
-| `received_packages() -> Vec<ReceivedPackage>` | Paquetes recibidos, por corredor y carrera, con el JSON tal cual y sus identificadores, nivel, versión e instantes de exportación e importación. |
+| `received_packages() -> Vec<ReceivedPackage>` | Paquetes recibidos, por corredor y carrera, con el JSON tal cual y sus identificadores, nivel, versión e instantes de exportación, de importación (`imported_at`, la última versión) y de primera llegada (`first_imported_at`). |
 | `create_athlete_group(nombre, descripción, color) -> AthleteGroupId` | Crea un grupo de atletas vacío (#120). Nombre y descripción sin espacios en los extremos; el color, `#rrggbb` en minúsculas. Nombre vacío: `EmptyGroupName`; color que no es `#rrggbb`: `InvalidColor`. |
 | `update_athlete_group(AthleteGroupId, nombre, descripción, color)` | Cambia el nombre, la descripción y el color de un grupo, con las mismas reglas; los miembros no cambian. Grupo inexistente: `GroupNotFound`. |
 | `delete_athlete_group(AthleteGroupId)` | Borra un grupo y sus filas de miembros; los paquetes recibidos no se tocan. Grupo inexistente: `GroupNotFound`. |
@@ -87,7 +87,7 @@ El análisis guardado (`legs`) aún no tiene API: de momento solo existe su tabl
 | `tag_causes` | Causas percibidas de una etiqueta (varias). | `tag_id`, `cause`. |
 | `source_files` | Ficheros originales importados, con su contenido. **Nunca sale de la base local.** | `kind` (`spl`, `fit`), `path` (informativa), `sha256` (única), `size_bytes`, `content`, `imported_at_epoch_ms`. |
 | `result_sharing` | Qué comparte el corredor de un resultado suyo (#36). Sin fila, vale el ajuste `sharing.default_choice`. | `result_id` (clave), `choice` (`none`, `aggregates`, `legs`, `track`). |
-| `received_packages` | Paquetes por carrera recibidos de otros corredores (`docs/paquete.md`). Como mucho uno por corredor y carrera. | `runner_id`, `race_id` (únicos juntos), `level` (`aggregates`, `legs`, `track`), `format_version`, `exported_at_epoch_ms`, `imported_at_epoch_ms`, `content` (el JSON). |
+| `received_packages` | Paquetes por carrera recibidos de otros corredores (`docs/paquete.md`). Como mucho uno por corredor y carrera. | `runner_id`, `race_id` (únicos juntos), `level` (`aggregates`, `legs`, `track`), `format_version`, `exported_at_epoch_ms`, `imported_at_epoch_ms` (última versión guardada), `first_imported_at_epoch_ms` (primera llegada del par; no cambia al sustituirlo), `content` (el JSON). |
 | `athlete_groups` | Grupos de atletas de quien entrena (#120). | `name` (no vacío), `description`, `color` (`#rrggbb`), `created_at_epoch_ms`. |
 | `athlete_group_members` | Quién está en cada grupo, por el `runner_id` de sus paquetes (`docs/paquete.md`): un atleta sigue en sus grupos aunque cambie su nombre visible, y quien entrena se mete con su propio `package_runner_id`. Uno puede estar en varios grupos. Borrar el grupo borra sus filas (`ON DELETE CASCADE`), nunca los paquetes. | `group_id`, `runner_id` (clave los dos). |
 | `settings` | Ajustes clave-valor (umbrales, preferencias…). | `key`, `value`. |
@@ -136,6 +136,7 @@ Notas:
 | 7 | `0007_received_packages.sql` | Tabla `received_packages` (paquetes por carrera recibidos, #35). |
 | 8 | `0008_result_sharing.sql` | Tabla `result_sharing` (qué comparte el corredor de cada carrera, #36). |
 | 9 | `0009_athlete_groups.sql` | Tablas `athlete_groups` y `athlete_group_members` (grupos de atletas, #120). |
+| 10 | `0010_received_first_import.sql` | Columna `received_packages.first_imported_at_epoch_ms` (primera llegada; los paquetes que ya había toman su `imported_at_epoch_ms`, #166). |
 
 ## Personas
 

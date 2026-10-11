@@ -17,8 +17,9 @@ La primera pantalla del corredor: qué hay de nuevo y qué te queda por hacer. L
 - **Tu rendimiento**: una línea con tu rendimiento habitual en las 10 últimas carreras, de la más
   antigua a la más reciente.
 
-- **Novedades de tus atletas**, si entrenas: los atletas con carreras nuevas desde la última vez
-  que entraste en ellos, cuántas y la más reciente. **Ver** entra en el atleta y sus nuevas
+- **Novedades de tus atletas**, si entrenas: los atletas con carreras nuevas (que te han llegado
+  por primera vez) desde la última vez que entraste en ellos, cuántas y la más reciente. Una
+  carrera que ya habías visto y el atleta ha vuelto a compartir cambiada no cuenta como nueva. **Ver** entra en el atleta y sus nuevas
   vuelven a cero; **Mis atletas** abre sus tarjetas ([Mis atletas](mis-atletas.md)).
 
 Sin carreras, la pantalla te invita a [importar](importar.md) la primera; si entrenas, debajo

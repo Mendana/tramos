@@ -14,7 +14,7 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
-- Las carreras de tus atletas que corrieron lo mismo se ven juntas: una pantalla «Carreras» en el
+- Las carreras de tus atletas que corrieron lo mismo se ven juntas: una pantalla «Carreras de atletas» en el
   bloque Atletas, con el mapa del recorrido con los tracks de todos y los tramos que fallaron
   varios.
 - En «Frente al grupo» se marcan tus atletas entre los rivales y salen los primeros.

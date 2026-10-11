@@ -14,9 +14,16 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
-- Las carreras de tus atletas que corrieron lo mismo se ven juntas: una pantalla «Carreras de atletas» en el
-  bloque Atletas, con el mapa del recorrido con los tracks de todos y los tramos que fallaron
-  varios.
+## 0.3.0
+
+- Copia de seguridad, en Ajustes: guarda todas tus carreras, etiquetas y ajustes en un fichero y
+  recupéralas en otro ordenador (o en este, si algo se estropea). Al restaurar, lo que tenías se
+  guarda al lado por si acaso. La copia lleva todos tus datos: no la compartas.
+- Si entrenas y también corres, tus carreras van a tu propia subcarpeta dentro de la carpeta de
+  tus atletas, como un atleta más. La app te la propone, la crea y lleva allí las que ya tenías.
+- Las carreras de tus atletas que corrieron lo mismo se ven juntas: una pantalla «Carreras de
+  atletas» en el bloque Atletas, con el mapa del recorrido con los tracks de todos y los tramos
+  que fallaron varios. Cada atleta conserva su color aunque quites a otro de la comparación.
 - En «Frente al grupo» se marcan tus atletas entre los rivales y salen los primeros.
 - En las estadísticas de un grupo, los textos hablan del grupo («fallan», «media del grupo») en
   vez de «tus carreras».
@@ -27,6 +34,7 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - Nuevo apartado «Acerca de Tramos» en Ajustes, con la versión, el autor, la licencia y los
   créditos. Desde ahí puedes informar de un fallo por correo o copiar los datos para el informe.
 - El tema claro u oscuro elegido se aplica desde que se abre la ventana, sin un destello del otro.
+- Desde la próxima actualización, el aviso de versión nueva tendrá un «Qué trae» con estas notas.
 
 ## 0.2.1
 

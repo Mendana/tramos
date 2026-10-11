@@ -33,7 +33,8 @@ carreras, Estadísticas e Importar del bloque «Lo mío».
 Por una **carpeta madre** en Drive, OneDrive, Dropbox… con **una subcarpeta por atleta**. La
 eliges en Ajustes. La app mira esa carpeta y todas las que tiene dentro (hasta tres niveles, sin
 las ocultas ni los enlaces) al abrirse y cada minuto, y recoge los paquetes nuevos. No vuelve a
-recoger tus propias carreras, si compartes, estén en la subcarpeta que estén. Al pie de la barra
+recoger tus propias carreras, si compartes, estén en la subcarpeta que estén; si también corres,
+puedes dejar las tuyas en tu propia subcarpeta de la carpeta madre, como un atleta más. Al pie de la barra
 lateral dice cuántos paquetes y de cuántos atletas ha recibido, y si alguno no se ha podido leer.
 
 Si el mismo paquete (la misma carrera del mismo atleta) está en dos sitios, te quedas con el más

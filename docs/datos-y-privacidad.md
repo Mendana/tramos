@@ -23,7 +23,8 @@
   sincronización los guarda en sus servidores. El modelo previsto (#140) es una carpeta madre de
   la entrenadora con una subcarpeta por atleta, compartida solo con ese atleta: cada uno deja
   los suyos en su subcarpeta y no ve los de los demás, y la entrenadora lee la carpeta madre
-  entera. Si en cambio se comparte una carpeta común del grupo, todos los del grupo ven los
+  entera; si ella también corre, deja lo suyo en su propia subcarpeta de la carpeta madre, como un
+  atleta más (#167). Si en cambio se comparte una carpeta común del grupo, todos los del grupo ven los
   paquetes de todos. Al dejar de compartir una carrera se borra su fichero de la
   carpeta, pero lo que la entrenadora ya hubiera importado sigue en su app.
 - Quien entrena solo lee lo de sus atletas (`docs/app.md`, "Atletas"): mientras ve a un atleta, la

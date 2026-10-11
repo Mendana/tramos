@@ -47,6 +47,9 @@ pub const TOUR_SEEN_KEY: &str = "ui.tour_seen";
 pub const LAST_SEEN_KEY: &str = "athletes.last_seen";
 /// Carpeta compartida (sincronizada con Drive, OneDrive, Dropbox…); vacía = ninguna.
 pub const FOLDER_KEY: &str = "sharing.folder";
+/// Subcarpeta propia de quien entrena y además comparte lo suyo (#167): ahí exporta, y `FOLDER_KEY`
+/// es la carpeta madre de la que lee. Vacía = exporta en `FOLDER_KEY`.
+pub const EXPORT_FOLDER_KEY: &str = "sharing.export_folder";
 /// Qué se comparte de una carrera si el corredor no ha elegido nada para ella.
 pub const DEFAULT_CHOICE_KEY: &str = "sharing.default_choice";
 
@@ -80,6 +83,11 @@ pub enum SettingsError {
     InvalidSiCard,
     #[error("la carpeta compartida no existe o no es una carpeta: {0}")]
     InvalidFolder(String),
+    #[error("no se ha podido crear la carpeta {path}: {source}")]
+    CreateFolder {
+        path: String,
+        source: std::io::Error,
+    },
     #[error("zonas de {metric} del mapa: {reason}")]
     InvalidZones {
         metric: &'static str,
@@ -165,10 +173,26 @@ pub struct SharingSettings {
     pub share_own: bool,
     /// Entrena a otros atletas: importa sus paquetes de la carpeta y activa la sección Atletas.
     pub coach: bool,
-    /// Carpeta compartida; `None` = sin compartir.
+    /// Carpeta compartida; `None` = sin compartir. Si entrena, es la carpeta madre de la que lee.
     pub folder: Option<String>,
+    /// Solo si entrena: la subcarpeta propia donde exporta sus carreras (#167). `None` = exporta en
+    /// `folder`, como quien solo corre.
+    #[serde(default)]
+    pub export_folder: Option<String>,
     /// Qué se comparte de una carrera si no se ha elegido nada para ella.
     pub default_choice: ShareChoice,
+}
+
+impl SharingSettings {
+    /// La carpeta donde se exportan las carreras propias: la subcarpeta propia si entrena y la
+    /// tiene, y si no, la carpeta compartida.
+    pub fn export_dir(&self) -> Option<&str> {
+        if self.coach {
+            self.export_folder.as_deref().or(self.folder.as_deref())
+        } else {
+            self.folder.as_deref()
+        }
+    }
 }
 
 /// Ajustes guardados; los que faltan (o no se entienden) toman el valor por defecto.
@@ -195,6 +219,9 @@ pub fn load(store: &Store) -> Result<Settings, StoreError> {
             share_own: flag(store, SHARE_OWN_KEY)?.unwrap_or(!legacy_coach),
             coach: flag(store, COACH_KEY)?.unwrap_or(legacy_coach),
             folder: store.setting(FOLDER_KEY)?.filter(|v| !v.trim().is_empty()),
+            export_folder: store
+                .setting(EXPORT_FOLDER_KEY)?
+                .filter(|v| !v.trim().is_empty()),
             default_choice: store
                 .setting(DEFAULT_CHOICE_KEY)?
                 .and_then(|v| ShareChoice::from_key(&v))
@@ -232,6 +259,20 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     if let Some(missing) = folder.filter(|f| !std::path::Path::new(f).is_dir()) {
         return Err(SettingsError::InvalidFolder(missing.to_string()));
     }
+    // La subcarpeta propia solo existe si entrena. Si todavía no está, se crea al guardar (un solo
+    // nivel: la carpeta de arriba tiene que existir).
+    let export_folder = settings
+        .sharing
+        .export_folder
+        .as_deref()
+        .map(str::trim)
+        .filter(|f| settings.sharing.coach && !f.is_empty());
+    let create_export_folder = match export_folder.map(std::path::Path::new) {
+        Some(path) if path.is_dir() => false,
+        Some(path) if path.parent().is_some_and(std::path::Path::is_dir) => true,
+        Some(path) => return Err(SettingsError::InvalidFolder(path.to_string_lossy().into())),
+        None => false,
+    };
     for (metric, zones) in [
         ("ritmo", &settings.map.pace_zones),
         ("pulso", &settings.map.heart_rate_zones),
@@ -239,6 +280,12 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
         if let Some(reason) = zones.as_ref().and_then(Zones::problem) {
             return Err(SettingsError::InvalidZones { metric, reason });
         }
+    }
+    if let (true, Some(path)) = (create_export_folder, export_folder) {
+        std::fs::create_dir(path).map_err(|source| SettingsError::CreateFolder {
+            path: path.to_string(),
+            source,
+        })?;
     }
     store.set_setting(
         ERROR_THRESHOLD_S_KEY,
@@ -253,6 +300,7 @@ pub fn save(store: &mut Store, settings: &Settings) -> Result<(), SettingsError>
     set_flag(store, SHARE_OWN_KEY, settings.sharing.share_own)?;
     set_flag(store, COACH_KEY, settings.sharing.coach)?;
     store.set_setting(FOLDER_KEY, folder.unwrap_or(""))?;
+    store.set_setting(EXPORT_FOLDER_KEY, export_folder.unwrap_or(""))?;
     store.set_setting(DEFAULT_CHOICE_KEY, settings.sharing.default_choice.key())?;
     store.set_setting(
         PACE_ZONES_KEY,
@@ -423,6 +471,7 @@ mod tests {
                 share_own: true,
                 coach: false,
                 folder: None,
+                export_folder: None,
                 default_choice: ShareChoice::Legs,
             },
             map: MapSettings::default(),
@@ -442,6 +491,7 @@ mod tests {
                 share_own: true,
                 coach: false,
                 folder: None,
+                export_folder: None,
                 default_choice: ShareChoice::Legs
             }
         );
@@ -531,6 +581,35 @@ mod tests {
     }
 
     #[test]
+    fn the_own_subfolder_is_created_when_missing_and_needs_an_existing_parent() {
+        let mut store = Store::open_in_memory().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let mine = dir.path().join("yo");
+        let mut s = settings();
+        s.sharing.coach = true;
+        s.sharing.folder = Some(dir.path().to_string_lossy().into_owned());
+        s.sharing.export_folder = Some(mine.to_string_lossy().into_owned());
+        save(&mut store, &s).unwrap();
+        assert!(mine.is_dir());
+        assert_eq!(load(&store).unwrap(), s);
+
+        // Sin la carpeta de arriba no se crea y no se guarda nada.
+        let deep = dir.path().join("a").join("b");
+        s.sharing.export_folder = Some(deep.to_string_lossy().into_owned());
+        assert!(matches!(
+            save(&mut store, &s),
+            Err(SettingsError::InvalidFolder(_))
+        ));
+        assert!(!deep.exists());
+
+        // Si deja de entrenar, la subcarpeta propia se olvida.
+        s.sharing.export_folder = Some(mine.to_string_lossy().into_owned());
+        s.sharing.coach = false;
+        save(&mut store, &s).unwrap();
+        assert_eq!(load(&store).unwrap().sharing.export_folder, None);
+    }
+
+    #[test]
     fn the_shared_folder_and_mode_round_trip() {
         let mut store = Store::open_in_memory().unwrap();
         let dir = tempfile::tempdir().unwrap();
@@ -539,6 +618,7 @@ mod tests {
             share_own: false,
             coach: true,
             folder: Some(dir.path().to_string_lossy().into_owned()),
+            export_folder: None,
             default_choice: ShareChoice::Nothing,
         };
         save(&mut store, &s).unwrap();

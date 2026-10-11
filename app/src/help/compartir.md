@@ -10,8 +10,9 @@ No hay servidor. Cada carrera que compartes es un fichero (un **paquete**) que l
 **carpeta compartida** de Drive, OneDrive, Dropbox… Quien te entrena crea una carpeta madre y,
 dentro, una subcarpeta para ti, compartida solo contigo. Tú eliges esa subcarpeta en
 [Mi perfil](perfil.md) y ahí deja tu app los paquetes; quien entrena elige la carpeta madre en
-[Ajustes](ajustes.md) y su app lee todas las subcarpetas. Si corres y entrenas, la carpeta de
-Ajustes es la misma que la de Mi perfil.
+[Ajustes](ajustes.md) y su app lee todas las subcarpetas. Si corres y entrenas, tienes la carpeta
+madre (de la que lees) y, dentro, tu propia subcarpeta (donde dejas lo tuyo), las dos en Mi perfil
+y en Ajustes; así eres un atleta más de tu propia carpeta.
 
 - La app deja el paquete al importar la carrera y lo actualiza sola cada vez que cambias algo de
   lo que lleva (etiquetas, formato, desfase, qué se comparte).

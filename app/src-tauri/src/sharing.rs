@@ -13,7 +13,7 @@ use tramos_store::{ResultId, SaveOutcome, Store};
 
 use crate::import::stored_self_person;
 use crate::package::{PackageAppError, import_package, package_path, race_package, write_package};
-use crate::settings;
+use crate::settings::{self, SharingSettings};
 
 /// Qué ha pasado al exportar una carrera.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +31,7 @@ pub enum Export {
 /// los tramos. Llamarla sin que haya cambiado nada no toca la carpeta.
 pub fn export_result(store: &mut Store, result_id: i64) -> Result<Export, PackageAppError> {
     let sharing = settings::load(store)?.sharing;
-    let (true, Some(folder)) = (sharing.share_own, sharing.folder) else {
+    let (true, Some(folder)) = (sharing.share_own, sharing.export_dir()) else {
         return Ok(Export::Skipped);
     };
     let result = ResultId(result_id);
@@ -43,7 +43,7 @@ pub fn export_result(store: &mut Store, result_id: i64) -> Result<Export, Packag
         .result_sharing(result)?
         .unwrap_or(sharing.default_choice);
     let Some(level) = choice.level() else {
-        remove_package(store, result, &folder)?;
+        remove_package(store, result, folder)?;
         return Ok(Export::NotShared);
     };
     let package = match race_package(store, result_id, level) {
@@ -52,7 +52,7 @@ pub fn export_result(store: &mut Store, result_id: i64) -> Result<Export, Packag
         }
         other => other?,
     };
-    let written = write_package(&folder, &package)?;
+    let written = write_package(folder, &package)?;
     Ok(Export::Shared {
         level: package.level,
         written,
@@ -147,7 +147,7 @@ pub struct ShareReport {
 pub fn share_all(store: &mut Store) -> Result<ShareReport, PackageAppError> {
     let mut report = ShareReport::default();
     let sharing = settings::load(store)?.sharing;
-    if !sharing.share_own || sharing.folder.is_none() {
+    if !sharing.share_own || sharing.export_dir().is_none() {
         return Ok(report);
     }
     let Some(me) = stored_self_person(store)? else {
@@ -167,6 +167,128 @@ pub fn share_all(store: &mut Store) -> Result<ShareReport, PackageAppError> {
         }
     }
     Ok(report)
+}
+
+/// Resultado de mover los paquetes propios a otra carpeta.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct MoveReport {
+    /// Paquetes movidos a la carpeta nueva.
+    pub moved: usize,
+    /// Los que ya estaban en la carpeta nueva: no se duplican, se quita el de la vieja.
+    pub already_there: usize,
+    /// Los que no se han podido mover, con el motivo, en español.
+    pub problems: Vec<String>,
+}
+
+/// Cuando quien entrena y comparte lo suyo pasa a tener subcarpeta propia (o la cambia), mueve a
+/// ella los paquetes propios que había en la carpeta de exportación anterior (#167): así no quedan
+/// duplicados ni los atletas con copias viejas. Solo mira los ficheros de esa carpeta, no sus
+/// subcarpetas. Si no hay cambio de carpeta, o el usuario no entrena y comparte con subcarpeta
+/// propia, no hace nada. Se llama justo después de guardar los ajustes.
+pub fn move_own_packages(
+    store: &mut Store,
+    old: &SharingSettings,
+    new: &SharingSettings,
+) -> Result<MoveReport, PackageAppError> {
+    let mut report = MoveReport::default();
+    let uses_own_subfolder = new.share_own && new.coach && new.export_folder.is_some();
+    let (true, Some(from), Some(to)) = (uses_own_subfolder, old.export_dir(), new.export_dir())
+    else {
+        return Ok(report);
+    };
+    let (from, to) = (Path::new(from), Path::new(to));
+    if same_folder(from, to) {
+        return Ok(report);
+    }
+    let own = format!("-{}.json", store.package_runner_id()?);
+    let entries = match std::fs::read_dir(from) {
+        Ok(entries) => entries,
+        // La carpeta de antes ya no está: no hay nada que mover.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(report),
+        Err(source) => {
+            return Err(PackageAppError::Folder {
+                path: from.to_string_lossy().into_owned(),
+                source,
+            });
+        }
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_ok_and(|kind| kind.is_file()))
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("tramos-") && name.ends_with(&own))
+        .collect();
+    names.sort();
+    for name in names {
+        let (source, target) = (from.join(&name), to.join(&name));
+        if target.exists() {
+            // Ya hay uno igual en la carpeta nueva: se queda ese (la siguiente exportación lo
+            // pone al día si hace falta) y se quita el viejo.
+            match std::fs::remove_file(&source) {
+                Ok(()) => report.already_there += 1,
+                Err(e) => report.problems.push(format!("{}: {e}", source.display())),
+            }
+        } else {
+            match move_file(&source, &target) {
+                Ok(()) => report.moved += 1,
+                Err(e) => report.problems.push(format!("{}: {e}", source.display())),
+            }
+        }
+    }
+    Ok(report)
+}
+
+fn same_folder(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
+/// Renombra; si las carpetas están en sistemas de ficheros distintos, copia y borra el original.
+fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
+    if std::fs::rename(source, target).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(source, target)?;
+    std::fs::remove_file(source)
+}
+
+/// Nombre de carpeta válido en cualquier sistema de ficheros a partir del nombre del usuario:
+/// sin separadores ni caracteres reservados, sin espacios repetidos ni puntos al principio o al
+/// final. Sin nombre, «Mis carreras».
+pub fn folder_name(full_name: &str) -> String {
+    const RESERVED: &str = "/\\:*?\"<>|";
+    let cleaned: String = full_name
+        .chars()
+        .map(|c| {
+            if c.is_control() || RESERVED.contains(c) {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+    let joined = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let name: String = joined
+        .trim_matches(|c: char| c == '.' || c.is_whitespace())
+        .chars()
+        .take(80)
+        .collect();
+    let name = name.trim_end_matches(|c: char| c == '.' || c.is_whitespace());
+    if name.is_empty() {
+        "Mis carreras".to_string()
+    } else {
+        name.to_string()
+    }
+}
+
+/// La subcarpeta propia que se propone dentro de la carpeta madre: `<madre>/<nombre>`.
+pub fn propose_own_folder(mother: &str, full_name: &str) -> String {
+    Path::new(mother.trim())
+        .join(folder_name(full_name))
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Ficheros de la carpeta ya importados, con su fecha de modificación y tamaño: si no cambian,
@@ -305,6 +427,7 @@ mod tests {
             share_own: role != Role::Coach,
             coach: role != Role::Runner,
             folder: Some(folder.to_string_lossy().into_owned()),
+            export_folder: None,
             default_choice: ShareChoice::Legs,
         };
         settings::save(store, &s).unwrap();
@@ -594,16 +717,174 @@ mod tests {
         let (mut both, result_id) = imported(false);
         configure(&mut both, Role::Both, mother.path());
         let mine = mother.path().join("entrenador");
-        std::fs::create_dir(&mine).unwrap();
         let mut settings = settings::load(&both).unwrap();
-        settings.sharing.folder = Some(mine.to_string_lossy().into_owned());
+        settings.sharing.export_folder = Some(mine.to_string_lossy().into_owned());
         settings::save(&mut both, &settings).unwrap();
         export_result(&mut both, result_id).unwrap();
-        settings.sharing.folder = Some(mother.path().to_string_lossy().into_owned());
-        settings::save(&mut both, &settings).unwrap();
 
         let report = receive(&mut both, &mut SeenFiles::new()).unwrap();
         assert_eq!((report.created, report.packages, report.runners), (1, 1, 1));
+    }
+
+    fn set_sharing(
+        store: &mut Store,
+        change: impl FnOnce(&mut SharingSettings),
+    ) -> SharingSettings {
+        let before = settings::load(store).unwrap().sharing;
+        let mut s = settings::load(store).unwrap();
+        change(&mut s.sharing);
+        settings::save(store, &s).unwrap();
+        before
+    }
+
+    fn path_text(path: &Path) -> String {
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn with_a_mother_folder_and_own_subfolder_it_exports_in_the_subfolder_and_reads_the_rest() {
+        let mother = tempfile::tempdir().unwrap();
+        let ana = mother.path().join("ana");
+        std::fs::create_dir(&ana).unwrap();
+        athlete_exports(&ana);
+        let (mut both, result_id) = imported(false);
+        configure(&mut both, Role::Both, mother.path());
+        let mine = mother.path().join("entrenador");
+        set_sharing(&mut both, |s| s.export_folder = Some(path_text(&mine)));
+        // La subcarpeta la crea el guardado de los ajustes.
+        assert!(mine.is_dir());
+
+        assert!(matches!(
+            export_result(&mut both, result_id).unwrap(),
+            Export::Shared { written: true, .. }
+        ));
+        assert_eq!(packages_in(&mine).len(), 1);
+        // En la carpeta madre solo está la subcarpeta de cada uno.
+        assert_eq!(packages_in(mother.path()), ["ana", "entrenador"]);
+        assert_eq!(share_all(&mut both).unwrap().unchanged, 1);
+
+        let mut seen = SeenFiles::new();
+        let report = receive(&mut both, &mut seen).unwrap();
+        assert_eq!((report.created, report.packages, report.runners), (1, 1, 1));
+        let again = receive(&mut both, &mut seen).unwrap();
+        assert_eq!((again.created, again.replaced, again.unchanged), (0, 0, 0));
+        // Dejar de compartir la carrera borra el fichero de la subcarpeta.
+        set_race_sharing(&mut both, result_id, Some(ShareChoice::Nothing)).unwrap();
+        assert!(packages_in(&mine).is_empty());
+    }
+
+    #[test]
+    fn own_packages_move_from_the_mother_folder_to_the_new_subfolder() {
+        let mother = tempfile::tempdir().unwrap();
+        // Una atleta deja su paquete en la raíz de la carpeta madre; no es de quien entrena.
+        athlete_exports(mother.path());
+        let (mut both, _) = imported(false);
+        configure(&mut both, Role::Both, mother.path());
+        assert_eq!(share_all(&mut both).unwrap().written, 1);
+        assert_eq!(packages_in(mother.path()).len(), 2);
+        let own = format!("-{}.json", both.package_runner_id().unwrap());
+
+        let mine = mother.path().join("entrenador");
+        let before = set_sharing(&mut both, |s| s.export_folder = Some(path_text(&mine)));
+        let after = settings::load(&both).unwrap().sharing;
+        let report = move_own_packages(&mut both, &before, &after).unwrap();
+        assert_eq!(
+            (report.moved, report.already_there, report.problems.len()),
+            (1, 0, 0)
+        );
+        let in_mine = packages_in(&mine);
+        assert!(in_mine.len() == 1 && in_mine[0].ends_with(&own));
+        // El de la atleta sigue donde estaba y el propio ya no.
+        let in_mother = packages_in(mother.path());
+        assert_eq!(in_mother.len(), 2);
+        assert!(in_mother.iter().filter(|n| n.ends_with(&own)).count() == 0);
+        // Exportar de nuevo no escribe nada: ya está igual.
+        let report = share_all(&mut both).unwrap();
+        assert_eq!((report.written, report.unchanged), (0, 1));
+        // Y al leer solo entra lo de la atleta.
+        let received = receive(&mut both, &mut SeenFiles::new()).unwrap();
+        assert_eq!((received.created, received.runners), (1, 1));
+    }
+
+    #[test]
+    fn moving_does_not_duplicate_a_package_already_in_the_destination() {
+        let mother = tempfile::tempdir().unwrap();
+        let (mut both, _) = imported(false);
+        configure(&mut both, Role::Both, mother.path());
+        share_all(&mut both).unwrap();
+        let mine = mother.path().join("entrenador");
+        let before = set_sharing(&mut both, |s| s.export_folder = Some(path_text(&mine)));
+        // El destino ya tiene el suyo (de una vez anterior).
+        assert_eq!(share_all(&mut both).unwrap().written, 1);
+        assert_eq!(packages_in(mother.path()).len(), 2);
+
+        let after = settings::load(&both).unwrap().sharing;
+        let report = move_own_packages(&mut both, &before, &after).unwrap();
+        assert_eq!((report.moved, report.already_there), (0, 1));
+        assert_eq!(packages_in(mother.path()), ["entrenador"]);
+        assert_eq!(packages_in(&mine).len(), 1);
+    }
+
+    #[test]
+    fn nothing_moves_without_an_own_subfolder_or_a_change() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        // Quien solo corre y cambia de carpeta: no se mueve nada.
+        let (mut runner, _) = imported(false);
+        configure(&mut runner, Role::Runner, first.path());
+        share_all(&mut runner).unwrap();
+        let before = set_sharing(&mut runner, |s| s.folder = Some(path_text(second.path())));
+        let after = settings::load(&runner).unwrap().sharing;
+        assert_eq!(
+            move_own_packages(&mut runner, &before, &after).unwrap(),
+            MoveReport::default()
+        );
+        assert_eq!(packages_in(first.path()).len(), 1);
+        assert!(packages_in(second.path()).is_empty());
+
+        // Con subcarpeta propia, volver a guardar la misma tampoco mueve nada.
+        let (mut both, _) = imported(false);
+        configure(&mut both, Role::Both, first.path());
+        let mine = first.path().join("yo");
+        set_sharing(&mut both, |s| s.export_folder = Some(path_text(&mine)));
+        let same = settings::load(&both).unwrap().sharing;
+        assert_eq!(
+            move_own_packages(&mut both, &same, &same).unwrap(),
+            MoveReport::default()
+        );
+    }
+
+    #[test]
+    fn the_own_subfolder_is_only_kept_while_coaching() {
+        let mother = tempfile::tempdir().unwrap();
+        let (mut both, _) = imported(false);
+        configure(&mut both, Role::Both, mother.path());
+        let mine = mother.path().join("yo");
+        set_sharing(&mut both, |s| s.export_folder = Some(path_text(&mine)));
+        assert_eq!(
+            settings::load(&both).unwrap().sharing.export_dir(),
+            Some(path_text(&mine).as_str())
+        );
+        set_sharing(&mut both, |s| s.coach = false);
+        let sharing = settings::load(&both).unwrap().sharing;
+        assert_eq!(sharing.export_folder, None);
+        assert_eq!(
+            sharing.export_dir(),
+            Some(path_text(mother.path()).as_str())
+        );
+    }
+
+    #[test]
+    fn the_proposed_folder_is_the_name_inside_the_mother_folder() {
+        assert_eq!(
+            folder_name("Ana  García/López: «Test»?"),
+            "Ana García López «Test»"
+        );
+        assert_eq!(folder_name("  ..Ana. "), "Ana");
+        assert_eq!(folder_name(""), "Mis carreras");
+        assert_eq!(folder_name("///"), "Mis carreras");
+        let proposed = propose_own_folder("/datos/madre", "N1 Apellido1");
+        assert_eq!(Path::new(&proposed), Path::new("/datos/madre/N1 Apellido1"));
     }
 
     #[test]

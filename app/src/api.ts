@@ -539,8 +539,10 @@ export interface SharingSettings {
   share_own: boolean;
   /** Entrena a otros atletas: recibe sus paquetes y activa la sección Atletas. */
   coach: boolean;
-  /** Carpeta compartida; `null` = sin compartir. */
+  /** Carpeta compartida; `null` = sin compartir. Si entrenas, es la carpeta madre de la que lees. */
   folder: string | null;
+  /** Solo si entrenas y compartes lo tuyo: tu subcarpeta, donde exportas. `null` = en `folder`. */
+  export_folder: string | null;
   default_choice: ShareChoice;
 }
 
@@ -901,7 +903,19 @@ export const viewedRunner = () => invoke<RunnerViewInfo | null>("viewed_runner")
 
 export const getSettings = () => invoke<Settings>("get_settings");
 
-export const saveSettings = (settings: Settings) => invoke<void>("save_settings", { settings });
+/** Paquetes propios movidos al guardar con una subcarpeta propia nueva. */
+export interface MoveReport {
+  moved: number;
+  already_there: number;
+  problems: string[];
+}
+
+export const saveSettings = (settings: Settings) =>
+  invoke<MoveReport>("save_settings", { settings });
+
+/** La subcarpeta propia que se propone dentro de la carpeta madre: `<madre>/<tu nombre>`. */
+export const proposeOwnFolder = (mother: string, fullName: string) =>
+  invoke<string>("propose_own_folder", { mother, fullName });
 
 /** Por qué no se pueden guardar unas zonas o, si se puede, los avisos sobre sus colores. */
 export const checkZones = (zones: Zones) => invoke<string[]>("check_zones", { zones });

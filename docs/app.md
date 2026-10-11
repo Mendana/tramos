@@ -298,7 +298,10 @@ Lo de la versión (`app/src/updates.tsx`): la versión instalada (`getVersion` d
 `@tauri-apps/api/app`), el botón **Buscar actualizaciones** y, si hay versión nueva, **Instalar y
 reiniciar**. El estado de las actualizaciones es uno para toda la app: el mismo que el aviso de
 arriba que sale en todas las pantallas cuando la búsqueda al arrancar encuentra una versión
-(`UpdateBanner`, en `App.tsx`). Cuándo se busca, qué se descarga y cómo se firma:
+(`UpdateBanner`, en `App.tsx`). Tanto el aviso como Ajustes llevan un **Qué trae** desplegable
+(`<details>`, `WhatsNew`) con las notas de la versión nueva, el `body` de la actualización: la
+sección de esa versión del `CHANGELOG.md`, pintada por `ReleaseNotes` (`help/markdown.tsx`) solo
+como párrafos y listas, sin HTML. Sin notas, no sale (#160). Cuándo se busca, qué se descarga y cómo se firma:
 `docs/distribucion.md`, "Actualizaciones". No es un ajuste guardado: no pasa por «Guardar».
 
 ## Atletas (#37, #119)

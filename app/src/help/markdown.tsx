@@ -261,3 +261,34 @@ export function Markdown({
     </>
   );
 }
+
+/**
+ * Notas de versión (`CHANGELOG.md`, `docs/distribucion.md`): solo párrafos y listas, con negrita,
+ * cursiva y código. Un título, una cita o una tabla —que las notas no usan— salen como párrafo de
+ * texto; los enlaces, como texto. Elementos de React, nunca HTML.
+ */
+export function ReleaseNotes({ source }: { source: string }) {
+  const options: InlineOptions = { isPage: () => false, onOpenPage: () => undefined };
+  const inline = (text: string) => renderInline(text, options);
+  return (
+    <>
+      {parseMarkdown(source).map((block, i) => {
+        switch (block.kind) {
+          case "list": {
+            const items = block.items.map((item, j) => <li key={j}>{inline(item)}</li>);
+            return block.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
+          }
+          case "paragraph":
+          case "heading":
+            return <p key={i}>{inline(block.text)}</p>;
+          case "quote":
+            return block.paragraphs.map((p, j) => <p key={`${i}-${j}`}>{inline(p)}</p>);
+          case "table":
+            return [block.head, ...block.rows].map((row, j) => (
+              <p key={`${i}-${j}`}>{inline(row.join(" · "))}</p>
+            ));
+        }
+      })}
+    </>
+  );
+}

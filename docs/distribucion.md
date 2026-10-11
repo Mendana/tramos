@@ -30,13 +30,17 @@ GitHub.
 - **Qué consulta.** `https://github.com/Mendana/tramos/releases/latest/download/latest.json`
   (`plugins.updater.endpoints` de `tauri.conf.json`). `latest` es la última release **publicada**
   que no es pre-versión: los borradores no los ve nadie, así que una versión no llega a los
-  usuarios hasta que se publica a mano (paso 4 de abajo).
+  usuarios hasta que se publica a mano (paso 5 de abajo).
 - **Qué hace si la hay.** Un aviso arriba, en todas las pantallas: «Hay una versión nueva…», con
   **Instalar y reiniciar** y **Más tarde** (el aviso vuelve en el próximo arranque). Nada se
   descarga sin pulsar el botón. Al pulsarlo descarga el instalador, enseña el progreso y lo abre
   en modo `passive` (`plugins.updater.windows.installMode`): una ventana con la barra de progreso,
   sin preguntas. El instalador cierra la app y la vuelve a abrir con la versión nueva. Los datos
   no se tocan.
+- **Qué trae.** El aviso y el apartado de Ajustes llevan un **Qué trae** desplegable con las notas
+  de la versión nueva (#160): el campo `notes` de `latest.json`, que el plugin entrega como
+  `body` de la actualización. Son la sección de esa versión del `CHANGELOG.md` (abajo, "Notas de
+  versión"). Si la versión no trae notas, no sale el desplegable.
 - **Firma.** Cada instalador va firmado con la clave de actualizaciones (minisign, no es un
   certificado de Windows: no quita el aviso de SmartScreen). La app lleva la clave pública
   (`plugins.updater.pubkey`) y rechaza cualquier instalador que no esté firmado con la privada.
@@ -57,6 +61,25 @@ GitHub.
 
   La CI no lo necesita: compila con `--no-bundle`.
 
+## Notas de versión (#160)
+
+`CHANGELOG.md`, en la raíz, cuenta en español y en llano lo que verá el usuario en cada versión
+(no detalles técnicos). Una sección por versión con el título exacto `## X.Y.Z`, la más nueva
+arriba, solo con párrafos y listas de `- ` (es lo único que pinta la app: `ReleaseNotes` en
+`app/src/help/markdown.tsx`, sin HTML). Los cambios que aún no tienen versión van en
+`## Sin publicar`; las instrucciones de mantenimiento están al principio del propio fichero.
+
+El workflow de release (`tools/changelog_seccion.py`, con tests en
+`tools/test_changelog_seccion.py`) saca la sección de la versión del tag y:
+
+- la pone como `releaseBody` de `tauri-action`, que la copia tal cual en el `notes` de
+  `latest.json`: lo que enseña la app antes de instalar;
+- y, ya con la release creada, la deja en la descripción de la release **delante** de las
+  instrucciones de instalación (`gh api` sobre el `releaseId` que devuelve la acción).
+
+Si el `CHANGELOG.md` no tiene sección para la versión del tag, o está vacía, el workflow falla
+antes de compilar.
+
 ## Datos del instalador
 
 Para que Windows no enseñe vacíos el editor y el copyright (en «Aplicaciones instaladas» y en las
@@ -76,29 +99,35 @@ actualiza el año del copyright.
 
 ## Publicar una versión (desarrollo)
 
-1. Sube la versión en los cuatro sitios, con el mismo número: `version` de `Cargo.toml` (workspace),
+1. Escribe las notas: en `CHANGELOG.md`, cambia `## Sin publicar` por `## X.Y.Z` (revisa que lo
+   que cuenta esté en llano y que no falte nada de lo que ha cambiado desde la versión anterior) y
+   deja arriba un `## Sin publicar` vacío. Va en el mismo PR que sube la versión.
+2. Sube la versión en los cuatro sitios, con el mismo número: `version` de `Cargo.toml` (workspace),
    `app/src-tauri/Cargo.toml`, `app/src-tauri/tauri.conf.json` y `app/package.json`. El MSI solo
    admite versiones numéricas (`0.2.0`; una pre-versión, como mucho numérica: `0.2.0-1`). El
    test `version_matches_manifest` de `crates/tramos-core/src/lib.rs` también lleva el número, y
    los `Cargo.lock` y `package-lock.json` cambian con él (`cargo check` y
    `npm install --package-lock-only`).
-2. Mergea ese cambio en `main` y crea el tag desde `main`:
+3. Mergea ese cambio en `main` y crea el tag desde `main`:
 
    ```bash
    git tag v0.2.0
    git push origin v0.2.0
    ```
 
-3. El workflow **Release** comprueba que el tag coincide con la versión de `tauri.conf.json`
-   (si no, falla sin compilar), compila en `windows-latest` con la acción oficial
-   `tauri-apps/tauri-action` y deja una **release en borrador** con el `.exe` (NSIS) y el `.msi`.
-4. Revisa la release (descarga e instala el `.exe` en un Windows) y publícala a mano desde
-   GitHub. Mientras está en borrador no la ve nadie más. Al publicarla, las instalaciones que ya
-   existen la encuentran en su siguiente arranque. Comprueba antes que la release trae
-   `latest.json` y los `.sig`: sin ellos, nadie se actualiza.
+4. El workflow **Release** comprueba que el tag coincide con la versión de `tauri.conf.json` y que
+   el `CHANGELOG.md` tiene sección para ella (si no, falla sin compilar), compila en
+   `windows-latest` con la acción oficial `tauri-apps/tauri-action` y deja una **release en
+   borrador** con el `.exe` (NSIS) y el `.msi`, y las notas de la versión delante de las
+   instrucciones de instalación.
+5. Revisa la release (lee las notas; descarga e instala el `.exe` en un Windows) y publícala a
+   mano desde GitHub. Mientras está en borrador no la ve nadie más. Al publicarla, las
+   instalaciones que ya existen la encuentran en su siguiente arranque. Comprueba antes que la
+   release trae `latest.json` (con las notas en `notes`) y los `.sig`: sin ellos, nadie se actualiza.
 
 Para probar el workflow sin publicar nada, se puede subir un tag de prueba con la versión actual
-(por ejemplo `v0.1.0`) y, tras revisarla, borrar la release en borrador y el tag.
+de la app (`v` más la de `tauri.conf.json`, que ya tiene su sección en el `CHANGELOG.md`) y, tras
+revisarla, borrar la release en borrador y el tag.
 
 ## Pendiente
 

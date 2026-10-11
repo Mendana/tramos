@@ -1,6 +1,6 @@
 # Carreras de tus atletas
 
-En el bloque [Atletas](atletas.md), si entrenas: **Carreras** junta a los atletas que corrieron la
+En el bloque [Atletas](atletas.md), si entrenas: **Carreras de atletas** junta a los atletas que corrieron la
 misma carrera, para verlos uno al lado del otro. La app sabe que es la misma carrera porque todos
 importaron el mismo .spl, aunque cada uno te la mande por su lado.
 
@@ -24,7 +24,9 @@ los mismos que ve él en su carrera. No sale quién es más rápido, sino quién
 
 Si corrieron **recorridos distintos** (otras categorías), un selector elige el recorrido: las
 gráficas por tramo y el mapa son de uno. Las fichas con los nombres hacen de leyenda; si hay más
-de cuatro atletas en el recorrido, eligen quién sale (cuatro como mucho, uno por color).
+de cuatro atletas en el recorrido, eligen quién sale (cuatro como mucho, uno por color). Cada atleta guarda su color mientras estás
+en la carrera: si quitas a uno, los demás no cambian, y el siguiente que añadas coge el que quedó
+libre.
 
 - **Diferencia con el tiempo ideal**: una línea por atleta, como en
   [Frente al grupo](carrera-grupo.md). La que baja de golpe es un tramo malo.

@@ -239,31 +239,29 @@ function CourseSection({
   athletes: RaceAthleteRow[];
   taxonomy: Taxonomy | null;
 }) {
-  // Los que se ven (posiciones en `athletes`), en el orden del recorrido: de entrada, los
-  // primeros que caben en la paleta.
-  const [chosen, setChosen] = useState<number[]>(() =>
-    course.runners.slice(0, MAX_SHOWN).map((r) => r.runner),
+  // Los que se ven (posiciones en `athletes`), uno por hueco de la paleta: el hueco da el color,
+  // así que quitar a uno no repinta a los demás (#178). De entrada, los primeros del recorrido.
+  const [chosen, setChosen] = useState<(number | null)[]>(() =>
+    Array.from({ length: MAX_SHOWN }, (_, i) => course.runners[i]?.runner ?? null),
   );
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
   const shown = course.runners
     .filter((r) => chosen.includes(r.runner))
-    .map((r, i) => ({
+    .map((r) => ({
       runner: r,
       athlete: athletes[r.runner],
       label: athleteName(athletes[r.runner]),
-      color: SERIES_COLORS[i],
+      color: SERIES_COLORS[chosen.indexOf(r.runner)],
     }));
   const colorOf = (athlete: number) => shown.find((s) => s.runner.runner === athlete)?.color;
   const many = course.runners.length > MAX_SHOWN;
   const toggle = (athlete: number) =>
-    setChosen((c) =>
-      c.includes(athlete)
-        ? c.filter((a) => a !== athlete)
-        : c.length < MAX_SHOWN
-          ? [...c, athlete]
-          : c,
-    );
+    setChosen((c) => {
+      const slot = c.includes(athlete) ? c.indexOf(athlete) : c.indexOf(null);
+      if (slot === -1) return c;
+      return c.map((a, i) => (i === slot ? (a === athlete ? null : athlete) : a));
+    });
   const legName = (i: number) => {
     const leg = course.legs[i];
     return `Tramo ${leg.index} · ${codeLabel(leg.from)} → ${codeLabel(leg.to)}`;
@@ -286,7 +284,7 @@ function CourseSection({
             type="button"
             className="chip"
             aria-pressed={color !== undefined}
-            disabled={color === undefined && chosen.length >= MAX_SHOWN}
+            disabled={color === undefined && !chosen.includes(null)}
             onClick={() => toggle(r.runner)}
           >
             {color !== undefined && <Swatch color={color} />}

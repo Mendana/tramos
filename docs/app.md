@@ -320,7 +320,7 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   la carpeta y sus subcarpetas; cada atleta exporta a su subcarpeta (#140). Los suyos no vuelven
   a entrar.
 - **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: **Mis atletas** (abajo), con
-  el total de carreras nuevas de todos a la derecha; **Carreras**, las de todos los atletas
+  el total de carreras nuevas de todos a la derecha; **Carreras de atletas**, las de todos
   (abajo, #163); mientras se ve a uno, su nombre y sus **Carreras** y **Estadísticas**;
   **Comparar atletas**, la vista de grupo; y **Grupos**. Las
   entradas de «Lo mío» (y Mi perfil) vuelven siempre a lo propio. Se entra en un atleta desde
@@ -345,15 +345,15 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   (`athlete-races`, `athlete-performance`, `athlete-error-rate`, `athlete-top-error`,
   `athlete-trend` y `athlete-groups`) se puede quitar y se guarda en `ui.hidden_panels`. Sin
   atletas, lo dice.
-- **Carreras** (#163, `AthleteRacesScreen.tsx`, `athlete_races`; migas «Carreras de los
-  atletas»). Una fila por carrera recibida (por `race_id`, `docs/paquete.md`), de la más
+- **Carreras de atletas** (#163, #178, `AthleteRacesScreen.tsx`, `athlete_races`; migas
+  «Carreras de atletas»; el nombre la distingue de las Carreras del atleta que se ve). Una fila por carrera recibida (por `race_id`, `docs/paquete.md`), de la más
   reciente a la más antigua, 25 por página: fecha, nombre, formato y los atletas que la
   corrieron (cuántos y sus nombres). Las de más de uno van **destacadas**: una franja del acento
   a la izquierda y el número de atletas en una píldora del acento. Si quien entrena también la
   corrió (la tiene importada con el mismo `race_id`), cuenta como uno más: «Nombre (tú)», el
   primero. Sin paquetes, lo dice. Un clic abre la carrera.
 - **Una carrera con varios atletas** (#163, `AthleteRaceScreen.tsx`, `athlete_race`; migas
-  «Carreras de los atletas / Nombre de la carrera»). Se entra desde la lista o desde la vista de
+  «Carreras de atletas / Nombre de la carrera»). Se entra desde la lista o desde la vista de
   carrera de un atleta (o la propia), con el botón **«Ver con los demás atletas (N)»** de la
   cabecera, que sale si entrena y N ≥ 1 (`race_together`). Cada atleta se mide como en su vista
   de carrera: su base, sus umbrales y sus etiquetas (`docs/tiempo-perdido.md`, "Una carrera con
@@ -371,7 +371,9 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   - **Fichas** de los atletas del recorrido, por puesto en el recorrido, que hacen de leyenda en
     las dos gráficas y el mapa, con los colores de serie en orden fijo (abajo, "Gráficas"). Como
     hay cuatro colores, con más de cuatro atletas en el recorrido las fichas eligen quién sale
-    (como mucho cuatro; de entrada, los cuatro primeros).
+    (como mucho cuatro; de entrada, los cuatro primeros). El color sigue al atleta, no a su
+    puesto entre los que se ven (#178): cada uno ocupa un hueco de la paleta mientras se está en
+    el recorrido; al quitarlo, su hueco queda libre para el siguiente que se añada.
   - **Diferencia con el tiempo ideal** y **Pérdida por tramo comparada**: los paneles de «Frente
     al grupo» (P4) con una serie por atleta (`athletes-race-ideal` y `athletes-race-loss`, que se
     pueden ocultar). En la tabla de la pérdida, «· error» sigue la etiqueta del atleta y, sin
@@ -961,7 +963,7 @@ sistema.
 - **Estructura** (#127, #119, boceto en `docs/bocetos/navegacion.html`): barra lateral oscura
   (`--side-*`) con bloques: Inicio; «Lo mío», con Mis carreras (y un contador de errores sin
   revisar de lo propio), Estadísticas e Importar; si entrena, «Atletas», con Mis atletas (y un
-  contador de carreras nuevas), Carreras (las de todos los atletas, #163), el nombre, las
+  contador de carreras nuevas), Carreras de atletas (las de todos, #163), el nombre, las
   Carreras y las Estadísticas del atleta que se ve, Comparar atletas y Grupos; «Cuenta», con Mi
   perfil, Ajustes y Ayuda.
 

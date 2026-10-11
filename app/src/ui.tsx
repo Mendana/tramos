@@ -106,7 +106,7 @@ export function AthletesIcon(props: IconProps) {
   );
 }
 
-/** Dos banderas: Carreras de los atletas (varios en la misma carrera). */
+/** Dos banderas: Carreras de atletas (varios en la misma carrera). */
 export function FlagsIcon(props: IconProps) {
   return (
     <Svg {...props}>

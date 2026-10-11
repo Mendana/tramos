@@ -449,7 +449,8 @@ dibuja en la sección «Cansancio» (`docs/app.md`, "Vista histórica").
 
 **Es un dato débil.** El pulso de muñeca llega con segundos de retraso, da saltos y en un tramo
 corto apenas reacciona; además se mezclan pocas carreras. La pantalla lo avisa siempre y enseña
-`n` en cada columna.
+`n` en cada columna. El pulso antes del error da además una frase del resumen, solo con datos
+suficientes y una diferencia clara (`docs/frases.md`, «Cansancio»).
 
 - **Mismas carreras y tramos:** las del histórico con el mismo filtro y, de cada una, sus tramos
   que cuentan (`pattern_legs`).
@@ -669,6 +670,10 @@ Las pestañas y los paneles de Estadísticas con **todos los miembros de un grup
   (P10), ni la media ni la serie por carrera: la de cada miembro es ya una media de las carreras
   que la tienen, sin saber cuántas, y la serie por carrera mezclaría a corredores distintos. Tampoco
   la lista de carreras ni el resumen en frases (#126): no son agregados.
+- **Textos del grupo (#165).** Los paneles son los de Estadísticas, con las palabras del grupo
+  («sus carreras», «fallan», «media del grupo») en vez de las del corredor («tus carreras»,
+  «fallas», «tu media»). La app lo decide con un contexto (`app/src/subject.tsx`), no con paneles
+  duplicados; el mismo contexto da «su» en lugar de «tu» cuando quien entrena ve a un atleta.
 
 | Análisis | Cómo se junta |
 | --- | --- |

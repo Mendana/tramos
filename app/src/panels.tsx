@@ -35,7 +35,7 @@ export const PANEL_GROUPS: PanelGroup[] = [
       { id: "common-errors", title: "Tipos de error" },
       { id: "slope-performance", title: "IR medio según desnivel" },
       { id: "slope-error-rate", title: "Tasa de error según desnivel" },
-      { id: "breakdown", title: "De qué está hecha la pérdida de tus errores" },
+      { id: "breakdown", title: "De qué está hecha la pérdida de los errores" },
     ],
   },
   {
@@ -202,8 +202,8 @@ function PanelChooser({
           </button>
         </div>
         <p className="small muted">
-          Elige qué paneles ves. Vale para todas tus carreras y para las que veas de otros
-          corredores.
+          Elige qué paneles ves. Vale en todas las pantallas que los usan: las carreras propias, las
+          de otros corredores y los grupos.
         </p>
         {visibility.error !== null && <Notice kind="error">{visibility.error}</Notice>}
         {PANEL_GROUPS.map((group) => (

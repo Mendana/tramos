@@ -33,6 +33,20 @@ por tercios de la carrera; los dos paneles de pulso solo usan las carreras con F
 > los errores de ese tercio vas 5 pulsaciones por encima de lo normal. Puede que el cansancio te
 > lleve a fallar al final: una pista para trabajar la resistencia.
 
+### La frase del resumen
+
+Si antes de tus errores llevas el pulso **al menos 5 pulsaciones más alto** que antes de tus
+tramos limpios, comparando cada error con los tramos limpios de su mismo tercio (al final de la
+carrera el pulso sube siempre), arriba de [Estadísticas](estadisticas.md) puede salir «Parece que
+fallas más con el pulso alto…». Solo con **al menos cinco carreras con pulso y diez errores**: con
+menos, no sale (ni siquiera con aviso, porque el dato ya es débil). Menos de 5 pulsaciones no se
+distingue de los saltos del propio reloj. Es una pista, no una causa: el pulso alto también puede
+venir de una subida o de apretar tras un error. **Ver** te trae al panel «Pulso antes del error»;
+como está oculto de entrada, la app te ofrece enseñarlo.
+
+La frase no sale en una carrera suelta: con dos o tres errores, unas pulsaciones de más no dicen
+nada.
+
 Los paneles ocultos de entrada se enseñan con **Personalizar** ([Estadísticas](estadisticas.md)).
 
 Detalle técnico:

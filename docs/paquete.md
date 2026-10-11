@@ -76,8 +76,18 @@ algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene e
   importar otro del mismo par lo sustituye si es igual de reciente o más (`exported_at`), y se
   ignora si es más antiguo, para que una copia vieja que llegue tarde por la carpeta no pise la
   buena. Uno idéntico al guardado no cambia nada. Reimportar nunca duplica.
+- **Primera llegada (#166).** Además de cuándo se guardó la última versión
+  (`imported_at_epoch_ms`, que cambia al sustituir), cada par guarda cuándo llegó **por primera
+  vez** (`first_imported_at_epoch_ms`), que no cambia al sustituirlo. Las novedades de quien
+  entrena cuentan con la primera llegada, así que reexportar una carrera ya vista (el atleta ha
+  etiquetado un error, por ejemplo) no la vuelve a hacer nueva. Los paquetes que había antes de
+  esta columna toman como primera llegada la que tenían.
 - Sustituir vale también para bajar de nivel: si el corredor reexporta con `aggregates` una
   carrera que había compartido con `track`, el track desaparece de la app de la entrenadora.
+- Cruzar paquetes de la misma carrera (`Store::received_packages_of_race`): el `race_id` los
+  agrupa; cuál de los resultados de un evento reducido es de quien lo envió lo dice
+  `course.result`, y para encontrarlo en la copia de otro paquete se casa por categoría y nombre
+  (`docs/tiempo-perdido.md`, «Frente al grupo»).
 - Qué hace la app de quien entrena con los paquetes (Mis atletas, novedades y vistas en solo
   lectura) está en `docs/app.md`, "Atletas" (#37, #119).
 

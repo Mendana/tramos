@@ -15,6 +15,7 @@ import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { legsLabel, percent, tickPercent } from "./HistoryPanels";
 import { bucketLabel } from "./LegLengthPanel";
+import { useSubject } from "./subject";
 
 const errorsLabel = (n: number) => `${n} ${n === 1 ? "error" : "errores"}`;
 const seconds = (v: number) => `${decimal(v, 0)} s`;
@@ -45,6 +46,7 @@ function subtypeName(taxonomy: Taxonomy | null, type: string, key: string | null
 
 /** Sección «Errores más comunes» de la vista histórica (P9). */
 export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
+  const who = useSubject();
   const [taxonomy, setTaxonomy] = useState<Taxonomy | null>(null);
   const [format, setFormat] = useState<FormatChoice>("all");
   const [bucket, setBucket] = useState<number | null>(null);
@@ -99,7 +101,7 @@ export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
   const share = (n: number) => (t.errors > 0 ? (n / t.errors) * 100 : null);
   const untyped =
     t.untyped > 0
-      ? ` ${errorsLabel(t.untyped)} sin tipo${t.unreviewed > 0 ? ` (${t.unreviewed} sin revisar)` : ""}: etiquétalos en la tabla de tramos de cada carrera.`
+      ? ` ${errorsLabel(t.untyped)} sin tipo${t.unreviewed > 0 ? ` (${t.unreviewed} sin revisar)` : ""}: ${who.pick("etiquétalos", "se etiquetan")} en la tabla de tramos de cada carrera.`
       : "";
   const physical =
     t.physical_legs > 0
@@ -108,7 +110,7 @@ export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
   const description =
     t.errors === 0
       ? `Ningún error en estos tramos.${physical}`
-      : `Qué parte de tus ${errorsLabel(t.errors)} es de cada tipo.${untyped}${physical}`;
+      : `Qué parte de ${who.your} ${errorsLabel(t.errors)} es de cada tipo.${untyped}${physical}`;
 
   const columns = [
     ...t.by_type.map((ty) => {

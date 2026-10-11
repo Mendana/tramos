@@ -230,6 +230,16 @@ export interface CourseComparison {
   runners: ComparedRunner[];
 }
 
+/**
+ * Un resultado del recorrido que es de otro atleta de quien entrena (#164): `result` casa con
+ * `ComparedRunner.result`.
+ */
+export interface AthleteMark {
+  result: ResultRef;
+  runner_id: string;
+  display_name: string;
+}
+
 /** Qué carreras entran en el histórico. `null` = sin filtro; fechas `AAAA-MM-DD`, incluidas. */
 export interface HistoryFilter {
   from: string | null;
@@ -285,6 +295,7 @@ export type InsightRule =
   | "format"
   | "days_off"
   | "consistency"
+  | "fatigue"
   | "clean_race"
   | "concentrated_loss"
   | "race_breakdown"
@@ -300,7 +311,8 @@ export type HistoryInsightTarget =
   | "loss_breakdown"
   | "after_error"
   | "days_off"
-  | "consistency";
+  | "consistency"
+  | "fatigue";
 
 /** Parte de la carrera que justifica una frase. */
 export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";
@@ -597,6 +609,8 @@ export interface SummaryRace {
   name: string | null;
   format: RaceFormat | null;
   summary: RaceSummary;
+  /** Ya estaba vista y el atleta la ha vuelto a exportar cambiada desde la última visita. */
+  updated: boolean;
 }
 
 /** Lo que no sale en las vistas de corredor del corredor que se ve. */
@@ -604,6 +618,8 @@ export interface RunnerViewInfo {
   runner: CoachRunner;
   summary_only: SummaryRace[];
   problems: string[];
+  /** `result_id` de las carreras ya vistas que se han actualizado desde la última visita (#166). */
+  updated_results: number[];
 }
 
 export const roleChosen = () => invoke<boolean>("role_chosen");
@@ -621,7 +637,7 @@ export const coachRunners = () => invoke<CoachRunner[]>("coach_runners");
 export const viewRunner = (runnerId: string | null) =>
   invoke<RunnerViewInfo | null>("view_runner", { runnerId });
 
-/** Una carrera de un atleta recibida desde la última vez que se entró en él (#142). */
+/** Una carrera de un atleta que llegó por primera vez desde la última vez que se entró en él (#142). */
 export interface NewRace {
   date: string;
   name: string | null;
@@ -661,6 +677,8 @@ export interface AthleteCard {
   /** Identificadores de sus grupos de atletas. */
   groups: number[];
   new_races: number;
+  /** Carreras ya vistas que ha vuelto a exportar cambiadas: no cuentan como nuevas (#166). */
+  updated_races: number;
 }
 
 export const athleteCards = () => invoke<AthleteCard[]>("athlete_cards");
@@ -1007,6 +1025,10 @@ export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
 
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });
+
+/** Atletas de quien entrena que corrieron esta misma carrera (vacío si no entrena). */
+export const raceOwnAthletes = (resultId: number) =>
+  invoke<AthleteMark[]>("race_own_athletes", { resultId });
 
 /**
  * Desfase entre el reloj y el cronometraje (#68, `clock_offset.rs`). Convenio: instante en el

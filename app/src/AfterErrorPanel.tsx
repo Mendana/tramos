@@ -5,6 +5,7 @@ import { AfterError, HistoryStats, Rate } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { legsLabel, percent, tickPercent } from "./HistoryPanels";
+import { useSubject } from "./subject";
 
 const pct = (r: Rate) => (r.error_rate === null ? null : r.error_rate * 100);
 const errorsLabel = (n: number) => `${n} ${n === 1 ? "error" : "errores"}`;
@@ -57,8 +58,14 @@ const streakLabel = (from: number, to: number | null) =>
 
 /** Sección «Después de fallar» de la vista histórica (P8). */
 export function AfterErrorPanel({ data, total }: { data: AfterError; total: HistoryStats }) {
+  const who = useSubject();
   const reference =
-    total.error_rate === null ? undefined : { value: total.error_rate * 100, label: "Tu media" };
+    total.error_rate === null
+      ? undefined
+      : {
+          value: total.error_rate * 100,
+          label: who.pick("Tu media", "Su media", "Media del grupo"),
+        };
   const chain = [
     { key: "clean", label: "Tras un tramo limpio", rate: data.after_clean },
     { key: "error", label: "Tras un error", rate: data.after_error },
@@ -80,7 +87,7 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
       <ChartPanel
         id="after-error"
         title="¿Un error trae otro?"
-        description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según aceleraste (más de un 5 % más rápido que tu mediana en los tramos limpios de esa carrera) o no.${withoutSpeed}`}
+        description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según ${who.pick("aceleraste", "aceleró", "aceleraron")} (más de un 5 % más rápido que ${who.yourOne} mediana en los tramos limpios de esa carrera) o no.${withoutSpeed}`}
         cases={legsLabel(data.after_clean.legs + data.after_error.legs)}
         chart={
           <ColumnChart
@@ -95,7 +102,7 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
       <ChartPanel
         id="clean-streaks"
         title="Rachas limpias"
-        description="Tasa de error de un tramo según cuántos tramos limpios seguidos llevabas justo antes (0 = venías de un error), frente a tu media. Si las rachas largas acaban en error, puede ser exceso de confianza."
+        description={`Tasa de error de un tramo según cuántos tramos limpios seguidos ${who.pick("llevabas", "llevaba", "llevaban")} justo antes (0 = ${who.pick("venías", "venía", "venían")} de un error), frente a ${who.pick("tu media", "su media", "la media del grupo")}. Si las rachas largas acaban en error, puede ser exceso de confianza.`}
         cases={legsLabel(streaks.reduce((sum, s) => sum + s.rate.legs, 0))}
         chart={
           <ColumnChart

@@ -16,6 +16,7 @@ import { ColumnChart } from "./charts/ColumnChart";
 import { Legend } from "./charts/common";
 import { GroupedColumnChart } from "./charts/GroupedColumnChart";
 import { racesLabel, tickPercent } from "./HistoryPanels";
+import { useSubject } from "./subject";
 
 /** Las tres partes, en orden fijo, con su color de serie. */
 const PARTS = [
@@ -173,6 +174,7 @@ function LegsTable({ legs, usualRatio }: { legs: LegBreakdown[]; usualRatio: num
 
 /** Sección «¿Lento o desorientado?» del histórico: todos los errores juntos. */
 export function HistoryBreakdownPanel({ breakdown }: { breakdown: BreakdownHistory }) {
+  const who = useSubject();
   const t = breakdown.errors;
   const pct = (v: number) => (t.loss_s > 0 ? (v / t.loss_s) * 100 : null);
   const without =
@@ -184,7 +186,7 @@ export function HistoryBreakdownPanel({ breakdown }: { breakdown: BreakdownHisto
       <h3 className="section-title">¿Lento o desorientado?</h3>
       <ChartPanel
         id="breakdown"
-        title="De qué está hecha la pérdida de tus errores"
+        title={`De qué está hecha la pérdida de ${who.your} errores`}
         description={
           (t.legs === 0
             ? "Ningún error con FIT que repartir."

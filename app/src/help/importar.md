@@ -6,6 +6,12 @@ Para añadir carreras. Arriba eliges **Una carrera** o **Una carpeta**.
 
 1. **Ficheros**: arrastra a la ventana el .spl de WinSplits y, si lo tienes, el .fit de tu reloj,
    o elígelos con el botón. La app los distingue por la extensión.
+
+   Si la carrera está en **OReplay**, en vez del .spl pega su enlace (el de la página de
+   resultados, `https://www.oreplay.es/competitions/…`) y pulsa **Descargar**. La app baja los
+   resultados con sus parciales y sigue igual que con un .spl. Si pegas el enlace de un evento
+   con varias carreras, te pregunta cuál. Solo valen carreras individuales con parciales: no
+   relevos ni score, ni las que solo tienen el tiempo de meta.
 2. **Quién eres**: tu tarjeta SI y tu nombre. Se rellenan con los de la última vez
    ([Mi perfil](perfil.md)).
 3. **Revisar**: la app lee los ficheros sin guardar nada, te busca en los resultados y te
@@ -15,7 +21,8 @@ Para añadir carreras. Arriba eliges **Una carrera** o **Una carpeta**.
 4. **Importar**: guarda la carrera. Con FIT, lo encaja con tus picadas
    ([Reloj y desfase](reloj.md)) y te dice qué tal ha ido.
 
-Volver a importar el mismo .spl **no duplica** la carrera: la reutiliza. Sirve, por ejemplo, para
+Volver a importar el mismo .spl (o la misma descarga de OReplay) **no duplica** la carrera: la
+reutiliza. Sirve, por ejemplo, para
 añadirle el FIT que no tenías.
 
 > Importas una carrera sin FIT porque el reloj se quedó sin batería. Una semana después

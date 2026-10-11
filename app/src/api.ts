@@ -1043,6 +1043,20 @@ export const backupRestore = (path: string) => invoke<string>("backup_restore", 
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
 
+/** Etapa de un evento de OReplay para elegir (`src-tauri/src/oreplay.rs`). */
+export interface OReplayStage {
+  id: string;
+  name: string;
+}
+
+export type OReplayDownload =
+  | { status: "downloaded"; path: string; name: string | null; classes: number; runners: number }
+  | { status: "choose_stage"; stages: OReplayStage[] };
+
+/** Descarga una carrera de OReplay por su enlace (#185); `stageId` si ha habido que elegir. */
+export const downloadOReplay = (url: string, stageId: string | null) =>
+  invoke<OReplayDownload>("download_oreplay", { url, stageId });
+
 export const importRace = (request: ImportRequest) =>
   invoke<ImportOutcome>("import_race", { request });
 

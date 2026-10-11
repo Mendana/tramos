@@ -10,7 +10,7 @@ const MODES: { mode: Mode; label: string; title: string; subtitle: string }[] = 
     mode: "single",
     label: "Una carrera",
     title: "Importar una carrera",
-    subtitle: "El .spl de WinSplits y, si lo tienes, el FIT de tu reloj.",
+    subtitle: "El .spl de WinSplits o el enlace de OReplay y, si lo tienes, el FIT de tu reloj.",
   },
   {
     mode: "folder",

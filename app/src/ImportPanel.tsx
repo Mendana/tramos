@@ -5,10 +5,12 @@ import {
   FORMAT_LABELS,
   ImportOutcome,
   ImportPreview,
+  OReplayStage,
   RaceFormat,
   RunnerChoice,
   RunnerIdentity,
   decimal,
+  downloadOReplay,
   fileName,
   getSettings,
   importRace,
@@ -79,6 +81,10 @@ function ImportPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
+  const [link, setLink] = useState("");
+  const [stages, setStages] = useState<OReplayStage[] | null>(null);
+  const [downloaded, setDownloaded] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     getSettings()
@@ -111,6 +117,34 @@ function ImportPanel({
     setPreview(null);
     setOutcome(null);
     setError(null);
+    setDownloaded(null);
+  }
+
+  /** Descarga la carrera del enlace de OReplay y la pone como splits (#185). */
+  async function download(stageId: string | null) {
+    setBusy(true);
+    setDownloading(true);
+    setError(null);
+    setOutcome(null);
+    setPreview(null);
+    setDownloaded(null);
+    try {
+      const result = await downloadOReplay(link.trim(), stageId);
+      if (result.status === "choose_stage") {
+        setStages(result.stages);
+      } else {
+        setStages(null);
+        setFiles((current) => ({ ...current, spl: result.path }));
+        setDownloaded(
+          `${result.name ?? "Carrera"}: ${result.classes} categorías, ${result.runners} corredores.`,
+        );
+      }
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+      setDownloading(false);
+    }
   }
 
   async function chooseFiles() {
@@ -164,6 +198,8 @@ function ImportPanel({
       setOutcome(result);
       setPreview(null);
       setFiles({ spl: null, fit: null });
+      setDownloaded(null);
+      setLink("");
       onImported();
     } catch (err) {
       setError(String(err));
@@ -174,7 +210,10 @@ function ImportPanel({
 
   const listed = useMemo(() => {
     if (preview === null) return [];
-    const words = filter.toLowerCase().split(/\s+/).filter((w) => w !== "");
+    const words = filter
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w !== "");
     return preview.candidates.filter((c) => {
       const text = `${runnerName(c)} ${runnerDetails(c)}`.toLowerCase();
       return words.every((w) => text.includes(w));
@@ -200,10 +239,58 @@ function ImportPanel({
             Elegir ficheros…
           </button>
           <div className="files">
-            <FileSlot icon={<FileIcon />} label="Splits (.spl)" path={files.spl} />
+            <FileSlot icon={<FileIcon />} label="Splits (.spl u OReplay)" path={files.spl} />
             <FileSlot icon={<WatchIcon />} label="Reloj (.fit), opcional" path={files.fit} />
           </div>
         </div>
+        <div className="row">
+          <label className="field field-grow">
+            <span className="field-label">O pega el enlace de la carrera en OReplay</span>
+            <input
+              className="input"
+              type="url"
+              placeholder="https://www.oreplay.es/competitions/…"
+              value={link}
+              onChange={(e) => {
+                setLink(e.target.value);
+                setStages(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && link.trim() !== "" && !busy) void download(null);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => download(null)}
+            disabled={busy || link.trim() === ""}
+          >
+            Descargar
+          </button>
+        </div>
+        {downloading && <p className="small muted">Descargando de OReplay…</p>}
+        {stages !== null && (
+          <div className="field">
+            <span className="field-label">El evento tiene varias carreras: elige cuál</span>
+            <div className="choices" role="radiogroup" aria-label="Carrera del evento">
+              {stages.map((s) => (
+                <label className="choice" key={s.id}>
+                  <input
+                    type="radio"
+                    name="oreplay-stage"
+                    disabled={busy}
+                    onChange={() => download(s.id)}
+                  />
+                  <span className="choice-main">
+                    <span className="strong">{s.name}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        {downloaded !== null && <Notice kind="success">Descargada de OReplay. {downloaded}</Notice>}
       </section>
 
       <section className="card">
@@ -220,7 +307,11 @@ function ImportPanel({
           </label>
           <label className="field field-grow">
             <span className="field-label">Nombre y apellidos</span>
-            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <input
+              className="input"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
           </label>
           <button
             type="button"
@@ -232,7 +323,9 @@ function ImportPanel({
           </button>
         </div>
         {files.spl === null && (
-          <p className="small muted">Añade primero el .spl para revisar la carrera.</p>
+          <p className="small muted">
+            Añade primero el .spl o el enlace de OReplay para revisar la carrera.
+          </p>
         )}
       </section>
 
@@ -289,7 +382,10 @@ function ImportPanel({
               ) : (
                 <div className="choices" role="radiogroup" aria-label="Tu resultado">
                   {listed.map((c) => (
-                    <label className="choice" key={`${c.result.class_index}-${c.result.result_index}`}>
+                    <label
+                      className="choice"
+                      key={`${c.result.class_index}-${c.result.result_index}`}
+                    >
                       <input
                         type="radio"
                         name="candidate"
@@ -347,15 +443,7 @@ function ImportPanel({
   );
 }
 
-function FileSlot({
-  icon,
-  label,
-  path,
-}: {
-  icon: ReactNode;
-  label: string;
-  path: string | null;
-}) {
+function FileSlot({ icon, label, path }: { icon: ReactNode; label: string; path: string | null }) {
   return (
     <div className={path === null ? "file is-empty" : "file"}>
       {icon}
@@ -381,7 +469,11 @@ function Outcome({
   return (
     <div className="card">
       <Notice
-        kind={alignment !== null && (!alignment.track_saved || alignment.offset_s === null) ? "warning" : "success"}
+        kind={
+          alignment !== null && (!alignment.track_saved || alignment.offset_s === null)
+            ? "warning"
+            : "success"
+        }
       >
         <strong>
           {outcome.already_imported

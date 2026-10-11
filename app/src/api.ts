@@ -1098,7 +1098,20 @@ export interface OffsetView {
   /** Fijado a mano; `null` = automático. */
   manual_offset_s: number | null;
   max_manual_offset_s: number;
+  /** Balizas con las que se puede sincronizar marcándolas en el mapa (#186). */
+  sync_controls: SyncControl[];
 }
+
+/** Baliza con hora de picada, sin la salida. `position` como en el mapa: 1 = primera, la última = meta. */
+export interface SyncControl {
+  position: number;
+  code: number;
+  is_finish: boolean;
+}
+
+/** «la baliza 7 (código 45)» o «la meta», para meter en una frase. */
+export const syncControlLabel = (c: SyncControl) =>
+  c.is_finish ? "la meta" : `la baliza ${c.position} (código ${c.code})`;
 
 export const raceOffset = (resultId: number) =>
   invoke<OffsetView | null>("race_offset", { resultId });
@@ -1106,6 +1119,10 @@ export const raceOffset = (resultId: number) =>
 /** `null` vuelve al automático. */
 export const setRaceOffset = (resultId: number, offsetS: number | null) =>
   invoke<OffsetView>("set_race_offset", { resultId, offsetS });
+
+/** Fija el desfase con el punto del mapa donde se picó la baliza `position` (#186). */
+export const syncRaceOffset = (resultId: number, position: number, lon: number, lat: number) =>
+  invoke<OffsetView>("sync_race_offset", { resultId, position, lon, lat });
 
 /** Reparto de la pérdida de un tramo (P2, `docs/tiempo-perdido.md`): pérdida = desvío + paradas + ritmo. */
 export interface LegBreakdown {

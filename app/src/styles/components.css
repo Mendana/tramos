@@ -1294,6 +1294,12 @@
   width: 200px;
 }
 
+/* Sincronizar con una baliza (#186). */
+.offset-sync-field {
+  width: 260px;
+  max-width: 100%;
+}
+
 /* --- Controles dentro de un panel de gráfica (P9) --- */
 
 .panel-controls {

@@ -9,11 +9,13 @@ use std::path::PathBuf;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde_json::{Value, json};
 use tramos_core::alignment::{
-    Alignment, AlignmentError, AlignmentOptions, EDGE_SNAP_S, PunchUsage, RaceWindow, WarningKind,
-    align, align_with_offset, race_window,
+    Alignment, AlignmentError, AlignmentOptions, EDGE_SNAP_S, MAX_MARK_DISTANCE_M, MarkError,
+    PunchUsage, RaceWindow, WarningKind, align, align_with_offset, offset_from_mark, race_window,
 };
 use tramos_core::importers::{fit, spl};
-use tramos_core::model::{Event, FINISH_CODE, RaceResult, RaceStatus, START_CODE, Track};
+use tramos_core::model::{
+    Event, FINISH_CODE, RaceResult, RaceStatus, START_CODE, Track, TrackPoint,
+};
 use tramos_core::segmentation::segment;
 
 fn fixtures() -> PathBuf {
@@ -843,4 +845,170 @@ fn private_alignment() {
         );
     }
     assert!(a.offset_s.abs() <= 60.0);
+}
+
+// --- Desfase marcando una baliza en el mapa (#186) ---
+
+/// Metros hacia el norte, en grados de latitud (radio de `docs/alineacion.md`).
+fn north(m: f64) -> f64 {
+    m / 6_371_008.8_f64 * 180.0 / std::f64::consts::PI
+}
+
+/// Punto a `x_m` metros al este del origen (41,938 N, 4,249 O), a `t` segundos de las 16:00Z.
+fn east_point(t: i64, x_m: f64) -> TrackPoint {
+    let lat: f64 = 41.938;
+    TrackPoint {
+        time: instant("2026-10-03T16:00:00Z") + TimeDelta::seconds(t),
+        lat,
+        lon: -4.249 + north(x_m) / lat.to_radians().cos(),
+        altitude_m: None,
+        heart_rate_bpm: None,
+        cadence_spm: None,
+        distance_m: None,
+    }
+}
+
+/// En el sitio verdadero de cada baliza del FIT sintético (que pasa por ella justo a la hora de
+/// la picada), el desfase sale el del reloj: 0, o el desplazamiento que se le aplique.
+#[test]
+fn marking_the_true_control_gives_the_watch_offset() {
+    let track = synthetic_track();
+    let truth = truth();
+    let controls = truth["controls"].as_array().unwrap();
+    for shift in [0, 23, -40] {
+        let moved = shifted(&track, TimeDelta::seconds(shift));
+        for c in controls.iter().filter(|c| c["code"] != START_CODE) {
+            let marked = offset_from_mark(
+                &moved,
+                instant(c["punch_utc"].as_str().unwrap()),
+                c["lon"].as_f64().unwrap(),
+                c["lat"].as_f64().unwrap(),
+                0.0,
+                &AlignmentOptions::default(),
+            )
+            .unwrap();
+            assert!(
+                (marked.offset_s - shift as f64).abs() < 1.0,
+                "baliza {} desplazada {shift} s: {}",
+                c["code"],
+                marked.offset_s
+            );
+            assert!(marked.distance_m < 1.0, "{}", marked.distance_m);
+        }
+    }
+}
+
+/// Un punto un poco al lado del track se proyecta sobre él: mismo instante y su distancia.
+#[test]
+fn a_point_beside_the_track_projects_onto_it() {
+    let track = Track {
+        points: (0..=10).map(|t| east_point(t, 10.0 * t as f64)).collect(),
+        sport: None,
+    };
+    let punch = instant("2026-10-03T16:00:00Z");
+    let marked = offset_from_mark(
+        &track,
+        punch,
+        east_point(0, 45.0).lon,
+        east_point(0, 45.0).lat + north(8.0),
+        0.0,
+        &AlignmentOptions::default(),
+    )
+    .unwrap();
+    assert!((marked.offset_s - 4.5).abs() < 0.01, "{}", marked.offset_s);
+    assert!(
+        (marked.distance_m - 8.0).abs() < 0.05,
+        "{}",
+        marked.distance_m
+    );
+    assert_eq!(marked.passes, 1);
+}
+
+/// Ida y vuelta por la misma calle: dos pasadas por el punto; gana la más cercana en tiempo al
+/// desfase que ya se usa.
+#[test]
+fn with_two_passes_the_one_near_the_current_offset_wins() {
+    let mut points: Vec<TrackPoint> = (0..=10).map(|t| east_point(t, 10.0 * t as f64)).collect();
+    points.extend((11..=20).map(|t| east_point(t, 10.0 * (20 - t) as f64)));
+    let track = Track {
+        points,
+        sport: None,
+    };
+    let at = east_point(0, 30.0);
+    let punch = instant("2026-10-03T16:00:05Z");
+    let mark = |near: f64| {
+        offset_from_mark(
+            &track,
+            punch,
+            at.lon,
+            at.lat,
+            near,
+            &AlignmentOptions::default(),
+        )
+        .unwrap()
+    };
+    // Pasa por x = 30 m a los 3 s y a los 17 s.
+    let first = mark(0.0);
+    assert_eq!(first.passes, 2);
+    assert!((first.offset_s + 2.0).abs() < 0.01, "{}", first.offset_s);
+    let second = mark(10.0);
+    assert!((second.offset_s - 12.0).abs() < 0.01, "{}", second.offset_s);
+}
+
+/// Un hueco del track no es un tramo: no se interpola por él.
+#[test]
+fn marks_do_not_land_inside_a_gap() {
+    let track = Track {
+        points: vec![east_point(0, 0.0), east_point(60, 100.0)],
+        sport: None,
+    };
+    let at = east_point(0, 50.0);
+    let punch = instant("2026-10-03T16:00:00Z");
+    let options = AlignmentOptions::default();
+    // Sin tramos útiles, el más cercano de los dos puntos sueltos no cuenta: no hay track.
+    assert_eq!(
+        offset_from_mark(&track, punch, at.lon, at.lat, 0.0, &options),
+        Err(MarkError::EmptyTrack)
+    );
+}
+
+#[test]
+fn marks_far_from_the_track_or_from_another_day_are_errors() {
+    let track = synthetic_track();
+    let first = &track.points[0];
+    let options = AlignmentOptions::default();
+    let far = offset_from_mark(
+        &track,
+        first.time,
+        first.lon,
+        first.lat + north(5_000.0),
+        0.0,
+        &options,
+    );
+    assert!(
+        matches!(far, Err(MarkError::TooFar { distance_m }) if distance_m > MAX_MARK_DISTANCE_M),
+        "{far:?}"
+    );
+    assert!(matches!(
+        offset_from_mark(
+            &track,
+            first.time - TimeDelta::days(3),
+            first.lon,
+            first.lat,
+            0.0,
+            &options
+        ),
+        Err(MarkError::OffsetTooLarge { .. })
+    ));
+    assert_eq!(
+        offset_from_mark(
+            &Track::default(),
+            first.time,
+            first.lon,
+            first.lat,
+            0.0,
+            &options
+        ),
+        Err(MarkError::EmptyTrack)
+    );
 }

@@ -7,6 +7,7 @@ import {
   RaceTogether,
   SHARE_LABELS,
   ShareChoice,
+  SyncControl,
   clock,
   codeLabel,
   decimal,
@@ -20,6 +21,8 @@ import {
   setRaceSharing,
   signed,
   statusLabel,
+  syncControlLabel,
+  syncRaceOffset,
 } from "./api";
 import { RaceBreakdownPanel } from "./BreakdownPanel";
 import { ClockOffset } from "./ClockOffset";
@@ -146,6 +149,7 @@ function Detail({
   const tagging = useLegTags(detail.result_id, onTagged);
   // Sube cada vez que cambia el desfase del reloj: el mapa y P2 lo vuelven a pedir.
   const [trackRevision, setTrackRevision] = useState(0);
+  const sync = useControlSync(detail.result_id, tab, () => setTrackRevision((r) => r + 1));
   // Tramo con el formulario de etiqueta abierto; al abrirlo se selecciona en el mapa.
   const [editing, setEditing] = useState<number | null>(null);
   const toggleEditing = (leg: number) => {
@@ -391,7 +395,14 @@ function Detail({
           <>
             <ClockOffset
               resultId={detail.result_id}
-              onChange={() => setTrackRevision((r) => r + 1)}
+              onChange={() => {
+                sync.clear();
+                setTrackRevision((r) => r + 1);
+              }}
+              revision={trackRevision}
+              marking={sync.marking}
+              onMark={sync.start}
+              synced={sync.synced}
             />
             <div className="map-layout">
               <Suspense fallback={<p className="muted">Cargando el mapa…</p>}>
@@ -401,6 +412,11 @@ function Detail({
                   legs={lost.legs}
                   selected={selectedLeg}
                   onSelect={toggleLeg}
+                  marking={sync.marking}
+                  markError={sync.error}
+                  markBusy={sync.busy}
+                  onMarkPoint={sync.mark}
+                  onCancelMark={() => sync.start(null)}
                 />
               </Suspense>
               {track !== null && (
@@ -518,6 +534,46 @@ function LegList({
       ))}
     </section>
   );
+}
+
+/**
+ * Sincronizar el reloj con una baliza (#186): la tarjeta del desfase elige la baliza (`start`), el
+ * mapa da el punto (`mark`) y aquí se fija el desfase con él. Al salir del mapa se deja de marcar.
+ */
+function useControlSync(resultId: number, tab: RaceTab, onSynced: () => void) {
+  const [marking, setMarking] = useState<SyncControl | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [synced, setSynced] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMarking(null);
+    setError(null);
+    setSynced(null);
+  }, [resultId, tab]);
+
+  const start = (control: SyncControl | null) => {
+    setMarking(control);
+    setError(null);
+    setSynced(null);
+  };
+  const mark = (lon: number, lat: number) => {
+    if (marking === null || busy) return;
+    setBusy(true);
+    setError(null);
+    syncRaceOffset(resultId, marking.position, lon, lat)
+      .then(() => {
+        setSynced(
+          `Sincronizado con ${syncControlLabel(marking)}: el desfase queda fijado a mano. Si las balizas no caen bien, prueba con otra o vuelve al automático.`,
+        );
+        setMarking(null);
+        onSynced();
+      })
+      .catch((err: unknown) => setError(String(err)))
+      .finally(() => setBusy(false));
+  };
+  const clear = () => setSynced(null);
+  return { marking, error, busy, synced, start, mark, clear };
 }
 
 /** Formato de la carrera, que se puede corregir después de importarla (cuenta en el histórico). */

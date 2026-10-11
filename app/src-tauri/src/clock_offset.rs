@@ -3,14 +3,17 @@
 //! La alineación (`docs/alineacion.md`) lo estima sola, pero puede fallar o salir con confianza
 //! baja. Aquí se reúne lo que la vista de carrera enseña para corregirlo (el desfase calculado
 //! con su confianza, el fijado a mano y el desplazamiento de horas enteras que sugiere la
-//! alineación cuando el track no se solapa) y se guarda el desfase manual. Quien lo usa para
+//! alineación cuando el track no se solapa) y se guarda el desfase manual, escrito a mano o
+//! sacado de marcar en el mapa dónde se picó una baliza (#186). Quien lo usa para
 //! situar las balizas y cortar los tramos es [`crate::race_map::aligned_legs`], el punto común
 //! del mapa, P2 y el histórico.
 
 use serde::Serialize;
 use thiserror::Error;
-use tramos_core::alignment::{AlignmentError, AlignmentOptions, MAX_FIXED_OFFSET_S, align};
-use tramos_core::model::{RaceResult, Track};
+use tramos_core::alignment::{
+    AlignmentError, AlignmentOptions, MAX_FIXED_OFFSET_S, MarkError, align, offset_from_mark,
+};
+use tramos_core::model::{ControlCode, FINISH_CODE, RaceResult, Track};
 use tramos_store::{ResultId, Store, StoreError};
 
 use crate::race_map::alignment;
@@ -24,6 +27,20 @@ pub enum OffsetError {
     NoSuchResult(i64),
     #[error("Ese desfase no vale: {0}")]
     DoesNotFit(AlignmentError),
+    #[error("la baliza {0} no tiene hora de picada: elige otra")]
+    NoPunchTime(usize),
+    #[error("No se puede sincronizar con ese punto: {0}")]
+    Mark(#[from] MarkError),
+}
+
+/// Baliza con la que se puede sincronizar el reloj marcándola en el mapa (#186): las que tienen
+/// hora de picada, sin la salida (en el .spl suele ser la hora asignada, no una marca física).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SyncControl {
+    /// Posición en las picadas, como en el mapa: 1 = primera baliza, …, la última = meta.
+    pub position: usize,
+    pub code: ControlCode,
+    pub is_finish: bool,
 }
 
 /// El desfase de una carrera con track, para la vista de carrera.
@@ -52,6 +69,8 @@ pub struct OffsetView {
     pub manual_offset_s: Option<f64>,
     /// Mayor desfase manual que se acepta, en valor absoluto (s).
     pub max_manual_offset_s: f64,
+    /// Balizas con las que se puede sincronizar en el mapa, en orden.
+    pub sync_controls: Vec<SyncControl>,
 }
 
 /// Desfase de la carrera del resultado `result_id`; `None` si no tiene track.
@@ -88,6 +107,46 @@ pub fn set_race_offset(
     Ok(view(&track, &race_result, offset_s))
 }
 
+/// Fija el desfase con el punto (`lon`, `lat`) que el usuario ha marcado en el mapa como el sitio
+/// donde picó la baliza `position` (#186, `tramos_core::alignment::offset_from_mark`). Si el
+/// track pasa varias veces por ahí, gana la pasada más cercana al desfase en uso (el fijado, el
+/// automático o el sugerido, por ese orden). Se guarda como [`set_race_offset`], con la misma
+/// comprobación.
+pub fn sync_race_offset(
+    store: &mut Store,
+    result_id: i64,
+    position: usize,
+    lon: f64,
+    lat: f64,
+) -> Result<OffsetView, OffsetError> {
+    let result = ResultId(result_id);
+    let race_result = race_result(store, result_id)?;
+    let track = store
+        .load_track(result)?
+        .ok_or(StoreError::TrackNotFound(result_id))?;
+    let punch_time = race_result
+        .punches
+        .get(position)
+        .filter(|_| position > 0)
+        .and_then(|p| p.time)
+        .ok_or(OffsetError::NoPunchTime(position))?;
+    let current = view(&track, &race_result, store.manual_offset(result)?);
+    let near_offset_s = current
+        .manual_offset_s
+        .or(current.automatic_offset_s)
+        .or(current.suggested_offset_s)
+        .unwrap_or(0.0);
+    let marked = offset_from_mark(
+        &track,
+        punch_time,
+        lon,
+        lat,
+        near_offset_s,
+        &AlignmentOptions::default(),
+    )?;
+    set_race_offset(store, result_id, Some(marked.offset_s))
+}
+
 fn race_result(store: &Store, result_id: i64) -> Result<RaceResult, OffsetError> {
     let (event_id, at) = store.result_ref(ResultId(result_id))?;
     let event = store.load_event(event_id)?;
@@ -109,6 +168,18 @@ fn view(track: &Track, result: &RaceResult, manual_offset_s: Option<f64>) -> Off
         suggested_offset_s: None,
         manual_offset_s,
         max_manual_offset_s: MAX_FIXED_OFFSET_S,
+        sync_controls: result
+            .punches
+            .iter()
+            .enumerate()
+            .skip(1)
+            .filter(|(_, p)| p.time.is_some())
+            .map(|(position, p)| SyncControl {
+                position,
+                code: p.code,
+                is_finish: p.code == FINISH_CODE,
+            })
+            .collect(),
     };
     match align(track, result, &options) {
         Ok(a) => {
@@ -284,6 +355,84 @@ mod tests {
         assert_eq!(v.manual_offset_s, None);
         assert_eq!(ready(&store, result_id), before);
         assert_eq!(breakdown_legs(&store, result_id), metrics_before);
+    }
+
+    /// Marcar una baliza donde la sitúa el mapa con un desfase da ese desfase, y en su sitio
+    /// verdadero (el FIT sintético pasa por cada baliza justo a la hora de la picada), el
+    /// verdadero; también con la zona horaria equivocada, gracias al desfase sugerido.
+    #[test]
+    fn marking_a_control_on_the_map_sets_the_offset() {
+        let (mut store, result_id) = imported("Europe/Madrid", true);
+        let v = race_offset(&store, result_id).unwrap().unwrap();
+        let controls = &v.sync_controls;
+        assert_eq!(controls.len(), 21);
+        assert_eq!(controls[0].position, 1);
+        assert!(controls.last().unwrap().is_finish);
+        assert!(controls.iter().filter(|c| c.is_finish).count() == 1);
+
+        // Con 25 s de desfase, la baliza 7 cae en otro punto; marcar ese punto da 25 s.
+        set_race_offset(&mut store, result_id, Some(25.0)).unwrap();
+        let shifted = ready(&store, result_id);
+        let seventh = shifted.controls.iter().find(|c| c.position == 7).unwrap();
+        set_race_offset(&mut store, result_id, None).unwrap();
+        let v = sync_race_offset(
+            &mut store,
+            result_id,
+            7,
+            seventh.coordinate[0],
+            seventh.coordinate[1],
+        )
+        .unwrap();
+        let manual = v.manual_offset_s.unwrap();
+        assert!((manual - 25.0).abs() < 0.5, "{manual}");
+        assert_eq!(
+            store.manual_offset(ResultId(result_id)).unwrap(),
+            Some(manual)
+        );
+
+        // Zona horaria equivocada: el automático no encaja, pero el punto verdadero de la
+        // baliza da el desfase de la zona buena (−1 h y el fino).
+        let truth: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(fixture("fit/baltanas-sintetico.truth.json")).unwrap(),
+        )
+        .unwrap();
+        let c = &truth["controls"][7];
+        let (mut store, result_id) = imported("Atlantic/Canary", true);
+        let v = sync_race_offset(
+            &mut store,
+            result_id,
+            7,
+            c["lon"].as_f64().unwrap(),
+            c["lat"].as_f64().unwrap(),
+        )
+        .unwrap();
+        let manual = v.manual_offset_s.unwrap();
+        assert!((manual + 3600.0).abs() < 1.0, "{manual}");
+        assert!(matches!(
+            race_map(&store, result_id).unwrap(),
+            RaceMap::Ready(_)
+        ));
+    }
+
+    #[test]
+    fn marking_needs_a_punch_with_time_and_a_point_on_the_track() {
+        let (mut store, result_id) = imported("Europe/Madrid", true);
+        let map = ready(&store, result_id);
+        let [lon, lat] = map.controls[3].coordinate;
+        // La salida no vale (hora asignada), ni una posición que no existe.
+        for position in [0, 99] {
+            assert!(matches!(
+                sync_race_offset(&mut store, result_id, position, lon, lat),
+                Err(OffsetError::NoPunchTime(p)) if p == position
+            ));
+        }
+        let err = sync_race_offset(&mut store, result_id, 3, lon, lat + 0.05).unwrap_err();
+        assert!(
+            matches!(err, OffsetError::Mark(MarkError::TooFar { .. })),
+            "{err}"
+        );
+        assert!(err.to_string().contains("pulsa sobre la línea"), "{err}");
+        assert_eq!(store.manual_offset(ResultId(result_id)).unwrap(), None);
     }
 
     /// Un desfase con el que la carrera no cae en el track no se guarda.

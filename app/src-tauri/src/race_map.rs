@@ -300,6 +300,41 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
     })))
 }
 
+/// El track entero del reloj, sin cortar en tramos ni alinear (#186): lo que se dibuja para
+/// marcar dónde se picó una baliza, también cuando la carrera aún no se puede situar en él.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TrackLine {
+    /// Rectángulo que contiene el track.
+    pub bounds: Option<Bounds>,
+    /// Trozos seguidos del track: se corta en cada hueco de más de `max_gap_s`
+    /// (`docs/alineacion.md`), que no es por donde pasó el corredor.
+    pub lines: Vec<Vec<Coordinate>>,
+}
+
+/// El track del resultado `result_id` entero; `None` si no tiene.
+pub fn track_line(store: &Store, result_id: i64) -> Result<Option<TrackLine>, RaceMapError> {
+    let Some(track) = store.load_track(ResultId(result_id))? else {
+        return Ok(None);
+    };
+    let max_gap_s = AlignmentOptions::default().max_gap_s;
+    let mut lines: Vec<Vec<Coordinate>> = Vec::new();
+    let mut previous: Option<&TrackPoint> = None;
+    for point in &track.points {
+        let joined = previous.is_some_and(|p| seconds_between(p.time, point.time) <= max_gap_s);
+        let c = coordinate(point.lon, point.lat);
+        match lines.last_mut() {
+            Some(line) if joined => line.push(c),
+            _ => lines.push(vec![c]),
+        }
+        previous = Some(point);
+    }
+    let all: Vec<Coordinate> = lines.iter().flatten().copied().collect();
+    Ok(Some(TrackLine {
+        bounds: bounds(&all),
+        lines,
+    }))
+}
+
 /// Los tracks de varios atletas del mismo recorrido en un mapa (#163, `docs/app.md`, "Carreras
 /// de los atletas"): cada uno con sus tramos, sin colores de ritmo (cada atleta lleva su color
 /// de serie) y las balizas una sola vez.
@@ -663,6 +698,22 @@ pub(crate) mod tests {
     fn truth() -> serde_json::Value {
         let text = std::fs::read_to_string(fixture("fit/baltanas-sintetico.truth.json")).unwrap();
         serde_json::from_str(&text).unwrap()
+    }
+
+    #[test]
+    fn the_whole_track_is_one_line_without_gaps() {
+        let (store, result_id) = imported(true);
+        let line = track_line(&store, result_id).unwrap().unwrap();
+        // El FIT sintético va a 1 Hz sin huecos: una sola línea con todos sus puntos, también
+        // el minuto de antes de la salida y el de después de la meta.
+        assert_eq!(line.lines.len(), 1);
+        assert_eq!(line.lines[0].len(), 1661);
+        let map = ready(&store, result_id);
+        let (b, m) = (line.bounds.unwrap(), map.bounds.unwrap());
+        assert!(b[0] <= m[0] && b[1] <= m[1] && b[2] >= m[2] && b[3] >= m[3]);
+
+        let (store, result_id) = imported(false);
+        assert_eq!(track_line(&store, result_id).unwrap(), None);
     }
 
     #[test]

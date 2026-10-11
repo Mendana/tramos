@@ -66,6 +66,15 @@ export type RaceMap =
 
 export const raceMap = (resultId: number) => invoke<RaceMap>("race_map", { resultId });
 
+/** El track entero, sin alinear, cortado en los huecos (#186). */
+export interface TrackLine {
+  bounds: Bounds | null;
+  lines: Coordinate[][];
+}
+
+export const raceTrackLine = (resultId: number) =>
+  invoke<TrackLine | null>("race_track_line", { resultId });
+
 /** El track de un atleta en el mapa de una carrera con varios (#163). */
 export interface RunnerTrack {
   /** Su posición en `AthleteRaceView.athletes`. */

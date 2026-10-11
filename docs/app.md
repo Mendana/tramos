@@ -54,8 +54,10 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
-| `race_offset(resultId)` | Desfase entre el reloj y el cronometraje del resultado (abajo, "Reloj y cronometraje"): el calculado con su confianza y avisos, el error si no se puede alinear, la sugerencia de ±1/2 h y el fijado a mano. `null` sin track. |
+| `race_offset(resultId)` | Desfase entre el reloj y el cronometraje del resultado (abajo, "Reloj y cronometraje"): el calculado con su confianza y avisos, el error si no se puede alinear, la sugerencia de ±1/2 h, el fijado a mano y las balizas con las que se puede sincronizar en el mapa (`sync_controls`: las que tienen hora, sin la salida). `null` sin track. |
 | `set_race_offset(resultId, offsetS)` | Fija el desfase a mano (segundos; `null` vuelve al automático) y devuelve lo mismo que `race_offset`. Antes comprueba que con él la carrera cae en el track (`align_with_offset`); si no, da el error y no guarda nada. Sin track, error. |
+| `sync_race_offset(resultId, position, lon, lat)` | Sincroniza con una baliza (#186): el desfase que sale de que el usuario picó la baliza `position` (1 = primera, la última = meta; la salida no) en el punto `lon`, `lat` del mapa (`tramos_core::alignment::offset_from_mark`, `docs/alineacion.md`), con la pasada más cercana al desfase en uso (fijado, automático o sugerido). Se fija como `set_race_offset`, con la misma comprobación. Error si la baliza no tiene hora o el punto está lejos del track. |
+| `race_track_line(resultId)` | El track entero, sin alinear ni cortar en tramos, partido en sus huecos de más de `max_gap_s`, y su rectángulo (#186). Para marcar en él la baliza y para el mapa de una carrera que no se puede situar. `null` sin track. |
 | `export_race_package(resultId, level, folderPath)` | Exporta el paquete de una carrera del usuario (`docs/paquete.md`) con el nivel `aggregates`, `legs` o `track` a la carpeta, con su nombre de fichero (exportar otra vez la sobrescribe). Solo los resultados vinculados a la persona del usuario. Devuelve la ruta. Sin interfaz: la app exporta sola a la carpeta compartida (abajo). |
 | `import_race_package(path)` | Importa el paquete de otro corredor: `created`, `replaced` (sustituye al de ese corredor y carrera), `unchanged` (era idéntico) o `ignored_older` (ya había uno más reciente). Sin interfaz: quien entrena recibe por la carpeta compartida. |
 | `race_sharing(resultId)` | Qué se comparte de una carrera del usuario y cómo está en la carpeta compartida (`docs/paquete.md`, "Carpeta compartida"): si se puede compartir (comparte lo suyo, con carpeta y la carrera es suya), lo elegido para ella, lo de por defecto, el nivel con el que está en la carpeta y, si no se ha podido exportar, por qué. Antes la exporta si hace falta. |
@@ -70,9 +72,9 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 
 El núcleo de la app decide qué base leen las vistas (#119): los comandos que leen las vistas de
 corredor (`list_races`, `race_detail`, `race_comparison`, `race_breakdown`, `race_offset`,
-`race_map`, `leg_tags`, `race_together` y `history`) leen las carreras del atleta que se está viendo o, si no se ve
+`race_map`, `race_track_line`, `leg_tags`, `race_together` y `history`) leen las carreras del atleta que se está viendo o, si no se ve
 a ninguno, las propias. Mientras se ve a un atleta, los que tocan carreras (`import_race`,
-`import_folder`, `set_race_format`, `set_race_offset`, `save_leg_tag`, `race_sharing`,
+`import_folder`, `set_race_format`, `set_race_offset`, `sync_race_offset`, `save_leg_tag`, `race_sharing`,
 `set_race_sharing`, `share_all` y `export_race_package`) dan error: «mientras ves a un atleta no
 se puede modificar nada», porque sus `result_id` son de otra base y no deben tocar la propia. Los
 ajustes del usuario (`save_settings`, los paneles ocultos e «Incluirme») sí se pueden cambiar:
@@ -651,6 +653,16 @@ estaban.
   relleno con el desfase en uso, y «Aplicar». Si con ese desfase la carrera no cae en el track,
   o no es un número de un día como mucho, sale el error y no se guarda.
 - **Volver al automático** (solo con uno fijado): borra el manual.
+- **Sincronizar con una baliza** (#186): un desplegable con las balizas que tienen hora (sin la
+  salida, que en el .spl suele ser la asignada; la meta, al final) y «Marcar en el mapa». El mapa
+  entra en modo «marcar»: un aviso encima («Pulsa en el track el punto donde picaste la baliza 7
+  (código 45)», con «Cancelar»), cursor en cruz, el track entero en gris discontinuo debajo de los
+  tramos (`race_track_line`: también lo de antes de la salida y después de la meta, por si con el
+  desfase en uso la baliza cae fuera de los tramos) y los clics ya no eligen tramo. El clic llama
+  a `sync_race_offset`; si sale bien, se deja de marcar, se fija el desfase y la tarjeta lo dice
+  («Sincronizado con la baliza 7 (código 45): el desfase queda fijado a mano…»); si no (lejos del
+  track…), el error sale en el aviso y se puede volver a pulsar. Escape o «Cancelar» lo dejan.
+  Cambiar de pestaña o de carrera también. En solo lectura no sale.
 
 Se guarda con el track (`tracks.manual_offset_s`, `docs/almacenamiento.md`). Todo lo que sale del
 track lo usa, porque pasa por el mismo sitio (`race_map::aligned_legs`): las balizas y los tramos
@@ -688,7 +700,7 @@ nada: recibe el track ya troceado y clasificado. Devuelve, según `status`:
 | `status` | Cuándo | La vista enseña |
 | --- | --- | --- |
 | `no_track` | La carrera se importó sin FIT. | Un estado vacío: «Sin track del reloj», con la sugerencia de reimportarla con el FIT. |
-| `not_aligned` | Hay track, pero no se puede alinear o segmentar: la hora estaba mal convertida al importar (se guarda con la sugerencia de desplazamiento) y aún no se ha corregido el desfase. | El error, en `message`, y que se corrige en «Reloj y cronometraje». |
+| `not_aligned` | Hay track, pero no se puede alinear o segmentar: la hora estaba mal convertida al importar (se guarda con la sugerencia de desplazamiento) y aún no se ha corregido el desfase. | El error, en `message`, y que se corrige en «Reloj y cronometraje» (a mano, con la sugerencia o sincronizando con una baliza). Debajo, el track entero (`race_track_line`), gris y sin tramos ni balizas, para poder marcar en él (#186). |
 | `ready` | Lo normal. | El mapa. |
 
 Con `ready`:

@@ -215,6 +215,34 @@ Con el FIT sintético desplazado 1 h, fijar 1 h más el desfase estimado sin des
 picada en el mismo punto del track que la alineación automática sin desplazar, y el corte da los
 mismos 21 tramos. Con 30 s más, cada picada cae unos 30 puntos más allá.
 
+## Desfase marcando una baliza en el mapa
+
+`offset_from_mark(&Track, punch_time, lon, lat, near_offset_s, &AlignmentOptions) ->
+Result<MarkedOffset, MarkError>` (#186) saca el desfase de un punto que el usuario marca en el
+mapa como el sitio donde picó una baliza, la que tiene hora `punch_time` en el cronometraje. Es
+otra forma de fijarlo a mano (`align_with_offset`): no sustituye a la estimación automática.
+
+1. El punto se proyecta sobre cada tramo del track (dos puntos seguidos) en un plano local
+   centrado en él (equirrectangular, el radio de arriba). Los tramos de más de `max_gap_s` son
+   huecos: no se proyecta sobre ellos, porque por ahí no pasó el corredor. Un track de un solo
+   punto se toma como punto.
+2. Si el más cercano está a más de `MAX_MARK_DISTANCE_M` (50 m), el usuario no ha pulsado sobre el
+   track: error (`TooFar`, con la distancia). Sin tramos útiles, `EmptyTrack`.
+3. **Pasadas**: los tramos seguidos a `MARK_PASS_TOLERANCE_M` (15 m) o menos más que el más cercano
+   forman una pasada, y de cada una cuenta su tramo más cercano. Así, un track que vuelve por el
+   mismo camino (ida y vuelta, una baliza en un cruce) da varias.
+4. Se elige la pasada cuyo instante queda más cerca de `punch_time + near_offset_s`, el desfase
+   que ya se usa (el fijado, el automático o el sugerido; 0 si no hay ninguno). Con empate, la más
+   cercana en distancia.
+5. `offset_s = instante del track en el punto − punch_time`, con el instante interpolado en el
+   tramo. Si pasa de `MAX_FIXED_OFFSET_S` (un día), error (`OffsetTooLarge`).
+
+`MarkedOffset` trae el desfase, el instante del track, la distancia del punto al track y el número
+de pasadas. Con el FIT sintético, marcar el sitio verdadero de cualquier baliza da el desfase del
+reloj (0, +23 o −40 s según cómo se desplace el track) con menos de 1 s de error. En la app se
+fija con la misma comprobación que el manual (`docs/app.md`, "Reloj y cronometraje"); con la zona
+horaria equivocada da la hora de diferencia más el desfase fino, igual que aplicar la sugerencia.
+
 ## Opciones (`AlignmentOptions`, valores por defecto)
 
 | Opción | Valor | Qué es |

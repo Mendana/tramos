@@ -24,8 +24,10 @@ si importaste la carrera con el FIT del reloj; si no, la pestaña te dice que la
 ## Reloj y cronometraje
 
 Encima del mapa, plegado, el **desfase** entre la hora de tu reloj y la del cronometraje. Si las
-balizas no caen donde estaban, se corrige aquí. Se despliega solo, con «Revisar», si la app no
-está segura. Explicado en [Reloj y desfase](reloj.md).
+balizas no caen donde estaban, se corrige aquí: escribiendo los segundos o marcando en el mapa
+dónde picaste una baliza. Se despliega solo, con «Revisar», si la app no está segura. Si la
+carrera no se puede situar en tu track, el mapa enseña solo el track, en gris, para que puedas
+marcar en él. Explicado en [Reloj y desfase](reloj.md).
 
 ## El fondo del mapa
 

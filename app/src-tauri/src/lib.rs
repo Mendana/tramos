@@ -518,6 +518,32 @@ fn set_race_offset(
     Ok(view)
 }
 
+/// Fija el desfase con el punto del mapa donde el usuario dice que picó la baliza `position`
+/// (#186) y devuelve cómo queda.
+#[tauri::command]
+fn sync_race_offset(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    position: usize,
+    lon: f64,
+    lat: f64,
+) -> Result<OffsetView, String> {
+    let mut store = state.write()?;
+    let view = clock_offset::sync_race_offset(&mut store, result_id, position, lon, lat)
+        .map_err(|e| e.to_string())?;
+    reshare(&mut store, result_id);
+    Ok(view)
+}
+
+/// El track entero de un resultado, sin alinear, para marcar en él una baliza (#186).
+#[tauri::command]
+fn race_track_line(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<Option<race_map::TrackLine>, String> {
+    state.read(|s| race_map::track_line(s, result_id))
+}
+
 /// Mapa de un resultado: track coloreado por ritmo o pulso, tramos y balizas.
 #[tauri::command]
 fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap, String> {
@@ -696,6 +722,8 @@ pub fn run() -> tauri::Result<()> {
             set_race_format,
             race_offset,
             set_race_offset,
+            sync_race_offset,
+            race_track_line,
             race_map,
             export_race_package,
             import_race_package,

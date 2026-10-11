@@ -1,9 +1,17 @@
 // Desfase entre el reloj y el cronometraje de una carrera (#68, docs/app.md, "Vista de carrera").
-// Enseña el calculado y su confianza y deja fijarlo a mano, aplicar el desplazamiento de horas
-// que sugiere la alineación o volver al automático. Rust comprueba y aplica el desfase; aquí solo
-// se pide y se enseña.
+// Enseña el calculado y su confianza y deja fijarlo a mano, sincronizarlo marcando una baliza en
+// el mapa (#186), aplicar el desplazamiento de horas que sugiere la alineación o volver al
+// automático. Rust comprueba y aplica el desfase; aquí solo se pide y se enseña.
 import { FormEvent, useEffect, useState } from "react";
-import { OffsetView, decimal, raceOffset, setRaceOffset, signed } from "./api";
+import {
+  OffsetView,
+  SyncControl,
+  decimal,
+  raceOffset,
+  setRaceOffset,
+  signed,
+  syncControlLabel,
+} from "./api";
 import { Notice, Stat } from "./ui";
 import { useViewer } from "./viewer";
 
@@ -44,8 +52,26 @@ function meaning(seconds: number): string {
  * Desfase de la carrera; no se enseña si no hay track. `onChange` avisa de que ha cambiado.
  * Plegado en una línea (el desfase en uso, en palabras) salvo si hay algo que revisar: casi
  * nunca hay que tocarlo.
+ *
+ * Sincronizar con una baliza: aquí se elige la baliza y `onMark` pide al mapa que el usuario
+ * marque dónde la picó; quien lo coordina (la vista de carrera) fija el desfase, sube `revision`
+ * para que esto se vuelva a pedir y deja en `synced` lo que ha pasado.
  */
-export function ClockOffset({ resultId, onChange }: { resultId: number; onChange: () => void }) {
+export function ClockOffset({
+  resultId,
+  onChange,
+  revision = 0,
+  marking = null,
+  onMark,
+  synced = null,
+}: {
+  resultId: number;
+  onChange: () => void;
+  revision?: number;
+  marking?: SyncControl | null;
+  onMark?: (control: SyncControl | null) => void;
+  synced?: string | null;
+}) {
   const { readOnly } = useViewer();
   const [view, setView] = useState<OffsetView | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +79,8 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
   const [saving, setSaving] = useState(false);
   // Abierto a mano; si no, se abre solo cuando hay algo que revisar.
   const [opened, setOpened] = useState<boolean | null>(null);
+  // Baliza elegida para sincronizar, por su posición.
+  const [syncPosition, setSyncPosition] = useState<number | null>(null);
 
   // El campo empieza con el desfase en uso (el fijado o el calculado).
   const fill = (v: OffsetView | null) => {
@@ -77,6 +105,24 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
       current = false;
     };
   }, [resultId]);
+
+  // Tras sincronizar en el mapa: se vuelve a pedir sin vaciar la tarjeta.
+  useEffect(() => {
+    if (revision === 0) return;
+    let current = true;
+    raceOffset(resultId)
+      .then((v) => {
+        if (!current) return;
+        setView(v);
+        fill(v);
+      })
+      .catch((err: unknown) => {
+        if (current) setError(String(err));
+      });
+    return () => {
+      current = false;
+    };
+  }, [resultId, revision]);
 
   const save = (offset: number | null) => {
     setSaving(true);
@@ -106,6 +152,12 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
     return error === null ? null : <Notice kind="error">{error}</Notice>;
   }
 
+  const syncControls = view.sync_controls;
+  const syncChoice =
+    syncControls.find((c) => c.position === syncPosition) ??
+    syncControls.find((c) => !c.is_finish) ??
+    syncControls[0] ??
+    null;
   const manual = view.manual_offset_s;
   const automatic = view.automatic_offset_s;
   const inUse = manual ?? automatic;
@@ -219,6 +271,49 @@ export function ClockOffset({ resultId, onChange }: { resultId: number; onChange
             aplicarlo se recolocan las balizas en el mapa y se recalculan las métricas de los
             tramos.
           </p>
+
+          {onMark !== undefined && syncChoice !== null && (
+            <>
+              <div className="row">
+                <label className="field offset-sync-field">
+                  <span className="field-label">Sincronizar con una baliza</span>
+                  <select
+                    className="select"
+                    value={syncChoice.position}
+                    disabled={marking !== null}
+                    onChange={(e) => setSyncPosition(Number(e.target.value))}
+                    aria-describedby="offset-sync-hint"
+                  >
+                    {syncControls.map((c) => (
+                      <option key={c.position} value={c.position}>
+                        {c.is_finish ? "Meta" : `Baliza ${c.position} (código ${c.code})`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {marking === null ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={saving}
+                    onClick={() => onMark(syncChoice)}
+                  >
+                    Marcar en el mapa
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-ghost" onClick={() => onMark(null)}>
+                    Cancelar
+                  </button>
+                )}
+              </div>
+              <p id="offset-sync-hint" className="field-hint">
+                {marking === null
+                  ? "Si recuerdas dónde picaste una baliza, elígela y pulsa ese punto en el track del mapa: Tramos calcula el desfase con eso."
+                  : `Ahora pulsa en el track del mapa el punto donde picaste ${syncControlLabel(marking)}.`}
+              </p>
+            </>
+          )}
+          {synced !== null && <Notice kind="success">{synced}</Notice>}
         </>
       )}
       {error !== null && <Notice kind="error">{error}</Notice>}

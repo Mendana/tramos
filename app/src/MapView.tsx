@@ -3,15 +3,41 @@
 //
 // Todo lo calcula Rust (`race_map`); aquí solo se dibuja. MapLibre se carga aparte (este módulo
 // se importa con `lazy`) para no engordar el arranque de la app.
-import { ReactNode, useEffect, useRef, useState } from "react";
+//
+// Para sincronizar el reloj con una baliza (#186) el mapa entra en modo «marcar»: enseña el track
+// entero (también lo de antes de la salida y después de la meta) y el clic dice dónde se picó.
+// Si la carrera no se puede situar en el track, el mapa enseña solo ese track para poder marcar.
+import { MutableRefObject, ReactNode, useEffect, useRef, useState } from "react";
 import { Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
-import type { ExpressionSpecification, GeoJSONSourceSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  GeoJSONSourceSpecification,
+  MapMouseEvent,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // El worker de MapLibre se empaqueta como un fichero más de la app: así la CSP no tiene que
 // aceptar workers de `blob:` (docs/datos-y-privacidad.md).
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { LegReport, clock, codeLabel, signed, zoneLabel } from "./api";
-import { Bounds, ColorScale, CourseMap, MapControl, MapTrack, RaceMap, raceMap } from "./mapApi";
+import {
+  LegReport,
+  SyncControl,
+  clock,
+  codeLabel,
+  signed,
+  syncControlLabel,
+  zoneLabel,
+} from "./api";
+import {
+  Bounds,
+  ColorScale,
+  CourseMap,
+  MapControl,
+  MapTrack,
+  RaceMap,
+  TrackLine,
+  raceMap,
+  raceTrackLine,
+} from "./mapApi";
 import { EmptyState, Notice, WatchIcon } from "./ui";
 
 setWorkerUrl(workerUrl);
@@ -43,10 +69,45 @@ interface Props {
   legs: LegReport[];
   selected: number | null;
   onSelect: (leg: number) => void;
+  /** Marcando dónde se picó esta baliza (#186); `null` si no. */
+  marking?: SyncControl | null;
+  /** Lo que ha salido mal al marcar, para repetir. */
+  markError?: string | null;
+  /** Calculando el desfase del punto marcado. */
+  markBusy?: boolean;
+  onMarkPoint?: (lon: number, lat: number) => void;
+  onCancelMark?: () => void;
+}
+
+/** Lo que el mapa necesita para el modo «marcar». */
+interface Marking {
+  control: SyncControl | null;
+  error: string | null;
+  busy: boolean;
+  onPoint: (lon: number, lat: number) => void;
+  onCancel: () => void;
 }
 
 /** Tarjeta del mapa: carga `race_map` y enseña el mapa o por qué no lo hay. */
-function MapView({ resultId, revision = 0, legs, selected, onSelect }: Props) {
+function MapView({
+  resultId,
+  revision = 0,
+  legs,
+  selected,
+  onSelect,
+  marking = null,
+  markError = null,
+  markBusy = false,
+  onMarkPoint = () => {},
+  onCancelMark = () => {},
+}: Props) {
+  const mark: Marking = {
+    control: marking,
+    error: markError,
+    busy: markBusy,
+    onPoint: onMarkPoint,
+    onCancel: onCancelMark,
+  };
   const [data, setData] = useState<RaceMap | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,13 +150,7 @@ function MapView({ resultId, revision = 0, legs, selected, onSelect }: Props) {
     );
   }
   if (data.status === "not_aligned") {
-    return (
-      <MapCard>
-        <Notice kind="error">
-          {data.message} Corrige el desfase en «Reloj y cronometraje», encima del mapa.
-        </Notice>
-      </MapCard>
-    );
+    return <UnalignedMap resultId={resultId} message={data.message} mark={mark} />;
   }
   if (data.bounds === null) {
     return (
@@ -106,7 +161,188 @@ function MapView({ resultId, revision = 0, legs, selected, onSelect }: Props) {
       </MapCard>
     );
   }
-  return <TrackMap map={data} legs={legs} selected={selected} onSelect={onSelect} />;
+  return (
+    <TrackMap
+      resultId={resultId}
+      map={data}
+      legs={legs}
+      selected={selected}
+      onSelect={onSelect}
+      mark={mark}
+    />
+  );
+}
+
+/** Aviso del modo «marcar», encima del mapa: qué pulsar, el error si lo hubo y cancelar. */
+function MarkBar({ mark }: { mark: Marking }) {
+  if (mark.control === null) return null;
+  return (
+    <div className="map-mark-bar">
+      <Notice kind={mark.error === null ? "info" : "warning"}>
+        <span>
+          {mark.busy
+            ? "Calculando el desfase…"
+            : `Pulsa en el track el punto donde picaste ${syncControlLabel(mark.control)}.`}
+          {mark.error !== null && !mark.busy && <> {mark.error}</>}
+        </span>
+        <button type="button" className="btn btn-ghost" onClick={mark.onCancel}>
+          Cancelar
+        </button>
+      </Notice>
+    </div>
+  );
+}
+
+/**
+ * Clics del modo «marcar» en un mapa ya cargado: cada clic da su punto, el cursor es una cruz y
+ * Escape cancela. `active` dice si se está marcando.
+ */
+function useMarkClicks(
+  mapRef: MutableRefObject<MapLibreMap | null>,
+  loaded: boolean,
+  mark: Marking,
+) {
+  const active = mark.control !== null;
+  const activeRef = useRef(active);
+  activeRef.current = active && !mark.busy;
+  const onPointRef = useRef(mark.onPoint);
+  onPointRef.current = mark.onPoint;
+  const onCancelRef = useRef(mark.onCancel);
+  onCancelRef.current = mark.onCancel;
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!loaded || map === null) return;
+    const click = (e: MapMouseEvent) => {
+      if (activeRef.current) onPointRef.current(e.lngLat.lng, e.lngLat.lat);
+    };
+    map.on("click", click);
+    return () => {
+      map.off("click", click);
+    };
+  }, [loaded, mapRef]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!loaded || map === null) return;
+    map.getCanvas().classList.toggle("is-marking", active);
+    if (!active) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancelRef.current();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [loaded, active, mapRef]);
+}
+
+/** El track entero como líneas de GeoJSON. */
+function lineFeatures(line: TrackLine | null): FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: (line?.lines ?? [])
+      .filter((l) => l.length >= 2)
+      .map((coordinates) => ({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates },
+      })),
+  };
+}
+
+/**
+ * La carrera no se puede situar en el track (#186): se enseña el track entero, sin tramos ni
+ * balizas, para poder sincronizar el reloj marcando una baliza.
+ */
+function UnalignedMap({
+  resultId,
+  message,
+  mark,
+}: {
+  resultId: number;
+  message: string;
+  mark: Marking;
+}) {
+  const [line, setLine] = useState<TrackLine | null | undefined>(undefined);
+  const container = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useMarkClicks(mapRef, loaded, mark);
+
+  useEffect(() => {
+    let current = true;
+    raceTrackLine(resultId)
+      .then((l) => {
+        if (current) setLine(l);
+      })
+      .catch(() => {
+        if (current) setLine(null);
+      });
+    return () => {
+      current = false;
+    };
+  }, [resultId]);
+
+  useEffect(() => {
+    if (container.current === null || !line?.bounds) return;
+    const map = newMap(container.current, line.bounds);
+    mapRef.current = map;
+    map.on("load", () => {
+      const colors = trackColors();
+      map.addSource("line", geojson(lineFeatures(line)));
+      map.addLayer({
+        id: "line-casing",
+        type: "line",
+        source: "line",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colors.casing, "line-width": 7 },
+      });
+      map.addLayer({
+        id: "line",
+        type: "line",
+        source: "line",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colors.nodata, "line-width": 4 },
+      });
+      setLoaded(true);
+    });
+    return () => {
+      mapRef.current = null;
+      setLoaded(false);
+      map.remove();
+    };
+  }, [line]);
+
+  const fitAll = () => {
+    if (line?.bounds) {
+      mapRef.current?.fitBounds(line.bounds, { padding: FIT_PADDING, maxZoom: FIT_MAX_ZOOM });
+    }
+  };
+  const zoom = (delta: number) => {
+    const map = mapRef.current;
+    map?.easeTo({ zoom: map.getZoom() + delta });
+  };
+
+  return (
+    <MapCard>
+      <div className="map-notes">
+        <Notice kind="error">
+          {message} Corrige el desfase en «Reloj y cronometraje», encima del mapa: a mano, con la
+          sugerencia si la hay, o sincronizando con una baliza que recuerdes dónde picaste.
+        </Notice>
+      </div>
+      <MarkBar mark={mark} />
+      {line === undefined ? (
+        <div className="map-frame map-loading">
+          <span className="muted">Cargando el track…</span>
+        </div>
+      ) : line?.bounds ? (
+        <div className="map-frame">
+          <div ref={container} className="map-canvas" />
+          <MapButtons onZoom={zoom} onFit={fitAll} />
+        </div>
+      ) : null}
+    </MapCard>
+  );
 }
 
 /** Hueco del mapa mientras se carga, con el mismo alto para que la página no salte. */
@@ -133,22 +369,32 @@ function MapCard({ aside, children }: { aside?: ReactNode; children: ReactNode }
 }
 
 function TrackMap({
+  resultId,
   map: data,
   legs,
   selected,
   onSelect,
+  mark,
 }: {
+  resultId: number;
   map: MapTrack;
   legs: LegReport[];
   selected: number | null;
   onSelect: (leg: number) => void;
+  mark: Marking;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<{ control: MapControl; element: HTMLElement }[]>([]);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const marking = mark.control !== null;
+  const markingRef = useRef(marking);
+  markingRef.current = marking;
   const [loaded, setLoaded] = useState(false);
+  // El track entero, que solo se pide (una vez) al marcar.
+  const [line, setLine] = useState<TrackLine | null>(null);
+  useMarkClicks(mapRef, loaded, mark);
   const [metric, setMetric] = useState<Metric>("pace");
   const scale = metric === "pace" ? data.pace : data.heart_rate;
 
@@ -162,6 +408,15 @@ function TrackMap({
       const colors = trackColors();
       map.addSource("legs", geojson(legFeatures(data)));
       map.addSource("pieces", geojson(pieceFeatures(data)));
+      map.addSource("line", geojson(lineFeatures(null)));
+      // Debajo de todo: el track entero, solo al marcar (#186).
+      map.addLayer({
+        id: "line",
+        type: "line",
+        source: "line",
+        layout: { "line-join": "round", "line-cap": "round", visibility: "none" },
+        paint: { "line-color": colors.nodata, "line-width": 3, "line-dasharray": [2, 1.5] },
+      });
       map.addLayer({
         id: "leg-halo",
         type: "line",
@@ -202,6 +457,7 @@ function TrackMap({
         paint: { "line-color": colors.selection, "line-width": 18, "line-opacity": 0 },
       });
       map.on("click", "legs-hit", (e) => {
+        if (markingRef.current) return;
         const leg = e.features?.[0]?.properties?.leg;
         if (typeof leg === "number") onSelectRef.current(leg);
       });
@@ -227,6 +483,30 @@ function TrackMap({
       map.remove();
     };
   }, [data]);
+
+  // Al marcar, el track entero.
+  useEffect(() => {
+    if (!marking || line !== null) return;
+    let current = true;
+    raceTrackLine(resultId)
+      .then((l) => {
+        if (current && l !== null) setLine(l);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [marking, line, resultId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!loaded || map === null) return;
+    const source = map.getSource("line");
+    if (source !== undefined && "setData" in source) {
+      (source as { setData: (d: FeatureCollection) => void }).setData(lineFeatures(line));
+    }
+    map.setLayoutProperty("line", "visibility", marking ? "visible" : "none");
+  }, [loaded, marking, line]);
 
   // Ritmo o pulso.
   useEffect(() => {
@@ -307,6 +587,7 @@ function TrackMap({
         )
       }
     >
+      <MarkBar mark={mark} />
       <div className="map-frame">
         <div ref={container} className="map-canvas" />
         <MapButtons onZoom={zoom} onFit={fitAll} />

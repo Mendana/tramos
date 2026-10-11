@@ -14,6 +14,10 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+- Sincronizar el reloj con una baliza: en «Reloj y cronometraje», elige una baliza que recuerdes
+  dónde picaste y pulsa ese punto en tu track del mapa. La app saca de ahí la diferencia entre tu
+  reloj y el cronometraje, aunque el cálculo automático no haya encajado.
+
 ## 0.3.0
 
 - Copia de seguridad, en Ajustes: guarda todas tus carreras, etiquetas y ajustes en un fichero y

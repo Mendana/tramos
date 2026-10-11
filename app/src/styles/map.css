@@ -36,6 +36,24 @@
   cursor: pointer;
 }
 
+/* Marcando dónde se picó una baliza (#186): la cruz manda sobre el puntero de los tramos. */
+.map-canvas canvas.is-marking,
+.map-canvas canvas.is-marking.is-pointer {
+  cursor: crosshair;
+}
+
+.map-mark-bar {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.map-mark-bar .notice > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
 /* Botones propios (los de MapLibre traen iconos en `data:` que la CSP no deja cargar). */
 .map-buttons {
   position: absolute;

@@ -468,6 +468,143 @@ pub fn align_with_offset(
     align_impl(track, result, options, Some(offset_s))
 }
 
+/// Distancia máxima (m) entre el punto marcado en el mapa y el track para
+/// [`offset_from_mark`]: más lejos, el usuario no ha pulsado sobre el track.
+pub const MAX_MARK_DISTANCE_M: f64 = 50.0;
+/// Las pasadas del track a esta distancia (m) o menos, además de la de la más cercana, también
+/// pueden ser la buena en [`offset_from_mark`]: el track que vuelve por el mismo sitio.
+pub const MARK_PASS_TOLERANCE_M: f64 = 15.0;
+
+/// Desfase sacado de marcar en el mapa dónde se picó una baliza (#186).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MarkedOffset {
+    /// `instante del track en el punto − hora de la picada` (s), el convenio de `offset_s`.
+    pub offset_s: f64,
+    /// Instante del track en el punto elegido (hora del reloj).
+    pub track_time: DateTime<Utc>,
+    /// Distancia (m) del punto marcado al track.
+    pub distance_m: f64,
+    /// Veces que el track pasa cerca del punto marcado (1 si solo una).
+    pub passes: usize,
+}
+
+/// Por qué no se puede sacar el desfase de un punto marcado.
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum MarkError {
+    #[error("el track no tiene tramos con los que comparar el punto")]
+    EmptyTrack,
+    #[error(
+        "ese punto está a {} m del track: pulsa sobre la línea del track",
+        decimal(*distance_m, 0)
+    )]
+    TooFar { distance_m: f64 },
+    #[error(
+        "con ese punto el desfase sería de {} s, más de un día: no es esta carrera",
+        decimal(*offset_s, 0)
+    )]
+    OffsetTooLarge { offset_s: f64 },
+}
+
+/// Desfase del reloj a partir de un punto que el usuario marca en el mapa como el sitio donde
+/// picó una baliza a la hora `punch_time` del cronometraje (#186, `docs/alineacion.md`).
+///
+/// El punto (`lon`, `lat`) se proyecta sobre el tramo de track más cercano (entre dos puntos
+/// seguidos, sin cruzar huecos de más de `max_gap_s`) y su instante se interpola. Si el track
+/// pasa varias veces cerca (a [`MARK_PASS_TOLERANCE_M`] de la más cercana), se elige la pasada
+/// cuyo instante queda más cerca de `punch_time + near_offset_s`, el desfase que ya se usa.
+pub fn offset_from_mark(
+    track: &Track,
+    punch_time: DateTime<Utc>,
+    lon: f64,
+    lat: f64,
+    near_offset_s: f64,
+    options: &AlignmentOptions,
+) -> Result<MarkedOffset, MarkError> {
+    let cos_lat = lat.to_radians().cos();
+    let xy = |lon_p: f64, lat_p: f64| {
+        (
+            EARTH_RADIUS_M * (lon_p - lon).to_radians() * cos_lat,
+            EARTH_RADIUS_M * (lat_p - lat).to_radians(),
+        )
+    };
+
+    // Cada tramo del track: distancia del punto a él y el instante de la proyección.
+    let mut segments: Vec<(f64, DateTime<Utc>)> = Vec::new();
+    for pair in track.points.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        let dt = seconds_between(a.time, b.time);
+        if !(0.0..=options.max_gap_s).contains(&dt) {
+            continue;
+        }
+        let (ax, ay) = xy(a.lon, a.lat);
+        let (bx, by) = xy(b.lon, b.lat);
+        let (dx, dy) = (bx - ax, by - ay);
+        let len2 = dx * dx + dy * dy;
+        // El punto marcado es el origen del plano local.
+        let u = if len2 > 0.0 {
+            (-(ax * dx + ay * dy) / len2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let distance = (ax + u * dx).hypot(ay + u * dy);
+        segments.push((distance, a.time + seconds_to_delta(u * dt)));
+    }
+    if segments.is_empty() {
+        if let [only] = track.points.as_slice() {
+            let (x, y) = xy(only.lon, only.lat);
+            segments.push((x.hypot(y), only.time));
+        } else {
+            return Err(MarkError::EmptyTrack);
+        }
+    }
+    let nearest = segments.iter().map(|s| s.0).fold(f64::INFINITY, f64::min);
+    if nearest > MAX_MARK_DISTANCE_M {
+        return Err(MarkError::TooFar {
+            distance_m: nearest,
+        });
+    }
+
+    // Pasadas: tramos seguidos cerca del punto; de cada una, su tramo más cercano.
+    let mut passes: Vec<(f64, DateTime<Utc>)> = Vec::new();
+    let mut inside = false;
+    for &(distance, time) in &segments {
+        if distance <= nearest + MARK_PASS_TOLERANCE_M {
+            match passes.last_mut() {
+                Some(best) if inside => {
+                    if distance < best.0 {
+                        *best = (distance, time);
+                    }
+                }
+                _ => passes.push((distance, time)),
+            }
+            inside = true;
+        } else {
+            inside = false;
+        }
+    }
+    let target = punch_time + seconds_to_delta(near_offset_s);
+    let (distance_m, track_time) = passes
+        .iter()
+        .copied()
+        .min_by(|a, b| {
+            seconds_between(target, a.1)
+                .abs()
+                .total_cmp(&seconds_between(target, b.1).abs())
+                .then(a.0.total_cmp(&b.0))
+        })
+        .unwrap_or((nearest, punch_time));
+    let offset_s = seconds_between(punch_time, track_time);
+    if offset_s.abs() > MAX_FIXED_OFFSET_S {
+        return Err(MarkError::OffsetTooLarge { offset_s });
+    }
+    Ok(MarkedOffset {
+        offset_s,
+        track_time,
+        distance_m,
+        passes: passes.len(),
+    })
+}
+
 /// [`align`] (`fixed_offset_s = None`) o [`align_with_offset`].
 fn align_impl(
     track: &Track,

@@ -6,7 +6,15 @@ import { useEffect, useState } from "react";
 import { GroupStatsMember, GroupStatsView, HistoryFilter, athleteGroupStats } from "./api";
 import { PanelsOpen } from "./charts/ChartPanel";
 import { allHidden, usePanelVisibility } from "./panels";
-import { Filters, HistoryTab, StatsRow, errorRate, lossS, performance } from "./HistoryScreen";
+import {
+  Filters,
+  HistoryTab,
+  StatsRow,
+  errorRate,
+  historyTabs,
+  lossS,
+  performance,
+} from "./HistoryScreen";
 import {
   FormatErrorRatePanel,
   FormatLossPanel,
@@ -22,29 +30,13 @@ import { DaysOffPanel } from "./DaysOffPanel";
 import { AfterErrorPanel } from "./AfterErrorPanel";
 import { FatiguePanel } from "./FatiguePanel";
 import { GroupDot } from "./GroupsScreen";
-import { ChartIcon, EmptyState, Notice, PageHeader, SlidersIcon, Stat, TabItem, Tabs } from "./ui";
+import { SubjectContext, subjectOf } from "./subject";
+import { ChartIcon, EmptyState, Notice, PageHeader, SlidersIcon, Stat, Tabs } from "./ui";
 
 const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 
 /** Las pestañas de Estadísticas, contadas para el grupo. */
-const TABS: (TabItem<HistoryTab> & { intro: string })[] = [
-  { id: "summary", label: "Resumen", intro: "Cómo va el grupo en general y por formato." },
-  {
-    id: "where",
-    label: "¿Dónde falla?",
-    intro: "Qué tramos y qué terreno le cuestan más al grupo, y de qué tipo son sus errores.",
-  },
-  {
-    id: "progress",
-    label: "¿Cómo evoluciona?",
-    intro: "Cómo entra en mapa el grupo tras días sin competir.",
-  },
-  {
-    id: "body",
-    label: "Cabeza y piernas",
-    intro: "Qué pasa después de un error y si el cansancio lo anticipa.",
-  },
-];
+const TABS = historyTabs(subjectOf("group"));
 
 const memberName = (m: GroupStatsMember) =>
   m.is_self
@@ -77,7 +69,7 @@ function GroupStatsScreen({ group }: { group: number }) {
 
   const athletes = view?.members.length ?? 0;
   return (
-    <>
+    <SubjectContext.Provider value="group">
       <PageHeader
         title={view === null ? "Estadísticas del grupo" : view.name}
         subtitle={
@@ -114,7 +106,7 @@ function GroupStatsScreen({ group }: { group: number }) {
           )}
         </>
       )}
-    </>
+    </SubjectContext.Provider>
   );
 }
 

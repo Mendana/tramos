@@ -3,6 +3,7 @@
 // P11, P13…) van en pestañas por pregunta (#130), con los mismos filtros.
 import { useEffect, useState } from "react";
 import { useViewer } from "./viewer";
+import { Subject, useSubject } from "./subject";
 import {
   FORMAT_LABELS,
   HistoryFilter,
@@ -42,24 +43,46 @@ const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 /** Pestañas de Estadísticas: una por pregunta (#130). */
 export type HistoryTab = "summary" | "where" | "progress" | "body";
 
-const TABS: (TabItem<HistoryTab> & { intro: string })[] = [
-  { id: "summary", label: "Resumen", intro: "Cómo vas en general y por formato." },
-  {
-    id: "where",
-    label: "¿Dónde fallo?",
-    intro: "Qué tramos y qué terreno te cuestan más, y de qué tipo son tus errores.",
-  },
-  {
-    id: "progress",
-    label: "¿Cómo evoluciono?",
-    intro: "Tu regularidad a lo largo del tiempo y cómo entras en mapa tras días sin competir.",
-  },
-  {
-    id: "body",
-    label: "Cabeza y piernas",
-    intro: "Qué pasa después de un error y si el cansancio lo anticipa.",
-  },
-];
+/**
+ * Las pestañas, con las preguntas y las explicaciones en la voz de quien se mira (#165): el propio
+ * usuario, un atleta o un grupo (#145; la consistencia no sale en un grupo).
+ */
+export function historyTabs(who: Subject): (TabItem<HistoryTab> & { intro: string })[] {
+  return [
+    {
+      id: "summary",
+      label: "Resumen",
+      intro: who.pick(
+        "Cómo vas en general y por formato.",
+        "Cómo va en general y por formato.",
+        "Cómo va el grupo en general y por formato.",
+      ),
+    },
+    {
+      id: "where",
+      label: who.pick("¿Dónde fallo?", "¿Dónde falla?"),
+      intro: who.pick(
+        "Qué tramos y qué terreno te cuestan más, y de qué tipo son tus errores.",
+        "Qué tramos y qué terreno le cuestan más, y de qué tipo son sus errores.",
+        "Qué tramos y qué terreno le cuestan más al grupo, y de qué tipo son sus errores.",
+      ),
+    },
+    {
+      id: "progress",
+      label: who.pick("¿Cómo evoluciono?", "¿Cómo evoluciona?"),
+      intro: who.pick(
+        "Tu regularidad a lo largo del tiempo y cómo entras en mapa tras días sin competir.",
+        "Su regularidad a lo largo del tiempo y cómo entra en mapa tras días sin competir.",
+        "Cómo entra en mapa el grupo tras días sin competir.",
+      ),
+    },
+    {
+      id: "body",
+      label: "Cabeza y piernas",
+      intro: "Qué pasa después de un error y si el cansancio lo anticipa.",
+    },
+  ];
+}
 const FORMATS: RaceFormat[] = ["sprint", "middle", "long"];
 
 /** Pestaña y panel donde está el análisis que justifica cada frase del resumen (#126, #144). */
@@ -249,10 +272,12 @@ function Summary({
 }) {
   const { total, by_format: groups, races_without_data: withoutData } = view.history;
   const config = view.config;
+  const who = useSubject();
+  const tabs = historyTabs(who);
   const visibility = usePanelVisibility();
   // El título de un apartado sale si queda alguno de sus paneles.
   const shown = (...ids: string[]) => !allHidden(visibility, ids);
-  const intro = TABS.find((t) => t.id === tab)?.intro;
+  const intro = tabs.find((t) => t.id === tab)?.intro;
   const focus = useInsightFocus(INSIGHT_PLACES, tab, onTab);
   return (
     <>
@@ -264,7 +289,7 @@ function Summary({
           label="IR medio"
           value={performance(total)}
           detail={`Consistencia ${spread(total.mean_consistency, 0)}`}
-          hint="Consistencia media: la de cada carrera es cuánto varía tu IR de un tramo a otro. Menor = más consistente."
+          hint={`Consistencia media: la de cada carrera es cuánto varía ${who.yourOne} IR de un tramo a otro. Menor = más consistente.`}
         />
         <Stat label="Tasa de error" value={errorRate(total)} />
         <Stat label="Pérdida por tramo" value={lossS(total)} />
@@ -278,7 +303,7 @@ function Summary({
       )}
 
       <div className="tabs-row">
-        <Tabs tabs={TABS} current={tab} onChange={onTab} label="Preguntas" />
+        <Tabs tabs={tabs} current={tab} onChange={onTab} label="Preguntas" />
         {visibility !== null && (
           <button type="button" className="btn btn-ghost" onClick={visibility.customize}>
             <SlidersIcon size={16} /> Personalizar
@@ -296,7 +321,8 @@ function Summary({
                   <h3>Por formato</h3>
                   <span className="small muted">
                     Cuentan los tramos con pérdida, salvo el último y los de referencia menor de 20
-                    s · error si pierdes más de {decimal(config.error_threshold_s, 0)} s y del{" "}
+                    s · error si {who.pick("pierdes", "pierde")} más de{" "}
+                    {decimal(config.error_threshold_s, 0)} s y del{" "}
                     {decimal(config.error_threshold_pct, 0)} %
                   </span>
                 </div>

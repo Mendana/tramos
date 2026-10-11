@@ -222,6 +222,20 @@ que lo muestra y se desplaza hasta él.
 | `gain_loss` | Carrera | Análisis | Dónde gano y dónde pierdo (`race-gain-loss`) |
 | `race_breakdown` | Carrera | Análisis | ¿Lento o desorientado? (`race-breakdown`) |
 
+## A quién hablan (#165)
+
+Las frases están escritas **en segunda persona del singular**, para quien mira sus propias
+carreras («Fallas más en…», «tus errores»). Los paneles de Estadísticas, en cambio, cambian de voz
+según de quién sean los datos (`app/src/subject.tsx`: propio, atleta que se ve en solo lectura o
+grupo). Lo que resulta:
+
+- **Estadísticas del grupo** (#145) no lleva frases (`docs/historico.md`, "Estadísticas de un
+  grupo"), así que no hay frases en segunda persona que cambiar ahí.
+- **La vista de un atleta** sí las enseña, todavía en segunda persona («Tu error más común…»).
+  Arreglarlo exigiría que el núcleo escribiera cada regla en tercera persona (otro texto por
+  regla, con sus tests): queda fuera de #165 y pendiente de otra issue. Lo mismo vale para los
+  textos propios de la vista de carrera.
+
 ## Tests
 
 En `crates/tramos-core/src/insights.rs`, con datos sintéticos y números calculados a mano: cada

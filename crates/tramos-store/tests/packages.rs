@@ -117,6 +117,38 @@ fn a_new_export_replaces_the_old_one_and_an_older_one_is_ignored() {
 }
 
 #[test]
+fn reimporting_a_changed_package_keeps_its_first_arrival() {
+    let event = fixture();
+    let mut store = Store::open_in_memory().unwrap();
+    store
+        .save_received_package(&package(&event, "a1", ShareLevel::Legs, 0))
+        .unwrap();
+    let first = store.received_packages().unwrap()[0].clone();
+    assert_eq!(first.first_imported_at, first.imported_at);
+
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    assert_eq!(
+        store
+            .save_received_package(&package(&event, "a1", ShareLevel::Aggregates, 10))
+            .unwrap(),
+        SaveOutcome::Replaced
+    );
+    let replaced = store.received_packages().unwrap()[0].clone();
+    assert_eq!(replaced.level, ShareLevel::Aggregates);
+    assert!(replaced.imported_at > first.imported_at);
+    assert_eq!(replaced.first_imported_at, first.first_imported_at);
+
+    // Uno idéntico o más antiguo no toca nada.
+    store
+        .save_received_package(&package(&event, "a1", ShareLevel::Aggregates, 10))
+        .unwrap();
+    store
+        .save_received_package(&package(&event, "a1", ShareLevel::Legs, 5))
+        .unwrap();
+    assert_eq!(store.received_packages().unwrap(), [replaced]);
+}
+
+#[test]
 fn the_runner_id_is_generated_once() {
     let mut store = Store::open_in_memory().unwrap();
     let id = store.package_runner_id().unwrap();
@@ -177,4 +209,13 @@ fn received_runners_take_the_name_of_their_latest_package() {
     assert_eq!(of_a1.len(), 2);
     assert!(of_a1.iter().all(|p| p.runner_id == "a1"));
     assert!(store.received_packages_of("zz").unwrap().is_empty());
+
+    // Por carrera: los de todos los corredores que la compartieron.
+    let of_race = store
+        .received_packages_of_race(&other.race.race_id)
+        .unwrap();
+    let runners: Vec<_> = of_race.iter().map(|p| p.runner_id.as_str()).collect();
+    assert_eq!(runners, ["a1", "b2"]);
+    assert!(of_race.iter().all(|p| p.race_id == other.race.race_id));
+    assert!(store.received_packages_of_race("zz").unwrap().is_empty());
 }

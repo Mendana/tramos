@@ -25,7 +25,7 @@ La app usa el plugin de actualizaciones de Tauri (`tauri-plugin-updater`) contra
 GitHub.
 
 - **Cuándo busca.** Al arrancar, en segundo plano (no en `npm run tauri dev`), y cuando se pulsa
-  «Buscar actualizaciones» en Ajustes, apartado «Versión». Al arrancar, si no hay red o falla, no
+  «Buscar actualizaciones» en Ajustes, apartado «Acerca de Tramos». Al arrancar, si no hay red o falla, no
   dice nada; con el botón, enseña el error.
 - **Qué consulta.** `https://github.com/Mendana/tramos/releases/latest/download/latest.json`
   (`plugins.updater.endpoints` de `tauri.conf.json`). `latest` es la última release **publicada**
@@ -56,6 +56,23 @@ GitHub.
   ```
 
   La CI no lo necesita: compila con `--no-bundle`.
+
+## Datos del instalador
+
+Para que Windows no enseñe vacíos el editor y el copyright (en «Aplicaciones instaladas» y en las
+propiedades del `.exe`), `app/src-tauri/tauri.conf.json` fija en `bundle`:
+
+| Campo | Valor |
+| --- | --- |
+| `publisher` | Mendaña |
+| `copyright` | © 2026 Mendaña. Licencia MIT |
+| `homepage` | `https://github.com/Mendana/tramos` |
+| `category` | `Sports` |
+| `shortDescription` / `longDescription` | Descripción de la app, en español. |
+
+`authors` de `app/src-tauri/Cargo.toml` también es «Mendaña». Son datos de la app, no secretos: no
+dependen de la clave de actualizaciones ni del certificado de firma. Al cambiar de año, se
+actualiza el año del copyright.
 
 ## Publicar una versión (desarrollo)
 

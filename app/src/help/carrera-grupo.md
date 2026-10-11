@@ -4,6 +4,11 @@ Tú junto a otros corredores de tu mismo recorrido (también de otras categoría
 mismas balizas). Arriba, unas fichas eligen con quién te comparas, hasta tres; de entrada, el
 ganador del recorrido. Las fichas hacen también de leyenda: tú vas en magenta.
 
+Si entrenas a otros atletas y alguno corrió esta misma carrera (y compartió los tramos),
+aparece con la marca **tu atleta**: sale el primero de la lista para añadir y de entrada ya
+está elegido junto al ganador, hasta el máximo de tres. Sirve igual al mirar la carrera de un
+atleta que la tuya. Si no hay ningún atleta tuyo en la carrera, no cambia nada.
+
 ## Diferencia con el tiempo ideal
 
 Una línea por corredor con cuánto va por detrás del **tiempo ideal** después de cada tramo. El

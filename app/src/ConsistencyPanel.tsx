@@ -5,6 +5,7 @@ import { FORMAT_LABELS, HistoryRaceRow, HistoryStats, spread } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { LineChart } from "./charts/LineChart";
 import { racesLabel, tickPercent } from "./HistoryPanels";
+import { useSubject } from "./subject";
 
 /** `AAAA-MM-DD` → `DD/MM/AA`, para el eje. */
 const shortDate = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(2, 4)}`;
@@ -18,6 +19,7 @@ export function ConsistencyPanel({
   races: HistoryRaceRow[];
   total: HistoryStats;
 }) {
+  const who = useSubject();
   const series = races
     .flatMap((race) => {
       const c = race.stats?.mean_consistency ?? null;
@@ -31,7 +33,7 @@ export function ConsistencyPanel({
       <ChartPanel
         id="consistency"
         title="Consistencia por carrera"
-        description={`Cuánto varía tu IR de un tramo a otro en cada carrera (desviación típica, ponderada por la referencia), de la más antigua a la más reciente: más bajo es más consistente. Tu media con estos filtros: ${spread(total.mean_consistency)}.`}
+        description={`Cuánto varía ${who.yourOne} IR de un tramo a otro en cada carrera (desviación típica, ponderada por la referencia), de la más antigua a la más reciente: más bajo es más consistente. ${who.pick("Tu media", "Su media")} con estos filtros: ${spread(total.mean_consistency)}.`}
         cases={racesLabel(series.length)}
         chart={
           <LineChart

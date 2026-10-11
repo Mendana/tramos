@@ -12,7 +12,9 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         { "url": "https://www.openstreetmap.org/*" },
-        { "url": "https://github.com/Mendana/tramos/blob/main/*" }
+        { "url": "https://github.com/Mendana/tramos" },
+        { "url": "https://github.com/Mendana/tramos/*" },
+        { "url": "mailto:diegodiazmenda@gmail.com*" }
       ]
     }
   ]

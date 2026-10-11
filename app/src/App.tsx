@@ -211,10 +211,10 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
       case "athletes":
         return [{ label: "Mis atletas" }];
       case "athlete-races":
-        return [{ label: "Carreras de los atletas" }];
+        return [{ label: "Carreras de atletas" }];
       case "athlete-race":
         return [
-          { label: "Carreras de los atletas", to: { kind: "athlete-races" } },
+          { label: "Carreras de atletas", to: { kind: "athlete-races" } },
           { label: screen.name ?? "Carrera" },
         ];
       case "group":
@@ -561,7 +561,7 @@ function App() {
                   />
                   <NavItem
                     icon={<FlagsIcon />}
-                    label="Carreras"
+                    label="Carreras de atletas"
                     current={at("athlete-races", "athlete-race")}
                     onClick={() => goTo("athlete-races")}
                   />

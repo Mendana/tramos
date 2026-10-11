@@ -11,7 +11,7 @@ lectura**. Si además corres, usas las dos cosas a la vez, sin cambiar de modo.
   nuevas ([Mis atletas](mis-atletas.md)); a su lado, cuántas carreras nuevas hay entre todos. Un
   clic en una tarjeta entra en el atleta: debajo salen su nombre, sus **Carreras** y sus
   **Estadísticas**, exactamente como las ve él.
-- **Carreras**: una fila por carrera que te ha llegado; las que corrieron varios atletas, juntos
+- **Carreras de atletas**: una fila por carrera que te ha llegado; las que corrieron varios atletas, juntos
   en la misma vista, con sus tiempos, sus gráficas por tramo y sus tracks en un mapa
   ([Carreras de tus atletas](carreras-atletas.md)).
 - **Comparar atletas**: todos juntos, o los de un grupo ([Comparar atletas](grupo.md)).

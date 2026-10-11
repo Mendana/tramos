@@ -32,7 +32,7 @@ function AthleteRacesScreen({ onOpen }: { onOpen: (raceId: string, name: string 
   return (
     <>
       <PageHeader
-        title="Carreras"
+        title="Carreras de atletas"
         subtitle={
           races === null
             ? "Cargando…"

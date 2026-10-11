@@ -4,6 +4,7 @@
 //! El esquema, la convención de tiempos y la política de ficheros originales están en
 //! `docs/almacenamiento.md`.
 
+mod backup;
 mod convert;
 mod error;
 mod event;
@@ -20,6 +21,7 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
+pub use backup::{BackupInfo, PreparedRestore, RestoreOutcome, SAVED_SUFFIX, inspect_backup};
 pub use error::StoreError;
 pub use event::SavedEvent;
 pub use group::{AthleteGroup, AthleteGroupId};

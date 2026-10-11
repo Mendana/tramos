@@ -1,6 +1,7 @@
 //! App de escritorio de Tramos. Expone el núcleo a la interfaz mediante comandos Tauri;
 //! no reimplementa cálculos.
 
+pub mod backup;
 pub mod batch;
 pub mod clock_offset;
 pub mod coach;
@@ -165,6 +166,25 @@ fn theme(state: tauri::State<'_, AppState>) -> Result<settings::Theme, String> {
 #[tauri::command]
 fn set_theme(state: tauri::State<'_, AppState>, theme: settings::Theme) -> Result<(), String> {
     settings::set_theme(&mut *state.store()?, theme).map_err(|e| e.to_string())
+}
+
+/// Guarda una copia de seguridad de toda la base en el fichero `path` que ha elegido el usuario.
+#[tauri::command]
+fn backup_export(state: tauri::State<'_, AppState>, path: String) -> Result<(), String> {
+    backup::export(&*state.store()?, &path).map_err(|e| e.to_string())
+}
+
+/// Qué trae la copia `path` (fecha y carreras), o por qué no se puede restaurar. No toca nada.
+#[tauri::command]
+fn backup_summary(path: String) -> Result<backup::BackupSummary, String> {
+    backup::summary(&path).map_err(|e| e.to_string())
+}
+
+/// Sustituye la base por la copia `path` (guardando la actual al lado) y devuelve dónde ha
+/// quedado la de antes. La interfaz reinicia la app después. Si falla, la base no cambia.
+#[tauri::command]
+fn backup_restore(state: tauri::State<'_, AppState>, path: String) -> Result<String, String> {
+    backup::restore(&mut *state.store()?, &path).map_err(|e| e.to_string())
 }
 
 /// Si ya se ha dicho cómo se usa la app (corre, entrena o las dos cosas). Al instalar, no: la
@@ -593,6 +613,9 @@ pub fn run() -> tauri::Result<()> {
             set_hidden_panels,
             theme,
             set_theme,
+            backup_export,
+            backup_summary,
+            backup_restore,
             role_chosen,
             choose_role,
             coach_runners,

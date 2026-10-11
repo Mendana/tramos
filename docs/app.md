@@ -26,6 +26,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `check_zones(zones)` | Unas zonas del mapa mientras se editan (#96): por qué no se pueden guardar o, si se puede, los avisos sobre sus colores, en español. |
 | `hidden_panels` / `set_hidden_panels(ids)` | Paneles de análisis ocultos (#130), por identificador. Se leen y guardan en la base propia también mientras se ve a un atleta, así que valen para todos. |
 | `theme` / `set_theme(theme)` | Tema de la interfaz (#143): `system`, `light` o `dark`. Se lee y guarda al momento, sin pasar por `save_settings`; un valor que no se entiende es `system`. |
+| `backup_export(path)` / `backup_summary(path)` / `backup_restore(path)` | Copia de seguridad de la base (#161, abajo, "Copia de seguridad"): guardarla en `path`; leer una copia sin tocarla (fecha, carreras, etiquetas, si se actualizará) o por qué no vale; y sustituir la base por ella, guardando la de antes al lado. |
 | `role_chosen` / `choose_role(role)` | Si ya se ha dicho cómo se usa la app y decirlo sin tocar los demás ajustes: `runner` (corre), `coach` (entrena) o `both` (las dos cosas; abajo, "Atletas"). |
 | `coach_runners` | Si entrena, los atletas de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `athlete_news` | Si entrena, lo nuevo de cada atleta de los que hay paquetes (#142, abajo, "Atletas"): el atleta, la última vez que se entró en él (`athletes.last_seen`; `null` = nunca) y las carreras recibidas después (fecha, nombre, formato e instante de recepción), de la más reciente a la más antigua. Solo lee los paquetes nuevos; los que no se pueden leer no salen. Si no entrena, error. |
@@ -192,8 +193,8 @@ Dos pantallas de la barra lateral guardan el mismo formulario (`SettingsView.tsx
 - **Mi perfil**: quién eres (nombre y apellidos, tarjeta SI) y qué compartes («Compartir mis
   carreras», la carpeta compartida y qué se comparte por defecto de cada carrera).
 - **Ajustes**: tramo con error (umbrales), hora de las carreras (zona horaria), colores del mapa,
-  apariencia (tema), paneles de análisis y entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
-  con un índice a la izquierda que salta a cada apartado.
+  apariencia (tema), paneles de análisis, entrenar («Entreno a otros atletas» y, con ella, la carpeta compartida),
+  copia de seguridad y «Acerca de», con un índice a la izquierda que salta a cada apartado.
 
 Se guardan en la tabla `settings` de la base:
 
@@ -269,6 +270,42 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
   leyenda (`--map-*`) no cambian con el tema (ver "Mapa").
 - Sin estilos en línea: la CSP no los deja, y el tema es solo un atributo más reglas en
   `tokens.css`.
+
+### Copia de seguridad (#161)
+
+Apartado de Ajustes (`app/src/BackupSection.tsx`, id `backup`), antes de «Acerca de Tramos». Todo
+está en la base de datos del equipo (carreras, etiquetas, ajustes, los ficheros originales): quien
+cambia de ordenador o ve estropearse el suyo lo pierde, y un corredor no tiene de dónde recuperar
+sus etiquetas. No pasa por «Guardar». Las copias son **solo a mano**: la app no las hace sola.
+
+- **Exportar copia** (`backup_export`): abre el diálogo de guardar del sistema
+  (`dialog:allow-save`) con `tramos-copia-AAAA-MM-DD.tramos` (fecha local) y guarda ahí la base
+  entera. Se puede hacer con la app abierta: la copia sale de una instantánea consistente
+  (`docs/almacenamiento.md`, "Copia de seguridad"). Avisa de que la copia lleva todo, también los
+  .spl (nombres y fechas de nacimiento) y los FIT (GPS y pulso), y de que no se comparta
+  (`docs/datos-y-privacidad.md`). Si el fichero ya existe, lo sustituye (el diálogo ya pregunta);
+  no deja guardar encima de la propia base de datos.
+- **Restaurar copia** (`backup_summary`, `backup_restore`): elige un fichero y, **antes de tocar
+  nada**, lo lee y enseña qué trae: la fecha de la copia, cuántas carreras y cuántas etiquetas, y
+  si es de una versión anterior de Tramos (se actualizará al restaurar). Si no vale, lo dice con
+  un mensaje claro y no pasa nada:
+  - no es una base SQLite, está dañada o no es una copia de Tramos;
+  - es de una versión **más nueva** de la app que la instalada (hay que actualizar Tramos antes).
+- **Restaurar sustituye todo** (carreras, personas, etiquetas, ajustes, grupos, paquetes
+  recibidos): no junta lo de la copia con lo que hay. Hay que confirmarlo («Restaurar y
+  reiniciar»). Antes de sustituir, la base de ahora se guarda junto a ella como
+  `tramos.sqlite.antes-de-restaurar` en el directorio de datos (arriba, "Base de datos"), y se
+  queda ahí hasta la siguiente restauración, que la sustituye. Para deshacer, con la app cerrada,
+  se renombra ese fichero a `tramos.sqlite`. Después la app se **reinicia** sola
+  (`@tauri-apps/plugin-process`, `process:allow-restart`) para arrancar con la base restaurada; si
+  no puede, pide cerrarla y abrirla.
+- **Si algo falla, la base de ahora no se toca**: la copia se valida, se copia a un fichero
+  temporal junto a la base y se actualiza allí; solo con eso hecho se mueve la base actual a su
+  sitio de reserva y se pone la copia (`docs/almacenamiento.md`).
+
+Lo que llegue de la carpeta compartida tras la copia se importa como siempre; la carpeta
+compartida es un ajuste y viaja en la copia, así que en otro equipo puede no existir (se corrige en
+Ajustes).
 
 ### Acerca de Tramos (#40, #159)
 
@@ -1014,7 +1051,8 @@ tramos que la tabla: sus valores coinciden con ella.
 La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permisos de la ventana
 (`app/src-tauri/capabilities/default.json`) son los de `core:default`, `dialog:allow-open`, este
 solo para el diálogo de abrir ficheros o elegir una carpeta (la carpeta la recorre Rust: la
-ventana no tiene permisos de sistema de ficheros), y `opener:allow-open-url` limitado a
+ventana no tiene permisos de sistema de ficheros), `dialog:allow-save`, para elegir dónde guardar
+una copia de seguridad (#161; lo escribe Rust), y `opener:allow-open-url` limitado a
 `https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa, y a
 `https://github.com/Mendana/tramos` y `https://github.com/Mendana/tramos/*`, para los enlaces de la
 Ayuda a los documentos técnicos y el del repositorio en «Acerca de Tramos» (#159), y a

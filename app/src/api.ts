@@ -918,6 +918,25 @@ export const getTheme = () => invoke<Theme>("theme");
 
 export const setTheme = (theme: Theme) => invoke<void>("set_theme", { theme });
 
+/** Qué trae una copia de seguridad (`backup_summary`). */
+export interface BackupSummary {
+  /** Instante en que se hizo (RFC 3339), o `null` si el fichero no lo dice. */
+  created_at: string | null;
+  events: number;
+  tags: number;
+  /** De una versión más vieja de la app: se actualiza al restaurar. */
+  migrates: boolean;
+}
+
+/** Guarda una copia de toda la base en el fichero `path`. */
+export const backupExport = (path: string) => invoke<void>("backup_export", { path });
+
+/** Lee la copia `path` sin tocarla; da error si no se puede restaurar. */
+export const backupSummary = (path: string) => invoke<BackupSummary>("backup_summary", { path });
+
+/** Sustituye la base por la copia `path`; devuelve dónde ha quedado la de antes. */
+export const backupRestore = (path: string) => invoke<string>("backup_restore", { path });
+
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
 

@@ -46,6 +46,28 @@ eliges también la carpeta compartida de la que llegan: la carpeta madre, con un
 atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)).
 Ver [Compartir](compartir.md).
 
+## Copia de seguridad
+
+Todo lo tuyo (carreras, etiquetas, ajustes y los ficheros que importaste) vive en tu equipo. Si
+cambias de ordenador o se te estropea, se pierde: por eso conviene guardar una copia de vez en
+cuando. Tramos no la hace sola; la haces tú.
+
+- **Exportar copia** guarda todo en un fichero, `tramos-copia-AAAA-MM-DD.tramos`, en el sitio que
+  elijas. Puedes hacerlo con la app abierta. La copia lleva **todo**, también los ficheros
+  originales de las carreras (con los nombres y las fechas de nacimiento de los corredores) y tus
+  recorridos con GPS y pulso. Guárdala en un sitio tuyo y **no la compartas**; para compartir
+  carreras está [Compartir](compartir.md).
+- **Restaurar copia** te deja elegir una copia y, antes de hacer nada, te dice de cuándo es y
+  cuántas carreras y etiquetas trae. Si no es una copia de Tramos, está dañada o es de una versión
+  de Tramos más nueva que la tuya (instala primero la última), te lo dice y no pasa nada. Si es de
+  una versión más antigua, se pone al día sola.
+
+**Restaurar sustituye todo lo que tienes ahora** por lo de la copia; no lo junta. Por si te
+arrepientes, lo de ahora se guarda al lado de la base de datos como
+`tramos.sqlite.antes-de-restaurar` (en la carpeta de datos de la app). Al confirmar, Tramos se
+reinicia solo con la copia puesta. Para volver atrás, con Tramos cerrado, cambia el nombre de ese
+fichero a `tramos.sqlite`. Solo se guarda la última: si restauras otra vez, la anterior se pierde.
+
 ## Acerca de Tramos
 
 La versión de Tramos que tienes, quién la hace y cómo avisar de un fallo. La app mira al arrancar

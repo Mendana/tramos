@@ -9,7 +9,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::StoreError;
 
 /// Scripts SQL en orden. No pueden abrir ni cerrar transacciones: ya van dentro de una.
-const MIGRATIONS: &[&str] = &[
+pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_initial.sql"),
     include_str!("../migrations/0002_people.sql"),
     include_str!("../migrations/0003_track_sport.sql"),

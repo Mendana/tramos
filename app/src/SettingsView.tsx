@@ -14,6 +14,7 @@ import {
 } from "./api";
 import { THEMES, applyAndStoreTheme } from "./theme";
 import { AboutSection } from "./about";
+import { BackupSection } from "./BackupSection";
 import { Notice, PageHeader } from "./ui";
 import { PANEL_GROUPS, usePanelVisibility } from "./panels";
 import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
@@ -235,6 +236,13 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     ),
   };
 
+  const backupSection: Section = {
+    id: "backup",
+    title: "Copia de seguridad",
+    text: "Todo está en la base de datos de este equipo. Guarda una copia por si cambias de ordenador o se estropea. No pasa por «Guardar».",
+    fields: <BackupSection />,
+  };
+
   const aboutSection: Section = {
     id: "about",
     title: "Acerca de Tramos",
@@ -447,6 +455,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       themeSection,
       panelsSection,
       coach,
+      backupSection,
       aboutSection,
     ];
   };

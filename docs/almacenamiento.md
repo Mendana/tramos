@@ -47,6 +47,10 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `athlete_groups() -> Vec<AthleteGroup>` | Todos los grupos de atletas por nombre (a igual nombre, en orden de creación), cada uno con sus miembros en orden. |
 | `person_results(PersonId) -> Vec<PersonResult>` | Resultados de una persona por fecha de carrera: id del resultado y de la carrera, fecha, nombre, inicio y formato de la carrera (si los hay), categoría, estado, puesto y si el resultado tiene track. |
 
+| `export_backup(destino, instante)` | Copia de seguridad (#161, abajo, "Copia de seguridad"): guarda en `destino` la base entera, con el `instante` dentro. Consistente aunque haya otras conexiones. Sustituye el fichero si existe; encima de la propia base da `BackupOverwritesDatabase`. |
+| `inspect_backup(ruta) -> BackupInfo` | Lee una copia sin modificarla: versión del esquema, fecha, carreras y etiquetas. Rechaza lo que no vale (`BackupInvalid`) y lo de un esquema más nuevo (`BackupTooNew`). |
+| `prepare_restore(copia) -> PreparedRestore` / `PreparedRestore::apply(&mut Store) -> RestoreOutcome` | Restaurar: preparar valida la copia y la deja migrada en un fichero temporal junto a la base, sin tocar la base; `apply` la pone en su lugar guardando la de antes (`RestoreOutcome::saved_previous`). |
+
 El análisis guardado (`legs`) aún no tiene API: de momento solo existe su tabla.
 
 ## Convenciones
@@ -137,6 +141,37 @@ Notas:
 | 8 | `0008_result_sharing.sql` | Tabla `result_sharing` (qué comparte el corredor de cada carrera, #36). |
 | 9 | `0009_athlete_groups.sql` | Tablas `athlete_groups` y `athlete_group_members` (grupos de atletas, #120). |
 | 10 | `0010_received_first_import.sql` | Columna `received_packages.first_imported_at_epoch_ms` (primera llegada; los paquetes que ya había toman su `imported_at_epoch_ms`, #166). |
+
+## Copia de seguridad
+
+La copia (#161) es una base SQLite completa, con el mismo esquema y los ficheros originales dentro:
+no hay un formato aparte. La app la guarda con extensión `.tramos`
+(`tramos-copia-AAAA-MM-DD.tramos`), pero el fichero es una base normal.
+
+- **Exportar** (`Store::export_backup`): `VACUUM INTO` sobre un fichero temporal junto al destino
+  (`<destino>.exportando`), que lee una instantánea consistente aunque la base esté en uso, y
+  luego un renombrado sobre el destino: un fallo no deja una copia a medias ni estropea una
+  anterior. A la copia (y solo a ella) se le añade el ajuste `backup.created_at` (instante RFC 3339
+  de cuando se hizo), que es de donde sale la fecha que enseña la app; las copias que no lo traen
+  se enseñan «de fecha desconocida».
+- **Validar** (`inspect_backup`), sobre la copia abierta en solo lectura: es SQLite, pasa
+  `PRAGMA quick_check` y `foreign_key_check`, tiene las tablas de Tramos y su `user_version` está
+  entre 1 y la de esta versión. Más nueva da `BackupTooNew`; cualquier otra cosa, `BackupInvalid`
+  con el motivo en español.
+- **Restaurar** sustituye la base entera (no junta). En dos tiempos, para que un fallo no toque la
+  base de ahora:
+  1. `prepare_restore`: valida, copia la copia a `<base>.restaurando`, le aplica las migraciones
+     pendientes como al arrancar (una copia más vieja se actualiza) y le quita `backup.created_at`.
+     Si falla, borra el temporal. También se borra si el resultado se descarta sin aplicar.
+  2. `apply`: cierra la conexión (Windows no deja mover un fichero abierto), renombra la base a
+     `<base>.antes-de-restaurar` (sustituyendo una anterior), renombra el temporal a la base y
+     vuelve a abrirla. Si el segundo renombrado falla, devuelve la de antes a su sitio. En
+     cualquier caso, el `Store` queda abierto sobre la ruta de la base.
+  La app se reinicia después, porque lo que tiene en memoria (vistas, atleta que se ve) es de la
+  base anterior.
+
+La copia lleva todo lo de la base, incluidos `source_files` y, con ellos, nombres y fechas de
+nacimiento: ver `docs/datos-y-privacidad.md`.
 
 ## Personas
 

@@ -5,6 +5,7 @@ import { DaysOffStats, HistoryStats } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { legsLabel, percent, racesLabel, tickPercent } from "./HistoryPanels";
+import { useSubject } from "./subject";
 
 /** Nombre del cubo: «≤ 7 días», «8–14 días» o «> 30 días». */
 export function daysLabel(b: DaysOffStats): string {
@@ -57,6 +58,7 @@ export function DaysOffPanel({
   /** Total del histórico con los mismos filtros: sus medias son las líneas de referencia. */
   total: HistoryStats;
 }) {
+  const who = useSubject();
   const races = buckets.reduce((sum, b) => sum + b.races, 0);
   const cases =
     racesLabel(races) + (withoutPrevious > 0 ? ` · ${withoutPrevious} sin anterior` : "");
@@ -68,7 +70,7 @@ export function DaysOffPanel({
       <ChartPanel
         id="days-off-entry"
         title="IR al entrar en mapa"
-        description={`IR medio de los tres primeros tramos de tus carreras, según los días desde la carrera anterior (cualquiera, pase o no los filtros), frente a tu IR medio. Si entras peor en mapa tras días sin competir, las columnas de la derecha quedan más bajas. ${firstLegs}.`}
+        description={`IR medio de los tres primeros tramos de ${who.your} carreras, según los días desde la carrera anterior (cualquiera, pase o no los filtros), frente a ${who.pick("tu IR medio", "su IR medio", "el IR medio del grupo")}. ${who.pick("Si entras peor", "Si entra peor", "Si entran peor")} en mapa tras días sin competir, las columnas de la derecha quedan más bajas. ${firstLegs}.`}
         cases={cases}
         chart={
           <ColumnChart
@@ -77,7 +79,10 @@ export function DaysOffPanel({
             reference={
               total.mean_performance === null
                 ? undefined
-                : { value: total.mean_performance * 100, label: "Tu IR medio" }
+                : {
+                    value: total.mean_performance * 100,
+                    label: who.pick("Tu IR medio", "Su IR medio", "IR medio del grupo"),
+                  }
             }
             columns={buckets.map((b) => {
               const v = pct(b.first_legs_performance);
@@ -99,7 +104,7 @@ export function DaysOffPanel({
       <ChartPanel
         id="days-off-start"
         title="Errores al principio de la carrera"
-        description="Tasa de error del primer tercio de tus carreras (por número de tramos), según los días desde la carrera anterior, frente a tu tasa de error con estos filtros."
+        description={`Tasa de error del primer tercio de ${who.your} carreras (por número de tramos), según los días desde la carrera anterior, frente a ${who.pick("tu tasa de error", "su tasa de error", "la tasa de error del grupo")} con estos filtros.`}
         cases={cases}
         chart={
           <ColumnChart
@@ -108,7 +113,10 @@ export function DaysOffPanel({
             reference={
               total.error_rate === null
                 ? undefined
-                : { value: total.error_rate * 100, label: "Tu media" }
+                : {
+                    value: total.error_rate * 100,
+                    label: who.pick("Tu media", "Su media", "Media del grupo"),
+                  }
             }
             columns={buckets.map((b) => {
               const v = pct(b.first_third_error_rate);

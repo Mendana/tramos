@@ -5,6 +5,7 @@ import { HistoryStats, LegLengthStats, decimal } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { legsLabel, percent, percent1, tickPercent } from "./HistoryPanels";
+import { useSubject } from "./subject";
 
 /** Nombre del cubo: «20–30 s», «1–2 min» o «≥ 8 min» (el inicio entra, el final no). */
 export function bucketLabel(b: { from_s: number; to_s: number | null }): string {
@@ -25,16 +26,22 @@ export function LegLengthPanel({
   /** Total del histórico con los mismos filtros: su tasa de error es la línea de referencia. */
   total: HistoryStats;
 }) {
+  const who = useSubject();
   const legs = buckets.reduce((sum, b) => sum + b.legs, 0);
   const reference =
-    total.error_rate === null ? undefined : { value: total.error_rate * 100, label: "Tu media" };
+    total.error_rate === null
+      ? undefined
+      : {
+          value: total.error_rate * 100,
+          label: who.pick("Tu media", "Su media", "Media del grupo"),
+        };
   return (
     <>
       <h3 className="section-title">Por duración del tramo</h3>
       <ChartPanel
         id="leg-length"
         title="Pérdida según duración del tramo"
-        description="Tasa de error de tus tramos agrupados por su tiempo de referencia, de los más cortos a los más largos, frente a tu media. Debajo de cada cubo, sus tramos (n): un cubo con pocos tramos es poco fiable. En la tabla, también la pérdida media por tramo."
+        description={`Tasa de error de ${who.your} tramos agrupados por su tiempo de referencia, de los más cortos a los más largos, frente a ${who.pick("tu media", "su media", "la media del grupo")}. Debajo de cada cubo, sus tramos (n): un cubo con pocos tramos es poco fiable. En la tabla, también la pérdida media por tramo.`}
         cases={legsLabel(legs)}
         chart={
           <ColumnChart

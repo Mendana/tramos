@@ -39,6 +39,9 @@ Las mismas pestañas que en Estadísticas, con los mismos paneles:
 la de otro sin inventarse números. Tampoco la lista de carreras ni el resumen en frases. Todo eso
 está en las Estadísticas de cada atleta.
 
+Los textos de las gráficas hablan del grupo («sus carreras», «fallan», «media del grupo»), no de
+un solo corredor: los números son los de todos los miembros juntos.
+
 Los paneles se ocultan con **Personalizar**, como en Estadísticas: ocultar uno lo oculta en las
 dos pantallas, porque es el mismo panel.
 

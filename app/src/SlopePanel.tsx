@@ -5,6 +5,7 @@ import { SLOPE_LABELS, SlopeHistory, SlopeStats, decimal } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { legsLabel, percent, racesLabel, tickPercent } from "./HistoryPanels";
+import { useSubject } from "./subject";
 
 const performance = (s: SlopeStats) =>
   s.mean_performance === null ? null : s.mean_performance * 100;
@@ -79,6 +80,7 @@ function ClassTable({ classes }: { classes: SlopeStats[] }) {
 
 /** Sección «Por desnivel» de la vista histórica (P13). */
 export function SlopePanel({ slope }: { slope: SlopeHistory }) {
+  const who = useSubject();
   const classes = slope.by_class;
   const classified = classes.reduce((sum, s) => sum + s.legs, 0);
   const races = slope.races_with_track + slope.races_without_track;
@@ -100,7 +102,7 @@ export function SlopePanel({ slope }: { slope: SlopeHistory }) {
       <ChartPanel
         id="slope-performance"
         title="IR medio según desnivel"
-        description={`IR medio de tus tramos en subida, llano y bajada (ponderado por la referencia de cada tramo): 100 % es ir tan rápido como la referencia. ${rule} Debajo de cada clase, sus tramos (n).`}
+        description={`IR medio de ${who.your} tramos en subida, llano y bajada (ponderado por la referencia de cada tramo): 100 % es ir tan rápido como la referencia. ${rule} Debajo de cada clase, sus tramos (n).`}
         cases={legsLabel(classified)}
         chart={
           <ClassColumns
@@ -116,7 +118,7 @@ export function SlopePanel({ slope }: { slope: SlopeHistory }) {
       <ChartPanel
         id="slope-error-rate"
         title="Tasa de error según desnivel"
-        description={`Qué parte de tus tramos en subida, llano y bajada acaban en error. ${rule} Debajo de cada clase, sus tramos (n): una clase con pocos tramos es poco fiable.`}
+        description={`Qué parte de ${who.your} tramos en subida, llano y bajada acaban en error. ${rule} Debajo de cada clase, sus tramos (n): una clase con pocos tramos es poco fiable.`}
         cases={legsLabel(classified)}
         chart={
           <ClassColumns

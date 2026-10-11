@@ -294,6 +294,7 @@ export type InsightRule =
   | "format"
   | "days_off"
   | "consistency"
+  | "fatigue"
   | "clean_race"
   | "concentrated_loss"
   | "race_breakdown"
@@ -309,7 +310,8 @@ export type HistoryInsightTarget =
   | "loss_breakdown"
   | "after_error"
   | "days_off"
-  | "consistency";
+  | "consistency"
+  | "fatigue";
 
 /** Parte de la carrera que justifica una frase. */
 export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";

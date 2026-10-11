@@ -12,13 +12,14 @@ clave `insights` de `tramos analizar` (`docs/cli.md`).
 ## Principios
 
 - **Sobre los análisis que ya existen.** Las reglas no recalculan nada: comparan con un umbral los
-  números que ya dan P1, P2, P5, P6, P7, P8, P9, P10, P11 y P13 (`docs/preguntas.md`), con sus
+  números que ya dan P1, P2, P5, P6, P7, P8, P9, P10, P11, P13 y P14 (`docs/preguntas.md`), con sus
   definiciones (`docs/historico.md`, `docs/tiempo-perdido.md`). Por eso las frases del histórico
   respetan los filtros: salen de los mismos análisis, con el mismo filtro.
 - **Como mucho 3 frases**, las más importantes (`MAX_INSIGHTS`, decisión de #126).
 - **Con pocos datos la frase sale, pero con aviso** («con pocas carreras», decisión de #126). Cada
   regla tiene dos mínimos: por debajo del **mínimo** no sale; entre el mínimo y el **suficiente**
-  sale marcada (`few_data`) con su aviso (`caveat`).
+  sale marcada (`few_data`) con su aviso (`caveat`). La excepción es el cansancio (P14): es un
+  dato débil y su mínimo es ya el suficiente, así que sale sin aviso o no sale (abajo).
 - **Cada frase enlaza al panel que la justifica** (`target`): el análisis que la enseña entero
   (#144; abajo, "Destinos").
 - **Los umbrales entran**: «al menos 10 puntos» incluye justo 10 (con una tolerancia de 10⁻⁹
@@ -72,6 +73,7 @@ filtro) y la taxonomía para el nombre de los tipos de error.
 | 6 | `format` | P6, `history.by_format` | La tasa de error del peor formato es claramente mayor que la del mejor. | Dos formatos con ≥ 2 carreras cada uno (con filtro de formato no sale; las carreras sin formato no cuentan). | 5 carreras en los dos. | `formats` |
 | 7 | `days_off` | P11, `days_off` y el IR medio del total | El IR de entrada (tres primeros tramos) del peor cubo de **más de 7 días** está ≥ 10 puntos por debajo del IR medio del total (la misma referencia que el panel). | 2 carreras y 5 tramos de entrada en el cubo. | 5 carreras en el cubo. | `days_off` |
 | 8 | `consistency` | P10, la serie de consistencia de cada carrera (`consistency::consistency_series`) | La consistencia media de las **3 últimas carreras** cambia, frente a la media de las anteriores, al menos 5 puntos de IR **y** una quinta parte de la anterior. | 5 carreras con consistencia (las 3 últimas y al menos 2 anteriores). | 8 carreras («con pocas carreras»). | `consistency` |
+| 9 | `fatigue` | P14, `fatigue.by_third`: `before_error` y `before_clean` | Antes de un error el pulso va al menos **5 ppm** (`HEART_RATE_GAP_BPM`) más alto que antes de un tramo limpio **de la misma fase** (abajo, «Cansancio»). | 5 carreras con pulso (`races_with_heart_rate`) y 10 errores comparados; cada tercio que cuenta, con 5 tramos limpios de referencia. | El mismo: por debajo no sale (sin aviso de pocos datos). | `fatigue` |
 
 Textos (los números entre llaves salen de cada caso):
 
@@ -98,6 +100,9 @@ Textos (los números entre llaves salen de cada caso):
     tramo a otro, frente a ± {20 %} antes.»
   - empeora: «Eres menos regular que antes: en tus últimas 3 carreras tu IR varía ± {20 %} de un
     tramo a otro, frente a ± {10 %} antes.»
+- `fatigue`: «Parece que fallas más con el pulso alto: en tus carreras con reloj, antes de un error
+  llevas {6} pulsaciones más que antes de un tramo limpio en la misma parte de la carrera (en {12}
+  errores).»
 
 **Por qué** solo los cubos de más de 7 días en `days_off`: la pregunta es por el descanso; entrar
 peor compitiendo seguido no es lo que pregunta P11. **Por qué** errores *con tipo* en
@@ -107,7 +112,45 @@ casi todos los que tienen tipo son del mismo; la frase dice sobre cuántos se ap
 sin algo con lo que compararla, y la de la media del histórico ya está en las cifras; lo que
 cuenta es si las últimas carreras se parecen a las de antes. Por eso es la última en prioridad
 (evolución, no un fallo que entrenar). La serie sale de las carreras con el mismo filtro y se
-ordena por fecha. P14 (cansancio, dato débil) no tiene frase por ahora.
+ordena por fecha.
+
+### Cansancio (`fatigue`)
+
+«¿El cansancio anticipa el error?» (P14, `docs/historico.md`). De lo que da P14, la frase usa el
+**pulso del tramo anterior** a un error frente al anterior a un tramo limpio (`before_error` y
+`before_clean`), en ppm sobre la mediana de su carrera (`mean_relative_bpm`): es lo único de P14
+que relaciona el pulso con el error. La deriva dice si el corredor se cansa, no si eso le hace
+fallar; el esfuerzo percibido depende de que lo apunte y no tiene FIT detrás.
+
+- **Cada error contra su fase.** El pulso sube a lo largo de la carrera y los errores no se
+  reparten igual por tercios: comparar todo junto daría «más pulso antes del error» solo porque
+  los errores caen al final. Así que la diferencia se calcula en cada tercio (antes del error
+  menos antes de limpio) y se promedia **ponderada por los errores** del tercio:
+  `Δ = Σ eₜ · (Eₜ − Cₜ) / Σ eₜ`, con `eₜ` los errores del tercio `t` con pulso del anterior y
+  `Eₜ`, `Cₜ` sus medias relativas. Es la media, sobre los errores, de cuánto más pulso llevaban que
+  los tramos limpios de su misma fase. Solo cuentan los tercios con al menos 5 tramos limpios de
+  referencia (`MIN_LEGS`): con menos, su media es un par de tramos y no sirve de comparación.
+- **Sale si** `Δ ≥ 5 ppm`, con al menos 5 carreras con pulso (`SUFFICIENT_RACES`) y 10 errores
+  comparados (`SUFFICIENT_LEGS`, la suma de `eₜ` de los tercios que cuentan). Solo en ese sentido
+  (más pulso antes del error): es lo que pregunta P14; con el pulso más bajo antes de fallar no
+  hay una lectura de cansancio.
+- **Por qué esos umbrales.** P14 da medias, no su dispersión, así que no hay un contraste formal;
+  el umbral es una regla práctica con dos apoyos. Uno, el sensor: el pulso medio de un tramo con
+  pulso de muñeca se equivoca en unas pocas pulsaciones (retraso, saltos), así que menos de 5 ppm
+  no se distingue del propio aparato. Otro, el azar: el pulso medio de un tramo se separa de la
+  mediana de su carrera del orden de ±7 ppm solo por el terreno; con 10 errores, el error típico
+  de su media ronda los 7 / √10 ≈ 2,2 ppm (la de los limpios, que son muchos más, casi nada), y
+  5 ppm es más de dos veces eso. Las 5 carreras y los 10 errores son los mismos «suficientes» que
+  las demás reglas (`SUFFICIENT_RACES`, `SUFFICIENT_LEGS`).
+- **Sin aviso de pocos datos.** En las demás reglas, entre el mínimo y el suficiente la frase sale
+  con aviso. Aquí el mínimo es el suficiente: un dato que ya es débil, con pocos datos, sería
+  ruido. Por eso la frase no lleva `caveat`; la prudencia va en el texto («parece que…», «en tus
+  carreras con reloj») y en su panel, que avisa siempre de que el pulso de muñeca es un dato
+  débil.
+- **Prioridad 9, la última.** Es el dato más débil de todos y una relación, no una causa: el
+  pulso alto del tramo anterior puede venir del cansancio, pero también de una subida o de
+  apretar para recuperar tras un error, y los errores se encadenan (P8). Va detrás incluso de la
+  consistencia: solo sale si las demás dejan hueco. El panel la enseña siempre.
 
 ## Reglas de la carrera
 
@@ -126,6 +169,14 @@ llevan todas sus frases.
 | 3 | `race_breakdown` | P2, `RaceBreakdown.errors` (solo con track) | Una parte (desvío, paradas o ritmo) es ≥ 50 % de la pérdida de los errores repartidos de la carrera, y hay al menos 2 errores repartidos y pérdida > 0. Sin track no sale. | `race_breakdown` |
 | 4 | `losing_streak` | P5, `losing_streaks` | La racha perdiendo más cara tiene ≥ 3 tramos y ≥ 30 s. | `gain_loss` |
 | 5 | `errors_by_third` | P1, los tramos con error y los tercios de `history::race_third` | Al menos 3 errores y ≥ 2/3 de ellos en el mismo tercio (por número de tramos del recorrido, como P11 y P14). | `legs` |
+
+**P14 en una carrera: no.** Una carrera tiene pocos errores (de 2 a 5, normalmente) y, con 3, el
+error típico de la media del pulso antes del error ronda los 7 / √3 ≈ 4 ppm: una diferencia de
+5 ppm no se distingue del azar ni del sensor, y con un umbral más alto casi nunca saldría. Además
+«fallas cuando vas con el pulso alto» es un patrón, y un patrón necesita muchas carreras. Lo que sí
+se ve en una carrera, si los errores llegaron al final, ya lo dice `errors_by_third`. Por eso no
+hay regla de cansancio de carrera y la CLI, que analiza una carrera (`tramos analizar`), no la
+saca.
 
 `race_breakdown` va tercera: dice **cómo** se pierde (por pararte, por desviarte o por ir más
 lento), que se entrena más directamente que cuándo llegaron los errores. Es una frase de pocos
@@ -166,6 +217,7 @@ que lo muestra y se desplaza hasta él.
 | `days_off` | Estadísticas | ¿Cómo evoluciono? | IR al entrar en mapa (`days-off-entry`) |
 | `consistency` | Estadísticas | ¿Cómo evoluciono? | Consistencia por carrera (`consistency`) |
 | `after_error` | Estadísticas | Cabeza y piernas | ¿Un error trae otro? (`after-error`) |
+| `fatigue` | Estadísticas | Cabeza y piernas | Pulso antes del error (`fatigue-heart-rate`; oculto de entrada, así que sale el aviso para enseñarlo) |
 | `legs` | Carrera | Tramos | La tabla de tramos (no se oculta) |
 | `gain_loss` | Carrera | Análisis | Dónde gano y dónde pierdo (`race-gain-loss`) |
 | `race_breakdown` | Carrera | Análisis | ¿Lento o desorientado? (`race-breakdown`) |
@@ -187,9 +239,9 @@ grupo). Lo que resulta:
 ## Tests
 
 En `crates/tramos-core/src/insights.rs`, con datos sintéticos y números calculados a mano: cada
-regla tiene un test que la dispara, otro que no y otro con pocos datos. Además: que salen como
-mucho 3 y por prioridad, que las de pocos datos van detrás, que los umbrales entran y la forma
-JSON. En `consistency.rs`, que la serie de P10 va por fecha, salta las carreras sin valor y
+regla tiene un test que la dispara, otro que no y otro con pocos datos (en el cansancio, que no
+sale con aviso: con pocos datos, no sale). Además: que salen como mucho 3 y por prioridad, que
+las de pocos datos van detrás, que los umbrales entran y la forma JSON. En `consistency.rs`, que la serie de P10 va por fecha, salta las carreras sin valor y
 respeta el filtro. En la app (`app/src-tauri`), que el comando `history` da las frases de sus
 análisis con el mismo filtro (y ninguna si el filtro no deja carreras) y que `race_detail` da las
 de su informe y, con track, de su reparto de P2. En la CLI (`crates/tramos-cli/tests/analizar.rs`),
@@ -211,3 +263,9 @@ Ejemplos (los de los tests):
   (8 puntos) → no sale. Con 5 carreras sale «con pocas carreras»; con 4, no.
 - `errors_by_third`: 12 tramos (tercios 1–4, 5–8 y 9–12) con errores en 2, 9, 10 y 12 → 3 de 4 al
   final → sale. Uno en cada tercio → no sale.
+- `fatigue`: 6 carreras con pulso. Por tercio, errores y pulso del anterior sobre la mediana de su
+  carrera frente al de los limpios: 2 errores a +1 frente a −2 (3 ppm), 4 a +4 frente a −1
+  (5 ppm) y 6 a +10 frente a +2 (8 ppm) → (2 · 3 + 4 · 5 + 6 · 8) / 12 = 6,17 ppm → «…llevas 6
+  pulsaciones más… (en 12 errores)». Con 3, 4 y 4 ppm, 3,83 → no sale. Con 4 carreras, con 9
+  errores, o con un tercio de solo 4 limpios (sus errores no cuentan y quedan 8) → no sale, ni con
+  aviso. Justo 5 carreras, 10 errores y 5 ppm → sale.

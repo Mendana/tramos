@@ -2,8 +2,8 @@
 //! carrera, para que quien no es de datos vea lo esencial sin abrir ningún análisis.
 //!
 //! Las frases salen de reglas sencillas **sobre los resultados de los análisis que ya existen**
-//! (P1, P2, P5, P6, P7, P8, P9, P10, P11 y P13): aquí no se recalcula nada, solo se comparan sus
-//! números con un umbral. Cada regla tiene:
+//! (P1, P2, P5, P6, P7, P8, P9, P10, P11, P13 y P14): aquí no se recalcula nada, solo se
+//! comparan sus números con un umbral. Cada regla tiene:
 //!
 //! - un **umbral** para salir;
 //! - un **mínimo de datos** por debajo del cual no sale;
@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::after_error::AfterError;
 use crate::common_errors::CommonErrors;
 use crate::days_off::DaysOff;
+use crate::fatigue::Fatigue;
 use crate::history::{History, race_third};
 use crate::leg_length::LegLengthStats;
 use crate::loss_breakdown::{BreakdownHistory, BreakdownTotals, RaceBreakdown};
@@ -70,6 +71,13 @@ pub const RECENT_RACES: usize = 3;
 pub const CONSISTENCY_GAP: f64 = 0.05;
 pub const CONSISTENCY_CHANGE: f64 = 0.2;
 
+/// Cansancio (P14): diferencia mínima (ppm) entre el pulso del tramo anterior a un error y el
+/// del anterior a un tramo limpio de la misma fase. Es un dato débil: no hay nivel de «pocos
+/// datos»; sale con datos suficientes ([`SUFFICIENT_RACES`] carreras con pulso y
+/// [`SUFFICIENT_LEGS`] errores comparados, cada fase con al menos [`MIN_LEGS`] tramos limpios de
+/// referencia) o no sale.
+pub const HEART_RATE_GAP_BPM: f64 = 5.0;
+
 /// Carrera: tramos con pérdida mínimos para que salga alguna frase, y los suficientes para que
 /// no lleve el aviso «con pocos tramos».
 pub const MIN_RACE_LEGS: usize = 3;
@@ -119,6 +127,8 @@ pub enum InsightRule {
     DaysOff,
     /// P10: la consistencia de las últimas carreras es claramente distinta de la de antes.
     Consistency,
+    /// P14: antes de un error el pulso va claramente más alto que antes de un tramo limpio.
+    Fatigue,
     // Carrera.
     /// P1: ningún error.
     CleanRace,
@@ -145,6 +155,7 @@ impl InsightRule {
             InsightRule::Format => 6,
             InsightRule::DaysOff => 7,
             InsightRule::Consistency => 8,
+            InsightRule::Fatigue => 9,
             InsightRule::CleanRace => 1,
             InsightRule::ConcentratedLoss => 2,
             InsightRule::RaceBreakdown => 3,
@@ -176,6 +187,8 @@ pub enum InsightTarget {
     DaysOff,
     /// P10: consistencia por carrera.
     Consistency,
+    /// P14: cansancio, el pulso antes del error.
+    Fatigue,
     // Carrera.
     /// P1: la tabla de tramos.
     Legs,
@@ -224,6 +237,8 @@ pub struct HistoryAnalyses<'a> {
     /// Consistencia (P10) de cada carrera que la tiene, de la más antigua a la más reciente, con
     /// el mismo filtro ([`crate::consistency::consistency_series`]).
     pub consistency: &'a [f64],
+    /// Cansancio (P14).
+    pub fatigue: &'a Fatigue,
     /// Para el nombre de los tipos de error; sin ella, sale la clave.
     pub taxonomy: Option<&'a Taxonomy>,
 }
@@ -241,6 +256,7 @@ pub fn history_insights(a: &HistoryAnalyses<'_>) -> Vec<Insight> {
             format_insight(a.history),
             days_off_insight(a.days_off, a.history),
             consistency_insight(a.consistency),
+            fatigue_insight(a.fatigue),
         ]
         .into_iter()
         .flatten()
@@ -661,6 +677,51 @@ fn consistency_insight(series: &[f64]) -> Option<Insight> {
     ))
 }
 
+/// P14: el pulso del tramo anterior a un error frente al del anterior a un tramo limpio, en la
+/// misma fase. Cada error se compara con los tramos limpios de su tercio (la media de
+/// `mean_relative_bpm` de los errores menos la de los limpios, ponderada por los errores del
+/// tercio), para que no cuente que el pulso sube a lo largo de la carrera. Solo cuentan los
+/// tercios con al menos [`MIN_LEGS`] tramos limpios de referencia.
+///
+/// Sale si la diferencia es de al menos [`HEART_RATE_GAP_BPM`] ppm más antes del error, con al
+/// menos [`SUFFICIENT_RACES`] carreras con pulso y [`SUFFICIENT_LEGS`] errores comparados. Sin
+/// aviso de pocos datos: por debajo no sale (es un dato débil).
+fn fatigue_insight(f: &Fatigue) -> Option<Insight> {
+    if f.races_with_heart_rate < SUFFICIENT_RACES {
+        return None;
+    }
+    let (errors, weighted) = f
+        .by_third
+        .iter()
+        .filter(|t| t.before_clean.legs >= MIN_LEGS && t.before_error.legs > 0)
+        .filter_map(|t| {
+            let gap = t.before_error.mean_relative_bpm? - t.before_clean.mean_relative_bpm?;
+            Some((t.before_error.legs, gap))
+        })
+        .fold((0usize, 0.0), |(n, sum), (legs, gap)| {
+            (n + legs, sum + legs as f64 * gap)
+        });
+    if errors < SUFFICIENT_LEGS {
+        return None;
+    }
+    let gap = weighted / errors as f64;
+    if !at_least(gap, HEART_RATE_GAP_BPM) {
+        return None;
+    }
+    let text = format!(
+        "Parece que fallas más con el pulso alto: en tus carreras con reloj, antes de un error \
+         llevas {:.0} pulsaciones más que antes de un tramo limpio en la misma parte de la \
+         carrera (en {errors} errores).",
+        gap.round()
+    );
+    Some(Insight::new(
+        InsightRule::Fatigue,
+        InsightTarget::Fatigue,
+        text,
+        None,
+    ))
+}
+
 // --- Carrera ----------------------------------------------------------------------------------
 
 /// P1: carrera sin ningún error.
@@ -828,6 +889,7 @@ mod tests {
     use crate::after_error::Rate;
     use crate::common_errors::{ErrorTypes, TypeCount};
     use crate::days_off::DaysOffStats;
+    use crate::fatigue::{HeartRateBefore, ThirdFatigue};
     use crate::gain_loss::{leg_gains, losing_streaks};
     use crate::history::{FormatHistory, HistoryFilter, HistoryStats};
     use crate::leg_length::BUCKET_BOUNDS_S;
@@ -1012,6 +1074,43 @@ mod tests {
 
     fn caveat(i: &Insight) -> Option<&str> {
         i.caveat.as_deref()
+    }
+
+    /// Pulso del anterior (P14) de `legs` tramos, `relative` ppm sobre la mediana de su carrera.
+    fn before(legs: usize, relative: f64) -> HeartRateBefore {
+        HeartRateBefore {
+            legs,
+            mean_heart_rate_bpm: (legs > 0).then_some(160.0 + relative),
+            mean_relative_bpm: (legs > 0).then_some(relative),
+        }
+    }
+
+    /// Cansancio (P14) de `races` carreras con pulso: por tercio, (errores, ppm) antes del error
+    /// y (limpios, ppm) antes del limpio.
+    fn fatigue(races: usize, thirds: [((usize, f64), (usize, f64)); 3]) -> Fatigue {
+        Fatigue {
+            by_third: thirds
+                .iter()
+                .enumerate()
+                .map(|(i, &(error, clean))| ThirdFatigue {
+                    third: i + 1,
+                    drift: Default::default(),
+                    before_error: before(error.0, error.1),
+                    before_clean: before(clean.0, clean.1),
+                    effort_error: Default::default(),
+                    effort_clean: Default::default(),
+                    effort_physical: Default::default(),
+                })
+                .collect(),
+            races_with_heart_rate: races,
+            races_without_heart_rate: 0,
+            errors_without_heart_rate: 0,
+        }
+    }
+
+    /// Cansancio sin carreras con pulso: no da frase.
+    fn no_fatigue() -> Fatigue {
+        fatigue(0, [((0, 0.0), (0, 0.0)); 3])
     }
 
     // --- P7: duración del tramo ---------------------------------------------------------------
@@ -1410,27 +1509,151 @@ mod tests {
         assert!(consistency_insight(&series).is_some());
     }
 
-    /// Es la última por prioridad: con tres reglas más importantes, no sale.
+    /// Va detrás de las demás (salvo el cansancio, P14): con tres reglas más importantes, no
+    /// sale.
     #[test]
-    fn consistency_is_the_least_important_rule() {
+    fn consistency_comes_after_the_other_rules() {
         let mut all = AllRules::new();
         all.consistency = vec![0.20, 0.20, 0.20, 0.20, 0.20, 0.10, 0.10, 0.10];
         assert!(!rules(&all.insights()).contains(&InsightRule::Consistency));
-        all.history = history(0, 0, 0);
-        all.history.total.mean_performance = None;
-        all.buckets = Vec::new();
-        all.slope = slope(0, (0, 0.0), (0, 0.0), (0, 0.0));
-        all.common = common(0, Vec::new());
-        all.after = after(Rate::default(), Rate::default());
-        all.days = days_off(Vec::new());
-        all.breakdown = breakdown(0, 0, 0.0, 0.0, 0.0);
-        assert_eq!(rules(&all.insights()), [InsightRule::Consistency]);
+        let mut quiet = AllRules::quiet();
+        quiet.consistency = all.consistency;
+        assert_eq!(rules(&quiet.insights()), [InsightRule::Consistency]);
+    }
+
+    // --- P14: cansancio ------------------------------------------------------------------------
+
+    /// Seis carreras con pulso. Errores de cada tercio y pulso del anterior (sobre la mediana de
+    /// su carrera) frente al de los limpios: 1.er tercio, 2 errores a +1 frente a −2 (3 ppm);
+    /// 2.º, 4 a +4 frente a −1 (5 ppm); 3.º, 6 a +10 frente a +2 (8 ppm). Ponderado por
+    /// errores: (2 · 3 + 4 · 5 + 6 · 8) / 12 = 74 / 12 = 6,17 ppm → sale, «6 pulsaciones» en 12
+    /// errores. Sin separar por fases saldría más (+6,5 frente a −0,6: 7,1 ppm), porque los
+    /// errores van al final, donde el pulso es más alto.
+    #[test]
+    fn fatigue_fires_with_a_clear_gap_in_the_same_phase() {
+        let f = fatigue(
+            6,
+            [
+                ((2, 1.0), (30, -2.0)),
+                ((4, 4.0), (25, -1.0)),
+                ((6, 10.0), (20, 2.0)),
+            ],
+        );
+        let i = fatigue_insight(&f).unwrap();
+        assert_eq!(i.rule, InsightRule::Fatigue);
+        assert_eq!(i.target, InsightTarget::Fatigue);
+        assert_eq!(
+            i.text,
+            "Parece que fallas más con el pulso alto: en tus carreras con reloj, antes de un \
+             error llevas 6 pulsaciones más que antes de un tramo limpio en la misma parte de la \
+             carrera (en 12 errores)."
+        );
+        assert!(!i.few_data);
+        assert_eq!(caveat(&i), None);
+    }
+
+    /// Los mismos errores a 3, 4 y 4 ppm: (6 + 16 + 24) / 12 = 3,83 ppm, menos de 5 → no sale.
+    /// Con el pulso más bajo antes del error (−6 ppm de media), tampoco.
+    #[test]
+    fn fatigue_does_not_fire_with_a_small_or_negative_gap() {
+        let small = fatigue(
+            6,
+            [
+                ((2, 1.0), (30, -2.0)),
+                ((4, 3.0), (25, -1.0)),
+                ((6, 6.0), (20, 2.0)),
+            ],
+        );
+        assert_eq!(fatigue_insight(&small), None);
+        let lower = fatigue(
+            6,
+            [
+                ((2, -8.0), (30, -2.0)),
+                ((4, -7.0), (25, -1.0)),
+                ((6, -4.0), (20, 2.0)),
+            ],
+        );
+        assert_eq!(fatigue_insight(&lower), None);
+    }
+
+    /// Con pocos datos no sale, ni siquiera con aviso: el caso que sale, pero con 4 carreras con
+    /// pulso; 9 errores comparados (4 + 5, a 10 ppm); y el 1.er tercio con solo 4 limpios de
+    /// referencia: sus 2 errores no cuentan y quedan 2 + 6 = 8 (contándolos serían 10 errores a
+    /// 12,4 ppm).
+    #[test]
+    fn fatigue_does_not_fire_with_few_data() {
+        let thirds = [
+            ((2, 1.0), (30, -2.0)),
+            ((4, 4.0), (25, -1.0)),
+            ((6, 10.0), (20, 2.0)),
+        ];
+        assert!(fatigue_insight(&fatigue(6, thirds)).is_some());
+        assert_eq!(fatigue_insight(&fatigue(4, thirds)), None);
+        let few_errors = fatigue(
+            6,
+            [
+                ((0, 0.0), (30, -2.0)),
+                ((4, 9.0), (25, -1.0)),
+                ((5, 12.0), (20, 2.0)),
+            ],
+        );
+        assert_eq!(fatigue_insight(&few_errors), None);
+        let few_clean = fatigue(
+            6,
+            [
+                ((2, 20.0), (4, -2.0)),
+                ((2, 9.0), (25, -1.0)),
+                ((6, 12.0), (20, 2.0)),
+            ],
+        );
+        assert_eq!(fatigue_insight(&few_clean), None);
+        assert_eq!(fatigue_insight(&no_fatigue()), None);
+    }
+
+    /// Los umbrales entran: 5 carreras, 10 errores y justo 5 ppm (+3 frente a −2 y +7,1 frente
+    /// a +2,1) → sale.
+    #[test]
+    fn fatigue_thresholds_are_inclusive() {
+        let f = fatigue(
+            5,
+            [
+                ((0, 0.0), (10, 0.0)),
+                ((4, 3.0), (5, -2.0)),
+                ((6, 7.1), (20, 2.1)),
+            ],
+        );
+        let i = fatigue_insight(&f).unwrap();
+        assert!(i.text.contains("llevas 5 pulsaciones más"), "{}", i.text);
+        assert!(i.text.contains("(en 10 errores)"), "{}", i.text);
+    }
+
+    /// Es la última por prioridad, detrás de la consistencia: sale solo si quedan huecos.
+    #[test]
+    fn fatigue_is_the_least_important_rule() {
+        let clear = fatigue(
+            6,
+            [
+                ((2, 1.0), (30, -2.0)),
+                ((4, 4.0), (25, -1.0)),
+                ((6, 10.0), (20, 2.0)),
+            ],
+        );
+        let mut all = AllRules::new();
+        all.fatigue = clear.clone();
+        assert!(!rules(&all.insights()).contains(&InsightRule::Fatigue));
+        let mut quiet = AllRules::quiet();
+        quiet.fatigue = clear;
+        quiet.consistency = vec![0.20, 0.20, 0.20, 0.20, 0.20, 0.10, 0.10, 0.10];
+        assert_eq!(
+            rules(&quiet.insights()),
+            [InsightRule::Consistency, InsightRule::Fatigue]
+        );
     }
 
     // --- Selección en el histórico ------------------------------------------------------------
 
-    /// Análisis que disparan las siete primeras reglas (la octava, la de consistencia, no), todas con
-    /// datos suficientes.
+    /// Análisis que disparan las siete primeras reglas (las dos últimas, consistencia y
+    /// cansancio, no), todas con datos suficientes.
     struct AllRules {
         history: History,
         buckets: Vec<LegLengthStats>,
@@ -1440,6 +1663,7 @@ mod tests {
         days: DaysOff,
         breakdown: BreakdownHistory,
         consistency: Vec<f64>,
+        fatigue: Fatigue,
     }
 
     impl AllRules {
@@ -1463,7 +1687,23 @@ mod tests {
                 breakdown: breakdown(6, 12, 180.0, 60.0, 60.0),
                 // Sin cambio de consistencia: ocho carreras al 20 %.
                 consistency: vec![0.20; 8],
+                fatigue: no_fatigue(),
             }
+        }
+
+        /// Análisis que no disparan ninguna regla (un histórico vacío).
+        fn quiet() -> Self {
+            let mut all = AllRules::new();
+            all.history = history(0, 0, 0);
+            all.history.total.mean_performance = None;
+            all.buckets = Vec::new();
+            all.slope = slope(0, (0, 0.0), (0, 0.0), (0, 0.0));
+            all.common = common(0, Vec::new());
+            all.after = after(Rate::default(), Rate::default());
+            all.days = days_off(Vec::new());
+            all.breakdown = breakdown(0, 0, 0.0, 0.0, 0.0);
+            all.consistency = Vec::new();
+            all
         }
 
         fn insights(&self) -> Vec<Insight> {
@@ -1476,6 +1716,7 @@ mod tests {
                 days_off: &self.days,
                 loss_breakdown: &self.breakdown,
                 consistency: &self.consistency,
+                fatigue: &self.fatigue,
                 taxonomy: None,
             })
         }
@@ -1528,17 +1769,7 @@ mod tests {
 
     #[test]
     fn history_without_patterns_has_no_insights() {
-        let mut all = AllRules::new();
-        all.history = history(0, 0, 0);
-        all.history.total.mean_performance = None;
-        all.buckets = Vec::new();
-        all.slope = slope(0, (0, 0.0), (0, 0.0), (0, 0.0));
-        all.common = common(0, Vec::new());
-        all.after = after(Rate::default(), Rate::default());
-        all.days = days_off(Vec::new());
-        all.breakdown = breakdown(0, 0, 0.0, 0.0, 0.0);
-        all.consistency = Vec::new();
-        assert!(all.insights().is_empty());
+        assert!(AllRules::quiet().insights().is_empty());
     }
 
     // --- Carrera ------------------------------------------------------------------------------

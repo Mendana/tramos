@@ -21,6 +21,12 @@ También hay una sobre tu regularidad: si en tus últimas tres carreras tu consi
 claramente respecto a las de antes, te lo dice («Cada vez eres más regular…»). Necesita al menos
 cinco carreras con consistencia.
 
+Y otra sobre el cansancio, la más prudente: si antes de fallar sueles llevar el pulso claramente
+más alto que antes de un tramo limpio en la misma parte de la carrera, dice «Parece que fallas más
+con el pulso alto…». Como el pulso del reloj es un dato débil, solo sale con al menos cinco
+carreras con pulso y diez errores, y es la última en importancia: solo se ve si las demás dejan
+hueco ([Cabeza y piernas](estadisticas-cabeza.md)).
+
 ## Filtros
 
 **Desde** y **hasta** (las dos fechas entran) y **formato** (todos, sprint, media o larga). Valen

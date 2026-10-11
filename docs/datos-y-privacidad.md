@@ -8,6 +8,15 @@
 - El contenido del .spl original guardado sí incluye las fechas de nacimiento (y los nombres de
   toda la prueba), así que los ficheros originales nunca salen de la base local: no van en los
   paquetes para la entrenadora ni a proveedores externos (ver `docs/almacenamiento.md`).
+- La **copia de seguridad** (#161, `docs/app.md`, "Copia de seguridad") es la base de datos
+  entera, así que **lleva todo lo anterior**: los .spl originales (nombres y fechas de nacimiento
+  de toda la prueba), los FIT (GPS y pulso), las etiquetas, las notas y lo recibido de otros
+  corredores. Es para guardarla uno mismo (un disco externo, un almacén propio) y restaurarla en su
+  equipo: **no se comparte** ni se manda a quien entrena. Para compartir carreras está la carpeta
+  compartida, que solo lleva lo que se elige (`docs/paquete.md`). La app no hace copias sola ni
+  manda nada a ningún sitio: el fichero lo guarda donde el usuario elige. Al restaurar, la base de
+  antes queda en el equipo como `tramos.sqlite.antes-de-restaurar`, con todos sus datos, hasta que
+  se borre o la sustituya otra restauración.
 - Las personas (identidad de un corredor entre carreras) solo guardan lo que escribe el usuario:
   un nombre visible y notas. No llevan fecha de nacimiento ni se rellenan desde el .spl
   (ver `docs/almacenamiento.md`).

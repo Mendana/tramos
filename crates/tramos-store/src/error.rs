@@ -60,6 +60,25 @@ pub enum StoreError {
     #[error("tramo inválido: {0} (se numeran desde 1)")]
     InvalidLegIndex(usize),
 
+    /// El fichero elegido como copia de seguridad no sirve; el detalle va en el mensaje.
+    #[error("este fichero no vale como copia de seguridad: {0}")]
+    BackupInvalid(String),
+
+    #[error(
+        "esta copia es de una versión más nueva de Tramos (esquema v{found}; esta versión \
+         entiende hasta v{supported}): actualiza la app para restaurarla"
+    )]
+    BackupTooNew { found: i64, supported: i64 },
+
+    /// Exportar la copia encima de la propia base la destruiría.
+    #[error(
+        "no se puede guardar la copia encima de la base de datos de Tramos: elige otro fichero"
+    )]
+    BackupOverwritesDatabase,
+
+    #[error("error de fichero: {0}")]
+    Io(#[from] std::io::Error),
+
     /// Un valor guardado no corresponde a ningún valor del modelo.
     #[error("dato inválido en la base de datos: {0}")]
     InvalidData(String),

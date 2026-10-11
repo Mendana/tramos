@@ -250,6 +250,17 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
 - Al abrir la app se lee el tema y se pone en la raíz del documento (`theme.ts`): `data-theme="light"`
   o `"dark"` fuerzan el modo; con **Sistema** no hay atributo y manda el del sistema operativo
   (`prefers-color-scheme`), que sigue cambiando con él.
+- **Sin parpadeo (#162).** El núcleo se lee cuando la ventana ya está abierta, así que con «Oscuro» y el
+  sistema en claro (o al revés) se vería un instante el tema equivocado. Por eso hay una copia del
+  tema en `localStorage` (clave `tramos.theme`, solo `light` o `dark`; con «Sistema» se borra) que
+  aplica `app/public/theme-init.js` antes de pintar. Es un `<script>` sin `type="module"` en el
+  `<head>` de `index.html`, así que bloquea el análisis del HTML y corre antes del primer pintado;
+  la CSP no admite scripts en línea, de ahí que sea un fichero aparte. Un módulo de `main.tsx` no
+  basta: se ejecuta ya con la ventana pintada. La copia se escribe al elegir el tema y al leerlo del
+  núcleo (`applyAndStoreTheme`, `theme.ts`). **El núcleo manda**: si al leerlo no coincide con la
+  copia, se aplica el del núcleo y se corrige la copia. Todo acceso a `localStorage` va en
+  `try/catch`: sin él (vacío o bloqueado) todo funciona igual, solo que el primer pintado usa el
+  tema del sistema. Si cambias la clave o los valores, cámbialos en `theme.ts` y en `theme-init.js`.
 - Los colores oscuros de `tokens.css` valen para dos selectores con los mismos valores:
   `@media (prefers-color-scheme: dark)` sobre `:root:not([data-theme="light"])` y
   `:root[data-theme="dark"]`. Si cambias uno, cambia el otro.
@@ -259,9 +270,28 @@ y se guarda al momento (`set_theme`), sin «Guardar», como los paneles ocultos.
 - Sin estilos en línea: la CSP no los deja, y el tema es solo un atributo más reglas en
   `tokens.css`.
 
-### Versión (#40)
+### Acerca de Tramos (#40, #159)
 
-Último apartado de Ajustes (`app/src/updates.tsx`): la versión instalada (`getVersion` de
+Último apartado de Ajustes (`app/src/about.tsx`, id `about`). Reúne, de arriba abajo:
+
+- La versión y las actualizaciones (#40, `app/src/updates.tsx`, abajo).
+- El autor («Mendaña»), la licencia MIT y el enlace al repositorio.
+- Los créditos: teselas de OpenStreetMap, formato de splits de WinSplits y Tauri.
+- **Informar de un fallo**: abre el cliente de correo del sistema (`openUrl` de
+  `@tauri-apps/plugin-opener` con un `mailto:`) con un mensaje a `diegodiazmenda@gmail.com`, con
+  asunto y cuerpo ya rellenos: versión de la app, sistema operativo y un hueco para contar qué
+  pasó. No adjunta carreras ni datos del usuario, y la app no manda nada: lo envía el usuario desde
+  su correo. Si el correo no se abre, se avisa.
+- **Copiar datos para el informe**: copia al portapapeles (`navigator.clipboard.writeText`) la
+  versión y el sistema, por si el correo no se abre.
+
+El sistema se saca del `userAgent` de la ventana web (Windows, macOS o Linux y los bits), sin
+plugin de sistema. En Windows 11 el `userAgent` sigue diciendo «Windows NT 10.0», así que sale
+«Windows 10 u 11».
+
+#### Versión y actualizaciones (#40)
+
+Lo de la versión (`app/src/updates.tsx`): la versión instalada (`getVersion` de
 `@tauri-apps/api/app`), el botón **Buscar actualizaciones** y, si hay versión nueva, **Instalar y
 reiniciar**. El estado de las actualizaciones es uno para toda la app: el mismo que el aviso de
 arriba que sale en todas las pantallas cuando la búsqueda al arrancar encuentra una versión
@@ -645,7 +675,7 @@ y la tabla el recorrido (`docs/segmentacion.md`).
 - Atribución siempre visible, «© OpenStreetMap contributors», con enlace a
   `https://www.openstreetmap.org/copyright`. El enlace se abre en el navegador del sistema con
   `tauri-plugin-opener`, al que la ventana solo deja abrir URL de `https://www.openstreetmap.org/`
-  y de los documentos del repositorio (los de la Ayuda, abajo).
+  y del repositorio (los documentos de la Ayuda, abajo, y «Acerca de Tramos»).
 - Solo se piden las teselas de lo que se mira, al moverse por el mapa: nada de descargas
   masivas ni de precarga. Zoom máximo 19 (el de OSM). MapLibre no vuelve a pedir las teselas
   caducadas mientras el mapa está abierto (`refreshExpiredTiles: false`) y la caché del
@@ -980,8 +1010,10 @@ La ventana tiene una CSP restrictiva (`docs/datos-y-privacidad.md`). Los permiso
 solo para el diálogo de abrir ficheros o elegir una carpeta (la carpeta la recorre Rust: la
 ventana no tiene permisos de sistema de ficheros), y `opener:allow-open-url` limitado a
 `https://www.openstreetmap.org/*`, para el enlace de la atribución del mapa, y a
-`https://github.com/Mendana/tramos/blob/main/*`, para los enlaces de la Ayuda a los documentos
-técnicos. Los dos se abren en el navegador del sistema, no en la ventana. Para las
+`https://github.com/Mendana/tramos` y `https://github.com/Mendana/tramos/*`, para los enlaces de la
+Ayuda a los documentos técnicos y el del repositorio en «Acerca de Tramos» (#159), y a
+`mailto:diegodiazmenda@gmail.com*`, solo para «Informar de un fallo». Las URL web se abren en el
+navegador del sistema, no en la ventana, y el `mailto:` en el cliente de correo. Para las
 actualizaciones (#40), `updater:default` (buscar, descargar e instalar; la URL y la clave pública
 las fija `tauri.conf.json`, no la ventana) y `process:allow-restart`, para reiniciar la app con la
 versión nueva.

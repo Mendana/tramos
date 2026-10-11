@@ -39,6 +39,6 @@ mod tests {
 
     #[test]
     fn version_matches_manifest() {
-        assert_eq!(VERSION, "0.2.1");
+        assert_eq!(VERSION, "0.3.0");
     }
 }

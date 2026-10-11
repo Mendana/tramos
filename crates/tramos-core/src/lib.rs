@@ -25,6 +25,7 @@ pub mod model;
 pub mod package;
 pub mod race_format;
 pub mod runner_report;
+pub mod same_race;
 pub mod segmentation;
 pub mod slope;
 pub mod taxonomy;

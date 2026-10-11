@@ -732,6 +732,11 @@
   box-shadow: inset 3px 0 0 var(--error);
 }
 
+/* Carreras de los atletas (#163): las que corrieron varios, con el acento a la izquierda. */
+.table tr.is-shared td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .table .strong {
   font-weight: 650;
 }

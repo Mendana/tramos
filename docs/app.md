@@ -39,6 +39,9 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `set_athlete_group_member(id, runnerId, member)` | Mete (`true`) o saca (`false`) a un atleta de un grupo. |
 | `compare_athlete_groups(filter, a, b, options)` | Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro del histórico. `options` = `{overlap, races}`: quien está en los dos cuenta en los dos (`count_in_both`) o en ninguno (`exclude`); entran solo las carreras de los dos grupos (`shared`) o todas (`all`). Devuelve cada lado junto (atletas, cifras, P7, P13 y tipos de error), cuántos están en los dos, cuántas carreras entran y las diferencias A − B. |
 | `athlete_group_stats(filter, id)` | Estadísticas de un grupo de atletas (#145, `docs/historico.md`, "Estadísticas de un grupo") con el filtro del histórico: el nombre, la descripción y el color del grupo, sus miembros (quien usa la app primero, si es miembro y tiene carreras; cada uno con sus carreras que cuentan o por qué no cuenta), cuántos miembros ya no tienen carreras y los análisis de Estadísticas con todos juntos (`stats`: por formato y total, P7, P13, P2, P8, P9, P11 y P14; sin consistencia). Si no entrena, error. |
+| `athlete_races` | Si entrena, las carreras de las que hay paquetes (#163, abajo, "Atletas"), una por `race_id`, de la más reciente a la más antigua: fecha, nombre y formato (los del primer paquete que los tenga; salen del JSON con `json_extract`, `Store::received_races`) y los atletas que la corrieron, cada uno con lo que compartió (`level`); si quien usa la app la tiene importada, va primero (`is_self`, `level` = `null`). Si no entrena, error. |
+| `athlete_race(raceId)` | Si entrena, una carrera con todos los atletas que la corrieron (#163): una fila por atleta (quien usa la app primero, si la corrió) con lo que compartió, su resumen (recalculado en su base, como en su vista de carrera, si compartió los tramos; el de su paquete si solo el resumen), su recorrido, su puesto en el recorrido, su `result_id` en su base (para abrir su carrera), si sale en el mapa y por qué no, si es el caso; y los recorridos de `tramos_core::same_race` (`docs/tiempo-perdido.md`, "Una carrera con varios atletas") con, cada uno, su mapa (`race_map::course_map`). Una carrera que nadie ha compartido da error. |
+| `race_together(resultId)` | La carrera del resultado de la base que se ve (la del atleta o la propia) para el botón «Ver con los demás atletas»: su `race_id` y cuántos atletas más la corrieron (los demás con paquete y, si se ve a un atleta, quien usa la app si la tiene importada). `null` si no entrena o si el resultado no es de un paquete. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
 | `tour_seen` / `set_tour_seen(seen)` | Si ya se ha visto el recorrido guiado (#141, abajo, "Ayuda") y guardarlo (`ui.tour_seen`). Van a la base propia también mientras se ve a un atleta. |
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
@@ -65,7 +68,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 
 El núcleo de la app decide qué base leen las vistas (#119): los comandos que leen las vistas de
 corredor (`list_races`, `race_detail`, `race_comparison`, `race_breakdown`, `race_offset`,
-`race_map`, `leg_tags` y `history`) leen las carreras del atleta que se está viendo o, si no se ve
+`race_map`, `leg_tags`, `race_together` y `history`) leen las carreras del atleta que se está viendo o, si no se ve
 a ninguno, las propias. Mientras se ve a un atleta, los que tocan carreras (`import_race`,
 `import_folder`, `set_race_format`, `set_race_offset`, `save_leg_tag`, `race_sharing`,
 `set_race_sharing`, `share_all` y `export_race_package`) dan error: «mientras ves a un atleta no
@@ -75,7 +78,7 @@ son suyos, se vea a quien se vea. `view_runner(null)` vuelve a lo propio y todo 
 vez.
 
 Los errores llegan a la interfaz como texto en español. La lógica está en
-`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs`, `tags.rs`, `package.rs`, `sharing.rs` y `coach.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
+`app/src-tauri/src/import.rs`, `batch.rs`, `races.rs`, `race_map.rs`, `clock_offset.rs`, `history.rs`, `settings.rs`, `tags.rs`, `package.rs`, `sharing.rs`, `coach.rs` y `athlete_races.rs`, en Rust sin Tauri, y se prueba con los fixtures (`cargo test` en
 `app/src-tauri`).
 
 ## Importar una carrera
@@ -317,8 +320,9 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   la carpeta y sus subcarpetas; cada atleta exporta a su subcarpeta (#140). Los suyos no vuelven
   a entrar.
 - **Barra lateral.** Debajo de «Lo mío», el bloque **Atletas**: **Mis atletas** (abajo), con
-  el total de carreras nuevas de todos a la derecha; mientras se ve a uno, su nombre y sus
-  **Carreras** y **Estadísticas**; **Comparar atletas**, la vista de grupo; y **Grupos**. Las
+  el total de carreras nuevas de todos a la derecha; **Carreras**, las de todos los atletas
+  (abajo, #163); mientras se ve a uno, su nombre y sus **Carreras** y **Estadísticas**;
+  **Comparar atletas**, la vista de grupo; y **Grupos**. Las
   entradas de «Lo mío» (y Mi perfil) vuelven siempre a lo propio. Se entra en un atleta desde
   Mis atletas, desde las novedades de Inicio o desde su fila en Comparar atletas.
 - **Mis atletas** (#142, `AthletesScreen.tsx`, `athlete_cards`). Sustituye al selector «Ver a»
@@ -341,6 +345,46 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   (`athlete-races`, `athlete-performance`, `athlete-error-rate`, `athlete-top-error`,
   `athlete-trend` y `athlete-groups`) se puede quitar y se guarda en `ui.hidden_panels`. Sin
   atletas, lo dice.
+- **Carreras** (#163, `AthleteRacesScreen.tsx`, `athlete_races`; migas «Carreras de los
+  atletas»). Una fila por carrera recibida (por `race_id`, `docs/paquete.md`), de la más
+  reciente a la más antigua, 25 por página: fecha, nombre, formato y los atletas que la
+  corrieron (cuántos y sus nombres). Las de más de uno van **destacadas**: una franja del acento
+  a la izquierda y el número de atletas en una píldora del acento. Si quien entrena también la
+  corrió (la tiene importada con el mismo `race_id`), cuenta como uno más: «Nombre (tú)», el
+  primero. Sin paquetes, lo dice. Un clic abre la carrera.
+- **Una carrera con varios atletas** (#163, `AthleteRaceScreen.tsx`, `athlete_race`; migas
+  «Carreras de los atletas / Nombre de la carrera»). Se entra desde la lista o desde la vista de
+  carrera de un atleta (o la propia), con el botón **«Ver con los demás atletas (N)»** de la
+  cabecera, que sale si entrena y N ≥ 1 (`race_together`). Cada atleta se mide como en su vista
+  de carrera: su base, sus umbrales y sus etiquetas (`docs/tiempo-perdido.md`, "Una carrera con
+  varios atletas").
+  - **Atletas**: tabla con atleta, categoría, resultado (y puesto en el recorrido), tiempo,
+    tiempo perdido con sus errores y lo que compartió (Resumen, Tramos, Track completo o «Tuya»).
+    Un clic en la fila abre su carrera: si es de la base que ya se ve, sin más (y «volver»
+    regresa); si no, pasa a ver a ese atleta (o vuelve a lo propio) y la abre. Debajo del nombre,
+    el aviso de por qué no sale en algo: solo el resumen (ni gráficas ni mapa), sin track (no
+    sale en el mapa) o el problema al leerlo, analizarlo o alinear su track. Con un solo atleta,
+    la vista se abre igual, con un aviso de que no hay con quién comparar.
+  - **Recorrido**: si corrieron recorridos distintos, un selector (las categorías del recorrido
+    y cuántos atletas); de entrada, el de más atletas. Todo lo de abajo es del recorrido elegido.
+    Con referencia débil, un aviso.
+  - **Fichas** de los atletas del recorrido, por puesto en el recorrido, que hacen de leyenda en
+    las dos gráficas y el mapa, con los colores de serie en orden fijo (abajo, "Gráficas"). Como
+    hay cuatro colores, con más de cuatro atletas en el recorrido las fichas eligen quién sale
+    (como mucho cuatro; de entrada, los cuatro primeros).
+  - **Diferencia con el tiempo ideal** y **Pérdida por tramo comparada**: los paneles de «Frente
+    al grupo» (P4) con una serie por atleta (`athletes-race-ideal` y `athletes-race-loss`, que se
+    pueden ocultar). En la tabla de la pérdida, «· error» sigue la etiqueta del atleta y, sin
+    ella, el cálculo.
+  - **Tramos que fallaron varios**: los tramos con error en dos atletas o más, con la pérdida de
+    cada uno, el tipo de error que etiquetó, su nota y «sin revisar» si solo lo dice el cálculo.
+    Con mapa, «Ver en el mapa» elige ese tramo en el mapa y baja hasta él.
+  - **Mapa** (`CourseTrackMap` en `MapView.tsx`): el track de cada atleta elegido que compartió
+    el track y se puede alinear, de su color de serie con un borde blanco, y las balizas una sola
+    vez, en la media de donde estaba cada uno al picarlas (`race_map::course_map`: sin las que
+    caen en un hueco de su track si algún atleta la tiene fuera de un hueco). Sin colores de
+    ritmo ni pulso. Un clic en un tramo (o «Ver en el mapa») deja ese tramo de todos y atenúa el
+    resto; otro clic lo quita. Debajo, quién no sale. Sin ningún track en el recorrido, lo dice.
 - **Novedades** (#142, #166, `coach::athlete_news`). Una carrera de un atleta es **nueva** si
   llegó **por primera vez** (`first_imported_at` del paquete guardado, `docs/paquete.md`
   "Importar") después de la última vez que se entró en ese atleta (`athletes.last_seen`); si
@@ -917,8 +961,8 @@ sistema.
 - **Estructura** (#127, #119, boceto en `docs/bocetos/navegacion.html`): barra lateral oscura
   (`--side-*`) con bloques: Inicio; «Lo mío», con Mis carreras (y un contador de errores sin
   revisar de lo propio), Estadísticas e Importar; si entrena, «Atletas», con Mis atletas (y un
-  contador de carreras nuevas), el nombre, las Carreras y las Estadísticas del atleta que se ve,
-  Comparar atletas y Grupos; «Cuenta», con Mi
+  contador de carreras nuevas), Carreras (las de todos los atletas, #163), el nombre, las
+  Carreras y las Estadísticas del atleta que se ve, Comparar atletas y Grupos; «Cuenta», con Mi
   perfil, Ajustes y Ayuda.
 
   Encima del contenido, una cabecera fija con el botón de volver (a la pantalla anterior, hasta
@@ -978,7 +1022,8 @@ se distinguen también con daltonismo. Para ganar o perder (P5), el par divergen
 y `--chart-loss` (el mismo naranja), validado igual; la dirección de la columna también lo dice.
 Para varios corredores (P4), la paleta categórica `--chart-series-1` a `--chart-series-4`
 (magenta para el corredor; azul, verde y ámbar para los compañeros, en ese orden fijo), validada
-en los dos modos entre todas las parejas. `--chart-line-neutral` es una línea de datos en tinta neutra y `--chart-highlight` el fondo de una
+en los dos modos entre todas las parejas. En una carrera con varios atletas (#163) son los mismos
+cuatro, en ese orden, para los atletas elegidos por puesto en el recorrido, también en el mapa. `--chart-line-neutral` es una línea de datos en tinta neutra y `--chart-highlight` el fondo de una
 franja resaltada.
 
 Paneles de la vista de carrera:

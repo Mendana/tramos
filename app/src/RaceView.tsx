@@ -4,6 +4,7 @@ import {
   LegReport,
   RaceDetail,
   RaceSharing,
+  RaceTogether,
   SHARE_LABELS,
   ShareChoice,
   clock,
@@ -12,6 +13,7 @@ import {
   spread,
   raceDetail,
   raceSharing,
+  raceTogether,
   RaceFormat,
   RaceInsightTarget,
   setRaceFormat,
@@ -43,6 +45,28 @@ const INSIGHT_PLACES: Record<RaceInsightTarget, InsightPlace<RaceTab>> = {
   race_breakdown: { tab: "analysis", panels: ["race-breakdown"] },
 };
 
+/** Si entrena, la carrera del resultado y cuántos atletas más la corrieron (#163). Sin
+ *  respuesta (o si falla), nada: el botón no sale. */
+function useRaceTogether(resultId: number, active: boolean): RaceTogether | null {
+  const [together, setTogether] = useState<RaceTogether | null>(null);
+  useEffect(() => {
+    setTogether(null);
+    if (!active) return;
+    let current = true;
+    raceTogether(resultId)
+      .then((t) => {
+        if (current) setTogether(t);
+      })
+      .catch(() => {
+        if (current) setTogether(null);
+      });
+    return () => {
+      current = false;
+    };
+  }, [resultId, active]);
+  return together;
+}
+
 /** Tramos que salen en «Lo más caro» del resumen. */
 const COSTLIEST_LEGS = 3;
 
@@ -52,12 +76,15 @@ function RaceView({
   tab,
   onTab,
   onChanged,
+  onTogether,
 }: {
   resultId: number;
   tab: RaceTab;
   onTab: (tab: RaceTab) => void;
   /** La carrera ha cambiado (p. ej. su formato): la lista tiene que volver a cargarse. */
   onChanged: () => void;
+  /** Si entrena: abre la carrera con todos los atletas que la corrieron (#163). */
+  onTogether?: (raceId: string, name: string | null) => void;
 }) {
   const [detail, setDetail] = useState<RaceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +117,7 @@ function RaceView({
           onTagged={onChanged}
           tab={tab}
           onTab={onTab}
+          onTogether={onTogether}
         />
       )}
     </>
@@ -102,6 +130,7 @@ function Detail({
   onTagged,
   tab,
   onTab,
+  onTogether,
 }: {
   detail: RaceDetail;
   onFormatChange: (format: RaceFormat | null) => void;
@@ -109,6 +138,7 @@ function Detail({
   onTagged: () => void;
   tab: RaceTab;
   onTab: (tab: RaceTab) => void;
+  onTogether?: (raceId: string, name: string | null) => void;
 }) {
   // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
@@ -125,6 +155,7 @@ function Detail({
   const focus = useInsightFocus(INSIGHT_PLACES, tab, onTab);
   const { readOnly } = useViewer();
   const sharing = useRaceSharing(detail.result_id, !readOnly);
+  const together = useRaceTogether(detail.result_id, onTogether !== undefined);
   const lost = detail.report.lost_time;
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
@@ -176,6 +207,15 @@ function Detail({
         }
         actions={
           <>
+            {together !== null && together.others > 0 && onTogether !== undefined && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => onTogether(together.race_id, detail.name)}
+              >
+                Ver con los demás atletas ({together.others})
+              </button>
+            )}
             {sharing.view?.available && (
               <SharingPicker view={sharing.view} onChange={sharing.change} />
             )}

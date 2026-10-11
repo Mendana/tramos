@@ -24,7 +24,7 @@ pub use error::StoreError;
 pub use event::SavedEvent;
 pub use group::{AthleteGroup, AthleteGroupId};
 pub use migrations::SCHEMA_VERSION;
-pub use package::{ReceivedPackage, ReceivedRunner, SaveOutcome};
+pub use package::{ReceivedPackage, ReceivedRace, ReceivedRunner, SaveOutcome};
 pub use person::{Person, PersonId, PersonResult};
 pub use source::{SourceFile, SourceFileId, SourceFileKind};
 pub use tag::StoredTag;

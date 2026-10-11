@@ -1,6 +1,7 @@
 //! App de escritorio de Tramos. Expone el núcleo a la interfaz mediante comandos Tauri;
 //! no reimplementa cálculos.
 
+pub mod athlete_races;
 pub mod batch;
 pub mod clock_offset;
 pub mod coach;
@@ -28,6 +29,7 @@ use tramos_core::race_format::RaceFormat;
 use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::{AthleteGroupId, SaveOutcome, Store};
 
+use crate::athlete_races::{AthleteRaceRow, AthleteRaceView, RaceTogether};
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
 use crate::coach::{
@@ -288,6 +290,34 @@ fn athlete_group_stats(
 ) -> Result<GroupStatsView, String> {
     coach::athlete_group_stats(&mut *state.coach_store()?, &filter, AthleteGroupId(id))
         .map_err(|e| e.to_string())
+}
+
+/// Si entrena, las carreras de las que hay paquetes (#163), con los atletas que corrieron cada
+/// una.
+#[tauri::command]
+fn athlete_races(state: tauri::State<'_, AppState>) -> Result<Vec<AthleteRaceRow>, String> {
+    athlete_races::athlete_races(&mut *state.coach_store()?).map_err(|e| e.to_string())
+}
+
+/// Si entrena, una carrera (`race_id`) con todos los atletas que la corrieron, juntos.
+#[tauri::command]
+fn athlete_race(
+    state: tauri::State<'_, AppState>,
+    race_id: String,
+) -> Result<AthleteRaceView, String> {
+    athlete_races::athlete_race(&mut *state.coach_store()?, &race_id).map_err(|e| e.to_string())
+}
+
+/// La carrera del resultado `result_id` de la base que se ve, para «Ver con los demás atletas»:
+/// su `race_id` y cuántos atletas más la corrieron. `null` si no entrena.
+#[tauri::command]
+fn race_together(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<Option<RaceTogether>, String> {
+    let mut store = state.store()?;
+    let viewed = state.viewed()?;
+    athlete_races::race_together(&mut store, viewed.as_ref(), result_id).map_err(|e| e.to_string())
 }
 
 /// Mete (`member = true`) o saca a un atleta de un grupo.
@@ -611,6 +641,9 @@ pub fn run() -> tauri::Result<()> {
             set_athlete_group_member,
             compare_athlete_groups,
             athlete_group_stats,
+            athlete_races,
+            athlete_race,
+            race_together,
             preview_import,
             import_race,
             import_folder,

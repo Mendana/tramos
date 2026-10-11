@@ -46,14 +46,24 @@ eliges también la carpeta compartida de la que llegan: la carpeta madre, con un
 atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)).
 Ver [Compartir](compartir.md).
 
-## Versión
+## Acerca de Tramos
 
-La versión de Tramos que tienes. La app mira al arrancar si hay una nueva y, si la hay, te avisa
-arriba, en cualquier pantalla: **Instalar y reiniciar** la descarga y la instala, y la app se
-vuelve a abrir sola; **Más tarde** la deja para el próximo arranque. Nunca se instala sin que lo
-pidas. Tus carreras y ajustes se quedan como están. Con **Buscar actualizaciones** lo miras cuando
-quieras. Para buscarla hace falta conexión: la app pregunta a GitHub, donde se publica Tramos, y
-no le manda nada tuyo.
+La versión de Tramos que tienes, quién la hace y cómo avisar de un fallo. La app mira al arrancar
+si hay una nueva y, si la hay, te avisa arriba, en cualquier pantalla: **Instalar y reiniciar** la
+descarga y la instala, y la app se vuelve a abrir sola; **Más tarde** la deja para el próximo
+arranque. Nunca se instala sin que lo pidas. Tus carreras y ajustes se quedan como están. Con
+**Buscar actualizaciones** lo miras cuando quieras. Para buscarla hace falta conexión: la app
+pregunta a GitHub, donde se publica Tramos, y no le manda nada tuyo.
+
+Debajo salen el autor (Mendaña), la licencia (MIT, código abierto) con el enlace al repositorio,
+y los créditos: las teselas del mapa son de OpenStreetMap, el formato de los splits es el de
+WinSplits y la app está hecha con Tauri.
+
+**Informar de un fallo** abre tu programa de correo con un mensaje ya empezado para el autor:
+lleva la versión de Tramos, tu sistema y un hueco para que cuentes qué hacías y qué pasó. No lleva
+ninguna carrera ni dato tuyo, y no se envía nada hasta que le des a enviar en tu correo. Si no se
+abre (por ejemplo, porque usas correo en el navegador), **Copiar datos para el informe** copia la
+versión y el sistema para que los pegues en tu mensaje.
 
 Detalle técnico:
 [app, «Ajustes»](https://github.com/Mendana/tramos/blob/main/docs/app.md#ajustes).

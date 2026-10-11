@@ -13,7 +13,7 @@ import {
   shareAll,
 } from "./api";
 import { THEMES, applyAndStoreTheme } from "./theme";
-import { UpdateStatus } from "./updates";
+import { AboutSection } from "./about";
 import { Notice, PageHeader } from "./ui";
 import { PANEL_GROUPS, usePanelVisibility } from "./panels";
 import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
@@ -235,11 +235,11 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     ),
   };
 
-  const updatesSection: Section = {
-    id: "updates",
-    title: "Versión",
-    text: "La app busca versión nueva al arrancar y te avisa antes de instalarla. Aquí puedes buscarla cuando quieras.",
-    fields: <UpdateStatus />,
+  const aboutSection: Section = {
+    id: "about",
+    title: "Acerca de Tramos",
+    text: "La versión, quién hace la app y cómo avisar de un fallo. La app busca versión nueva al arrancar y te avisa antes de instalarla.",
+    fields: <AboutSection />,
   };
 
   const visibility = usePanelVisibility();
@@ -447,7 +447,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       themeSection,
       panelsSection,
       coach,
-      updatesSection,
+      aboutSection,
     ];
   };
 

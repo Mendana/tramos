@@ -37,6 +37,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Mendaña",
+    "copyright": "© 2026 Mendaña. Licencia MIT",
+    "homepage": "https://github.com/Mendana/tramos",
+    "category": "Sports",
+    "shortDescription": "Analiza tus carreras de orientación tramo a tramo",
+    "longDescription": "Tramos cruza el track de tu reloj con los splits de WinSplits, trocea la carrera en tramos, calcula el tiempo perdido y busca patrones de error a lo largo de muchas carreras. Tus datos se quedan en tu equipo.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

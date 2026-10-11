@@ -449,7 +449,8 @@ dibuja en la sección «Cansancio» (`docs/app.md`, "Vista histórica").
 
 **Es un dato débil.** El pulso de muñeca llega con segundos de retraso, da saltos y en un tramo
 corto apenas reacciona; además se mezclan pocas carreras. La pantalla lo avisa siempre y enseña
-`n` en cada columna.
+`n` en cada columna. El pulso antes del error da además una frase del resumen, solo con datos
+suficientes y una diferencia clara (`docs/frases.md`, «Cansancio»).
 
 - **Mismas carreras y tramos:** las del histórico con el mismo filtro y, de cada una, sus tramos
   que cuentan (`pattern_legs`).

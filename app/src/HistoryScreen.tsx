@@ -70,6 +70,7 @@ const INSIGHT_PLACES: Record<HistoryInsightTarget, InsightPlace<HistoryTab>> = {
   slope: { tab: "where", panels: ["slope-performance"] },
   loss_breakdown: { tab: "where", panels: ["breakdown"] },
   after_error: { tab: "body", panels: ["after-error"] },
+  fatigue: { tab: "body", panels: ["fatigue-heart-rate"] },
   days_off: { tab: "progress", panels: ["days-off-entry"] },
   consistency: { tab: "progress", panels: ["consistency"] },
 };

@@ -197,6 +197,7 @@ pub fn history_view_where(
     // Sin la taxonomía, las frases llevan la clave del tipo de error en vez de su nombre.
     let taxonomy = Taxonomy::builtin().ok();
     let consistency = consistency_series(&races, filter);
+    let fatigue = fatigue(&fatigue_races, filter);
     let insights = history_insights(&HistoryAnalyses {
         history: &history,
         by_leg_length: &by_leg_length,
@@ -206,6 +207,7 @@ pub fn history_view_where(
         days_off: &days_off,
         loss_breakdown: &loss_breakdown,
         consistency: &consistency,
+        fatigue: &fatigue,
         taxonomy: taxonomy.as_ref(),
     });
     Ok(HistoryView {
@@ -223,7 +225,7 @@ pub fn history_view_where(
         loss_breakdown,
         after_error,
         common_errors,
-        fatigue: fatigue(&fatigue_races, filter),
+        fatigue,
     })
 }
 
@@ -509,6 +511,7 @@ mod tests {
                 days_off: &view.days_off,
                 loss_breakdown: &view.loss_breakdown,
                 consistency: &consistency,
+                fatigue: &view.fatigue,
                 taxonomy: Some(&taxonomy),
             });
             assert_eq!(view.insights, expected);

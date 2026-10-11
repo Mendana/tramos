@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
+import { ReleaseNotes } from "./help/markdown";
 
 /**
  * Actualizaciones de la app (ver `docs/distribucion.md`, "Actualizaciones"). La app busca versión
@@ -108,6 +109,23 @@ function InstallButton({ state }: { state: UpdateState }) {
   );
 }
 
+/**
+ * «Qué trae» la versión nueva: sus notas (la sección del `CHANGELOG.md`, que llega en `body`),
+ * desplegables. No sale nada si la versión no trae notas.
+ */
+function WhatsNew({ update }: { update: Update }) {
+  const notes = update.body?.trim() ?? "";
+  if (notes === "") return null;
+  return (
+    <details className="update-notes">
+      <summary>Qué trae</summary>
+      <div className="update-notes-body">
+        <ReleaseNotes source={notes} />
+      </div>
+    </details>
+  );
+}
+
 /** Aviso de arriba cuando hay versión nueva. */
 export function UpdateBanner() {
   const { state, dismissed } = useUpdateState();
@@ -138,6 +156,7 @@ export function UpdateBanner() {
           Más tarde
         </button>
       )}
+      <WhatsNew update={update} />
     </div>
   );
 }
@@ -172,6 +191,7 @@ export function UpdateStatus() {
           : `No se ha podido instalar: ${state.message}`;
     }
   })();
+  const update = state.kind === "available" || state.kind === "failed" ? state.update : null;
   return (
     <div className="field">
       <span className="field-label">Tienes la versión {version ?? "…"}.</span>
@@ -191,6 +211,7 @@ export function UpdateStatus() {
           {text}
         </span>
       )}
+      {update !== null && <WhatsNew update={update} />}
     </div>
   );
 }

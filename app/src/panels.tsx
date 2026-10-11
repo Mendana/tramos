@@ -77,6 +77,13 @@ export const PANEL_GROUPS: PanelGroup[] = [
     ],
   },
   {
+    label: "Atletas · Una carrera con varios",
+    panels: [
+      { id: "athletes-race-ideal", title: "Diferencia con el tiempo ideal" },
+      { id: "athletes-race-loss", title: "Pérdida por tramo comparada" },
+    ],
+  },
+  {
     label: "Carrera · Resumen",
     panels: [{ id: "race-loss", title: "Pérdida por tramo" }],
   },

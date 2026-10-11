@@ -1,6 +1,7 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import {
   AthleteNews,
+  RaceAthleteRow,
   RaceRow,
   ReceiveReport,
   Role,
@@ -17,6 +18,8 @@ import {
   viewRunner,
   viewedRunner,
 } from "./api";
+import AthleteRaceScreen from "./AthleteRaceScreen";
+import AthleteRacesScreen from "./AthleteRacesScreen";
 import AthletesScreen from "./AthletesScreen";
 import GroupScreen from "./GroupScreen";
 import GroupsScreen from "./GroupsScreen";
@@ -43,6 +46,7 @@ import {
   ChevronLeft,
   ControlFlag,
   EyeIcon,
+  FlagsIcon,
   GroupIcon,
   HelpIcon,
   HomeIcon,
@@ -115,6 +119,8 @@ export type Screen =
   | { kind: "race"; resultId: number; tab?: RaceTab }
   | { kind: "history" }
   | { kind: "athletes" }
+  | { kind: "athlete-races" }
+  | { kind: "athlete-race"; raceId: string; name?: string | null }
   | { kind: "group"; groupId?: number }
   | { kind: "groups" }
   | { kind: "compare-groups" }
@@ -204,6 +210,13 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
         return [{ label: "Estadísticas" }];
       case "athletes":
         return [{ label: "Mis atletas" }];
+      case "athlete-races":
+        return [{ label: "Carreras de atletas" }];
+      case "athlete-race":
+        return [
+          { label: "Carreras de atletas", to: { kind: "athlete-races" } },
+          { label: screen.name ?? "Carrera" },
+        ];
       case "group":
         return [{ label: "Comparar atletas" }];
       case "groups":
@@ -230,6 +243,8 @@ function crumbsFor(screen: Screen, races: RaceRow[] | null, runnerName: string |
   // Se ve a un atleta: su nombre va delante, salvo en lo que es de todos.
   const general =
     screen.kind === "athletes" ||
+    screen.kind === "athlete-races" ||
+    screen.kind === "athlete-race" ||
     screen.kind === "group" ||
     screen.kind === "groups" ||
     screen.kind === "compare-groups" ||
@@ -407,6 +422,8 @@ function App() {
       setRunner(null);
       setScreen((s) =>
         s.kind === "athletes" ||
+        s.kind === "athlete-races" ||
+        s.kind === "athlete-race" ||
         s.kind === "group" ||
         s.kind === "groups" ||
         s.kind === "compare-groups" ||
@@ -449,6 +466,18 @@ function App() {
   // Las carreras y las estadísticas son de quien se ve; la lista, la de esa misma base.
   const showRaces = () => navigate({ kind: "races" });
   const openRace = (resultId: number, tab?: RaceTab) => navigate({ kind: "race", resultId, tab });
+  // Una carrera con todos los atletas que la corrieron (#163).
+  const openTogether = (raceId: string, name?: string | null) =>
+    navigate({ kind: "athlete-race", raceId, name });
+  /** La carrera de un atleta (o la propia) desde la vista con todos: si es de la base que ya se
+   *  ve, se abre sin más (y «volver» regresa); si no, se pasa a verle. */
+  const openAthleteRace = (athlete: RaceAthleteRow) => {
+    if (athlete.result_id === null) return;
+    const next: Screen = { kind: "race", resultId: athlete.result_id };
+    const target = athlete.is_self ? null : athlete.runner.runner_id;
+    if (target === (runner?.runner.runner_id ?? null)) navigate(next);
+    else selectRunner(target, next);
+  };
   // Recorrido guiado tras la bienvenida (#141) y F1 para la ayuda de lo que se ve.
   const onTourError = useCallback((err: unknown) => setError(String(err)), []);
   const tour = useTour(chosen === true, onTourError);
@@ -472,7 +501,7 @@ function App() {
     runnerName: runner?.runner.display_name ?? null,
   };
   const at = (...kinds: Screen["kind"][]) => kinds.includes(screen.kind);
-  const goTo = (kind: Exclude<Screen["kind"], "race" | "help" | "group-stats">) =>
+  const goTo = (kind: Exclude<Screen["kind"], "race" | "help" | "group-stats" | "athlete-race">) =>
     navigate({ kind });
   const openHelp = (page: HelpPageId) => navigate({ kind: "help", page });
   // Lo que se ve de un atleta (y lleva la franja de solo lectura).
@@ -529,6 +558,12 @@ function App() {
                     count={newRaces}
                     countLabel={`${newRaces} ${newRaces === 1 ? "carrera nueva" : "carreras nuevas"}`}
                     onClick={() => goTo("athletes")}
+                  />
+                  <NavItem
+                    icon={<FlagsIcon />}
+                    label="Carreras de atletas"
+                    current={at("athlete-races", "athlete-race")}
+                    onClick={() => goTo("athlete-races")}
                   />
                   {viewing && runner !== null && (
                     <>
@@ -658,6 +693,7 @@ function App() {
                   // Cambiar de pestaña no es otra pantalla: no entra en «volver».
                   onTab={(tab) => setScreen({ ...screen, tab })}
                   onChanged={refresh}
+                  onTogether={coach ? openTogether : undefined}
                 />
               )}
               {screen.kind === "history" && (
@@ -672,6 +708,12 @@ function App() {
                 <AthletesScreen
                   onOpenRunner={(runnerId) => selectRunner(runnerId, { kind: "races" })}
                 />
+              )}
+              {screen.kind === "athlete-races" && coach && (
+                <AthleteRacesScreen onOpen={openTogether} />
+              )}
+              {screen.kind === "athlete-race" && coach && (
+                <AthleteRaceScreen raceId={screen.raceId} onOpenRace={openAthleteRace} />
               )}
               {screen.kind === "group" && coach && (
                 <GroupScreen

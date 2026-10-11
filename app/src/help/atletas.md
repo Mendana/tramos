@@ -11,6 +11,9 @@ lectura**. Si además corres, usas las dos cosas a la vez, sin cambiar de modo.
   nuevas ([Mis atletas](mis-atletas.md)); a su lado, cuántas carreras nuevas hay entre todos. Un
   clic en una tarjeta entra en el atleta: debajo salen su nombre, sus **Carreras** y sus
   **Estadísticas**, exactamente como las ve él.
+- **Carreras de atletas**: una fila por carrera que te ha llegado; las que corrieron varios atletas, juntos
+  en la misma vista, con sus tiempos, sus gráficas por tramo y sus tracks en un mapa
+  ([Carreras de tus atletas](carreras-atletas.md)).
 - **Comparar atletas**: todos juntos, o los de un grupo ([Comparar atletas](grupo.md)).
 - **Grupos**: para organizarlos y ver las estadísticas de cada grupo ([Grupos](grupos.md)).
 
@@ -33,7 +36,8 @@ carreras, Estadísticas e Importar del bloque «Lo mío».
 Por una **carpeta madre** en Drive, OneDrive, Dropbox… con **una subcarpeta por atleta**. La
 eliges en Ajustes. La app mira esa carpeta y todas las que tiene dentro (hasta tres niveles, sin
 las ocultas ni los enlaces) al abrirse y cada minuto, y recoge los paquetes nuevos. No vuelve a
-recoger tus propias carreras, si compartes, estén en la subcarpeta que estén. Al pie de la barra
+recoger tus propias carreras, si compartes, estén en la subcarpeta que estén; si también corres,
+puedes dejar las tuyas en tu propia subcarpeta de la carpeta madre, como un atleta más. Al pie de la barra
 lateral dice cuántos paquetes y de cuántos atletas ha recibido, y si alguno no se ha podido leer.
 
 Si el mismo paquete (la misma carrera del mismo atleta) está en dos sitios, te quedas con el más

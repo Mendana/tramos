@@ -11,6 +11,7 @@ use tramos_core::model::Event;
 use tramos_core::package::{
     PackageInput, PackageRunner, RacePackage, ShareChoice, ShareLevel, build, race_id,
 };
+use tramos_core::race_format::RaceFormat;
 use tramos_store::{SaveOutcome, Store};
 
 fn fixture() -> Event {
@@ -218,4 +219,46 @@ fn received_runners_take_the_name_of_their_latest_package() {
     assert_eq!(runners, ["a1", "b2"]);
     assert!(of_race.iter().all(|p| p.race_id == other.race.race_id));
     assert!(store.received_packages_of_race("zz").unwrap().is_empty());
+}
+
+#[test]
+fn received_races_read_the_race_of_each_package_without_parsing_it() {
+    let event = fixture();
+    let mut store = Store::open_in_memory().unwrap();
+    let mut first = package(&event, "a1", ShareLevel::Legs, 0);
+    first.race.format = Some(RaceFormat::Middle);
+    let other = package(&event, "b2", ShareLevel::Aggregates, 5);
+    let mut elsewhere = package(&event, "b2", ShareLevel::Legs, 10);
+    elsewhere.race.race_id = "otra-carrera".into();
+    elsewhere.race.name = None;
+    for p in [&first, &other, &elsewhere] {
+        store.save_received_package(p).unwrap();
+    }
+
+    let races = store.received_races().unwrap();
+    let rows: Vec<_> = races
+        .iter()
+        .map(|r| (r.race_id.as_str(), r.runner_id.as_str(), r.level))
+        .collect();
+    let id = race_id(&event);
+    // Por carrera y corredor.
+    let mut expected = vec![
+        (id.as_str(), "a1", ShareLevel::Legs),
+        (id.as_str(), "b2", ShareLevel::Aggregates),
+        ("otra-carrera", "b2", ShareLevel::Legs),
+    ];
+    expected.sort();
+    assert_eq!(rows, expected);
+    let a1 = races.iter().find(|r| r.runner_id == "a1").unwrap();
+    assert_eq!(a1.date, event.date);
+    assert_eq!(a1.name, event.name);
+    assert_eq!(a1.format, Some(RaceFormat::Middle));
+    let b2 = races.iter().find(|r| r.race_id == "otra-carrera").unwrap();
+    assert_eq!((b2.name.as_deref(), b2.format), (None, None));
+
+    let of_race = store.received_packages_of_race(&id).unwrap();
+    let runners: Vec<&str> = of_race.iter().map(|p| p.runner_id.as_str()).collect();
+    assert_eq!(runners, ["a1", "b2"]);
+    assert!(of_race.iter().all(|p| p.race_id == id));
+    assert!(store.received_packages_of_race("nada").unwrap().is_empty());
 }

@@ -14,7 +14,7 @@ use crate::identify::ResultRef;
 use crate::lost_time::LostTimeConfig;
 use crate::model::{Event, RaceStatus, Track};
 use crate::race_format::RaceFormat;
-use crate::runner_report::runner_report;
+use crate::runner_report::{RunnerReport, runner_report};
 use crate::taxonomy::LegTag;
 
 /// Valor de `format` en todos los paquetes.
@@ -108,6 +108,27 @@ pub struct RaceSummary {
     pub time_without_errors_s: Option<f64>,
     pub usual_performance: Option<f64>,
     pub consistency: Option<f64>,
+}
+
+impl RaceSummary {
+    /// El resumen del resultado `at` de `event` a partir de su informe. `None` si `at` no está
+    /// en `event`.
+    pub fn of(event: &Event, at: ResultRef, report: &RunnerReport) -> Option<Self> {
+        let class = event.classes.get(at.class_index)?;
+        let result = at.get(event)?;
+        let lost = &report.lost_time;
+        Some(Self {
+            class_name: class.name.clone(),
+            status: result.status,
+            place: result.place,
+            total_s: lost.total_s,
+            lost_time_s: lost.lost_time_s,
+            error_count: lost.error_count,
+            time_without_errors_s: lost.time_without_errors_s,
+            usual_performance: lost.usual_performance,
+            consistency: lost.consistency,
+        })
+    }
 }
 
 /// Originales del recorrido, reducidos ([`shared_course`]).
@@ -275,13 +296,8 @@ pub struct PackageInput<'a> {
 pub fn build(input: PackageInput<'_>) -> Result<RacePackage, PackageError> {
     let report =
         runner_report(input.event, input.at, &input.config).ok_or(PackageError::NotAnalyzed)?;
-    let (Some(class), Some(result)) = (
-        input.event.classes.get(input.at.class_index),
-        input.at.get(input.event),
-    ) else {
-        return Err(PackageError::NotAnalyzed);
-    };
-    let lost = &report.lost_time;
+    let summary =
+        RaceSummary::of(input.event, input.at, &report).ok_or(PackageError::NotAnalyzed)?;
     let with_legs = input.level >= ShareLevel::Legs;
     let track = if input.level == ShareLevel::Track {
         Some(input.track.ok_or(PackageError::MissingTrack)?)
@@ -302,17 +318,7 @@ pub fn build(input: PackageInput<'_>) -> Result<RacePackage, PackageError> {
             format: input.format,
         },
         config: input.config,
-        summary: RaceSummary {
-            class_name: class.name.clone(),
-            status: result.status,
-            place: result.place,
-            total_s: lost.total_s,
-            lost_time_s: lost.lost_time_s,
-            error_count: lost.error_count,
-            time_without_errors_s: lost.time_without_errors_s,
-            usual_performance: lost.usual_performance,
-            consistency: lost.consistency,
-        },
+        summary,
         course: if with_legs {
             Some(shared_course(input.event, input.at).ok_or(PackageError::NotAnalyzed)?)
         } else {

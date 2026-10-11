@@ -14,9 +14,13 @@ Quién eres y qué compartes. Se guarda en tu equipo con **Guardar**.
 - **Compartir mis carreras**: con la casilla marcada, tus carreras se dejan en la carpeta
   compartida. Si la quitas, las que ya están se quedan.
 - **Carpeta compartida**: tu subcarpeta de la carpeta madre de quien te entrena (Drive, OneDrive,
-  Dropbox…), la que ha compartido solo contigo. Sin carpeta no se comparte nada. Si tú también
-  entrenas, es la misma carpeta de la que te llegan las carreras de tus atletas: elige la carpeta
-  madre y tus paquetes quedan en su raíz.
+  Dropbox…), la que ha compartido solo contigo. Sin carpeta no se comparte nada.
+- **Carpeta madre y tu subcarpeta**: si tú también entrenas, salen dos campos. La **carpeta madre**
+  es de la que te llegan las carreras de tus atletas, y **tu subcarpeta** es donde dejas las tuyas,
+  como un atleta más. Al marcar las dos casillas la app propone una subcarpeta con tu nombre dentro
+  de la carpeta madre y la crea sola al guardar; puedes elegir otra con «Elegir…» o volver a la
+  propuesta con «Proponer». Si ya tenías carreras tuyas en la carpeta madre, al guardar se mueven a
+  tu subcarpeta.
 - **Qué se comparte por defecto** de cada carrera: nada, el resumen, los tramos (lo normal) o el
   track completo. En cada carrera lo puedes cambiar.
 

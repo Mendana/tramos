@@ -2,11 +2,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ReactNode, useEffect, useState } from "react";
 import {
   SHARE_HINTS,
+  MoveReport,
   SHARE_LABELS,
   ShareChoice,
   Theme,
   getSettings,
   getTheme,
+  proposeOwnFolder,
   receivePackages,
   saveSettings,
   setTheme,
@@ -38,6 +40,8 @@ interface Form {
   shareOwn: boolean;
   coach: boolean;
   folder: string;
+  /** Tu subcarpeta (solo si entrenas y compartes lo tuyo); vacía = se exporta en `folder`. */
+  exportFolder: string;
   defaultChoice: ShareChoice;
   paceZones: ZoneDraft | null;
   heartRateZones: ZoneDraft | null;
@@ -91,6 +95,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           shareOwn: s.sharing.share_own,
           coach: s.sharing.coach,
           folder: s.sharing.folder ?? "",
+          exportFolder: s.sharing.export_folder ?? "",
           defaultChoice: s.sharing.default_choice,
           paceZones: toDraft("pace", s.map.pace_zones),
           heartRateZones: toDraft("heart_rate", s.map.heart_rate_zones),
@@ -106,9 +111,33 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
   }
 
   function toggle(field: "shareOwn" | "coach", value: boolean) {
-    setForm((current) => (current === null ? current : { ...current, [field]: value }));
+    if (form === null) return;
+    let next: Form = { ...form, [field]: value };
+    // Si dejas de entrenar, tu subcarpeta pasa a ser la carpeta única.
+    if (!next.coach && next.exportFolder.trim() !== "") {
+      next = { ...next, folder: next.exportFolder, exportFolder: "" };
+    }
+    setForm(next);
     setSaved(false);
     setFolderResult(null);
+    if (next.coach && next.shareOwn) void propose(next, false);
+  }
+
+  /** Propone `<carpeta madre>/<tu nombre>` como tu subcarpeta. Sin `force`, solo si está vacía. */
+  async function propose(current: Form, force: boolean) {
+    const mother = current.folder.trim();
+    if (mother === "" || (!force && current.exportFolder.trim() !== "")) return;
+    try {
+      const proposed = await proposeOwnFolder(mother, current.fullName);
+      setForm((now) =>
+        now === null || (!force && now.exportFolder.trim() !== "")
+          ? now
+          : { ...now, exportFolder: proposed },
+      );
+      setSaved(false);
+    } catch (err) {
+      setError(String(err));
+    }
   }
 
   function updateZones(field: "paceZones" | "heartRateZones", draft: ZoneDraft | null) {
@@ -118,14 +147,30 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
 
   async function chooseFolder() {
     const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") update("folder", selected);
+    if (typeof selected !== "string" || form === null) return;
+    update("folder", selected);
+    if (form.coach && form.shareOwn) void propose({ ...form, folder: selected }, false);
+  }
+
+  async function chooseExportFolder() {
+    const selected = await open({ directory: true, multiple: false });
+    if (typeof selected === "string") update("exportFolder", selected);
   }
 
   /** Tras guardar con carpeta: exporta las carreras propias si las comparte y busca las de sus
    * atletas si entrena. */
-  async function syncFolder(shareOwn: boolean, coach: boolean): Promise<FolderResult | null> {
+  async function syncFolder(
+    shareOwn: boolean,
+    coach: boolean,
+    moved: MoveReport,
+  ): Promise<FolderResult | null> {
     const messages: string[] = [];
-    const problems: string[] = [];
+    const problems: string[] = [...moved.problems];
+    if (moved.moved + moved.already_there > 0) {
+      messages.push(
+        `${plural(moved.moved + moved.already_there, "carrera tuya movida", "carreras tuyas movidas")} a tu subcarpeta`,
+      );
+    }
     if (shareOwn) {
       const r = await shareAll();
       const parts = [`${plural(r.written, "carrera exportada", "carreras exportadas")}`];
@@ -162,6 +207,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       return;
     }
     const folder = form.folder.trim();
+    const exportFolder = form.coach ? form.exportFolder.trim() : "";
     const zones = (metric: ZoneMetric, draft: ZoneDraft | null) =>
       draft === null ? null : fromDraft(metric, draft);
     const paceZones = zones("pace", form.paceZones);
@@ -175,7 +221,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       return;
     }
     try {
-      await saveSettings({
+      const moved = await saveSettings({
         error_threshold_s: thresholdS,
         error_threshold_pct: thresholdPct,
         time_zone: form.timeZone.trim(),
@@ -187,13 +233,16 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
           share_own: form.shareOwn,
           coach: form.coach,
           folder: folder === "" ? null : folder,
+          export_folder: exportFolder === "" ? null : exportFolder,
           default_choice: form.defaultChoice,
         },
         map: { pace_zones: paceZones, heart_rate_zones: heartRateZones },
       });
       setSaved(true);
       onSaved();
-      if (folder !== "") setFolderResult(await syncFolder(form.shareOwn, form.coach));
+      if (folder !== "" || exportFolder !== "") {
+        setFolderResult(await syncFolder(form.shareOwn, form.coach, moved));
+      }
     } catch (err) {
       setError(String(err));
     }
@@ -277,28 +326,72 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     ),
   };
 
-  const folderField = (view: "profile" | "settings") => (
-    <div className="field">
-      <span className="field-label">Carpeta compartida</span>
-      <div className="row">
-        <input
-          className="input"
-          aria-label="Carpeta compartida"
-          placeholder="Sin carpeta: no se comparte nada"
-          value={form?.folder ?? ""}
-          onChange={(e) => update("folder", e.target.value)}
-        />
-        <button type="button" className="btn" onClick={() => void chooseFolder()}>
-          Elegir…
-        </button>
+  /** Las carpetas compartidas: una sola o, si entrenas y compartes lo tuyo, la carpeta madre (de la
+   * que lees) y tu subcarpeta (donde dejas tus carreras). */
+  const folderField = (view: "profile" | "settings") => {
+    const both = form?.coach === true && form.shareOwn;
+    const mother = (
+      <div className="field">
+        <span className="field-label">{both ? "Carpeta madre" : "Carpeta compartida"}</span>
+        <div className="row">
+          <input
+            className="input"
+            aria-label={both ? "Carpeta madre" : "Carpeta compartida"}
+            placeholder="Sin carpeta: no se comparte nada"
+            value={form?.folder ?? ""}
+            onChange={(e) => update("folder", e.target.value)}
+            onBlur={() => {
+              if (both && form !== null) void propose(form, false);
+            }}
+          />
+          <button type="button" className="btn" onClick={() => void chooseFolder()}>
+            Elegir…
+          </button>
+        </div>
+        <span className="field-hint">
+          {both
+            ? "La carpeta madre, con una subcarpeta por atleta (Drive, OneDrive, Dropbox…). De aquí se leen los paquetes de tus atletas, de la carpeta y de sus subcarpetas, hasta tres niveles."
+            : view === "profile"
+              ? "Tu carpeta: la subcarpeta que quien te entrena ha compartido contigo (Drive, OneDrive, Dropbox…). Ahí se dejan tus carreras. No hace falta servidor."
+              : "La carpeta madre, con una subcarpeta por atleta (Drive, OneDrive, Dropbox…). Se leen los paquetes de la carpeta y de sus subcarpetas, hasta tres niveles. No hace falta servidor."}
+        </span>
       </div>
-      <span className="field-hint">
-        {view === "profile"
-          ? "Tu carpeta: la subcarpeta que quien te entrena ha compartido contigo (Drive, OneDrive, Dropbox…). Ahí se dejan tus carreras. No hace falta servidor."
-          : "La carpeta madre, con una subcarpeta por atleta (Drive, OneDrive, Dropbox…). Se leen los paquetes de la carpeta y de sus subcarpetas, hasta tres niveles. No hace falta servidor."}
-      </span>
-    </div>
-  );
+    );
+    if (!both) return mother;
+    return (
+      <>
+        {mother}
+        <div className="field">
+          <span className="field-label">Tu subcarpeta</span>
+          <div className="row">
+            <input
+              className="input"
+              aria-label="Tu subcarpeta"
+              placeholder="Vacía: tus carreras se quedan en la carpeta madre"
+              value={form?.exportFolder ?? ""}
+              onChange={(e) => update("exportFolder", e.target.value)}
+            />
+            <button type="button" className="btn" onClick={() => void chooseExportFolder()}>
+              Elegir…
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={form === null || form.folder.trim() === ""}
+              onClick={() => form !== null && void propose(form, true)}
+            >
+              Proponer
+            </button>
+          </div>
+          <span className="field-hint">
+            Donde dejas tus carreras, como un atleta más. Se propone una subcarpeta con tu nombre
+            dentro de la carpeta madre y se crea sola al guardar. Si ya tenías carreras tuyas en la
+            carpeta madre, se mueven aquí.
+          </span>
+        </div>
+      </>
+    );
+  };
 
   const sections = (form: Form): Section[] => {
     if (page === "profile") {

@@ -127,6 +127,33 @@ corredor, así que sus números coinciden con los de `runner_report`.
   marca a nadie: mejor no marcar que marcar al equivocado. Quien se está viendo no se marca a sí
   mismo, ni quien entrena a sí misma.
 
+## Una carrera con varios atletas
+
+`tramos_core::same_race::same_race(&[SameRaceInput])` junta a los atletas de quien entrena que
+corrieron la misma carrera (el mismo `race_id`, `docs/paquete.md`; #163). Cada atleta llega con
+**su** copia de la carrera (la reducida de su paquete o la propia de quien entrena), su resultado,
+**sus** umbrales y **sus** etiquetas, y se analiza como en su vista de carrera:
+
+- Su resumen (`RaceSummary::of`, el mismo que lleva su paquete) sale de `runner_report`, y su
+  puesto en el recorrido, de `course_comparison`: sus números son los que ve él. Cada uno se mide
+  contra su propio rendimiento habitual (la pérdida no depende de los umbrales; el error, sí).
+- **Recorridos.** Se juntan los atletas con la misma secuencia de balizas (como la agrupación por
+  recorrido, aunque sean de categorías distintas). Orden: el recorrido con más atletas primero; a
+  igualdad, el de su primer atleta en la entrada. Dentro, por puesto en el recorrido, y los que
+  no tienen puesto detrás, en el orden de la entrada.
+- Cada recorrido lleva sus tramos, sus categorías, el tiempo ideal y si la referencia es débil,
+  de la copia de su primer atleta en la entrada: con los mismos originales, son los mismos para
+  todos. Cada atleta, sus series de P4 de su propia copia: `behind_ideal_s`, `loss_s` e
+  `is_error`.
+- **Error** de un tramo: el de `leg_status` (`docs/historico.md`, "Errores más comunes (P9)"):
+  manda la etiqueta del atleta (Sí, o con tipo, es error; No y Físico, no) y, sin ella, el cálculo
+  (error «sin revisar»). Así lo que el atleta descartó no cuenta como error.
+- **Tramos que fallaron varios** (`shared_errors`): los tramos del recorrido con error en dos
+  atletas o más, en orden de tramo, y de cada uno de esos atletas su pérdida calculada, si lo ha
+  revisado y su etiqueta.
+- Un resultado que no está en su copia o no se puede analizar sale como `None` y no entra en
+  ningún recorrido.
+
 ## Dónde gano y dónde pierdo (P5)
 
 Sale de la pérdida (`tramos_core::gain_loss`, P5 de `docs/preguntas.md`):

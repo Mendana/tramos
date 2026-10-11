@@ -277,3 +277,10 @@
 .table tr.is-selected td:first-child {
   box-shadow: inset 4px 0 0 var(--accent);
 }
+
+/* Leyenda del mapa con varios atletas (#163): una raya de su color por atleta. */
+.course-map-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

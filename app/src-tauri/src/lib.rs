@@ -1,6 +1,7 @@
 //! App de escritorio de Tramos. Expone el núcleo a la interfaz mediante comandos Tauri;
 //! no reimplementa cálculos.
 
+pub mod athlete_races;
 pub mod backup;
 pub mod batch;
 pub mod clock_offset;
@@ -29,6 +30,7 @@ use tramos_core::race_format::RaceFormat;
 use tramos_core::taxonomy::{LegTag, Taxonomy};
 use tramos_store::{AthleteGroupId, SaveOutcome, Store};
 
+use crate::athlete_races::{AthleteRaceRow, AthleteRaceView, RaceTogether};
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
 use crate::coach::{
@@ -41,7 +43,7 @@ use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
 use crate::races::{RaceDetail, RaceRow};
 use crate::settings::{Role, Settings};
-use crate::sharing::{RaceSharing, ReceiveReport, SeenFiles, ShareReport};
+use crate::sharing::{MoveReport, RaceSharing, ReceiveReport, SeenFiles, ShareReport};
 use crate::tags::TagView;
 
 /// Nombre de la base de datos del usuario, en el directorio de datos de la app.
@@ -123,14 +125,31 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Result<Settings, String> {
     settings::load(&*state.store()?).map_err(|e| e.to_string())
 }
 
-/// Valida y guarda los ajustes; si alguno no vale, no se guarda ninguno.
+/// Valida y guarda los ajustes; si alguno no vale, no se guarda ninguno. Si quien entrena y
+/// comparte lo suyo cambia de subcarpeta propia, mueve a ella los paquetes propios de la carpeta
+/// anterior (#167) y dice qué ha movido.
 #[tauri::command]
-fn save_settings(state: tauri::State<'_, AppState>, settings: Settings) -> Result<(), String> {
-    settings::save(&mut *state.store()?, &settings).map_err(|e| e.to_string())?;
+fn save_settings(
+    state: tauri::State<'_, AppState>,
+    settings: Settings,
+) -> Result<MoveReport, String> {
+    let mut store = state.store()?;
+    let before = settings::load(&store).map_err(|e| e.to_string())?.sharing;
+    settings::save(&mut store, &settings).map_err(|e| e.to_string())?;
+    let saved = settings::load(&store).map_err(|e| e.to_string())?.sharing;
+    let report =
+        sharing::move_own_packages(&mut store, &before, &saved).map_err(|e| e.to_string())?;
+    drop(store);
     if !settings.sharing.coach {
         *state.viewed()? = None;
     }
-    Ok(())
+    Ok(report)
+}
+
+/// La subcarpeta propia que se propone dentro de la carpeta madre (`<madre>/<nombre>`).
+#[tauri::command]
+fn propose_own_folder(mother: String, full_name: String) -> String {
+    sharing::propose_own_folder(&mother, &full_name)
 }
 
 /// Qué falla en unas zonas del mapa (lo que impide guardarlas) y los avisos sobre sus colores,
@@ -308,6 +327,34 @@ fn athlete_group_stats(
 ) -> Result<GroupStatsView, String> {
     coach::athlete_group_stats(&mut *state.coach_store()?, &filter, AthleteGroupId(id))
         .map_err(|e| e.to_string())
+}
+
+/// Si entrena, las carreras de las que hay paquetes (#163), con los atletas que corrieron cada
+/// una.
+#[tauri::command]
+fn athlete_races(state: tauri::State<'_, AppState>) -> Result<Vec<AthleteRaceRow>, String> {
+    athlete_races::athlete_races(&mut *state.coach_store()?).map_err(|e| e.to_string())
+}
+
+/// Si entrena, una carrera (`race_id`) con todos los atletas que la corrieron, juntos.
+#[tauri::command]
+fn athlete_race(
+    state: tauri::State<'_, AppState>,
+    race_id: String,
+) -> Result<AthleteRaceView, String> {
+    athlete_races::athlete_race(&mut *state.coach_store()?, &race_id).map_err(|e| e.to_string())
+}
+
+/// La carrera del resultado `result_id` de la base que se ve, para «Ver con los demás atletas»:
+/// su `race_id` y cuántos atletas más la corrieron. `null` si no entrena.
+#[tauri::command]
+fn race_together(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<Option<RaceTogether>, String> {
+    let mut store = state.store()?;
+    let viewed = state.viewed()?;
+    athlete_races::race_together(&mut store, viewed.as_ref(), result_id).map_err(|e| e.to_string())
 }
 
 /// Mete (`member = true`) o saca a un atleta de un grupo.
@@ -608,6 +655,7 @@ pub fn run() -> tauri::Result<()> {
             core_version,
             get_settings,
             save_settings,
+            propose_own_folder,
             check_zones,
             hidden_panels,
             set_hidden_panels,
@@ -634,6 +682,9 @@ pub fn run() -> tauri::Result<()> {
             set_athlete_group_member,
             compare_athlete_groups,
             athlete_group_stats,
+            athlete_races,
+            athlete_race,
+            race_together,
             preview_import,
             import_race,
             import_folder,

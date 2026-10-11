@@ -1,6 +1,7 @@
 // Tipos y llamadas a los comandos de `src-tauri/src/lib.rs`. Los campos van en snake_case, como
 // los serializa Rust; solo los nombres de los argumentos de primer nivel pasan a camelCase.
 import { invoke } from "@tauri-apps/api/core";
+import type { CourseMap } from "./mapApi";
 
 export type RaceFormat = "sprint" | "middle" | "long";
 export type RaceStatus = "ok" | "not_classified" | "did_not_start" | { unknown: number };
@@ -539,8 +540,10 @@ export interface SharingSettings {
   share_own: boolean;
   /** Entrena a otros atletas: recibe sus paquetes y activa la sección Atletas. */
   coach: boolean;
-  /** Carpeta compartida; `null` = sin compartir. */
+  /** Carpeta compartida; `null` = sin compartir. Si entrenas, es la carpeta madre de la que lees. */
   folder: string | null;
+  /** Solo si entrenas y compartes lo tuyo: tu subcarpeta, donde exportas. `null` = en `folder`. */
+  export_folder: string | null;
   default_choice: ShareChoice;
 }
 
@@ -889,6 +892,94 @@ export interface GroupStatsView extends GroupFields {
 export const athleteGroupStats = (filter: HistoryFilter, id: number) =>
   invoke<GroupStatsView>("athlete_group_stats", { filter, id });
 
+/** Un atleta que corrió una carrera (#163). */
+export interface RaceRunner {
+  runner: CoachRunner;
+  /** Quien usa la app, con su carrera propia. */
+  is_self: boolean;
+  /** Lo que compartió de ella; `null` en la propia. */
+  level: ShareLevel | null;
+}
+
+/** Una carrera recibida en la lista de Carreras de los atletas. */
+export interface AthleteRaceRow {
+  race_id: string;
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  /** Quien usa la app primero, si la corrió. */
+  athletes: RaceRunner[];
+}
+
+export const athleteRaces = () => invoke<AthleteRaceRow[]>("athlete_races");
+
+/** Un atleta en la vista de una carrera. */
+export interface RaceAthleteRow extends RaceRunner {
+  /** Recalculado si compartió los tramos; el de su paquete si solo el resumen. */
+  summary: RaceSummary | null;
+  /** Su recorrido en `courses`; `null` sin tramos. */
+  course: number | null;
+  course_place: number | null;
+  /** Su resultado en su base, para abrir su carrera; `null` sin tramos. */
+  result_id: number | null;
+  /** Tiene track y sale en el mapa. */
+  on_map: boolean;
+  /** Por qué no se ha podido leer o analizar, o por qué su track no sale en el mapa. */
+  problem: string | null;
+}
+
+/** Las series por tramo de un atleta (`runner`: su posición en `athletes`). */
+export interface CourseRunner {
+  runner: number;
+  behind_ideal_s: (number | null)[];
+  loss_s: (number | null)[];
+  /** Según su etiqueta o, sin ella, el cálculo. */
+  is_error: boolean[];
+}
+
+/** Un tramo que fallaron dos atletas o más. */
+export interface SharedLegError {
+  leg: number;
+  from: number;
+  to: number;
+  errors: { runner: number; loss_s: number | null; reviewed: boolean; tag: LegTag | null }[];
+}
+
+/** Un recorrido de la carrera con sus atletas, sus series y su mapa. */
+export interface RaceCourseView {
+  controls: number[];
+  class_names: string[];
+  legs: { index: number; from: number; to: number }[];
+  ideal_time_s: number | null;
+  weak_reference: boolean;
+  /** Por puesto en el recorrido. */
+  runners: CourseRunner[];
+  shared_errors: SharedLegError[];
+  map: CourseMap | null;
+}
+
+/** Una carrera con todos los atletas que la corrieron (#163). */
+export interface AthleteRaceView {
+  race_id: string;
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  athletes: RaceAthleteRow[];
+  /** Del que tiene más atletas al que menos. */
+  courses: RaceCourseView[];
+}
+
+export const athleteRace = (raceId: string) => invoke<AthleteRaceView>("athlete_race", { raceId });
+
+/** Para «Ver con los demás atletas»: la carrera y cuántos atletas más la corrieron. */
+export interface RaceTogether {
+  race_id: string;
+  others: number;
+}
+
+export const raceTogether = (resultId: number) =>
+  invoke<RaceTogether | null>("race_together", { resultId });
+
 /** Mete (`member = true`) o saca a un atleta de un grupo. */
 export const setAthleteGroupMember = (id: number, runnerId: string, member: boolean) =>
   invoke<void>("set_athlete_group_member", { id, runnerId, member });
@@ -901,7 +992,19 @@ export const viewedRunner = () => invoke<RunnerViewInfo | null>("viewed_runner")
 
 export const getSettings = () => invoke<Settings>("get_settings");
 
-export const saveSettings = (settings: Settings) => invoke<void>("save_settings", { settings });
+/** Paquetes propios movidos al guardar con una subcarpeta propia nueva. */
+export interface MoveReport {
+  moved: number;
+  already_there: number;
+  problems: string[];
+}
+
+export const saveSettings = (settings: Settings) =>
+  invoke<MoveReport>("save_settings", { settings });
+
+/** La subcarpeta propia que se propone dentro de la carpeta madre: `<madre>/<tu nombre>`. */
+export const proposeOwnFolder = (mother: string, fullName: string) =>
+  invoke<string>("propose_own_folder", { mother, fullName });
 
 /** Por qué no se pueden guardar unas zonas o, si se puede, los avisos sobre sus colores. */
 export const checkZones = (zones: Zones) => invoke<string[]>("check_zones", { zones });

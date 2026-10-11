@@ -19,6 +19,9 @@ carreras. Un clic en la tarjeta entra en el atleta y abre sus carreras, en solo 
 Las cifras son las mismas que su fila en [Comparar atletas](grupo.md) sin filtros: salen de sus
 carreras, recalculadas en tu app con sus umbrales.
 
+Para ver a varios atletas en la misma carrera, ve a
+[Carreras de tus atletas](carreras-atletas.md).
+
 **Personalizar**, arriba a la derecha, elige qué lleva cada tarjeta: quita lo que no mires. Se
 guarda en tus ajustes, como los paneles de [Estadísticas](estadisticas.md).
 

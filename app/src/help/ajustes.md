@@ -43,7 +43,9 @@ lleva cada tarjeta de [Mis atletas](mis-atletas.md).
 **Entreno a otros atletas** añade a la barra lateral el bloque [Atletas](atletas.md), para ver
 las carreras que te comparten tus atletas. Tus carreras siguen igual. Con la casilla marcada, aquí
 eliges también la carpeta compartida de la que llegan: la carpeta madre, con una subcarpeta por
-atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)).
+atleta; la app lee también las subcarpetas (la misma carpeta que en [Mi perfil](perfil.md)). Si
+además compartes tus carreras, aquí y en Mi perfil sale también **Tu subcarpeta**, donde dejas las
+tuyas (se propone una con tu nombre dentro de la carpeta madre y se crea sola al guardar).
 Ver [Compartir](compartir.md).
 
 ## Copia de seguridad
@@ -73,9 +75,11 @@ fichero a `tramos.sqlite`. Solo se guarda la última: si restauras otra vez, la 
 La versión de Tramos que tienes, quién la hace y cómo avisar de un fallo. La app mira al arrancar
 si hay una nueva y, si la hay, te avisa arriba, en cualquier pantalla: **Instalar y reiniciar** la
 descarga y la instala, y la app se vuelve a abrir sola; **Más tarde** la deja para el próximo
-arranque. Nunca se instala sin que lo pidas. Tus carreras y ajustes se quedan como están. Con
-**Buscar actualizaciones** lo miras cuando quieras. Para buscarla hace falta conexión: la app
-pregunta a GitHub, donde se publica Tramos, y no le manda nada tuyo.
+arranque. Con **Qué trae** lees, antes de decidir, qué cambia en la versión nueva; también sale
+aquí en Ajustes, junto al botón de instalar. Nunca se instala sin que lo pidas. Tus carreras y
+ajustes se quedan como están. Con **Buscar actualizaciones** lo miras cuando quieras. Para
+buscarla hace falta conexión: la app pregunta a GitHub, donde se publica Tramos, y no le manda
+nada tuyo.
 
 Debajo salen el autor (Mendaña), la licencia (MIT, código abierto) con el enlace al repositorio,
 y los créditos: las teselas del mapa son de OpenStreetMap, el formato de los splits es el de

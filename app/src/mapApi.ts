@@ -65,3 +65,17 @@ export type RaceMap =
   | ({ status: "ready" } & MapTrack);
 
 export const raceMap = (resultId: number) => invoke<RaceMap>("race_map", { resultId });
+
+/** El track de un atleta en el mapa de una carrera con varios (#163). */
+export interface RunnerTrack {
+  /** Su posición en `AthleteRaceView.athletes`. */
+  athlete: number;
+  legs: MapLeg[];
+}
+
+/** Los tracks de los atletas de un recorrido, con las balizas una vez (en la media). */
+export interface CourseMap {
+  bounds: Bounds | null;
+  controls: MapControl[];
+  tracks: RunnerTrack[];
+}

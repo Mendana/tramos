@@ -1,7 +1,8 @@
 name: Release
 
 # Al subir un tag `vX.Y.Z` compila la app en Windows y deja el instalador en una release en
-# borrador, para revisarla y publicarla a mano (docs/distribucion.md).
+# borrador, para revisarla y publicarla a mano (docs/distribucion.md). Las notas de la versión
+# salen de la sección `## X.Y.Z` del CHANGELOG.md; sin ella, el workflow falla.
 on:
   push:
     tags: ["v*"]
@@ -38,6 +39,22 @@ jobs:
             exit 1
           fi
 
+      # Las notas de la versión: la sección del CHANGELOG.md. Si no existe o está vacía, falla
+      # (antes de compilar), para que no se publique una versión sin contar qué trae.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Notas de la versión
+        id: notas
+        run: |
+          python tools/changelog_seccion.py CHANGELOG.md "${GITHUB_REF_NAME#v}" > "$RUNNER_TEMP/notas.md"
+          {
+            echo 'body<<NOTAS_EOF'
+            cat "$RUNNER_TEMP/notas.md"
+            echo 'NOTAS_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
@@ -58,7 +75,11 @@ jobs:
       # y MSI de bundle.targets. Con createUpdaterArtifacts, los firma con la clave de
       # actualizaciones y sube `latest.json`, que es lo que consulta la app instalada para saber si
       # hay versión nueva (docs/distribucion.md, "Actualizaciones").
+      # `releaseBody` son solo las notas de la versión: tauri-action las copia tal cual en el `notes`
+      # de `latest.json`, que es lo que enseña la app antes de instalar. La descripción de la
+      # release, con las instrucciones detrás, se completa en el paso siguiente.
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -67,14 +88,32 @@ jobs:
           projectPath: app
           tagName: ${{ github.ref_name }}
           releaseName: Tramos ${{ github.ref_name }}
-          releaseBody: |
-            Instalador para Windows. Descarga el `.exe` (o el `.msi`) de abajo y ábrelo.
-
-            El instalador aún no está firmado: Windows SmartScreen avisará de que la aplicación
-            no es de un editor reconocido. Pulsa «Más información» y luego «Ejecutar de todas
-            formas».
-
-            Si ya tienes Tramos instalado, no hace falta descargar nada: la app te avisará al
-            arrancar de que hay versión nueva.
+          releaseBody: ${{ steps.notas.outputs.body }}
           releaseDraft: true
           prerelease: false
+
+      # La descripción de la release: las notas de la versión y, detrás, las instrucciones de
+      # instalación.
+      - name: Descripción de la release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
+        run: |
+          {
+            echo '### Qué trae'
+            echo
+            cat "$RUNNER_TEMP/notas.md"
+            echo
+            echo '### Instalar'
+            echo
+            echo 'Instalador para Windows. Descarga el `.exe` (o el `.msi`) de abajo y ábrelo.'
+            echo
+            echo 'El instalador aún no está firmado: Windows SmartScreen avisará de que la aplicación'
+            echo 'no es de un editor reconocido. Pulsa «Más información» y luego «Ejecutar de todas'
+            echo 'formas».'
+            echo
+            echo 'Si ya tienes Tramos instalado, no hace falta descargar nada: la app te avisará al'
+            echo 'arrancar de que hay versión nueva.'
+          } > "$RUNNER_TEMP/release-body.md"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F body=@"$RUNNER_TEMP/release-body.md" --silent

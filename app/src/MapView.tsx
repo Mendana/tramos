@@ -11,7 +11,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // aceptar workers de `blob:` (docs/datos-y-privacidad.md).
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { LegReport, clock, codeLabel, signed, zoneLabel } from "./api";
-import { ColorScale, MapControl, MapTrack, RaceMap, raceMap } from "./mapApi";
+import { Bounds, ColorScale, CourseMap, MapControl, MapTrack, RaceMap, raceMap } from "./mapApi";
 import { EmptyState, Notice, WatchIcon } from "./ui";
 
 setWorkerUrl(workerUrl);
@@ -155,38 +155,7 @@ function TrackMap({
   // El mapa se crea una vez por carrera.
   useEffect(() => {
     if (container.current === null || data.bounds === null) return;
-    const map = new MapLibreMap({
-      container: container.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: [OSM_TILES],
-            tileSize: 256,
-            maxzoom: MAX_ZOOM,
-            attribution: OSM_ATTRIBUTION,
-          },
-        },
-        layers: [{ id: "osm", type: "raster", source: "osm" }],
-      },
-      bounds: data.bounds,
-      fitBoundsOptions: { padding: FIT_PADDING, maxZoom: FIT_MAX_ZOOM },
-      maxZoom: MAX_ZOOM,
-      attributionControl: { compact: false },
-      // Política de teselas de OSM: nada de volver a pedir teselas caducadas mientras el mapa
-      // está abierto; la caché del navegador sigue las cabeceras del servidor.
-      refreshExpiredTiles: false,
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-      locale: {
-        "Map.Title": "Mapa de la carrera",
-        "AttributionControl.ToggleAttribution": "Atribución",
-      },
-    });
-    map.touchZoomRotate.disableRotation();
-    map.keyboard.disableRotation();
+    const map = newMap(container.current, data.bounds);
     mapRef.current = map;
 
     map.on("load", () => {
@@ -340,23 +309,7 @@ function TrackMap({
     >
       <div className="map-frame">
         <div ref={container} className="map-canvas" />
-        <div className="map-buttons">
-          <button type="button" className="map-button" aria-label="Acercar" onClick={() => zoom(1)}>
-            <PlusIcon />
-          </button>
-          <button type="button" className="map-button" aria-label="Alejar" onClick={() => zoom(-1)}>
-            <MinusIcon />
-          </button>
-          <button
-            type="button"
-            className="map-button"
-            aria-label="Ver toda la carrera"
-            title="Ver toda la carrera"
-            onClick={fitAll}
-          >
-            <FitIcon />
-          </button>
-        </div>
+        <MapButtons onZoom={zoom} onFit={fitAll} />
       </div>
       <div className="map-foot">
         <p className="small" aria-live="polite">
@@ -386,6 +339,67 @@ function TrackMap({
         </div>
       )}
     </MapCard>
+  );
+}
+
+/** Mapa de MapLibre sobre OpenStreetMap encuadrado en `bounds`, sin rotación ni inclinación. */
+function newMap(container: HTMLElement, bounds: Bounds): MapLibreMap {
+  const map = new MapLibreMap({
+    container,
+    style: {
+      version: 8,
+      sources: {
+        osm: {
+          type: "raster",
+          tiles: [OSM_TILES],
+          tileSize: 256,
+          maxzoom: MAX_ZOOM,
+          attribution: OSM_ATTRIBUTION,
+        },
+      },
+      layers: [{ id: "osm", type: "raster", source: "osm" }],
+    },
+    bounds,
+    fitBoundsOptions: { padding: FIT_PADDING, maxZoom: FIT_MAX_ZOOM },
+    maxZoom: MAX_ZOOM,
+    attributionControl: { compact: false },
+    // Política de teselas de OSM: nada de volver a pedir teselas caducadas mientras el mapa
+    // está abierto; la caché del navegador sigue las cabeceras del servidor.
+    refreshExpiredTiles: false,
+    dragRotate: false,
+    pitchWithRotate: false,
+    touchPitch: false,
+    locale: {
+      "Map.Title": "Mapa de la carrera",
+      "AttributionControl.ToggleAttribution": "Atribución",
+    },
+  });
+  map.touchZoomRotate.disableRotation();
+  map.keyboard.disableRotation();
+  return map;
+}
+
+/** Botones propios para acercar, alejar y ver toda la carrera (los de MapLibre traen iconos en
+ *  `data:`, que la CSP no deja cargar). */
+function MapButtons({ onZoom, onFit }: { onZoom: (delta: number) => void; onFit: () => void }) {
+  return (
+    <div className="map-buttons">
+      <button type="button" className="map-button" aria-label="Acercar" onClick={() => onZoom(1)}>
+        <PlusIcon />
+      </button>
+      <button type="button" className="map-button" aria-label="Alejar" onClick={() => onZoom(-1)}>
+        <MinusIcon />
+      </button>
+      <button
+        type="button"
+        className="map-button"
+        aria-label="Ver toda la carrera"
+        title="Ver toda la carrera"
+        onClick={onFit}
+      >
+        <FitIcon />
+      </button>
+    </div>
   );
 }
 
@@ -600,5 +614,190 @@ function ButtonIcon({ d }: { d: string }) {
 const PlusIcon = () => <ButtonIcon d="M12 5v14M5 12h14" />;
 const MinusIcon = () => <ButtonIcon d="M5 12h14" />;
 const FitIcon = () => <ButtonIcon d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />;
+
+/** Un atleta en el mapa de una carrera con varios: su color de serie y su nombre. */
+export interface TrackSeries {
+  athlete: number;
+  label: string;
+  /** `var(--chart-series-n)`, como en las gráficas. */
+  color: string;
+}
+
+/** El valor de un color `var(--…)` (MapLibre no entiende variables de CSS). */
+function resolveColor(color: string): string {
+  const name = /^var\((--[\w-]+)\)$/.exec(color)?.[1];
+  return name === undefined
+    ? color
+    : getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/**
+ * Mapa de un recorrido con los tracks de varios atletas (#163, docs/app.md, "Atletas"): cada
+ * uno de su color de serie, las balizas una vez y, con un tramo elegido, el resto atenuado.
+ * Solo se pintan los atletas de `series`; todo lo demás viene de Rust (`athlete_race`).
+ */
+export function CourseTrackMap({
+  map: data,
+  series,
+  selected,
+  onSelect,
+}: {
+  map: CourseMap;
+  series: TrackSeries[];
+  selected: number | null;
+  onSelect: (leg: number) => void;
+}) {
+  const container = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markers = useRef<{ control: MapControl; element: HTMLElement }[]>([]);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (container.current === null || data.bounds === null) return;
+    const map = newMap(container.current, data.bounds);
+    mapRef.current = map;
+    map.on("load", () => {
+      const colors = trackColors();
+      map.addSource("tracks", geojson({ type: "FeatureCollection", features: [] }));
+      map.addLayer({
+        id: "tracks-casing",
+        type: "line",
+        source: "tracks",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colors.casing, "line-width": 6 },
+      });
+      map.addLayer({
+        id: "tracks",
+        type: "line",
+        source: "tracks",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": 3.5 },
+      });
+      map.addLayer({
+        id: "tracks-hit",
+        type: "line",
+        source: "tracks",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colors.selection, "line-width": 18, "line-opacity": 0 },
+      });
+      map.on("click", "tracks-hit", (e) => {
+        const leg = e.features?.[0]?.properties?.leg;
+        if (typeof leg === "number") onSelectRef.current(leg);
+      });
+      map.on("mouseenter", "tracks-hit", () => map.getCanvas().classList.add("is-pointer"));
+      map.on("mouseleave", "tracks-hit", () => map.getCanvas().classList.remove("is-pointer"));
+      markers.current = data.controls.map((control) => {
+        const element = controlElement(control);
+        new Marker({ element }).setLngLat(control.coordinate).addTo(map);
+        return { control, element };
+      });
+      setLoaded(true);
+    });
+    return () => {
+      markers.current = [];
+      mapRef.current = null;
+      setLoaded(false);
+      map.remove();
+    };
+  }, [data]);
+
+  // Los atletas elegidos, cada uno con su color.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!loaded || map === null) return;
+    const source = map.getSource("tracks");
+    if (source === undefined || !("setData" in source)) return;
+    const features: FeatureCollection["features"] = series.flatMap(({ athlete, color }) => {
+      const track = data.tracks.find((t) => t.athlete === athlete);
+      const resolved = resolveColor(color);
+      return (track?.legs ?? [])
+        .filter((l) => l.coordinates.length >= 2)
+        .map((l) => ({
+          type: "Feature" as const,
+          properties: { leg: l.index, athlete, color: resolved },
+          geometry: { type: "LineString" as const, coordinates: l.coordinates },
+        }));
+    });
+    (source as { setData: (d: FeatureCollection) => void }).setData({
+      type: "FeatureCollection",
+      features,
+    });
+  }, [loaded, series, data]);
+
+  // Tramo elegido: el resto atenuado, sus balizas marcadas y encuadre si no se ve.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!loaded || map === null) return;
+    const opacity: number | ExpressionSpecification =
+      selected === null ? 1 : ["case", ["==", ["get", "leg"], selected], 1, DIMMED];
+    const width: number | ExpressionSpecification =
+      selected === null ? 3.5 : ["case", ["==", ["get", "leg"], selected], 5, 3.5];
+    map.setPaintProperty("tracks", "line-opacity", opacity);
+    map.setPaintProperty("tracks", "line-width", width);
+    map.setPaintProperty("tracks-casing", "line-opacity", opacity);
+    for (const { control, element } of markers.current) {
+      const ends =
+        selected !== null && (control.position === selected || control.position === selected - 1);
+      element.classList.toggle("is-selected", ends);
+      element.classList.toggle("is-dimmed", selected !== null && !ends);
+    }
+    if (selected === null) return;
+    const legs = data.tracks.flatMap((t) => t.legs.filter((l) => l.index === selected));
+    const boxes = legs.flatMap((l) => (l.bounds === null ? [] : [l.bounds]));
+    if (boxes.length === 0) return;
+    const box: Bounds = [
+      Math.min(...boxes.map((b) => b[0])),
+      Math.min(...boxes.map((b) => b[1])),
+      Math.max(...boxes.map((b) => b[2])),
+      Math.max(...boxes.map((b) => b[3])),
+    ];
+    const view = map.getBounds();
+    if (!(view.contains([box[0], box[1]]) && view.contains([box[2], box[3]]))) {
+      map.fitBounds(box, {
+        padding: FIT_PADDING,
+        maxZoom: FIT_MAX_ZOOM,
+        duration: reducedMotion() ? 0 : 400,
+      });
+    }
+  }, [loaded, selected, data]);
+
+  const zoom = (delta: number) => {
+    const map = mapRef.current;
+    map?.easeTo({ zoom: map.getZoom() + delta });
+  };
+  const fitAll = () => {
+    if (data.bounds !== null) {
+      mapRef.current?.fitBounds(data.bounds, { padding: FIT_PADDING, maxZoom: FIT_MAX_ZOOM });
+    }
+  };
+
+  return (
+    <MapCard>
+      <div className="map-frame">
+        <div ref={container} className="map-canvas" />
+        <MapButtons onZoom={zoom} onFit={fitAll} />
+      </div>
+      <div className="map-foot">
+        <p className="small muted" aria-live="polite">
+          {selected === null
+            ? "Elige un tramo en el mapa para ver solo ese tramo de todos."
+            : `Tramo ${selected}: otro clic en él lo quita.`}
+        </p>
+        <ul className="legend course-map-legend">
+          {series.map((s) => (
+            <li className="legend-item" key={s.athlete}>
+              <svg width="16" height="10" aria-hidden="true">
+                <line x1="1" x2="15" y1="5" y2="5" stroke={s.color} strokeWidth="3" />
+              </svg>
+              {s.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </MapCard>
+  );
+}
 
 export default MapView;

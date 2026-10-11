@@ -106,6 +106,16 @@ export function AthletesIcon(props: IconProps) {
   );
 }
 
+/** Dos banderas: Carreras de atletas (varios en la misma carrera). */
+export function FlagsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 21V4h9l-1.5 3.5L14 11H5" />
+      <path d="M14 7h5l-1.5 3.5L19 14h-7.5l-1-3" />
+    </Svg>
+  );
+}
+
 export function UploadIcon(props: IconProps) {
   return (
     <Svg {...props}>

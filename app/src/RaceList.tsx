@@ -287,7 +287,7 @@ function RaceToolbar({
 }
 
 /** «1–25 de 60» y los botones de página. Con una sola página, solo el recuento. */
-function Pager({
+export function Pager({
   page,
   pages,
   total,

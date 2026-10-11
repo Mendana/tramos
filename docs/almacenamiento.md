@@ -39,6 +39,8 @@ compilado dentro de la app (`rusqlite` con la feature `bundled`), así que no de
 | `received_package_counts() -> (usize, usize)` | Cuántos paquetes recibidos hay y de cuántos corredores, sin leerlos. |
 | `received_runners() -> Vec<ReceivedRunner>` | Corredores de los que hay paquetes recibidos, por nombre visible (sin distinguir mayúsculas): identificador, nombre visible de su paquete más reciente (sale del JSON con `json_extract`, sin leer los paquetes enteros), cuántos paquetes y el instante de exportación del más reciente. |
 | `received_packages_of(runner_id) -> Vec<ReceivedPackage>` | Los paquetes recibidos de un corredor, por carrera. |
+| `received_packages_of_race(race_id) -> Vec<ReceivedPackage>` | Los paquetes recibidos de una carrera (de todos los corredores que la compartieron), por corredor. |
+| `received_races() -> Vec<ReceivedRace>` | La carrera de cada paquete recibido, por carrera y corredor: identificadores, nivel, fecha, nombre y formato (salen del JSON con `json_extract`, sin leer los paquetes enteros; #163). |
 | `received_packages() -> Vec<ReceivedPackage>` | Paquetes recibidos, por corredor y carrera, con el JSON tal cual y sus identificadores, nivel, versión e instantes de exportación e importación. |
 | `create_athlete_group(nombre, descripción, color) -> AthleteGroupId` | Crea un grupo de atletas vacío (#120). Nombre y descripción sin espacios en los extremos; el color, `#rrggbb` en minúsculas. Nombre vacío: `EmptyGroupName`; color que no es `#rrggbb`: `InvalidColor`. |
 | `update_athlete_group(AthleteGroupId, nombre, descripción, color)` | Cambia el nombre, la descripción y el color de un grupo, con las mismas reglas; los miembros no cambian. Grupo inexistente: `GroupNotFound`. |

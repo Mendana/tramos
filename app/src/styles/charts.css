@@ -317,6 +317,11 @@
   color: var(--text);
 }
 
+/* Fichas que eligen atletas (#163): su color al lado del nombre. */
+.compare-picker .chip {
+  gap: var(--space-2);
+}
+
 .compare-picker .select {
   width: auto;
   max-width: 100%;

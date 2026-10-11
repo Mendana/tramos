@@ -38,6 +38,8 @@ pub enum CoachError {
     Store(#[from] StoreError),
     #[error("no hay paquetes de ese corredor")]
     UnknownRunner,
+    #[error("ningún atleta ha compartido esa carrera")]
+    UnknownRace,
     #[error(transparent)]
     Race(#[from] RaceError),
 }
@@ -411,7 +413,7 @@ pub fn own_runner(main: &mut Store) -> Result<Option<CoachRunner>, StoreError> {
 
 /// El `race_id` de cada carrera propia, para cruzarla con las de los atletas: el mismo que
 /// llevaría su paquete.
-fn own_race_ids(main: &Store) -> Result<HashMap<i64, String>, StoreError> {
+pub(crate) fn own_race_ids(main: &Store) -> Result<HashMap<i64, String>, StoreError> {
     let mut ids = HashMap::new();
     let Some(me) = stored_self_person(main)? else {
         return Ok(ids);

@@ -300,6 +300,81 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
     })))
 }
 
+/// Los tracks de varios atletas del mismo recorrido en un mapa (#163, `docs/app.md`, "Carreras
+/// de los atletas"): cada uno con sus tramos, sin colores de ritmo (cada atleta lleva su color
+/// de serie) y las balizas una sola vez.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct CourseMap {
+    /// Rectángulo que contiene todos los tracks.
+    pub bounds: Option<Bounds>,
+    /// Cada baliza en la media de donde estaba cada atleta al picarla (sin contar las que caen en
+    /// un hueco de su track, si alguno la tiene fuera de un hueco).
+    pub controls: Vec<MapControl>,
+    pub tracks: Vec<RunnerTrack>,
+}
+
+/// El track de un atleta en [`CourseMap`].
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RunnerTrack {
+    /// El atleta, por su posición en la vista de la carrera.
+    pub athlete: usize,
+    pub legs: Vec<MapLeg>,
+}
+
+/// Junta los mapas (`race_map`) de los atletas de un recorrido, cada uno con su posición en la
+/// vista de la carrera. `None` si no hay ninguno.
+pub(crate) fn course_map(maps: Vec<(usize, MapTrack)>) -> Option<CourseMap> {
+    if maps.is_empty() {
+        return None;
+    }
+    let mut by_position: Vec<Vec<&MapControl>> = Vec::new();
+    for (_, map) in &maps {
+        for control in &map.controls {
+            if by_position.len() <= control.position {
+                by_position.resize_with(control.position + 1, Vec::new);
+            }
+            by_position[control.position].push(control);
+        }
+    }
+    let controls = by_position
+        .iter()
+        .filter_map(|all| {
+            let first = *all.first()?;
+            let sure: Vec<&MapControl> = all.iter().copied().filter(|c| !c.in_gap).collect();
+            let used = if sure.is_empty() {
+                all.as_slice()
+            } else {
+                &sure
+            };
+            let n = used.len() as f64;
+            let lon = used.iter().map(|c| c.coordinate[0]).sum::<f64>() / n;
+            let lat = used.iter().map(|c| c.coordinate[1]).sum::<f64>() / n;
+            Some(MapControl {
+                position: first.position,
+                code: first.code,
+                role: first.role,
+                coordinate: coordinate(lon, lat),
+                in_gap: sure.is_empty(),
+            })
+        })
+        .collect();
+    let all: Vec<Coordinate> = maps
+        .iter()
+        .flat_map(|(_, map)| map.legs.iter().flat_map(|l| l.coordinates.iter().copied()))
+        .collect();
+    Some(CourseMap {
+        bounds: bounds(&all),
+        controls,
+        tracks: maps
+            .into_iter()
+            .map(|(athlete, map)| RunnerTrack {
+                athlete,
+                legs: map.legs,
+            })
+            .collect(),
+    })
+}
+
 /// Un intervalo entre dos puntos consecutivos de un tramo.
 #[derive(Debug, Clone, PartialEq)]
 struct Interval {
@@ -730,6 +805,68 @@ pub(crate) mod tests {
         assert!(json["pieces"][0]["pace_class"].is_u64());
         assert_eq!(json["pace"]["kind"], "quantiles");
         assert_eq!(json["pace"]["edges"].as_array().unwrap().len(), CLASSES + 1);
+    }
+
+    fn control(position: usize, coordinate: Coordinate, in_gap: bool) -> MapControl {
+        MapControl {
+            position,
+            code: 30 + position as u16,
+            role: ControlRole::Control,
+            coordinate,
+            in_gap,
+        }
+    }
+
+    fn map_with(controls: Vec<MapControl>, line: Vec<Coordinate>) -> MapTrack {
+        MapTrack {
+            bounds: bounds(&line),
+            legs: vec![MapLeg {
+                index: 1,
+                from: 31,
+                to: 32,
+                bounds: bounds(&line),
+                coordinates: line,
+                missing: None,
+            }],
+            pieces: Vec::new(),
+            controls,
+            pace: None,
+            heart_rate: None,
+            warnings: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_course_map_averages_the_controls_and_keeps_every_track() {
+        let a = map_with(
+            vec![
+                control(1, [-3.0, 40.0], false),
+                control(2, [-3.0, 40.002], true),
+            ],
+            vec![[-3.0, 40.0], [-3.001, 40.003]],
+        );
+        let b = map_with(
+            vec![
+                control(1, [-3.002, 40.002], false),
+                control(2, [-3.004, 40.004], false),
+                control(3, [-3.006, 40.0], true),
+            ],
+            vec![[-2.999, 40.001], [-3.006, 40.0]],
+        );
+        let map = course_map(vec![(2, a), (0, b)]).unwrap();
+        // La 1, en la media de los dos; la 2 solo con la de b, porque la de a cae en un hueco; la
+        // 3 solo la tiene b, en un hueco, y así sale.
+        assert_eq!(map.controls.len(), 3);
+        assert_eq!(map.controls[0].coordinate, [-3.001, 40.001]);
+        assert!(!map.controls[0].in_gap);
+        assert_eq!(map.controls[1].coordinate, [-3.004, 40.004]);
+        assert!(!map.controls[1].in_gap);
+        assert_eq!(map.controls[2].coordinate, [-3.006, 40.0]);
+        assert!(map.controls[2].in_gap);
+        assert_eq!(map.bounds, Some([-3.006, 40.0, -2.999, 40.003]));
+        let athletes: Vec<usize> = map.tracks.iter().map(|t| t.athlete).collect();
+        assert_eq!(athletes, [2, 0]);
+        assert_eq!(course_map(Vec::new()), None);
     }
 
     fn point(t: i64, north_m: f64, distance_m: Option<f64>, hr: Option<u8>) -> TrackPoint {

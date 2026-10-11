@@ -1,12 +1,13 @@
 //! Paquetes por carrera (`docs/paquete.md`): el identificador del corredor que exporta, qué
 //! comparte de cada resultado y los paquetes recibidos de otros corredores.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use tramos_core::package::{RacePackage, ShareChoice, ShareLevel, hex};
+use tramos_core::race_format::RaceFormat;
 
-use crate::convert::ms_to_instant;
+use crate::convert::{ms_to_instant, sql_to_format, text_to_date};
 use crate::{ResultId, Store, StoreError};
 
 /// Ajuste con el `runner_id` de esta base de datos.
@@ -35,6 +36,17 @@ pub struct ReceivedRunner {
     pub packages: usize,
     /// El instante de exportación de su paquete más reciente.
     pub last_exported_at: DateTime<Utc>,
+}
+
+/// Una carrera de un paquete recibido, sin leer el paquete entero (#163).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReceivedRace {
+    pub runner_id: String,
+    pub race_id: String,
+    pub level: ShareLevel,
+    pub date: NaiveDate,
+    pub name: Option<String>,
+    pub format: Option<RaceFormat>,
 }
 
 /// Qué ha pasado al guardar un paquete recibido.
@@ -158,7 +170,7 @@ impl Store {
 
     /// Paquetes recibidos, por corredor y carrera.
     pub fn received_packages(&self) -> Result<Vec<ReceivedPackage>, StoreError> {
-        self.query_received_packages(None)
+        self.query_received_packages(None, None)
     }
 
     /// Paquetes recibidos de un corredor, por carrera.
@@ -166,19 +178,30 @@ impl Store {
         &self,
         runner_id: &str,
     ) -> Result<Vec<ReceivedPackage>, StoreError> {
-        self.query_received_packages(Some(runner_id))
+        self.query_received_packages(Some(runner_id), None)
+    }
+
+    /// Paquetes recibidos de una carrera (de todos los corredores que la compartieron), por
+    /// corredor.
+    pub fn received_packages_of_race(
+        &self,
+        race_id: &str,
+    ) -> Result<Vec<ReceivedPackage>, StoreError> {
+        self.query_received_packages(None, Some(race_id))
     }
 
     fn query_received_packages(
         &self,
         runner_id: Option<&str>,
+        race_id: Option<&str>,
     ) -> Result<Vec<ReceivedPackage>, StoreError> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT runner_id, race_id, level, format_version, exported_at_epoch_ms, \
              imported_at_epoch_ms, content FROM received_packages \
-             WHERE ?1 IS NULL OR runner_id = ?1 ORDER BY runner_id, race_id",
+             WHERE (?1 IS NULL OR runner_id = ?1) AND (?2 IS NULL OR race_id = ?2) \
+             ORDER BY runner_id, race_id",
         )?;
-        let mut rows = stmt.query([runner_id])?;
+        let mut rows = stmt.query(params![runner_id, race_id])?;
         let mut packages = Vec::new();
         while let Some(row) = rows.next()? {
             let level: String = row.get(2)?;
@@ -193,6 +216,32 @@ impl Store {
             });
         }
         Ok(packages)
+    }
+
+    /// La carrera de cada paquete recibido (fecha, nombre y formato salen del JSON con
+    /// `json_extract`, sin leer los paquetes enteros), por carrera y corredor.
+    pub fn received_races(&self) -> Result<Vec<ReceivedRace>, StoreError> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT runner_id, race_id, level, json_extract(content, '$.race.date'), \
+             json_extract(content, '$.race.name'), json_extract(content, '$.race.format') \
+             FROM received_packages ORDER BY race_id, runner_id",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut races = Vec::new();
+        while let Some(row) = rows.next()? {
+            let level: String = row.get(2)?;
+            let date: String = row.get(3)?;
+            let format: Option<String> = row.get(5)?;
+            races.push(ReceivedRace {
+                runner_id: row.get(0)?,
+                race_id: row.get(1)?,
+                level: sql_to_level(&level)?,
+                date: text_to_date(&date)?,
+                name: row.get(4)?,
+                format: format.as_deref().map(sql_to_format).transpose()?,
+            });
+        }
+        Ok(races)
     }
 
     /// Corredores de los que se han recibido paquetes, por nombre visible. El nombre sale del

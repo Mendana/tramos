@@ -7,6 +7,7 @@ import carreraAnalisis from "./carrera-analisis.md?raw";
 import carreraGrupo from "./carrera-grupo.md?raw";
 import carreraMapa from "./carrera-mapa.md?raw";
 import carreraTramos from "./carrera-tramos.md?raw";
+import carrerasAtletas from "./carreras-atletas.md?raw";
 import compartir from "./compartir.md?raw";
 import compararGrupos from "./comparar-grupos.md?raw";
 import estadisticas from "./estadisticas.md?raw";
@@ -41,6 +42,7 @@ export type HelpPageId =
   | "perfil"
   | "ajustes"
   | "mis-atletas"
+  | "carreras-atletas"
   | "grupo"
   | "grupos"
   | "comparar-grupos"
@@ -89,6 +91,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   perfil: { source: perfil, group: "screens" },
   ajustes: { source: ajustes, group: "screens" },
   "mis-atletas": { source: misAtletas, group: "screens" },
+  "carreras-atletas": { source: carrerasAtletas, group: "screens" },
   grupo: { source: grupo, group: "screens" },
   grupos: { source: grupos, group: "screens" },
   "comparar-grupos": { source: compararGrupos, group: "screens" },

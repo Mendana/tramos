@@ -229,6 +229,16 @@ export interface CourseComparison {
   runners: ComparedRunner[];
 }
 
+/**
+ * Un resultado del recorrido que es de otro atleta de quien entrena (#164): `result` casa con
+ * `ComparedRunner.result`.
+ */
+export interface AthleteMark {
+  result: ResultRef;
+  runner_id: string;
+  display_name: string;
+}
+
 /** Qué carreras entran en el histórico. `null` = sin filtro; fechas `AAAA-MM-DD`, incluidas. */
 export interface HistoryFilter {
   from: string | null;
@@ -918,6 +928,10 @@ export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
 
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });
+
+/** Atletas de quien entrena que corrieron esta misma carrera (vacío si no entrena). */
+export const raceOwnAthletes = (resultId: number) =>
+  invoke<AthleteMark[]>("race_own_athletes", { resultId });
 
 /**
  * Desfase entre el reloj y el cronometraje (#68, `clock_offset.rs`). Convenio: instante en el

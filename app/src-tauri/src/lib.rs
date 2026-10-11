@@ -31,7 +31,8 @@ use tramos_store::{AthleteGroupId, SaveOutcome, Store};
 use crate::batch::BatchSummary;
 use crate::clock_offset::OffsetView;
 use crate::coach::{
-    AthleteCard, AthleteNews, CoachRunner, GroupStatsView, GroupView, RunnerView, RunnerViewInfo,
+    AthleteCard, AthleteMark, AthleteNews, CoachRunner, GroupStatsView, GroupView, RunnerView,
+    RunnerViewInfo,
 };
 use crate::groups::{GroupFields, GroupsView};
 use crate::history::HistoryView;
@@ -392,6 +393,18 @@ fn race_comparison(
     state.read(|s| races::race_comparison(s, result_id))
 }
 
+/// Qué resultados del recorrido de una carrera son de otros atletas de quien entrena (#164), para
+/// marcarlos en «Frente al grupo». Vacío si no entrena o no hay ninguno.
+#[tauri::command]
+fn race_own_athletes(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<Vec<AthleteMark>, String> {
+    let store = state.store()?;
+    let viewed = state.viewed()?;
+    coach::marked_athletes(&store, viewed.as_ref(), result_id).map_err(|e| e.to_string())
+}
+
 /// Cambia el formato de la carrera de un resultado (`null` = sin formato).
 #[tauri::command]
 fn set_race_format(
@@ -603,6 +616,7 @@ pub fn run() -> tauri::Result<()> {
             list_races,
             race_detail,
             race_comparison,
+            race_own_athletes,
             race_breakdown,
             set_race_format,
             race_offset,

@@ -158,7 +158,7 @@ impl Store {
 
     /// Paquetes recibidos, por corredor y carrera.
     pub fn received_packages(&self) -> Result<Vec<ReceivedPackage>, StoreError> {
-        self.query_received_packages(None)
+        self.query_received_packages(None, None)
     }
 
     /// Paquetes recibidos de un corredor, por carrera.
@@ -166,19 +166,30 @@ impl Store {
         &self,
         runner_id: &str,
     ) -> Result<Vec<ReceivedPackage>, StoreError> {
-        self.query_received_packages(Some(runner_id))
+        self.query_received_packages(Some(runner_id), None)
+    }
+
+    /// Paquetes recibidos de una carrera (de todos los corredores que la compartieron), por
+    /// corredor.
+    pub fn received_packages_of_race(
+        &self,
+        race_id: &str,
+    ) -> Result<Vec<ReceivedPackage>, StoreError> {
+        self.query_received_packages(None, Some(race_id))
     }
 
     fn query_received_packages(
         &self,
         runner_id: Option<&str>,
+        race_id: Option<&str>,
     ) -> Result<Vec<ReceivedPackage>, StoreError> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT runner_id, race_id, level, format_version, exported_at_epoch_ms, \
              imported_at_epoch_ms, content FROM received_packages \
-             WHERE ?1 IS NULL OR runner_id = ?1 ORDER BY runner_id, race_id",
+             WHERE (?1 IS NULL OR runner_id = ?1) AND (?2 IS NULL OR race_id = ?2) \
+             ORDER BY runner_id, race_id",
         )?;
-        let mut rows = stmt.query([runner_id])?;
+        let mut rows = stmt.query(params![runner_id, race_id])?;
         let mut packages = Vec::new();
         while let Some(row) = rows.next()? {
             let level: String = row.get(2)?;

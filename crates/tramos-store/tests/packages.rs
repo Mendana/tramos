@@ -177,4 +177,13 @@ fn received_runners_take_the_name_of_their_latest_package() {
     assert_eq!(of_a1.len(), 2);
     assert!(of_a1.iter().all(|p| p.runner_id == "a1"));
     assert!(store.received_packages_of("zz").unwrap().is_empty());
+
+    // Por carrera: los de todos los corredores que la compartieron.
+    let of_race = store
+        .received_packages_of_race(&other.race.race_id)
+        .unwrap();
+    let runners: Vec<_> = of_race.iter().map(|p| p.runner_id.as_str()).collect();
+    assert_eq!(runners, ["a1", "b2"]);
+    assert!(of_race.iter().all(|p| p.race_id == other.race.race_id));
+    assert!(store.received_packages_of_race("zz").unwrap().is_empty());
 }

@@ -954,7 +954,13 @@ Paneles de la vista de carrera:
 
 Bajo «Frente al grupo» (P4, `GroupComparison.tsx`), el corredor junto a compañeros elegidos de
 su mismo recorrido (hasta 3, de entrada el ganador del recorrido). Las fichas de arriba eligen a
-los compañeros y hacen de leyenda; la elección vale para los dos paneles:
+los compañeros y hacen de leyenda; la elección vale para los dos paneles. Si quien entrena ve la
+carrera de un atleta (o la suya) y otros atletas suyos con paquete de la misma carrera
+(`race_id`) comparten los tramos, esos resultados salen marcados como «tu atleta» (#164,
+`race_own_athletes`, `coach::marked_athletes`; criterio para casarlos en `docs/tiempo-perdido.md`,
+«Frente al grupo»): van primero en la lista para añadir y de entrada se eligen ellos y, además, el
+ganador (que conserva su sitio si hay más atletas que los tres de máximo). Sin atletas propios en
+la carrera, la pestaña es la de siempre:
 
 | Panel | Qué enseña | Casos |
 | --- | --- | --- |

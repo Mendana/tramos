@@ -22,6 +22,8 @@ use tramos_core::group_compare::{
 };
 use tramos_core::group_stats::{GroupStats, MemberAnalyses, group_stats};
 use tramos_core::history::{HistoryFilter, HistoryStats};
+use tramos_core::identify::{ResultRef, normalize_name};
+use tramos_core::model::{Event, RaceResult};
 use tramos_core::package::{RacePackage, RaceSummary, race_id};
 use tramos_core::race_format::RaceFormat;
 use tramos_store::{AthleteGroupId, ReceivedPackage, ReceivedRunner, ResultId, Store, StoreError};
@@ -539,6 +541,159 @@ pub fn compare_athlete_groups(
         sides.in_both.len(),
         shared,
     ))
+}
+
+/// Un atleta de quien entrena que compartió una carrera con los tramos (#164): su paquete, para
+/// saber cuál de los resultados de esa carrera es el suyo.
+#[derive(Debug, Clone)]
+pub struct RaceAthlete {
+    pub runner_id: String,
+    pub display_name: String,
+    package: RacePackage,
+}
+
+impl RaceAthlete {
+    /// Su resultado dentro de `event`, que es la misma carrera vista desde otra copia (la propia
+    /// de quien entrena o la reducida de otro paquete): cada paquete trae su copia, así que no
+    /// vale la posición, se casa por la identidad del resultado.
+    ///
+    /// Identidad: categoría, nombre y apellidos (sin mayúsculas, tildes ni signos,
+    /// `identify::normalize_name`) y, solo si con eso hay más de uno, el club. Dorsal y tarjeta no
+    /// sirven: los paquetes los llevan a `null`. `None` si no hay resultado que case, si casa más
+    /// de uno aunque se mire el club (mejor no marcar que marcar a otro) o si el paquete viene sin
+    /// nombres (anterior a #118).
+    pub fn result_in(&self, event: &Event) -> Option<ResultRef> {
+        let course = self.package.course.as_ref()?;
+        let own = course.result.get(&course.event)?;
+        let class_name = &course.event.classes.get(course.result.class_index)?.name;
+        let name = full_name_key(own);
+        if name.is_empty() {
+            return None;
+        }
+        let mut found: Vec<(ResultRef, &RaceResult)> = Vec::new();
+        for (class_index, class) in event.classes.iter().enumerate() {
+            if normalize_name(&class.name) != normalize_name(class_name) {
+                continue;
+            }
+            for (result_index, result) in class.results.iter().enumerate() {
+                if full_name_key(result) == name {
+                    found.push((
+                        ResultRef {
+                            class_index,
+                            result_index,
+                        },
+                        result,
+                    ));
+                }
+            }
+        }
+        if found.len() > 1 {
+            let club = club_key(own);
+            found.retain(|(_, result)| club_key(result) == club);
+        }
+        match found.as_slice() {
+            [(at, _)] => Some(*at),
+            _ => None,
+        }
+    }
+}
+
+fn full_name_key(result: &RaceResult) -> String {
+    normalize_name(&format!(
+        "{} {}",
+        result.runner.given_name, result.runner.family_name
+    ))
+}
+
+fn club_key(result: &RaceResult) -> String {
+    normalize_name(result.runner.club.as_deref().unwrap_or_default())
+}
+
+/// Los atletas que compartieron con los tramos la carrera `race_id` (el de `docs/paquete.md`:
+/// el mismo para todos los que la corrieron), por nombre. Los paquetes que no se pueden leer o que
+/// solo traen el resumen no cuentan. Para cruzar atletas en una carrera (#164, #163).
+pub fn race_athletes(main: &Store, race_id: &str) -> Result<Vec<RaceAthlete>, CoachError> {
+    let names: HashMap<String, String> = coach_runners(main)?
+        .into_iter()
+        .map(|r| (r.runner_id, r.display_name))
+        .collect();
+    let mut athletes: Vec<RaceAthlete> = main
+        .received_packages_of_race(race_id)?
+        .into_iter()
+        .filter_map(|received| RacePackage::parse(&received.content).ok())
+        .filter(|package| package.course.is_some())
+        .map(|package| RaceAthlete {
+            runner_id: package.runner.runner_id.clone(),
+            display_name: names
+                .get(&package.runner.runner_id)
+                .cloned()
+                .unwrap_or_else(|| package.runner.display_name.clone()),
+            package,
+        })
+        .collect();
+    athletes.sort_by(|a, b| {
+        (a.display_name.to_lowercase(), &a.runner_id)
+            .cmp(&(b.display_name.to_lowercase(), &b.runner_id))
+    });
+    Ok(athletes)
+}
+
+/// Un atleta propio que corrió la misma carrera que la que se está viendo: cuál de sus
+/// resultados es el suyo.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct AthleteMark {
+    pub result: ResultRef,
+    pub runner_id: String,
+    pub display_name: String,
+}
+
+/// Qué resultados de la carrera de `result_id` (de la base que se ve: la del atleta `viewed` o, si
+/// no hay ninguno, la propia) son de otros atletas de quien entrena con paquete de la misma
+/// carrera (#164). Para marcarlos en «Frente al grupo». Vacío si no entrena, si la carrera no
+/// tiene `race_id` conocido o si nadie más la compartió con los tramos. El atleta que se está
+/// viendo no se marca a sí mismo.
+pub fn marked_athletes(
+    main: &Store,
+    viewed: Option<&RunnerView>,
+    result_id: i64,
+) -> Result<Vec<AthleteMark>, CoachError> {
+    if !is_coach(main)? {
+        return Ok(Vec::new());
+    }
+    let id = ResultId(result_id);
+    let (store, race, skip) = match viewed {
+        Some(view) => (
+            &view.store,
+            view.race_ids.get(&result_id).cloned(),
+            Some(view.runner.runner_id.as_str()),
+        ),
+        None => {
+            let (event_id, _) = main.result_ref(id)?;
+            (main, Some(race_id(&main.load_event(event_id)?)), None)
+        }
+    };
+    let Some(race) = race else {
+        return Ok(Vec::new());
+    };
+    let (event_id, own) = store.result_ref(id)?;
+    let event = store.load_event(event_id)?;
+    let mut marks: Vec<AthleteMark> = Vec::new();
+    for athlete in race_athletes(main, &race)? {
+        if Some(athlete.runner_id.as_str()) == skip {
+            continue;
+        }
+        let Some(at) = athlete.result_in(&event) else {
+            continue;
+        };
+        if at != own && marks.iter().all(|m| m.result != at) {
+            marks.push(AthleteMark {
+                result: at,
+                runner_id: athlete.runner_id,
+                display_name: athlete.display_name,
+            });
+        }
+    }
+    Ok(marks)
 }
 
 /// ¿Es nuevo un paquete recibido en `received_at` para quien entró en el atleta por última vez en
@@ -1179,5 +1334,189 @@ mod tests {
             runner_view(&coach, "nadie"),
             Err(CoachError::UnknownRunner)
         ));
+    }
+
+    /// Otro atleta de la misma carrera: el paquete de `base` con otro `runner_id` y otro de los
+    /// resultados de su categoría (con nombre) como suyo. Es lo que mandaría su app: la misma
+    /// carrera, su propia copia reducida.
+    fn package_of_another(
+        base: &RacePackage,
+        runner_id: &str,
+        name: &str,
+        nth: usize,
+    ) -> RacePackage {
+        let mut package = base.clone();
+        package.runner.runner_id = runner_id.into();
+        package.runner.display_name = name.into();
+        let course = package.course.as_mut().unwrap();
+        let class = &course.event.classes[course.result.class_index];
+        let named: Vec<usize> = (0..class.results.len())
+            .filter(|&i| i != course.result.result_index)
+            .filter(|&i| !class.results[i].runner.family_name.is_empty())
+            .collect();
+        course.result.result_index = named[nth];
+        package
+    }
+
+    fn enable_coaching(store: &mut Store) {
+        let mut s = settings::load(store).unwrap();
+        s.sharing.coach = true;
+        settings::save(store, &s).unwrap();
+    }
+
+    /// El único resultado de la única carrera de la base.
+    fn only_result(store: &Store) -> i64 {
+        list_races(store).unwrap()[0].result_id
+    }
+
+    #[test]
+    fn two_athletes_of_the_same_race_mark_each_other() {
+        let (_, _, mut coach, first_id) = received(ShareLevel::Legs, false);
+        let first = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        let second = package_of_another(&first, "otro", "Berta", 0);
+        assert_eq!(second.race.race_id, first.race.race_id);
+        coach.save_received_package(&second).unwrap();
+        enable_coaching(&mut coach);
+
+        // El nombre del .spl de cada uno, para comprobar que se marca a quien toca.
+        let spl_name = |p: &RacePackage| {
+            let course = p.course.as_ref().unwrap();
+            let r = course.result.get(&course.event).unwrap();
+            format!("{} {}", r.runner.given_name, r.runner.family_name)
+        };
+        let marked_name = |view: &RunnerView, mark: &AthleteMark| {
+            let (event_id, _) = view
+                .store
+                .result_ref(ResultId(only_result(&view.store)))
+                .unwrap();
+            let event = view.store.load_event(event_id).unwrap();
+            let r = mark.result.get(&event).unwrap();
+            format!("{} {}", r.runner.given_name, r.runner.family_name)
+        };
+
+        let view_first = runner_view(&coach, &first_id).unwrap();
+        let marks =
+            marked_athletes(&coach, Some(&view_first), only_result(&view_first.store)).unwrap();
+        assert_eq!(marks.len(), 1);
+        assert_eq!(marks[0].runner_id, "otro");
+        assert_eq!(marks[0].display_name, "Berta");
+        assert_eq!(marked_name(&view_first, &marks[0]), spl_name(&second));
+
+        let view_second = runner_view(&coach, "otro").unwrap();
+        let marks =
+            marked_athletes(&coach, Some(&view_second), only_result(&view_second.store)).unwrap();
+        assert_eq!(marks.len(), 1);
+        assert_eq!(marks[0].runner_id, first_id);
+        assert_eq!(marked_name(&view_second, &marks[0]), spl_name(&first));
+    }
+
+    #[test]
+    fn the_coach_sees_her_athletes_marked_in_her_own_race() {
+        let (_, _, athletes, _) = received(ShareLevel::Legs, false);
+        let base = RacePackage::parse(&athletes.received_packages().unwrap()[0].content).unwrap();
+        // Quien entrena corrió la misma carrera y la tiene importada; sus atletas son otros dos.
+        let (mut coach, own_result) = imported(false);
+        coach
+            .save_received_package(&package_of_another(&base, "ana", "Ana", 0))
+            .unwrap();
+        coach
+            .save_received_package(&package_of_another(&base, "berta", "Berta", 1))
+            .unwrap();
+        enable_coaching(&mut coach);
+
+        let marks = marked_athletes(&coach, None, own_result).unwrap();
+        let names: Vec<&str> = marks.iter().map(|m| m.display_name.as_str()).collect();
+        assert_eq!(names, ["Ana", "Berta"]);
+        assert_ne!(marks[0].result, marks[1].result);
+        // Ninguno es ella misma.
+        let (_, own) = coach.result_ref(ResultId(own_result)).unwrap();
+        assert!(marks.iter().all(|m| m.result != own));
+    }
+
+    #[test]
+    fn without_other_athletes_in_the_race_nothing_is_marked() {
+        // Sola en su carrera: la pestaña queda como hoy.
+        let (_, _, mut coach, runner_id) = received(ShareLevel::Legs, false);
+        enable_coaching(&mut coach);
+        let view = runner_view(&coach, &runner_id).unwrap();
+        let result = only_result(&view.store);
+        assert!(
+            marked_athletes(&coach, Some(&view), result)
+                .unwrap()
+                .is_empty()
+        );
+
+        // Quien entrena corrió la misma carrera pero el atleta no es otro resultado suyo.
+        let (mut own, own_result) = imported(false);
+        own.save_received_package(
+            &RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap(),
+        )
+        .unwrap();
+        enable_coaching(&mut own);
+        // El atleta es el mismo resultado que el de quien entrena: no se marca a sí misma.
+        assert!(marked_athletes(&own, None, own_result).unwrap().is_empty());
+
+        // Un paquete de otra carrera no cuenta.
+        let mut other_race =
+            RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        other_race.runner.runner_id = "otro".into();
+        other_race.race.race_id = "otra-carrera".into();
+        coach.save_received_package(&other_race).unwrap();
+        let view = runner_view(&coach, &runner_id).unwrap();
+        assert!(
+            marked_athletes(&coach, Some(&view), only_result(&view.store))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn only_the_coach_marks_athletes() {
+        let (_, _, mut coach, first_id) = received(ShareLevel::Legs, false);
+        let first = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        coach
+            .save_received_package(&package_of_another(&first, "otro", "Berta", 0))
+            .unwrap();
+        let view = runner_view(&coach, &first_id).unwrap();
+        // Sin «Entreno a otros atletas».
+        assert!(
+            marked_athletes(&coach, Some(&view), only_result(&view.store))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_package_without_names_or_with_a_summary_only_is_not_matched() {
+        let (_, _, mut coach, first_id) = received(ShareLevel::Legs, false);
+        let first = RacePackage::parse(&coach.received_packages().unwrap()[0].content).unwrap();
+        // Anterior a #118: sin nombres no hay identidad que casar.
+        let mut old = package_of_another(&first, "viejo", "Viejo", 0);
+        for r in old
+            .course
+            .as_mut()
+            .unwrap()
+            .event
+            .classes
+            .iter_mut()
+            .flat_map(|c| c.results.iter_mut())
+        {
+            r.runner.given_name.clear();
+            r.runner.family_name.clear();
+            r.runner.club = None;
+        }
+        // Solo el resumen: no hay recorrido.
+        let mut summary = package_of_another(&first, "resumen", "Resumen", 1);
+        summary.level = ShareLevel::Aggregates;
+        summary.course = None;
+        coach.save_received_package(&old).unwrap();
+        coach.save_received_package(&summary).unwrap();
+        enable_coaching(&mut coach);
+        let view = runner_view(&coach, &first_id).unwrap();
+        assert!(
+            marked_athletes(&coach, Some(&view), only_result(&view.store))
+                .unwrap()
+                .is_empty()
+        );
     }
 }

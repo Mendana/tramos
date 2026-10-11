@@ -35,7 +35,7 @@ import RaceView, { RaceTab } from "./RaceView";
 import SettingsView from "./SettingsView";
 import Tour, { useTour } from "./Tour";
 import Welcome from "./Welcome";
-import { applyTheme } from "./theme";
+import { applyAndStoreTheme } from "./theme";
 import { ViewerContext } from "./viewer";
 import {
   AthletesIcon,
@@ -359,7 +359,7 @@ function App() {
       .then(setVersion)
       .catch((err: unknown) => setError(String(err)));
     getTheme()
-      .then(applyTheme)
+      .then(applyAndStoreTheme)
       .catch((err: unknown) => setError(String(err)));
     roleChosen()
       .then(setChosen)
@@ -648,6 +648,7 @@ function App() {
                   onOpen={openRace}
                   onImport={showImport}
                   summaryOnly={runner?.summary_only ?? []}
+                  updatedResults={runner?.updated_results ?? []}
                 />
               )}
               {screen.kind === "race" && (

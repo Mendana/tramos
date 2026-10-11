@@ -20,7 +20,11 @@ pub struct ReceivedPackage {
     pub level: ShareLevel,
     pub format_version: u32,
     pub exported_at: DateTime<Utc>,
+    /// Cuándo se guardó la última versión: cambia cada vez que el paquete se sustituye.
     pub imported_at: DateTime<Utc>,
+    /// Cuándo llegó por primera vez este par (`runner_id`, `race_id`): no cambia al sustituirlo
+    /// ni al reexportarlo. Las novedades de quien entrena cuentan con esta.
+    pub first_imported_at: DateTime<Utc>,
     /// El paquete en JSON (`RacePackage::parse` lo lee).
     pub content: String,
 }
@@ -99,7 +103,8 @@ impl Store {
 
     /// Guarda un paquete recibido. Como mucho hay uno por (`runner_id`, `race_id`): uno igual de
     /// reciente o más (`exported_at`) sustituye al que había, también si baja de nivel; uno más
-    /// antiguo se ignora y uno idéntico no cambia nada.
+    /// antiguo se ignora y uno idéntico no cambia nada. Sustituir conserva la primera llegada
+    /// (`first_imported_at`).
     pub fn save_received_package(
         &mut self,
         package: &RacePackage,
@@ -123,10 +128,12 @@ impl Store {
             Some(_) => SaveOutcome::Replaced,
             None => SaveOutcome::Created,
         };
+        // `first_imported_at_epoch_ms` solo se escribe al crear: el `DO UPDATE` no lo toca.
+        let now = Utc::now().timestamp_millis();
         tx.execute(
             "INSERT INTO received_packages (runner_id, race_id, level, format_version, \
-             exported_at_epoch_ms, imported_at_epoch_ms, content) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) \
+             exported_at_epoch_ms, imported_at_epoch_ms, first_imported_at_epoch_ms, content) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7) \
              ON CONFLICT (runner_id, race_id) DO UPDATE SET level = excluded.level, \
              format_version = excluded.format_version, \
              exported_at_epoch_ms = excluded.exported_at_epoch_ms, \
@@ -137,7 +144,7 @@ impl Store {
                 level_to_sql(package.level),
                 package.version,
                 exported_ms,
-                Utc::now().timestamp_millis(),
+                now,
                 content,
             ],
         )?;
@@ -158,7 +165,7 @@ impl Store {
 
     /// Paquetes recibidos, por corredor y carrera.
     pub fn received_packages(&self) -> Result<Vec<ReceivedPackage>, StoreError> {
-        self.query_received_packages(None)
+        self.query_received_packages(None, None)
     }
 
     /// Paquetes recibidos de un corredor, por carrera.
@@ -166,19 +173,30 @@ impl Store {
         &self,
         runner_id: &str,
     ) -> Result<Vec<ReceivedPackage>, StoreError> {
-        self.query_received_packages(Some(runner_id))
+        self.query_received_packages(Some(runner_id), None)
+    }
+
+    /// Paquetes recibidos de una carrera (de todos los corredores que la compartieron), por
+    /// corredor.
+    pub fn received_packages_of_race(
+        &self,
+        race_id: &str,
+    ) -> Result<Vec<ReceivedPackage>, StoreError> {
+        self.query_received_packages(None, Some(race_id))
     }
 
     fn query_received_packages(
         &self,
         runner_id: Option<&str>,
+        race_id: Option<&str>,
     ) -> Result<Vec<ReceivedPackage>, StoreError> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT runner_id, race_id, level, format_version, exported_at_epoch_ms, \
-             imported_at_epoch_ms, content FROM received_packages \
-             WHERE ?1 IS NULL OR runner_id = ?1 ORDER BY runner_id, race_id",
+             imported_at_epoch_ms, first_imported_at_epoch_ms, content FROM received_packages \
+             WHERE (?1 IS NULL OR runner_id = ?1) AND (?2 IS NULL OR race_id = ?2) \
+             ORDER BY runner_id, race_id",
         )?;
-        let mut rows = stmt.query([runner_id])?;
+        let mut rows = stmt.query(params![runner_id, race_id])?;
         let mut packages = Vec::new();
         while let Some(row) = rows.next()? {
             let level: String = row.get(2)?;
@@ -189,7 +207,8 @@ impl Store {
                 format_version: row.get(3)?,
                 exported_at: ms_to_instant(row.get(4)?)?,
                 imported_at: ms_to_instant(row.get(5)?)?,
-                content: row.get(6)?,
+                first_imported_at: ms_to_instant(row.get(6)?)?,
+                content: row.get(7)?,
             });
         }
         Ok(packages)

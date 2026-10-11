@@ -34,6 +34,7 @@ function RaceList({
   onOpen,
   onImport,
   summaryOnly = [],
+  updatedResults = [],
 }: {
   races: RaceRow[] | null;
   state?: RaceListState;
@@ -42,6 +43,8 @@ function RaceList({
   onImport: () => void;
   /** Al ver a un atleta, las carreras que ha compartido solo con el resumen. */
   summaryOnly?: SummaryRace[];
+  /** Al ver a un atleta, sus carreras ya vistas que ha actualizado desde la última visita. */
+  updatedResults?: number[];
 }) {
   const { readOnly, runnerName } = useViewer();
   const count = races?.length ?? 0;
@@ -151,6 +154,7 @@ function RaceList({
                             {race.format !== null && (
                               <span className="pill pill-accent">{FORMAT_LABELS[race.format]}</span>
                             )}
+                            {updatedResults.includes(race.result_id) && <UpdatedPill />}
                             {race.has_track && (
                               <span className="pill" title="Con el FIT del reloj">
                                 <WatchIcon size={14} /> Reloj
@@ -341,6 +345,15 @@ function Pager({
 }
 
 /** Carreras compartidas solo con el resumen: sin tramos, no se pueden abrir. */
+/** Marca de una carrera ya vista que el atleta ha vuelto a compartir cambiada. */
+function UpdatedPill() {
+  return (
+    <span className="pill" title="Ya la habías visto y el atleta la ha actualizado">
+      Actualizada
+    </span>
+  );
+}
+
 function SummaryOnlyRaces({ races }: { races: SummaryRace[] }) {
   return (
     <section>
@@ -371,6 +384,11 @@ function SummaryOnlyRaces({ races }: { races: SummaryRace[] }) {
                     {race.format !== null && (
                       <div className="meta">
                         <span className="pill pill-accent">{FORMAT_LABELS[race.format]}</span>
+                      </div>
+                    )}
+                    {race.updated && (
+                      <div className="meta">
+                        <UpdatedPill />
                       </div>
                     )}
                   </td>

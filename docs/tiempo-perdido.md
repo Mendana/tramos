@@ -114,6 +114,18 @@ corredor, así que sus números coinciden con los de `runner_report`.
   resto, en el orden de la carrera.
 - Por la definición de la diferencia acumulada, la del ganador en meta es su tiempo total menos
   el tiempo ideal (criterio de aceptación de #23, comprobado con el oráculo sobre el fixture).
+- **Atletas propios entre los rivales** (#164). Es cosa de la app de quien entrena, no del núcleo:
+  `course_comparison` no sabe de paquetes. En la carrera de un atleta (o en la propia de quien
+  entrena), los resultados del recorrido que son de **otros atletas con paquete de la misma
+  carrera** (`race_id`, `docs/paquete.md`) se marcan como «tu atleta». Cada paquete trae su propia
+  copia reducida del evento, así que no vale la posición del resultado: `coach::RaceAthlete::
+  result_in` casa por identidad, la de su `course.result` en su paquete contra la carrera que se
+  ve: **categoría + nombre y apellidos**, normalizados (`identify::normalize_name`: sin
+  mayúsculas, tildes ni signos), y el club solo para desempatar si hay más de un resultado con ese
+  nombre en la categoría. Dorsal y tarjeta no sirven (los paquetes los llevan a `null`). Si sigue
+  sin ser único, o el paquete es anterior a #118 y no trae nombres, o solo trae el resumen, no se
+  marca a nadie: mejor no marcar que marcar al equivocado. Quien se está viendo no se marca a sí
+  mismo, ni quien entrena a sí misma.
 
 ## Dónde gano y dónde pierdo (P5)
 

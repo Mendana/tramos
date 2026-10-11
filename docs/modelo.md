@@ -6,7 +6,8 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
 ## Convenciones
 
 - **Instantes**: `DateTime<Utc>`, en JSON como RFC 3339 (`2026-10-03T09:00:00Z`). La hora local
-  del .spl (zona `Europe/Madrid`) se convierte a UTC en el importador (`docs/formato-spl.md`).
+  del .spl (zona `Europe/Madrid`) se convierte a UTC en el importador (`docs/formato-spl.md`);
+  OReplay ya las da en UTC (`docs/formato-oreplay.md`).
 - **Duraciones**: segundos en `f64`.
 - **Unidades**: van en el nombre del campo (`split_s`, `altitude_m`, `heart_rate_bpm`…).
 - **Datos personales**: ningún tipo tiene fecha de nacimiento (ver `docs/datos-y-privacidad.md`).
@@ -33,7 +34,8 @@ Tipos compartidos por importadores, análisis y app (`tramos_core::model`). Todo
 - `Runner` es la persona tal y como aparece en una carrera; lo que depende de la participación
   (estado, puesto, picadas) va en `RaceResult`.
 - Solo `RaceStatus::Ok` cuenta para la referencia del tiempo perdido (`docs/tiempo-perdido.md`).
-  La correspondencia con los códigos del .spl la fija su lector (`docs/formato-spl.md`).
+  La correspondencia con los códigos del .spl la fija su lector (`docs/formato-spl.md`); la de
+  OReplay, el suyo (`docs/formato-oreplay.md`).
 - Un registro del FIT sin posición no produce `TrackPoint` (`docs/formato-fit.md`).
 - **`Runner` no tiene id.** El .spl no trae ninguno: el campo `0x80`, que antes se guardaba
   como `Runner::id`, es la longitud del registro y se repite entre corredores

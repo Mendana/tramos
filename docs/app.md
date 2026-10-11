@@ -87,9 +87,20 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
 
 1. **Ficheros**: el usuario arrastra a la ventana el .spl y, si lo tiene, el .fit, o los elige
    con el diálogo del sistema (`tauri-plugin-dialog`). Se distinguen por la extensión.
+   - **Enlace de OReplay** (#185): en vez del .spl, puede pegar el enlace de la carrera en
+     OReplay y pulsar «Descargar» (o Intro). El comando `download_oreplay` (`oreplay.rs`) pide a
+     la API el evento, las categorías y los resultados de cada categoría (cuatro a la vez), los
+     junta en una descarga (`docs/formato-oreplay.md`) y la guarda en
+     `<datos de la app>/oreplay/<carrera> (OReplay).json`. Esa ruta ocupa el hueco del .spl y el
+     resto del flujo es el mismo: revisar e importar leen los splits por el contenido (descarga
+     de OReplay o .spl). Antes de guardarla comprueba que se puede importar (etapa individual,
+     con parciales). Si el enlace es el del evento y tiene varias etapas individuales, no
+     descarga nada: la interfaz las lista y, al elegir una, vuelve a pedirla con su id; con una
+     sola, la descarga directamente. Los errores (enlace que no es de OReplay, sin conexión,
+     relevos o score, carrera sin parciales) salen encima.
 2. **Identidad**: tarjeta SI y nombre y apellidos, rellenados con los de la última importación.
 3. **Revisar** (`preview_import`): lee y valida los dos ficheros (las horas del .spl, en la zona
-   horaria de los ajustes), identifica al corredor
+   horaria de los ajustes; las de OReplay ya vienen en UTC), identifica al corredor
    (`docs/identificacion.md`) y sugiere el formato (`docs/modelo.md`, "Formato de carrera").
    - Un resultado: se propone. Si casa por tarjeta pero no por nombre, se pide comprobarlo.
    - Varios: el usuario elige.
@@ -1115,6 +1126,9 @@ navegador del sistema, no en la ventana, y el `mailto:` en el cliente de correo.
 actualizaciones (#40), `updater:default` (buscar, descargar e instalar; la URL y la clave pública
 las fija `tauri.conf.json`, no la ventana) y `process:allow-restart`, para reiniciar la app con la
 versión nueva.
+
+La descarga de OReplay (#185) la hace Rust (`reqwest` con `rustls`, los mismos que el
+actualizador), así que no necesita permisos de la ventana ni abrir la CSP.
 
 MapLibre y la CSP:
 

@@ -65,6 +65,13 @@
   instalar, descarga el instalador de la misma release. La petición la hace el núcleo de Tauri
   (Rust), no la ventana, así que no pasa por la CSP. GitHub ve la IP del equipo y que se usa
   Tramos; no se envía ningún dato de carreras, ni nombres, ni la versión instalada en la URL.
+- **OReplay** (#185, `docs/formato-oreplay.md`). Solo si el usuario pega el enlace de una carrera
+  en Importar y pulsa «Descargar», la app pide a `https://www.oreplay.es/api/v1` el evento, sus
+  categorías y sus resultados, que son públicos. La petición la hace Rust, no la ventana, así que
+  no pasa por la CSP. OReplay ve la IP del equipo y qué carrera se descarga (y que es Tramos, por
+  el `User-Agent`); no se le envía nada más. La descarga trae los nombres, clubes y tarjetas de
+  todos los corredores de la carrera, como el .spl (sin fechas de nacimiento), y se guarda en
+  el directorio de datos de la app y en `source_files`: tampoco sale de la base local.
 - El enlace de la atribución de OSM se abre en el navegador del sistema; la app solo puede
   abrir URL de `https://www.openstreetmap.org/` y de los documentos del repositorio
   (`https://github.com/Mendana/tramos/blob/main/`), a los que enlaza la Ayuda. La Ayuda va dentro

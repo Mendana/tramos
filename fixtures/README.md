@@ -16,6 +16,7 @@ Datos de prueba **públicos**: solo anonimizados o sintéticos.
 | `fit/baltanas-sintetico.fit` | FIT **sintético** (posiciones inventadas) del corredor de M-SEN con tarjeta 143 (puesto 16) del fixture anterior. |
 | `fit/baltanas-sintetico.truth.json` | Respuesta conocida del FIT anterior: balizas, tramos, rodeo y parada. |
 | `spl/baltanas-anon.tiempo-perdido.expected.json` | Tiempo perdido de `spl/baltanas-anon.spl` según `tools/reference/tiempo_perdido.py` (umbrales por defecto), en forma compacta (tramos de cada corredor como filas) y con un `resumen` legible de M-SEN. Ver `docs/tiempo-perdido.md`. |
+| `oreplay/baltanas-anon.json` | El .spl anonimizado de Baltanás como descarga de OReplay: mismas picadas, en el formato de su API. Ver `docs/formato-oreplay.md`. |
 | `cli/baltanas-msen-143.expected.json` | Salida de `tramos analizar` (JSON) para el corredor de tarjeta 143 con el .spl anonimizado y el FIT sintético. Ver `docs/cli.md`. |
 
 Para regenerarlos desde el original (que solo existe en `fixtures/private/`):

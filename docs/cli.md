@@ -68,7 +68,9 @@ RFC 3339 y UTC, `null` lo que no se puede calcular):
 (`docs/tiempo-perdido.md`, "Salida"):
 
 - Totales: `total_s`, `usual_performance` (1 = 100 %), `lost_time_s`, `error_count`,
-  `time_without_errors_s`, `ideal_time_s` (tiempo ideal del recorrido entero, es decir, el
+  `time_without_errors_s`, `place_without_errors` (`place` y `classified`: el puesto en la
+  categoría con el tiempo sin errores, de cuántos clasificados; `null` si no hay; ver
+  `docs/tiempo-perdido.md`, "Puesto sin errores"), `ideal_time_s` (tiempo ideal del recorrido entero, es decir, el
   `ideal_elapsed_s` del último tramo), `behind_ideal_s` (diferencia con el ideal en meta) y
   `losing_streaks` (rachas de dos o más tramos seguidos perdiendo: `first_leg`, `last_leg`,
   `loss_s`; ver `docs/tiempo-perdido.md`, "Dónde gano y dónde pierdo") y `consistency`
@@ -100,7 +102,8 @@ Ejemplo recortado (fixture público de Baltanás, M-SEN, tarjeta 143, con el FIT
              "ideal_time": "sum_of_references"},
   "lost_time": {
     "total_s": 1540.0, "usual_performance": 0.8649, "lost_time_s": 360.43, "error_count": 3,
-    "time_without_errors_s": 1179.57, "ideal_time_s": 1039.8, "behind_ideal_s": 500.2,
+    "time_without_errors_s": 1179.57, "place_without_errors": {"place": 4, "classified": 18},
+    "ideal_time_s": 1039.8, "behind_ideal_s": 500.2,
     "losing_streaks": [{"first_leg": 7, "last_leg": 10, "loss_s": 347.34}],
     "consistency": 0.2268,
     "legs": [
@@ -155,6 +158,7 @@ Tramo  Balizas      Split   Ref.      IR   Pérdida        %  Notas
    21  100→M         0:17   0:14  81,2 %    +1,0 s   +6,5 %  último, ref. corta
 
 Total 25:40 · rendimiento habitual 86,5 % · 3 error(es) · tiempo perdido 6:00 · sin errores 19:40
+Sin errores habría sido 4.º de 18 clasificados
 Tiempo ideal 17:20 · diferencia en meta +8:20
 
 Alineación del FIT: desfase +0,1 s · confianza 1,00 · 21 picadas usadas (apoyo 0,95, separación 0,87)

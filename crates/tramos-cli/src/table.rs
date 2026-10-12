@@ -103,6 +103,13 @@ fn write_analysis(out: &mut String, a: &Analysis) -> std::fmt::Result {
         opt(t.lost_time_s, clock),
         opt(t.time_without_errors_s, clock)
     )?;
+    if let Some(p) = t.place_without_errors {
+        writeln!(
+            out,
+            "Sin errores habría sido {}.º de {} clasificados",
+            p.place, p.classified
+        )?;
+    }
     writeln!(
         out,
         "Tiempo ideal {} · diferencia en meta {}",

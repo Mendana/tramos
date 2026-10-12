@@ -18,9 +18,11 @@
 use std::path::PathBuf;
 
 use serde_json::Value;
+use tramos_core::identify::ResultRef;
 use tramos_core::importers::spl;
 use tramos_core::lost_time::{IdealTime, LostTimeConfig, analyze_event};
 use tramos_core::model::{Event, RaceStatus};
+use tramos_core::runner_report::runner_report;
 
 /// Redondeo del JSON (5e-7) más margen para el error de coma flotante.
 const TOLERANCE: f64 = 1e-6;
@@ -263,4 +265,51 @@ fn baltanas_ideal_time_as_sum_of_best_splits() {
     };
     assert!(winner(&report.courses[msen]) > 0.0);
     assert!((winner(&by_refs.courses[msen]) + 62.8).abs() < TOLERANCE);
+}
+
+/// Puesto sin errores en M-SEN: el ganador sigue primero, nadie empeora su puesto real y hay
+/// corredores que suben y otros que se quedan donde estaban.
+#[test]
+fn baltanas_place_without_errors() {
+    let (event, _) = load();
+    let config = LostTimeConfig::default();
+    let class_index = event
+        .classes
+        .iter()
+        .position(|c| c.name == "M-SEN")
+        .unwrap();
+    let class = &event.classes[class_index];
+    let classified = class
+        .results
+        .iter()
+        .filter(|r| r.status == RaceStatus::Ok)
+        .count();
+
+    let (mut moved, mut stayed) = (0, 0);
+    for (result_index, result) in class.results.iter().enumerate() {
+        let at = ResultRef {
+            class_index,
+            result_index,
+        };
+        let lost = runner_report(&event, at, &config).unwrap().lost_time;
+        let Some(without) = lost.place_without_errors else {
+            assert_ne!(result.status, RaceStatus::Ok);
+            continue;
+        };
+        assert_eq!(without.classified, classified);
+        let place = usize::from(result.place.unwrap());
+        assert!(
+            without.place <= place,
+            "{result_index}: {without:?} > {place}"
+        );
+        if place == 1 {
+            assert_eq!(without.place, 1);
+        }
+        if without.place < place {
+            moved += 1;
+        } else {
+            stayed += 1;
+        }
+    }
+    assert!(moved > 0 && stayed > 0, "suben {moved}, se quedan {stayed}");
 }

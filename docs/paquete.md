@@ -36,7 +36,7 @@ exportar (`ShareChoice::Nothing`, `none`). Cada nivel incluye todo lo del anteri
 
 | Nivel (`level`) | Qué lleva |
 | --- | --- |
-| `aggregates` | Carrera (`race_id`, fecha, nombre, formato y, si es un entrenamiento, `kind: "training"`), corredor (`runner_id` y el nombre visible que el corredor escribió para sí mismo en la app) y resumen (`summary`): categoría, estado, puesto, tiempo, tiempo perdido, errores, tiempo sin errores, rendimiento habitual y consistencia, calculados con los umbrales del corredor (`config`) y la versión del núcleo (`core_version`). |
+| `aggregates` | Carrera (`race_id`, fecha, nombre, formato y, si es un entrenamiento, `kind: "training"`), corredor (`runner_id` y el nombre visible que el corredor escribió para sí mismo en la app) y resumen (`summary`): categoría, estado, puesto, tiempo, tiempo perdido, errores, tiempo sin errores, puesto sin errores (desde #194; opcional, los paquetes anteriores no lo traen), rendimiento habitual y consistencia, calculados con los umbrales del corredor (`config`) y la versión del núcleo (`core_version`). |
 | `legs` | Además, los **originales del recorrido** (`course`) y las **etiquetas** de los tramos (`tags`, con su versión de taxonomía). |
 | `track` | Además, el **track del reloj** (`track`: puntos con hora, posición, altitud, pulso, cadencia y distancia) y el desfase manual, si lo hay. |
 

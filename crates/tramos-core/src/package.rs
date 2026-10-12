@@ -15,7 +15,7 @@ use crate::identify::ResultRef;
 use crate::lost_time::LostTimeConfig;
 use crate::model::{Event, RaceStatus, Track};
 use crate::race_format::RaceFormat;
-use crate::runner_report::{RunnerReport, runner_report};
+use crate::runner_report::{PlaceWithoutErrors, RunnerReport, runner_report};
 use crate::taxonomy::LegTag;
 
 /// Valor de `format` en todos los paquetes.
@@ -111,6 +111,9 @@ pub struct RaceSummary {
     pub lost_time_s: Option<f64>,
     pub error_count: usize,
     pub time_without_errors_s: Option<f64>,
+    /// Desde #194: los paquetes anteriores no lo traen y se leen con `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place_without_errors: Option<PlaceWithoutErrors>,
     pub usual_performance: Option<f64>,
     pub consistency: Option<f64>,
 }
@@ -130,6 +133,7 @@ impl RaceSummary {
             lost_time_s: lost.lost_time_s,
             error_count: lost.error_count,
             time_without_errors_s: lost.time_without_errors_s,
+            place_without_errors: lost.place_without_errors,
             usual_performance: lost.usual_performance,
             consistency: lost.consistency,
         })
@@ -477,6 +481,11 @@ mod tests {
         assert_eq!(package.summary.place, Some(16));
         assert_eq!(package.summary.lost_time_s, report.lost_time.lost_time_s);
         assert_eq!(package.summary.error_count, report.lost_time.error_count);
+        assert!(package.summary.place_without_errors.is_some());
+        assert_eq!(
+            package.summary.place_without_errors,
+            report.lost_time.place_without_errors
+        );
         assert_eq!(package.core_version, crate::VERSION);
         assert_eq!(package.race.race_id, race_id(&event));
         assert_eq!(
@@ -510,6 +519,22 @@ mod tests {
         assert_eq!(
             RacePackage::parse(&json).unwrap().race.kind,
             EventKind::Training
+        );
+    }
+
+    #[test]
+    fn a_summary_from_before_the_place_without_errors_still_reads() {
+        let event = fixture();
+        let package = build(input(&event, ShareLevel::Aggregates)).unwrap();
+        let mut json: serde_json::Value =
+            serde_json::from_str(&package.to_json().unwrap()).unwrap();
+        let summary = json["summary"].as_object_mut().unwrap();
+        assert!(summary.remove("place_without_errors").is_some());
+        let old = RacePackage::parse(&json.to_string()).unwrap();
+        assert_eq!(old.summary.place_without_errors, None);
+        assert_eq!(
+            old.summary.time_without_errors_s,
+            package.summary.time_without_errors_s
         );
     }
 

@@ -281,6 +281,7 @@ mod tests {
             lost_time_s: None,
             error_count: 0,
             time_without_errors_s: None,
+            place_without_errors: None,
             ideal_time_s: None,
             behind_ideal_s: None,
             losing_streaks: Vec::new(),

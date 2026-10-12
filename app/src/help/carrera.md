@@ -34,7 +34,9 @@ abre su pestaña, baja hasta él y lo marca un momento; si lo tienes oculto, pue
 
 - **Tiempo**: de la salida a la meta.
 - **Tiempo perdido**: lo que te han costado los errores ([Tiempo perdido](tiempo-perdido.md)).
-- **Sin errores**: el tiempo que habrías hecho sin esos errores.
+- **Sin errores**: el tiempo que habrías hecho sin esos errores y, debajo, el puesto que te habría
+  dado en tu categoría («Puesto 4.º de 18»). Se compara con el tiempo real de los demás, que
+  también tuvieron sus errores. Si el puesto sería el mismo que el real, no se repite.
 - **Errores**: cuántos tramos cuentan como error.
 - **Rendimiento**: tu rendimiento habitual en esta carrera y, debajo, la consistencia
   ([IR](ir.md)).
@@ -42,9 +44,10 @@ abre su pestaña, baja hasta él y lo marca un momento; si lo tienes oculto, pue
 Si en tu recorrido hubo menos de 4 clasificados, un aviso dice que la referencia es débil: los
 números se apoyan en muy pocos corredores y valen menos.
 
-> Tiempo 42:10, tiempo perdido 3:05 en 4 errores, sin errores 39:05, rendimiento 91 % y
-> consistencia ± 12 %. Sin esos cuatro tramos habrías hecho 39:05; en el resto has ido al 91 %
-> de los mejores, con altibajos moderados de un tramo a otro.
+> Tiempo 42:10, tiempo perdido 3:05 en 4 errores, sin errores 39:05 (puesto 3.º de 21),
+> rendimiento 91 % y consistencia ± 12 %. Sin esos cuatro tramos habrías hecho 39:05, que ese día
+> daba para el tercer puesto; en el resto has ido al 91 % de los mejores, con altibajos moderados
+> de un tramo a otro.
 
 ## Pestaña Resumen
 

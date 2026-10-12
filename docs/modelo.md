@@ -90,7 +90,8 @@ mediana. Algoritmo, casos borde y formato JSON en `docs/segmentacion.md`.
 perdido de un resultado listo para enseñar: su recorrido (balizas, categorías que lo comparten,
 clasificados, referencia débil), sus totales y, por tramo, la referencia del recorrido junto a sus
 números. Lo usan la CLI y la vista de carrera de la app, para que coincidan. El cálculo está en
-`docs/tiempo-perdido.md`.
+`docs/tiempo-perdido.md`. Los totales llevan también el puesto que habría tenido con su tiempo
+sin errores (`place_without_errors`, `docs/tiempo-perdido.md`, "Puesto sin errores").
 
 ## Formato de carrera
 

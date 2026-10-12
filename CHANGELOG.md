@@ -20,6 +20,8 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - Sincronizar el reloj con una baliza: en «Reloj y cronometraje», elige una baliza que recuerdes
   dónde picaste y pulsa ese punto en tu track del mapa. La app saca de ahí la diferencia entre tu
   reloj y el cronometraje, aunque el cálculo automático no haya encajado.
+- Puesto sin errores: en el resumen de la carrera, debajo del tiempo sin errores, el puesto que
+  te habría dado en tu categoría («Puesto 4.º de 18»).
 
 ## 0.3.0
 

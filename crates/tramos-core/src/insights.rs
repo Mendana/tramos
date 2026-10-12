@@ -1824,6 +1824,7 @@ mod tests {
                 lost_time_s: Some(errors.iter().filter_map(|l| l.loss_s).sum()),
                 error_count: errors.len(),
                 time_without_errors_s: None,
+                place_without_errors: None,
                 ideal_time_s: None,
                 behind_ideal_s: None,
                 losing_streaks: losing_streaks(&gains),

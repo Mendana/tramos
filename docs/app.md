@@ -595,8 +595,9 @@ sin revisar (`unreviewed_count`). Con filtros que no deja ninguna, se ofrece qui
   carrera con quien te entrena: «por defecto» (el ajuste), nada, resumen, tramos o track completo
   (#36). Al abrir la carrera y al cambiarlo se exporta si hace falta; si falla, se avisa con el
   motivo, y si se pide el track de una carrera sin track, se dice que van los tramos.
-- **Totales**: tiempo, tiempo perdido, tiempo sin errores, número de errores y rendimiento
-  habitual, con la consistencia de la carrera debajo («Consistencia ± 23 %», P10,
+- **Totales**: tiempo, tiempo perdido, tiempo sin errores (debajo, el puesto en la categoría con
+  ese tiempo, «Puesto 4.º de 18», si no es el real; `docs/tiempo-perdido.md`, "Puesto sin
+  errores"), número de errores y rendimiento habitual, con la consistencia de la carrera debajo («Consistencia ± 23 %», P10,
   `docs/tiempo-perdido.md`): van juntos porque son el centro y la dispersión del IR. Aviso si la
   referencia es débil.
 - **Tabla de tramos**: tramo, balizas (S = salida, M = meta), split, puesto en el tramo,

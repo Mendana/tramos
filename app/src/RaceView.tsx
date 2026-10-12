@@ -11,6 +11,7 @@ import {
   clock,
   codeLabel,
   decimal,
+  placeWithoutErrors,
   spread,
   raceDetail,
   raceSharing,
@@ -247,7 +248,12 @@ function Detail({
           value={clock(lost.lost_time_s)}
           tone={lost.error_count > 0 ? "error" : undefined}
         />
-        <Stat label="Sin errores" value={clock(lost.time_without_errors_s)} />
+        <Stat
+          label="Sin errores"
+          value={clock(lost.time_without_errors_s)}
+          detail={placeWithoutErrors(lost.place_without_errors, detail.place)}
+          hint="Puesto en la categoría con el tiempo sin errores, contra el tiempo real de los demás (que también tuvieron los suyos)."
+        />
         <Stat
           label="Errores"
           value={lost.error_count}

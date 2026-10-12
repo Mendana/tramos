@@ -1,6 +1,6 @@
 // Búsqueda, filtros y orden de Mis carreras (#128, `docs/app.md`, "Lista de carreras"). Solo
 // eligen y ordenan las filas que ya ha devuelto `list_races`: no calculan nada.
-import { RaceFormat, RaceRow } from "./api";
+import { EventKind, RaceFormat, RaceRow } from "./api";
 
 export type RaceSort = "recent" | "lost" | "performance";
 
@@ -17,6 +17,8 @@ export interface RaceFilter {
   format: RaceFormat | "all" | "none";
   /** Año de la carrera; `null` = todos. */
   season: number | null;
+  /** Solo carreras o solo entrenamientos (#195); `null` = las dos. */
+  kind: EventKind | null;
   trackOnly: boolean;
   sort: RaceSort;
 }
@@ -25,6 +27,7 @@ export const NO_FILTER: RaceFilter = {
   query: "",
   format: "all",
   season: null,
+  kind: null,
   trackOnly: false,
   sort: "recent",
 };
@@ -38,6 +41,7 @@ export function isFiltered(filter: RaceFilter): boolean {
     filter.query.trim() !== "" ||
     filter.format !== "all" ||
     filter.season !== null ||
+    filter.kind !== null ||
     filter.trackOnly
   );
 }
@@ -77,6 +81,7 @@ export function filterRaces(races: RaceRow[], filter: RaceFilter): RaceRow[] {
       return false;
     }
     if (filter.season !== null && Number(race.date.slice(0, 4)) !== filter.season) return false;
+    if (filter.kind !== null && race.kind !== filter.kind) return false;
     if (filter.trackOnly && !race.has_track) return false;
     const text = fold(`${race.name ?? ""} ${race.class_name}`);
     return words.every((w) => text.includes(w));

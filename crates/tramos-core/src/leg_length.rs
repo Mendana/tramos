@@ -67,7 +67,7 @@ pub fn leg_length(races: &[HistoryRace], filter: &HistoryFilter) -> Vec<LegLengt
     let mut acc = [Accumulator::default(); BUCKETS];
     let counted = races.iter().filter(|r| {
         // Como en el histórico, una carrera sin rendimiento habitual no tiene números.
-        filter.includes(r.date, r.format) && r.lost_time.usual_performance.is_some()
+        filter.includes_race(r) && r.lost_time.usual_performance.is_some()
     });
     for race in counted {
         for leg in pattern_legs(&race.lost_time) {
@@ -220,6 +220,7 @@ mod tests {
         HistoryRace {
             date: date.parse().unwrap(),
             format,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: usual,
@@ -343,6 +344,7 @@ mod tests {
             &races(),
             &HistoryFilter {
                 format: Some(RaceFormat::Sprint),
+                kind: None,
                 ..HistoryFilter::default()
             },
         );
@@ -358,6 +360,7 @@ mod tests {
                 from: Some("2026-04-01".parse().unwrap()),
                 to: Some("2026-05-01".parse().unwrap()),
                 format: None,
+                kind: None,
             },
         );
         spring[..2].iter().for_each(empty);

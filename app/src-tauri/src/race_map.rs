@@ -665,6 +665,7 @@ pub(crate) mod tests {
                 fit_path: fit,
                 result: p.candidates[0].result,
                 format: p.suggested_format,
+                training: false,
                 identity: identity(),
             },
         )

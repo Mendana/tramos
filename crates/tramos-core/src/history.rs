@@ -9,6 +9,7 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
+use crate::event_kind::EventKind;
 use crate::metrics::LegMetrics;
 use crate::race_format::RaceFormat;
 use crate::runner_report::{LegReport, RunnerLostTime};
@@ -23,6 +24,8 @@ pub struct HistoryRace {
     pub date: NaiveDate,
     /// Formato confirmado al importar; `None` si no se fijó.
     pub format: Option<RaceFormat>,
+    /// Competición o entrenamiento.
+    pub kind: EventKind,
     /// Tiempo perdido del corredor en la carrera ([`crate::runner_report`]).
     pub lost_time: RunnerLostTime,
 }
@@ -46,14 +49,22 @@ pub struct HistoryFilter {
     pub to: Option<NaiveDate>,
     /// Solo este formato. Las carreras sin formato solo entran sin este filtro.
     pub format: Option<RaceFormat>,
+    /// Solo competiciones o solo entrenamientos (#195).
+    pub kind: Option<EventKind>,
 }
 
 impl HistoryFilter {
-    /// Si una carrera de fecha `date` y formato `format` pasa el filtro.
-    pub fn includes(&self, date: NaiveDate, format: Option<RaceFormat>) -> bool {
+    /// Si una carrera de fecha `date`, formato `format` y tipo `kind` pasa el filtro.
+    pub fn includes(&self, date: NaiveDate, format: Option<RaceFormat>, kind: EventKind) -> bool {
         self.from.is_none_or(|from| date >= from)
             && self.to.is_none_or(|to| date <= to)
             && self.format.is_none_or(|f| format == Some(f))
+            && self.kind.is_none_or(|k| kind == k)
+    }
+
+    /// Si `race` pasa el filtro.
+    pub fn includes_race(&self, race: &HistoryRace) -> bool {
+        self.includes(race.date, race.format, race.kind)
     }
 }
 
@@ -192,7 +203,7 @@ pub fn history(races: &[HistoryRace], filter: &HistoryFilter) -> History {
     let mut total = Accumulator::default();
     let mut races_without_data = 0;
 
-    for race in races.iter().filter(|r| filter.includes(r.date, r.format)) {
+    for race in races.iter().filter(|r| filter.includes_race(r)) {
         let Some(usual) = race.lost_time.usual_performance else {
             races_without_data += 1;
             continue;
@@ -318,6 +329,7 @@ mod tests {
         HistoryRace {
             date: date.parse().unwrap(),
             format,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: usual,
@@ -462,11 +474,36 @@ mod tests {
     }
 
     #[test]
+    fn kind_filter_keeps_races_or_trainings() {
+        // C (media, 4 tramos, 2 errores) es un entrenamiento; las demás, competiciones.
+        let mut races = races();
+        races[2].kind = EventKind::Training;
+        let only = |kind| {
+            history(
+                &races,
+                &HistoryFilter {
+                    kind,
+                    ..HistoryFilter::default()
+                },
+            )
+        };
+        let training = only(Some(EventKind::Training));
+        check(training.total, (1, 4, 2), [1.0, 0.5, 16.25, 8.125]);
+        assert_eq!(training.races_without_data, 0);
+        let race = only(Some(EventKind::Race));
+        assert_eq!(race.total.races, 3);
+        // E (sin números) es competición.
+        assert_eq!(race.races_without_data, 1);
+        assert_eq!(only(None).total.races, 4);
+    }
+
+    #[test]
     fn date_range_is_inclusive() {
         let filter = HistoryFilter {
             from: Some("2026-04-10".parse().unwrap()),
             to: Some("2026-05-20".parse().unwrap()),
             format: None,
+            kind: None,
         };
         let h = history(&races(), &filter);
         assert_eq!(h.filter, filter);
@@ -494,6 +531,7 @@ mod tests {
                 from: Some(day),
                 to: Some(day),
                 format: None,
+                kind: None,
             },
         );
         check(h.total, (1, 3, 1), [0.9, 1.0 / 3.0, 10.0, 50.0 / 3.0]);
@@ -505,6 +543,7 @@ mod tests {
             &races(),
             &HistoryFilter {
                 format: Some(RaceFormat::Sprint),
+                kind: None,
                 ..HistoryFilter::default()
             },
         );
@@ -519,6 +558,7 @@ mod tests {
             &races(),
             &HistoryFilter {
                 format: Some(RaceFormat::Long),
+                kind: None,
                 ..HistoryFilter::default()
             },
         );
@@ -535,6 +575,7 @@ mod tests {
                 from: Some("2026-06-01".parse().unwrap()),
                 to: Some("2026-05-01".parse().unwrap()),
                 format: None,
+                kind: None,
             },
         );
         assert_eq!(h.total, HistoryStats::default());

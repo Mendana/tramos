@@ -1,6 +1,8 @@
 import { Fragment, lazy, Suspense, useEffect, useState } from "react";
 import {
+  EventKind,
   FORMAT_LABELS,
+  KIND_LABELS,
   LegReport,
   RaceDetail,
   RaceSharing,
@@ -18,6 +20,7 @@ import {
   RaceFormat,
   RaceInsightTarget,
   setRaceFormat,
+  setRaceKind,
   setRaceSharing,
   signed,
   statusLabel,
@@ -117,6 +120,15 @@ function RaceView({
               })
               .catch((err: unknown) => setError(String(err)));
           }}
+          onKindChange={(kind) => {
+            setError(null);
+            setRaceKind(resultId, kind)
+              .then(() => {
+                setDetail({ ...detail, kind });
+                onChanged();
+              })
+              .catch((err: unknown) => setError(String(err)));
+          }}
           onTagged={onChanged}
           tab={tab}
           onTab={onTab}
@@ -130,6 +142,7 @@ function RaceView({
 function Detail({
   detail,
   onFormatChange,
+  onKindChange,
   onTagged,
   tab,
   onTab,
@@ -137,6 +150,7 @@ function Detail({
 }: {
   detail: RaceDetail;
   onFormatChange: (format: RaceFormat | null) => void;
+  onKindChange: (kind: EventKind) => void;
   /** Se ha guardado una etiqueta: cambia el número de errores sin revisar. */
   onTagged: () => void;
   tab: RaceTab;
@@ -204,6 +218,7 @@ function Detail({
             {readOnly && detail.format !== null && (
               <span className="pill pill-accent">{FORMAT_LABELS[detail.format]}</span>
             )}
+            {readOnly && detail.kind === "training" && <span className="pill">Entrenamiento</span>}
             <span>
               {name} · {statusLabel(detail.status, detail.place)}
             </span>
@@ -224,6 +239,7 @@ function Detail({
               <SharingPicker view={sharing.view} onChange={sharing.change} />
             )}
             {!readOnly && <FormatPicker format={detail.format} onChange={onFormatChange} />}
+            {!readOnly && <KindPicker kind={detail.kind} onChange={onKindChange} />}
           </>
         }
       />
@@ -643,6 +659,26 @@ function FormatPicker({
           </option>
         ))}
         <option value="">Sin formato</option>
+      </select>
+    </label>
+  );
+}
+
+/** Carrera o entrenamiento (#195): como el formato, es de la carrera. */
+function KindPicker({ kind, onChange }: { kind: EventKind; onChange: (kind: EventKind) => void }) {
+  return (
+    <label className="field format-picker">
+      <span className="field-label">Tipo</span>
+      <select
+        className="select"
+        value={kind}
+        onChange={(e) => onChange(e.target.value as EventKind)}
+      >
+        {(Object.keys(KIND_LABELS) as EventKind[]).map((k) => (
+          <option key={k} value={k}>
+            {KIND_LABELS[k]}
+          </option>
+        ))}
       </select>
     </label>
   );

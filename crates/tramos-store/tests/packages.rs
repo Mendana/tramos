@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used)]
 
 use chrono::{DateTime, TimeDelta, Utc};
+use tramos_core::event_kind::EventKind;
 use tramos_core::identify::ResultRef;
 use tramos_core::importers::spl;
 use tramos_core::lost_time::LostTimeConfig;
@@ -37,6 +38,7 @@ fn package(event: &Event, runner_id: &str, level: ShareLevel, minutes: i64) -> R
             result_index: 15,
         },
         format: None,
+        kind: EventKind::Race,
         config: LostTimeConfig::default(),
         tags: Vec::new(),
         track: None,

@@ -526,6 +526,8 @@ fn import_race(
         } else {
             suggest_format(&race.event)
         },
+        // La importación de una carpeta no pregunta: se marca después en la carrera.
+        training: false,
         identity,
     };
     match import::import(store, &request) {

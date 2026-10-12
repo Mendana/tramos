@@ -36,7 +36,7 @@ exportar (`ShareChoice::Nothing`, `none`). Cada nivel incluye todo lo del anteri
 
 | Nivel (`level`) | Qué lleva |
 | --- | --- |
-| `aggregates` | Carrera (`race_id`, fecha, nombre, formato), corredor (`runner_id` y el nombre visible que el corredor escribió para sí mismo en la app) y resumen (`summary`): categoría, estado, puesto, tiempo, tiempo perdido, errores, tiempo sin errores, rendimiento habitual y consistencia, calculados con los umbrales del corredor (`config`) y la versión del núcleo (`core_version`). |
+| `aggregates` | Carrera (`race_id`, fecha, nombre, formato y, si es un entrenamiento, `kind: "training"`), corredor (`runner_id` y el nombre visible que el corredor escribió para sí mismo en la app) y resumen (`summary`): categoría, estado, puesto, tiempo, tiempo perdido, errores, tiempo sin errores, rendimiento habitual y consistencia, calculados con los umbrales del corredor (`config`) y la versión del núcleo (`core_version`). |
 | `legs` | Además, los **originales del recorrido** (`course`) y las **etiquetas** de los tramos (`tags`, con su versión de taxonomía). |
 | `track` | Además, el **track del reloj** (`track`: puntos con hora, posición, altitud, pulso, cadencia y distancia) y el desfase manual, si lo hay. |
 
@@ -57,6 +57,11 @@ Los paquetes de antes de #118 traen nombre y apellidos vacíos y club `null`. Es
 venga sin nombre lo llama «Corredor 1», «Corredor 2»… Un paquete viejo se rehace con nombres en
 cuanto el corredor vuelve a exportar (al guardar los Ajustes con carpeta, o al cambiar algo de
 esa carrera).
+
+`race.kind` (#195) dice si la carrera es un entrenamiento. Es un campo opcional nuevo, así que
+`version` sigue siendo 1: una competición no lo escribe, y un paquete sin él (también los de
+antes) es una competición. Una app anterior a #195 ignora el campo y ve el entrenamiento como una
+carrera más. La app destino guarda el tipo en la carrera, como el formato, y sus filtros lo usan.
 
 Con un paquete `legs` o `track`, la app destino recalcula a partir de `course` con su versión del
 algoritmo; el `summary` es lo que vio el corredor. Con `aggregates` solo tiene el `summary`.
@@ -117,7 +122,7 @@ se elige `track` para una carrera sin track, se comparten los tramos.
 
 **Exportar.** Si comparte lo suyo y hay carpeta, cada carrera del usuario se exporta sola
 (`export_result`) cuando cambia algo de lo que lleva el paquete: al importarla (una o una carpeta
-entera), al etiquetar un tramo, al cambiar el formato o el desfase del reloj y al cambiar qué se
+entera), al etiquetar un tramo, al cambiar el formato, el tipo (#195) o el desfase del reloj y al cambiar qué se
 comparte de ella. Al guardar los ajustes con carpeta se exportan todas (`share_all`), porque los
 umbrales cambian el resumen.
 

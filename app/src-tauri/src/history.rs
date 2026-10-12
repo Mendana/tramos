@@ -21,6 +21,7 @@ use tramos_core::after_error::{AfterError, after_error};
 use tramos_core::common_errors::{CommonErrors, TaggedRace, common_errors};
 use tramos_core::consistency::consistency_series;
 use tramos_core::days_off::{DaysOff, days_off};
+use tramos_core::event_kind::EventKind;
 use tramos_core::fatigue::{Fatigue, FatigueRace, fatigue};
 use tramos_core::history::{
     History, HistoryFilter, HistoryRace, HistoryStats, TrackedRace, history, race_stats,
@@ -76,7 +77,8 @@ pub struct HistoryView {
     /// Las carreras que pasan el filtro, de la más reciente a la más antigua (#98).
     pub races: Vec<HistoryRaceRow>,
     /// Días sin competir (P11): cuatro cubos por días desde la carrera anterior, con el mismo
-    /// filtro. La anterior puede ser cualquier carrera del usuario, pase o no el filtro.
+    /// filtro. La anterior puede ser cualquier carrera del usuario, pase o no el filtro de fechas
+    /// y formato; con el de tipo, una del mismo tipo.
     pub days_off: DaysOff,
 }
 
@@ -88,6 +90,7 @@ pub struct HistoryRaceRow {
     pub date: NaiveDate,
     pub name: Option<String>,
     pub format: Option<RaceFormat>,
+    pub kind: EventKind,
     pub class_name: String,
     pub status: RaceStatus,
     pub place: Option<u16>,
@@ -122,7 +125,7 @@ pub fn history_view_where(
     // Solo se cargan y analizan las carreras que pasan el filtro.
     for r in results
         .iter()
-        .filter(|r| filter.includes(r.event_date, r.event_format) && keep(r.result.0))
+        .filter(|r| filter.includes(r.event_date, r.event_format, r.event_kind) && keep(r.result.0))
     {
         let (event_id, at) = store.result_ref(r.result)?;
         let event = match events.entry(event_id) {
@@ -146,6 +149,7 @@ pub fn history_view_where(
             date: r.event_date,
             name: r.event_name.clone(),
             format: r.event_format,
+            kind: r.event_kind,
             class_name: r.class_name.clone(),
             status: r.status,
             place: r.place,
@@ -154,15 +158,18 @@ pub fn history_view_where(
         races.push(HistoryRace {
             date: r.event_date,
             format: r.event_format,
+            kind: r.event_kind,
             lost_time: report.lost_time,
         });
     }
     rows.reverse();
-    // Carreras en las que el usuario tomó la salida, sin filtrar: sirven de «carrera anterior»
-    // (P11) sin tener que analizarlas.
+    // Carreras en las que el usuario tomó la salida, sin filtrar por fechas ni formato: sirven de
+    // «carrera anterior» (P11) sin tener que analizarlas. Con el filtro de tipo, solo las de ese
+    // tipo (#195): entre competiciones o entre entrenamientos.
     let competed: Vec<NaiveDate> = results
         .iter()
         .filter(|r| r.status != RaceStatus::DidNotStart)
+        .filter(|r| filter.kind.is_none_or(|kind| r.event_kind == kind))
         .map(|r| r.event_date)
         .collect();
     let tracked: Vec<TrackedRace<'_>> = races
@@ -288,6 +295,7 @@ mod tests {
                 fit_path: fit,
                 result: at,
                 format: p.suggested_format,
+                training: false,
                 identity: identity(),
             },
         )
@@ -379,6 +387,7 @@ mod tests {
                 from: Some(date("2026-06-01")),
                 to: Some(date("2026-06-01")),
                 format: None,
+                kind: None,
             },
         )
         .unwrap();
@@ -401,6 +410,54 @@ mod tests {
     }
 
     #[test]
+    fn filters_by_kind_and_counts_days_off_within_the_kind() {
+        let (mut store, result_id) = two_races();
+        // La copia del 1-jun es un entrenamiento; la del 3-oct, una competición.
+        let june = store
+            .person_results(stored_self_person(&store).unwrap().unwrap())
+            .unwrap()
+            .into_iter()
+            .find(|r| r.result.0 != result_id)
+            .unwrap();
+        store
+            .set_event_kind(june.event, EventKind::Training)
+            .unwrap();
+        let only = |kind| {
+            history_view(
+                &store,
+                &HistoryFilter {
+                    kind,
+                    ..HistoryFilter::default()
+                },
+            )
+            .unwrap()
+        };
+        let in_buckets =
+            |view: &HistoryView| -> usize { view.days_off.buckets.iter().map(|b| b.races).sum() };
+
+        let all = only(None);
+        assert_eq!(all.history.total.races, 2);
+        // Sin filtro de tipo, el entrenamiento cuenta como carrera anterior de la competición.
+        assert_eq!((in_buckets(&all), all.days_off.without_previous), (1, 1));
+
+        let trainings = only(Some(EventKind::Training));
+        assert_eq!(trainings.all_races, 2);
+        assert_eq!(trainings.history.total.races, 1);
+        assert_eq!(trainings.races.len(), 1);
+        assert_eq!(trainings.races[0].kind, EventKind::Training);
+        assert_eq!(trainings.races[0].date, date("2026-06-01"));
+
+        let races = only(Some(EventKind::Race));
+        assert_eq!(races.history.total.races, 1);
+        assert_eq!(races.races[0].kind, EventKind::Race);
+        // Entre competiciones, la del 3-oct no tiene anterior.
+        assert_eq!(
+            (in_buckets(&races), races.days_off.without_previous),
+            (0, 1)
+        );
+    }
+
+    #[test]
     fn races_without_format_go_apart() {
         let (mut store, result_id) = two_races();
         let (event_id, _) = store.result_ref(tramos_store::ResultId(result_id)).unwrap();
@@ -414,6 +471,7 @@ mod tests {
             &store,
             &HistoryFilter {
                 format: Some(RaceFormat::Middle),
+                kind: None,
                 ..HistoryFilter::default()
             },
         )
@@ -471,6 +529,7 @@ mod tests {
             &store,
             &HistoryFilter {
                 format: Some(RaceFormat::Middle),
+                kind: None,
                 ..HistoryFilter::default()
             },
         )
@@ -521,6 +580,7 @@ mod tests {
         }
         let none = HistoryFilter {
             format: Some(RaceFormat::Long),
+            kind: None,
             ..HistoryFilter::default()
         };
         assert!(history_view(&store, &none).unwrap().insights.is_empty());
@@ -547,6 +607,7 @@ mod tests {
                 &store,
                 &HistoryFilter {
                     format,
+                    kind: None,
                     ..HistoryFilter::default()
                 },
             )
@@ -573,6 +634,7 @@ mod tests {
                 &store,
                 &HistoryFilter {
                     format,
+                    kind: None,
                     ..HistoryFilter::default()
                 },
             )
@@ -685,6 +747,7 @@ mod tests {
             &store,
             &HistoryFilter {
                 format: Some(RaceFormat::Middle),
+                kind: None,
                 ..HistoryFilter::default()
             },
         )

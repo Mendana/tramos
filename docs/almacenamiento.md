@@ -78,7 +78,7 @@ El análisis guardado (`legs`) aún no tiene API: de momento solo existe su tabl
 
 | Tabla | Qué guarda | Columnas clave |
 | --- | --- | --- |
-| `events` | Carreras. | `name`, `date`, `source_file_id` (el .spl, opcional), `format` (`sprint`, `middle`, `long` u opcional). |
+| `events` | Carreras. | `name`, `date`, `source_file_id` (el .spl, opcional), `format` (`sprint`, `middle`, `long` u opcional), `kind` (`race` o `training`, #195). |
 | `courses` | Recorridos: uno por secuencia de balizas distinta dentro de la carrera. Las categorías con el mismo recorrido comparten fila, porque el tiempo perdido se calcula por recorrido. | `event_id`. |
 | `course_controls` | Balizas de cada recorrido, sin salida ni meta. | `course_id`, `position`, `code`. |
 | `classes` | Categorías. | `event_id`, `position`, `source_id` (id del fichero), `name`, `short_name`, `course_id`. |
@@ -143,6 +143,7 @@ Notas:
 | 8 | `0008_result_sharing.sql` | Tabla `result_sharing` (qué comparte el corredor de cada carrera, #36). |
 | 9 | `0009_athlete_groups.sql` | Tablas `athlete_groups` y `athlete_group_members` (grupos de atletas, #120). |
 | 10 | `0010_received_first_import.sql` | Columna `received_packages.first_imported_at_epoch_ms` (primera llegada; los paquetes que ya había toman su `imported_at_epoch_ms`, #166). |
+| 11 | `0011_event_kind.sql` | Columna `events.kind` (`race` o `training`; las carreras que ya había son `race`, #195). |
 
 ## Copia de seguridad
 

@@ -44,7 +44,7 @@ pub fn race_consistency(lost_time: &RunnerLostTime) -> Option<f64> {
 pub fn consistency_series(races: &[HistoryRace], filter: &HistoryFilter) -> Vec<f64> {
     let mut series: Vec<(chrono::NaiveDate, f64)> = races
         .iter()
-        .filter(|r| filter.includes(r.date, r.format))
+        .filter(|r| filter.includes_race(r))
         .filter(|r| r.lost_time.usual_performance.is_some())
         .filter_map(|r| Some((r.date, r.lost_time.consistency?)))
         .collect();
@@ -167,6 +167,7 @@ mod tests {
         HistoryRace {
             date: date.parse().unwrap(),
             format: None,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: lost,
         }
     }
@@ -199,6 +200,7 @@ mod tests {
             from: Some("2026-02-01".parse().unwrap()),
             to: Some("2026-02-28".parse().unwrap()),
             format: None,
+            kind: None,
         };
         assert_eq!(consistency_series(&races, &filter), [0.20]);
     }

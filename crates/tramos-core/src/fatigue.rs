@@ -199,9 +199,9 @@ pub fn fatigue(races: &[FatigueRace<'_>], filter: &HistoryFilter) -> Fatigue {
         races_without_heart_rate: 0,
         errors_without_heart_rate: 0,
     };
-    let counted = races.iter().filter(|r| {
-        filter.includes(r.race.date, r.race.format) && r.race.lost_time.usual_performance.is_some()
-    });
+    let counted = races
+        .iter()
+        .filter(|r| filter.includes_race(r.race) && r.race.lost_time.usual_performance.is_some());
     for r in counted {
         let lost = &r.race.lost_time;
         let course_legs = lost.legs.len();
@@ -402,6 +402,7 @@ mod tests {
         let race = HistoryRace {
             date: date.parse().unwrap(),
             format,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: usual,
@@ -654,6 +655,7 @@ mod tests {
             &data,
             &HistoryFilter {
                 format: Some(RaceFormat::Middle),
+                kind: None,
                 ..HistoryFilter::default()
             },
         );

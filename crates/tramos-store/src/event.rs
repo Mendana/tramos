@@ -4,13 +4,14 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
+use tramos_core::event_kind::EventKind;
 use tramos_core::identify::ResultRef;
 use tramos_core::model::{Class, Course, Event, Punch, RaceResult, Runner};
 use tramos_core::race_format::RaceFormat;
 
 use crate::convert::{
-    date_to_text, format_to_sql, instant_to_ms, ms_to_instant, position, sex_to_sql, sql_to_format,
-    sql_to_sex, sql_to_status, status_to_sql, text_to_date,
+    date_to_text, format_to_sql, instant_to_ms, kind_to_sql, ms_to_instant, position, sex_to_sql,
+    sql_to_format, sql_to_kind, sql_to_sex, sql_to_status, status_to_sql, text_to_date,
 };
 use crate::source::ensure_source_file;
 use crate::{EventId, ResultId, SourceFileId, Store, StoreError};
@@ -125,6 +126,30 @@ impl Store {
         let updated = self.conn.execute(
             "UPDATE events SET format = ?1 WHERE id = ?2",
             params![format.map(format_to_sql), id.0],
+        )?;
+        if updated == 0 {
+            return Err(StoreError::EventNotFound(id.0));
+        }
+        Ok(())
+    }
+
+    /// Competición o entrenamiento.
+    pub fn event_kind(&self, id: EventId) -> Result<EventKind, StoreError> {
+        let kind: String = self
+            .conn
+            .query_row("SELECT kind FROM events WHERE id = ?1", [id.0], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .ok_or(StoreError::EventNotFound(id.0))?;
+        sql_to_kind(&kind)
+    }
+
+    /// Marca una carrera como competición o entrenamiento.
+    pub fn set_event_kind(&mut self, id: EventId, kind: EventKind) -> Result<(), StoreError> {
+        let updated = self.conn.execute(
+            "UPDATE events SET kind = ?1 WHERE id = ?2",
+            params![kind_to_sql(kind), id.0],
         )?;
         if updated == 0 {
             return Err(StoreError::EventNotFound(id.0));

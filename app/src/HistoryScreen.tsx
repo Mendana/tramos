@@ -6,6 +6,7 @@ import { useViewer } from "./viewer";
 import { Subject, useSubject } from "./subject";
 import {
   FORMAT_LABELS,
+  EventKind,
   HistoryFilter,
   HistoryInsightTarget,
   HistoryRaceRow,
@@ -15,6 +16,7 @@ import {
   decimal,
   getHistory,
   spread,
+  NO_FILTER,
 } from "./api";
 import { ConsistencyPanel } from "./ConsistencyPanel";
 import { DaysOffPanel } from "./DaysOffPanel";
@@ -37,8 +39,6 @@ import { AfterErrorPanel } from "./AfterErrorPanel";
 import { CommonErrorsPanel } from "./CommonErrorsPanel";
 import { FatiguePanel } from "./FatiguePanel";
 import { InsightPlace, Insights, useInsightFocus } from "./Insights";
-
-const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 
 /** Pestañas de Estadísticas: una por pregunta (#130). */
 export type HistoryTab = "summary" | "where" | "progress" | "body";
@@ -198,7 +198,14 @@ function HistoryScreen({
   );
 }
 
-/** Filtros: fechas (incluidas) y formato. */
+/** Opciones del filtro de tipo (#195): `null` = las dos. */
+const KIND_FILTERS: { kind: EventKind | null; label: string }[] = [
+  { kind: null, label: "Todo" },
+  { kind: "race", label: "Carreras" },
+  { kind: "training", label: "Entrenamientos" },
+];
+
+/** Filtros: fechas (incluidas), formato y tipo. */
 export function Filters({
   filter,
   onChange,
@@ -207,7 +214,8 @@ export function Filters({
   onChange: (filter: HistoryFilter) => void;
 }) {
   const date = (value: string) => (value === "" ? null : value);
-  const active = filter.from !== null || filter.to !== null || filter.format !== null;
+  const active =
+    filter.from !== null || filter.to !== null || filter.format !== null || filter.kind !== null;
   return (
     <div className="card history-filters">
       <label className="field">
@@ -246,12 +254,26 @@ export function Filters({
           ))}
         </div>
       </div>
+      <div className="field">
+        <span className="field-label" id="history-kind">
+          Tipo
+        </span>
+        <div className="segmented" role="radiogroup" aria-labelledby="history-kind">
+          {KIND_FILTERS.map(({ kind, label }) => (
+            <label key={kind ?? "all"}>
+              <input
+                type="radio"
+                name="history-kind"
+                checked={filter.kind === kind}
+                onChange={() => onChange({ ...filter, kind })}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
       {active && (
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => onChange({ from: null, to: null, format: null })}
-        >
+        <button type="button" className="btn btn-ghost" onClick={() => onChange(NO_FILTER)}>
           Quitar filtros
         </button>
       )}
@@ -491,6 +513,7 @@ function RaceRows({
                     <span className={race.format === null ? "pill" : "pill pill-accent"}>
                       {race.format === null ? "Sin formato" : FORMAT_LABELS[race.format]}
                     </span>
+                    {race.kind === "training" && <span className="pill">Entrenamiento</span>}
                   </div>
                 </td>
                 <td>{race.class_name}</td>

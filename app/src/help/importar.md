@@ -12,12 +12,16 @@ Para añadir carreras. Arriba eliges **Una carrera** o **Una carpeta**.
    resultados con sus parciales y sigue igual que con un .spl. Si pegas el enlace de un evento
    con varias carreras, te pregunta cuál. Solo valen carreras individuales con parciales: no
    relevos ni score, ni las que solo tienen el tiempo de meta.
+
 2. **Quién eres**: tu tarjeta SI y tu nombre. Se rellenan con los de la última vez
    ([Mi perfil](perfil.md)).
 3. **Revisar**: la app lee los ficheros sin guardar nada, te busca en los resultados y te
    propone el que es tuyo. Si casa la tarjeta pero no el nombre, te pide comprobarlo; si hay
    varios posibles, eliges tú; si no hay ninguno, te buscas en la lista. También sugiere el
-   [formato](formatos.md) de la carrera, que puedes cambiar.
+   [formato](formatos.md) de la carrera, que puedes cambiar. Si es un entrenamiento con mapa,
+   marca **«Es un entrenamiento»**: se analiza igual, pero en [Estadísticas](estadisticas.md)
+   podrás verlo aparte de las carreras. Al importar una carpeta entera no se pregunta: márcalo
+   después en la [carrera](carrera.md).
 4. **Importar**: guarda la carrera. Con FIT, lo encaja con tus picadas
    ([Reloj y desfase](reloj.md)) y te dice qué tal ha ido.
 

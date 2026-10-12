@@ -263,9 +263,9 @@ pub fn common_errors(races: &[TaggedRace], filter: &HistoryFilter) -> CommonErro
     let mut all = Grid::default();
     // FORMATS y, al final, sin formato.
     let mut formats: [Grid; FORMATS.len() + 1] = Default::default();
-    let counted = races.iter().filter(|r| {
-        filter.includes(r.race.date, r.race.format) && r.race.lost_time.usual_performance.is_some()
-    });
+    let counted = races
+        .iter()
+        .filter(|r| filter.includes_race(r.race) && r.race.lost_time.usual_performance.is_some());
     for tagged in counted {
         let format_index = tagged
             .race
@@ -347,6 +347,7 @@ mod tests {
         HistoryRace {
             date: date.parse().unwrap(),
             format,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: usual,
@@ -640,6 +641,7 @@ mod tests {
     fn the_history_filter_applies() {
         let filter = HistoryFilter {
             format: Some(RaceFormat::Middle),
+            kind: None,
             ..HistoryFilter::default()
         };
         let common = run(&filter);

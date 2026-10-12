@@ -1,6 +1,7 @@
 //! Conversión entre los tipos del modelo y los valores de las columnas.
 
 use chrono::{DateTime, NaiveDate, Utc};
+use tramos_core::event_kind::EventKind;
 use tramos_core::model::{RaceStatus, Sex};
 use tramos_core::race_format::RaceFormat;
 
@@ -69,6 +70,21 @@ pub(crate) fn sql_to_format(text: &str) -> Result<RaceFormat, StoreError> {
         _ => Err(StoreError::InvalidData(format!(
             "formato inválido: {text:?}"
         ))),
+    }
+}
+
+pub(crate) fn kind_to_sql(kind: EventKind) -> &'static str {
+    match kind {
+        EventKind::Race => "race",
+        EventKind::Training => "training",
+    }
+}
+
+pub(crate) fn sql_to_kind(text: &str) -> Result<EventKind, StoreError> {
+    match text {
+        "race" => Ok(EventKind::Race),
+        "training" => Ok(EventKind::Training),
+        _ => Err(StoreError::InvalidData(format!("tipo inválido: {text:?}"))),
     }
 }
 

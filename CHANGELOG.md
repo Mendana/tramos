@@ -20,6 +20,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - Sincronizar el reloj con una baliza: en «Reloj y cronometraje», elige una baliza que recuerdes
   dónde picaste y pulsa ese punto en tu track del mapa. La app saca de ahí la diferencia entre tu
   reloj y el cronometraje, aunque el cálculo automático no haya encajado.
+- Entrenamientos: al importar, marca «Es un entrenamiento» (o cámbialo después en la carrera).
+  Se analizan igual que las carreras, y en Estadísticas y Mis carreras puedes ver solo carreras o
+  solo entrenamientos. Quien te entrena también lo ve.
 
 ## 0.3.0
 

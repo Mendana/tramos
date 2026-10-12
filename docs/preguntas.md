@@ -60,8 +60,9 @@ medio (ponderado por `ref_i`), tasa de error y n. Definiciones en `docs/historic
 
 **P8. ¿Qué hago después de fallar?**
 - Encadenamiento: tasa de error en el tramo siguiente a un error frente a la tasa tras un tramo limpio.
-- Recuperación: en el tramo siguiente a un error, velocidad en movimiento frente a la mediana del
-  corredor en tramos limpios; se marca si supera +5 % y si ese tramo acaba en error.
+- Recuperación: en el tramo siguiente a un error, velocidad (equivalente en llano si hay altitud)
+  frente a la mediana del corredor en tramos limpios; se marca si supera +5 % y si ese tramo acaba
+  en error.
 - Rachas limpias: tasa de error según los tramos limpios seguidos previos: 0, 1–2, 3–5, 6–10, más de 10.
 
 **P9. ¿Qué errores son los más comunes?** Reparto por tipo y subtipo (`docs/taxonomia.md`),
@@ -74,7 +75,8 @@ en cubos: hasta 7, 8–14, 15–30, más de 30. Por cubo: IR medio de los tres p
 error del primer tercio de la carrera.
 
 **P14. ¿El cansancio anticipa el error?** Dato débil con pulso de muñeca; se muestra como tal.
-- Deriva: relación pulso/velocidad por tercio de carrera en tramos limpios.
+- Deriva: relación pulso/velocidad (equivalente en llano si hay altitud) por tercio de carrera en
+  tramos limpios.
 - Antes del error: pulso medio en el tramo previo a un error frente al de tramos previos a tramos
   limpios, en la misma fase de carrera.
 - Esfuerzo percibido de las etiquetas, cuando exista.

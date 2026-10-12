@@ -76,6 +76,10 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
     data.after_error_without_speed > 0
       ? ` ${legsLabel(data.after_error_without_speed)} tras un error no tienen velocidad para comparar (sin FIT o con pocos tramos limpios) y solo cuentan en «Tras un error».`
       : "";
+  const withoutAltitude =
+    data.compared_without_altitude > 0
+      ? ` ${legsLabel(data.compared_without_altitude)} se ${data.compared_without_altitude === 1 ? "compara" : "comparan"} sin descontar el desnivel (su carrera no tiene altitud): una bajada puede parecer acelerar.`
+      : "";
   const streaks = data.streaks.map((s) => ({
     key: String(s.from),
     label: streakLabel(s.from, s.to),
@@ -87,7 +91,7 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
       <ChartPanel
         id="after-error"
         title="¿Un error trae otro?"
-        description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según ${who.pick("aceleraste", "aceleró", "aceleraron")} (más de un 5 % más rápido que ${who.yourOne} mediana en los tramos limpios de esa carrera) o no.${withoutSpeed}`}
+        description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según ${who.pick("aceleraste", "aceleró", "aceleraron")} (más de un 5 % más rápido que ${who.yourOne} mediana en los tramos limpios de esa carrera, con la velocidad equivalente en llano para que una bajada no cuente como acelerar) o no.${withoutSpeed}${withoutAltitude}`}
         cases={legsLabel(data.after_clean.legs + data.after_error.legs)}
         chart={
           <ColumnChart

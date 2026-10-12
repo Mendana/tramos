@@ -144,6 +144,10 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
     data.errors_without_heart_rate > 0
       ? ` ${data.errors_without_heart_rate === 1 ? "Un error no tiene" : `${data.errors_without_heart_rate} errores no tienen`} pulso del tramo anterior (sin FIT o sin pulso) y no se compara.`
       : "";
+  const withoutAltitude =
+    data.drift_races_without_altitude > 0
+      ? ` En ${racesLabel(data.drift_races_without_altitude)} sin altitud se usa la velocidad en movimiento: ahí una subida puede parecer cansancio.`
+      : "";
   return (
     <>
       <h3 className="section-title">Cansancio</h3>
@@ -159,7 +163,7 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
       <ChartPanel
         id="fatigue-drift"
         title="Deriva del pulso"
-        description={`Pulso dividido entre la velocidad en movimiento de ${who.your} tramos limpios, en cada tercio de la carrera, frente a lo habitual en esa carrera (0: la mediana de sus tramos limpios). Si sube al final, ${who.pick("necesitas", "necesita", "necesitan")} más pulso para ir igual de rápido: cansancio. Debajo de cada tercio, sus tramos (n).`}
+        description={`Pulso dividido entre la velocidad equivalente en llano (que descuenta el desnivel) de ${who.your} tramos limpios, en cada tercio de la carrera, frente a lo habitual en esa carrera (0: la mediana de sus tramos limpios). Si sube al final, ${who.pick("necesitas", "necesita", "necesitan")} más pulso para ir igual de rápido: cansancio. Debajo de cada tercio, sus tramos (n).${withoutAltitude}`}
         cases={legsLabel(driftLegs)}
         chart={
           <ColumnChart

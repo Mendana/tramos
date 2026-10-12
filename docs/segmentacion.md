@@ -113,6 +113,45 @@ fallida puede descolocar la secuencia de picadas y sus balizas formarían grupos
 salida entra como las demás (todos salen del mismo triángulo; la mediana absorbe al que salió
 tarde). Aún no se usa: hace falta el track de varios corredores de una carrera.
 
+## Elección de ruta (#190)
+
+En un tramo de una carrera con varios atletas (`docs/tiempo-perdido.md`, "Una carrera con varios
+atletas"), `route_choice::route_choice` junta los sub-tracks de los que tienen track en
+**opciones de ruta**: quién fue por el mismo sitio y qué opción salió más rápida.
+
+- **Entrada** (`RouteTrack`): por atleta, el sub-track del tramo (de su segmentación, como el de
+  su mapa), su split y si el tramo es error para él (su etiqueta o, sin ella, el cálculo), y la
+  distancia y la subida de sus métricas (`docs/metricas.md`). Los sub-tracks de menos de dos
+  puntos no cuentan.
+- **Plano local**: cada punto pasa a metros con una proyección equirrectangular alrededor del
+  primer punto del primer sub-track (de sobra para lo que mide un tramo).
+- **Remuestreo**: un punto cada `step_m` (**10 m**) a lo largo del sub-track, con el primero y
+  el último, para que la densidad de puntos del reloj (y quien se paró) no pese.
+- **Distancia entre dos rutas**: la media de las distancias de cada punto de una a la polilínea
+  de la otra, en los dos sentidos; se toma la mayor. Dos rutas paralelas a 10 m quedan a unos
+  10 m; las dos orillas de un obstáculo, a cientos.
+- **Misma ruta**: distancia menor que `tolerance_m` (**30 m**). Las **opciones** son las
+  componentes conexas de esa relación: si A va con B y B con C, las tres son una opción aunque
+  A y C queden más lejos.
+- **Por opción** (`RouteOption`): sus atletas del split más corto al más largo, la **mediana**
+  del split, y la distancia y la subida medias de los que las tienen. Las opciones van de la
+  mediana más corta a la más larga; las que no tienen ningún split, al final.
+- **Separación** (`spread_s`): mediana de la opción más lenta menos la de la más rápida; `None`
+  si menos de dos opciones tienen split.
+- Un tramo con una sola opción no tiene elección de ruta: `None`.
+- Un sub-track con error **sigue contando**, pero se marca (`is_error`): una ruta lenta por un
+  error de ataque no es una ruta lenta, y quien mira la lista lo tiene que ver.
+
+La app lo calcula por recorrido para los atletas con track que se puede alinear (`docs/app.md`,
+"Atletas"). Aún no hay estadística de rutas a lo largo de varias carreras.
+
+Ejemplo de test (`crates/tramos-core/src/route_choice.rs`): de (0, 0) a (0, 1000) m, rodeando un
+obstáculo por el oeste (por (−200, 500)) o por el este (por (200, 500)), con una variante unos
+10 m más afuera de la del oeste. Salen dos opciones: el este con 230 y 250 s (mediana 240 s) y
+el oeste con 250 s (con error) y 260 s (mediana 255 s); separación, 15 s. Una ruta desplazada
+10 m al este de la recta (0, 0)–(−200, 500) queda a `10 · 500 / √(200² + 500²)` = 9,28 m. Un
+tramo recto con una variante a 10 m: ninguna elección.
+
 ## Tipos y JSON
 
 Campos en `snake_case`, instantes en RFC 3339:

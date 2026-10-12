@@ -42,7 +42,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `compare_athlete_groups(filter, a, b, options)` | Compara dos grupos de atletas (#121, `docs/historico.md`, "Comparar grupos") con el filtro del histórico. `options` = `{overlap, races}`: quien está en los dos cuenta en los dos (`count_in_both`) o en ninguno (`exclude`); entran solo las carreras de los dos grupos (`shared`) o todas (`all`). Devuelve cada lado junto (atletas, cifras, P7, P13 y tipos de error), cuántos están en los dos, cuántas carreras entran y las diferencias A − B. |
 | `athlete_group_stats(filter, id)` | Estadísticas de un grupo de atletas (#145, `docs/historico.md`, "Estadísticas de un grupo") con el filtro del histórico: el nombre, la descripción y el color del grupo, sus miembros (quien usa la app primero, si es miembro y tiene carreras; cada uno con sus carreras que cuentan o por qué no cuenta), cuántos miembros ya no tienen carreras y los análisis de Estadísticas con todos juntos (`stats`: por formato y total, P7, P13, P2, P8, P9, P11 y P14; sin consistencia). Si no entrena, error. |
 | `athlete_races` | Si entrena, las carreras de las que hay paquetes (#163, abajo, "Atletas"), una por `race_id`, de la más reciente a la más antigua: fecha, nombre y formato (los del primer paquete que los tenga; salen del JSON con `json_extract`, `Store::received_races`) y los atletas que la corrieron, cada uno con lo que compartió (`level`); si quien usa la app la tiene importada, va primero (`is_self`, `level` = `null`). Si no entrena, error. |
-| `athlete_race(raceId)` | Si entrena, una carrera con todos los atletas que la corrieron (#163): una fila por atleta (quien usa la app primero, si la corrió) con lo que compartió, su resumen (recalculado en su base, como en su vista de carrera, si compartió los tramos; el de su paquete si solo el resumen), su recorrido, su puesto en el recorrido, su `result_id` en su base (para abrir su carrera), si sale en el mapa y por qué no, si es el caso; y los recorridos de `tramos_core::same_race` (`docs/tiempo-perdido.md`, "Una carrera con varios atletas") con, cada uno, su mapa (`race_map::course_map`). Una carrera que nadie ha compartido da error. |
+| `athlete_race(raceId)` | Si entrena, una carrera con todos los atletas que la corrieron (#163): una fila por atleta (quien usa la app primero, si la corrió) con lo que compartió, su resumen (recalculado en su base, como en su vista de carrera, si compartió los tramos; el de su paquete si solo el resumen), su recorrido, su puesto en el recorrido, su `result_id` en su base (para abrir su carrera), si sale en el mapa y por qué no, si es el caso; y los recorridos de `tramos_core::same_race` (`docs/tiempo-perdido.md`, "Una carrera con varios atletas") con, cada uno, su mapa (`race_map::course_map`) y sus elecciones de ruta (#190, `routes`: `tramos_core::route_choice` en cada tramo con los sub-tracks y las métricas de sus atletas con track, cada uno con su split y su error de `same_race`; `docs/segmentacion.md`, "Elección de ruta"). Una carrera que nadie ha compartido da error. |
 | `race_together(resultId)` | La carrera del resultado de la base que se ve (la del atleta o la propia) para el botón «Ver con los demás atletas»: su `race_id` y cuántos atletas más la corrieron (los demás con paquete y, si se ve a un atleta, quien usa la app si la tiene importada). `null` si no entrena o si el resultado no es de un paquete. |
 | `viewed_runner` | Lo mismo que `view_runner` del atleta que se está viendo, sin volver a volcarlo; `null` = lo propio. |
 | `tour_seen` / `set_tour_seen(seen)` | Si ya se ha visto el recorrido guiado (#141, abajo, "Ayuda") y guardarlo (`ui.tour_seen`). Van a la base propia también mientras se ve a un atleta. |
@@ -442,12 +442,21 @@ sección **Atletas**. Quien entrena y también corre usa las dos cosas a la vez.
   - **Tramos que fallaron varios**: los tramos con error en dos atletas o más, con la pérdida de
     cada uno, el tipo de error que etiquetó, su nota y «sin revisar» si solo lo dice el cálculo.
     Con mapa, «Ver en el mapa» elige ese tramo en el mapa y baja hasta él.
+  - **Elección de ruta** (#190), si hay dos atletas o más en el mapa: los tramos en los que
+    fueron por sitios distintos (`routes`), con cuántas opciones y cuánto separó la mejor de la
+    peor; sin ninguno, lo dice. Un clic en la fila elige ese tramo en el mapa y baja hasta él;
+    otro, lo quita. Con un tramo elegido que tiene elección, debajo, sus opciones («Opción A», B…,
+    de la más rápida a la más lenta) con la mediana, la distancia y la subida medias y sus
+    atletas con su tiempo, «(con error)» si fallaron. Una ficha por opción la resalta en el mapa:
+    las rutas de ese tramo que no son de la opción se atenúan como el resto. Los colores siguen
+    siendo los de cada atleta (#178).
   - **Mapa** (`CourseTrackMap` en `MapView.tsx`): el track de cada atleta elegido que compartió
     el track y se puede alinear, de su color de serie con un borde blanco, y las balizas una sola
     vez, en la media de donde estaba cada uno al picarlas (`race_map::course_map`: sin las que
     caen en un hueco de su track si algún atleta la tiene fuera de un hueco). Sin colores de
     ritmo ni pulso. Un clic en un tramo (o «Ver en el mapa») deja ese tramo de todos y atenúa el
-    resto; otro clic lo quita. Debajo, quién no sale. Sin ningún track en el recorrido, lo dice.
+    resto; otro clic lo quita. Con una opción de ruta resaltada, también se atenúan las rutas
+    del tramo que no son de esa opción. Debajo, quién no sale. Sin ningún track en el recorrido, lo dice.
 - **Novedades** (#142, #166, `coach::athlete_news`). Una carrera de un atleta es **nueva** si
   llegó **por primera vez** (`first_imported_at` del paquete guardado, `docs/paquete.md`
   "Importar") después de la última vez que se entró en ese atleta (`athletes.last_seen`); si

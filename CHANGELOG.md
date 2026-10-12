@@ -31,6 +31,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - ¿Por el camino o al llegar?: con el FIT, la app separa lo que pierdes al llegar a la baliza (en
   los últimos 50 m) de lo que pierdes antes. Sale en el análisis de cada carrera y en
   Estadísticas.
+- Elección de ruta: en la carrera de varios atletas, los tramos en los que fueron por sitios
+  distintos, con qué opción salió más rápida y quién fue por cada una. Al elegir una opción, sus
+  rutas se resaltan en el mapa.
 
 ## 0.3.0
 

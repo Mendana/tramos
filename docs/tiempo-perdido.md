@@ -162,7 +162,7 @@ corrieron la misma carrera (el mismo `race_id`, `docs/paquete.md`; #163). Cada a
 - Cada recorrido lleva sus tramos, sus categorías, el tiempo ideal y si la referencia es débil,
   de la copia de su primer atleta en la entrada: con los mismos originales, son los mismos para
   todos. Cada atleta, sus series de P4 de su propia copia: `behind_ideal_s`, `loss_s` e
-  `is_error`.
+  `is_error`, y su `split_s` de cada tramo (para la elección de ruta, `docs/segmentacion.md`).
 - **Error** de un tramo: el de `leg_status` (`docs/historico.md`, "Errores más comunes (P9)"):
   manda la etiqueta del atleta (Sí, o con tipo, es error; No y Físico, no) y, sin ella, el cálculo
   (error «sin revisar»). Así lo que el atleta descartó no cuenta como error.

@@ -79,6 +79,8 @@ pub struct CourseRunner {
     pub runner: usize,
     /// Diferencia acumulada respecto al tiempo ideal al acabar cada tramo.
     pub behind_ideal_s: Vec<Option<f64>>,
+    /// Split de cada tramo (#190, para la elección de ruta).
+    pub split_s: Vec<Option<f64>>,
     /// Pérdida de cada tramo frente a lo esperado con su rendimiento habitual.
     pub loss_s: Vec<Option<f64>>,
     /// Tramo con error de orientación: lo dice su etiqueta si la hay y, si no, el cálculo
@@ -287,6 +289,7 @@ fn course(
                     .iter()
                     .map(|l| l.behind_ideal_s)
                     .collect(),
+                split_s: a.report.lost_time.legs.iter().map(|l| l.split_s).collect(),
                 loss_s: a.report.lost_time.legs.iter().map(|l| l.loss_s).collect(),
                 is_error: a
                     .statuses

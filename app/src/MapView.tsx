@@ -914,7 +914,8 @@ function resolveColor(color: string): string {
 
 /**
  * Mapa de un recorrido con los tracks de varios atletas (#163, docs/app.md, "Atletas"): cada
- * uno de su color de serie, las balizas una vez y, con un tramo elegido, el resto atenuado.
+ * uno de su color de serie, las balizas una vez y, con un tramo elegido, el resto atenuado. Con
+ * una opción de ruta elegida (#190), también las rutas de ese tramo que no son de esa opción.
  * Solo se pintan los atletas de `series`; todo lo demás viene de Rust (`athlete_race`).
  */
 export function CourseTrackMap({
@@ -922,11 +923,17 @@ export function CourseTrackMap({
   series,
   selected,
   onSelect,
+  highlighted = null,
+  highlightLabel = null,
 }: {
   map: CourseMap;
   series: TrackSeries[];
   selected: number | null;
   onSelect: (leg: number) => void;
+  /** Atletas de la opción de ruta resaltada en el tramo elegido; `null`, todos. */
+  highlighted?: number[] | null;
+  /** «Opción A», para el pie del mapa. */
+  highlightLabel?: string | null;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -1011,10 +1018,14 @@ export function CourseTrackMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!loaded || map === null) return;
+    const inLeg: ExpressionSpecification = ["==", ["get", "leg"], selected];
+    const lit: ExpressionSpecification =
+      highlighted === null
+        ? inLeg
+        : ["all", inLeg, ["in", ["get", "athlete"], ["literal", highlighted]]];
     const opacity: number | ExpressionSpecification =
-      selected === null ? 1 : ["case", ["==", ["get", "leg"], selected], 1, DIMMED];
-    const width: number | ExpressionSpecification =
-      selected === null ? 3.5 : ["case", ["==", ["get", "leg"], selected], 5, 3.5];
+      selected === null ? 1 : ["case", lit, 1, DIMMED];
+    const width: number | ExpressionSpecification = selected === null ? 3.5 : ["case", lit, 5, 3.5];
     map.setPaintProperty("tracks", "line-opacity", opacity);
     map.setPaintProperty("tracks", "line-width", width);
     map.setPaintProperty("tracks-casing", "line-opacity", opacity);
@@ -1042,7 +1053,7 @@ export function CourseTrackMap({
         duration: reducedMotion() ? 0 : 400,
       });
     }
-  }, [loaded, selected, data]);
+  }, [loaded, selected, highlighted, data]);
 
   const zoom = (delta: number) => {
     const map = mapRef.current;
@@ -1064,7 +1075,9 @@ export function CourseTrackMap({
         <p className="small muted" aria-live="polite">
           {selected === null
             ? "Elige un tramo en el mapa para ver solo ese tramo de todos."
-            : `Tramo ${selected}: otro clic en él lo quita.`}
+            : highlightLabel === null
+              ? `Tramo ${selected}: otro clic en él lo quita.`
+              : `Tramo ${selected}, ${highlightLabel} resaltada: otro clic en el tramo lo quita.`}
         </p>
         <ul className="legend course-map-legend">
           {series.map((s) => (

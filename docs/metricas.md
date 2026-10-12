@@ -42,6 +42,7 @@ lentos de los primeros 5 s.
 | `distance_ratio` | `distance_m / straight_m`; `null` si la línea recta mide menos de 1 m (baliza que se repite, ida y vuelta). |
 | `moving_s`, `stopped_s`, `gap_s` | Ver "Intervalos". |
 | `moving_speed_mps` | Distancia en movimiento / `moving_s` (`v_mov` en P2); `null` si no hay movimiento. |
+| `flat_speed_mps` | Velocidad equivalente en llano (#191, abajo); `null` sin movimiento o si a algún trozo en movimiento le falta altitud. |
 | `ascent_m`, `descent_m` | Subida y bajada acumuladas de la altitud suavizada (abajo); `null` sin altitud. La bajada es positiva. |
 | `heart_rate_bpm` | Pulso medio ponderado por tiempo: cada intervalo (sin huecos) vale la media de sus dos extremos. `null` sin pulso. |
 | `cadence_spm` | Cadencia media (pasos/min, los dos pies) calculada igual. Incluye los segundos parados (cadencia 0). |
@@ -70,13 +71,47 @@ Calibración con el FIT sintético: frente al desnivel del terreno sin ruido, el
 ±5 s el peor es el tramo de la parada, donde 30 s de ruido sin moverse se suavizan peor. Hay que
 revisarlo con altitud barométrica real, que tiene escalones y deriva en lugar de ruido blanco.
 
+## Velocidad equivalente en llano
+
+La velocidad en movimiento mezcla el ritmo con el desnivel: un tramo en subida «va más lento» y uno
+en bajada «más rápido» aunque el esfuerzo sea el mismo. Para comparar la velocidad **entre
+tramos** (P8 y P14) hace falta descontarlo. Comparar con los demás en el mismo tramo (`p_i`, P2)
+no lo necesita: el desnivel es el mismo para todos, y P13 mide justo su efecto.
+
+- **Coste de correr con pendiente** (`running_cost`): el polinomio de Minetti et al. (2002),
+  `C(i) = 155,4 i⁵ − 30,4 i⁴ − 43,3 i³ + 46,3 i² + 19,5 i + 3,6` J/(kg·m), con `i` la pendiente
+  (0,1 = 10 % de subida). Vale entre −45 % y +45 % (`MAX_GRADE`); fuera, se recorta. En llano,
+  3,6; al 10 % de subida, 5,97 (×1,66); al 10 % de bajada, 2,15 (×0,60).
+- **Trozos**: los intervalos en movimiento seguidos se juntan en trozos de al menos 20 m
+  (`GRADE_CHUNK_M`). Un intervalo parado o un hueco cierra el trozo. La pendiente de un trozo es
+  la diferencia de la altitud suavizada entre su principio y su final entre su distancia. No se
+  mide intervalo a intervalo: en 1 s (unos 3 m) unos decímetros de ruido son un 10 % de
+  pendiente, y como el coste es convexo el ruido inflaría el resultado.
+- **Distancia equivalente**: cada trozo vale `distancia · C(i) / C(0)`. `flat_speed_mps` es la
+  suma de las distancias equivalentes entre `moving_s`. En llano coincide con
+  `moving_speed_mps`.
+- Si a algún trozo le falta altitud en un extremo, no hay velocidad en llano: no se inventa la
+  pendiente de un trozo.
+
+Es el coste metabólico: en bajadas fuertes exagera lo que se «ahorra», porque bajando el límite es
+la técnica y no la energía, y no sabe nada del terreno (vegetación, piedras), que necesitaría el
+mapa. Basta para que una cuesta no pase por cansancio ni una bajada por acelerar.
+
+**Qué velocidad compara una carrera** (`RaceSpeed`): la equivalente en llano si la tienen todos
+sus tramos con velocidad en movimiento; si no (track sin altitud), la velocidad en movimiento.
+Es la misma para todos los tramos de la carrera, para no comparar una con otra. P8 y P14 cuentan
+aparte lo que se ha comparado sin altitud.
+
+En el FIT sintético, los tramos que solo suben (más de 5 m) salen más rápidos en llano que en
+movimiento, y los que solo bajan, más lentos (`tests/metrics.rs`).
+
 P13 (`tramos_core::slope`, `docs/historico.md`) usa la subida y la bajada de cada tramo divididas
 entre su distancia recorrida (m por cada 100 m) para clasificarlo en subida, llano o bajada; no
 clasifica los tramos de menos de 50 m recorridos, donde este error ya pesa demasiado.
 
 P14 (`tramos_core::fatigue`, `docs/historico.md`) usa el pulso medio (`heart_rate_bpm`) y la
-velocidad en movimiento (`moving_speed_mps`) de cada tramo, siempre frente a la mediana de su
-carrera: el pulso de muñeca cambia mucho de un día a otro.
+velocidad de la carrera (`RaceSpeed`: en llano si tiene altitud) de cada tramo, siempre frente a
+la mediana de su carrera: el pulso de muñeca cambia mucho de un día a otro.
 
 ## Opciones (`MetricsOptions`, valores por defecto)
 
@@ -96,7 +131,7 @@ rango, `MetricsError::InvalidOptions`.
 {"index": 9, "from": 42, "to": 46,
  "track": {"duration_s": 427.0, "distance_m": 1215.5, "straight_m": 249.8, "distance_ratio": 4.87,
            "moving_s": 397.0, "stopped_s": 30.0, "gap_s": 0.0, "moving_speed_mps": 3.06,
-           "ascent_m": 2.9, "descent_m": 8.0, "heart_rate_bpm": 165.0, "cadence_spm": 165.0},
+           "flat_speed_mps": 3.0, "ascent_m": 2.9, "descent_m": 8.0, "heart_rate_bpm": 165.0, "cadence_spm": 165.0},
  "missing": null}
 ```
 
@@ -105,7 +140,9 @@ rango, `MetricsError::InvalidOptions`.
 - Unitarias con tracks hechos a mano: distancia, velocidad y paradas; margen tras la picada;
   huecos; distancia del reloj frente al GPS (también si falta o retrocede); ida y vuelta sin
   relación; medias ponderadas de pulso y cadencia; suavizado frente a ruido alterno; suavizado
-  que no cruza huecos; tramos sin sub-track; opciones inválidas; JSON.
+  que no cruza huecos; tramos sin sub-track; opciones inválidas; JSON; coste de Minetti a mano
+  (llano, ±10 %, recorte), velocidad en llano en llano, subida, bajada y pendiente recortada, con
+  un parón en medio y sin altitud.
 - FIT sintético: en los 21 tramos, duración = split, distancia a ±0,5 m, línea recta a ±1 m y
   subida y bajada a ±1,5 m del terreno sin ruido (campos `ascent_m` y `descent_m` del
   `.truth.json`). El rodeo (tramo 9) da una relación > 4 y el resto < 2. La parada mide 30 ± 2 s

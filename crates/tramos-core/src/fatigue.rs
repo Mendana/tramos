@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::common_errors::{LegStatus, leg_status};
 use crate::history::{HistoryFilter, HistoryRace, pattern_legs, race_third};
 use crate::loss_breakdown::median;
-use crate::metrics::{LegMetrics, TrackMetrics};
+use crate::metrics::{LegMetrics, RaceSpeed, TrackMetrics};
 use crate::runner_report::LegReport;
 use crate::taxonomy::LegTag;
 
@@ -38,7 +38,8 @@ pub struct Drift {
     pub legs: usize,
     /// Media de su pulso medio (ppm).
     pub mean_heart_rate_bpm: Option<f64>,
-    /// Media de su velocidad en movimiento (m/s).
+    /// Media de su velocidad (m/s): la equivalente en llano en las carreras con altitud y la
+    /// velocidad en movimiento en las demás ([`RaceSpeed`]).
     pub mean_speed_mps: Option<f64>,
     /// Media de `(pulso / velocidad) / r_c`, con `r_c` la mediana de pulso / velocidad de los
     /// tramos limpios de su carrera: 1 = lo habitual en esa carrera; más = más pulso para la
@@ -94,6 +95,11 @@ pub struct Fatigue {
     pub races_without_heart_rate: usize,
     /// Errores (salvo el primer tramo de cada carrera) sin pulso del tramo anterior para comparar.
     pub errors_without_heart_rate: usize,
+    /// Carreras que aportan a la deriva con la velocidad en movimiento porque no tienen altitud
+    /// (las demás, con la equivalente en llano, [`RaceSpeed`]): en ellas el desnivel se confunde
+    /// con el cansancio.
+    #[serde(default)]
+    pub drift_races_without_altitude: usize,
 }
 
 /// Sumas de una media.
@@ -177,11 +183,14 @@ fn heart_rate(leg: &LegReport, metrics: Option<&[LegMetrics]>) -> Option<f64> {
         .filter(|v| v.is_finite() && *v > 0.0)
 }
 
-/// Pulso medio y velocidad en movimiento del tramo, si los dos son números positivos.
-fn heart_rate_and_speed(leg: &LegReport, metrics: Option<&[LegMetrics]>) -> Option<(f64, f64)> {
-    let speed = track_of(leg, metrics)?
-        .moving_speed_mps
-        .filter(|v| v.is_finite() && *v > 0.0)?;
+/// Pulso medio y velocidad del tramo (la de la carrera, `kind`), si los dos son números
+/// positivos.
+fn heart_rate_and_speed(
+    leg: &LegReport,
+    metrics: Option<&[LegMetrics]>,
+    kind: RaceSpeed,
+) -> Option<(f64, f64)> {
+    let speed = kind.of_track(track_of(leg, metrics)?)?;
     Some((heart_rate(leg, metrics)?, speed))
 }
 
@@ -198,6 +207,7 @@ pub fn fatigue(races: &[FatigueRace<'_>], filter: &HistoryFilter) -> Fatigue {
         races_with_heart_rate: 0,
         races_without_heart_rate: 0,
         errors_without_heart_rate: 0,
+        drift_races_without_altitude: 0,
     };
     let counted = races
         .iter()
@@ -258,12 +268,14 @@ pub fn fatigue(races: &[FatigueRace<'_>], filter: &HistoryFilter) -> Fatigue {
         };
         out.races_with_heart_rate += 1;
 
-        // Deriva: pulso / velocidad de los tramos limpios frente a su mediana (`r_c`).
+        // Deriva: pulso / velocidad de los tramos limpios frente a su mediana (`r_c`). La
+        // velocidad, en llano si la carrera tiene altitud.
+        let kind = r.leg_metrics.map_or(RaceSpeed::Moving, RaceSpeed::of);
         let clean: Vec<(&LegReport, f64, f64)> = legs
             .iter()
             .filter(|(_, s)| *s == LegStatus::Clean)
             .filter_map(|&(leg, _)| {
-                let (hr, speed) = heart_rate_and_speed(leg, r.leg_metrics)?;
+                let (hr, speed) = heart_rate_and_speed(leg, r.leg_metrics, kind)?;
                 Some((leg, hr, speed))
             })
             .collect();
@@ -274,6 +286,9 @@ pub fn fatigue(races: &[FatigueRace<'_>], filter: &HistoryFilter) -> Fatigue {
             None
         };
         if let Some(usual_ratio) = usual_ratio {
+            if kind == RaceSpeed::Moving {
+                out.drift_races_without_altitude += 1;
+            }
             for &(leg, hr, speed) in &clean {
                 if let Some(acc) = thirds.get_mut(third_of(leg)) {
                     acc.drift_hr.add(hr);
@@ -390,6 +405,7 @@ mod tests {
                         stopped_s: 0.0,
                         gap_s: 0.0,
                         moving_speed_mps: Some(v),
+                        flat_speed_mps: None,
                         ascent_m: None,
                         descent_m: None,
                         heart_rate_bpm: Some(hr),
@@ -593,6 +609,26 @@ mod tests {
         assert_eq!(t3.drift.legs, 1);
         close(t3.drift.mean_relative_ratio, 1.2);
         close(t3.drift.mean_heart_rate_bpm, 168.0);
+        // Sin altitud: A aporta con la velocidad en movimiento.
+        assert_eq!(f.drift_races_without_altitude, 1);
+    }
+
+    #[test]
+    fn with_altitude_the_drift_uses_the_flat_speed() {
+        // A con altitud y una velocidad en llano del doble en todos sus tramos: la deriva
+        // relativa no cambia (es relativa a la mediana de la carrera), pero la velocidad media
+        // sale en llano.
+        let mut data = data();
+        for leg in data[0].1.as_mut().unwrap() {
+            if let Some(track) = leg.track.as_mut() {
+                track.flat_speed_mps = track.moving_speed_mps.map(|v| 2.0 * v);
+            }
+        }
+        let f = run(&data, &HistoryFilter::default());
+        let t1 = f.by_third[0];
+        close(t1.drift.mean_relative_ratio, (0.9 + 1.0 + 1.0) / 3.0);
+        close(t1.drift.mean_speed_mps, 2.0 * (3.0 + 3.0 + 3.1) / 3.0);
+        assert_eq!(f.drift_races_without_altitude, 0);
     }
 
     #[test]

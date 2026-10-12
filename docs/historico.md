@@ -385,9 +385,11 @@ lo dibuja en la sección «Después de fallar» (`docs/app.md`, "Vista históric
   frente a la de los tramos cuyo anterior fue limpio (`after_clean`). Cada uno es un `Rate` con
   `legs` (n), `errors` y `error_rate`.
 - **Recuperación:** de los tramos que siguen a un error, cuáles se corren **más de un 5 % más
-  rápido** (`ACCELERATION`), en velocidad en movimiento (`moving_speed_mps`, `docs/metricas.md`),
-  que la **mediana de los tramos limpios de esa carrera**. Se usa la de esa carrera porque la
-  velocidad depende mucho del terreno. Hacen falta al menos 3 tramos limpios con velocidad
+  rápido** (`ACCELERATION`) que la **mediana de los tramos limpios de esa carrera**. Se usa la de
+  esa carrera porque la velocidad depende mucho del terreno. La velocidad es la equivalente en
+  llano (`flat_speed_mps`, #191) si la carrera tiene altitud, para que una bajada no cuente como
+  acelerar; si no, la velocidad en movimiento, y esos tramos se cuentan en
+  `compared_without_altitude` (`docs/metricas.md`, "Velocidad equivalente en llano"). Hacen falta al menos 3 tramos limpios con velocidad
   (`MIN_CLEAN_LEGS`). Salen dos `Rate`, `accelerated` y `not_accelerated`, con su tasa de error:
   si acelerar tras un error acaba en otro error. Los tramos tras un error sin velocidad para
   comparar (carrera sin FIT, sin sub-track o con pocos tramos limpios) van en
@@ -479,8 +481,11 @@ terreno. Mezclar el pulso en ppm de carreras distintas compararía días, no fas
 medidas del pulso son **relativas a la mediana de su carrera**, como la velocidad de P8:
 
 - `p_c`: mediana del pulso medio de los tramos que cuentan de la carrera (con o sin error).
-- `r_c`: mediana de `pulso / velocidad en movimiento` de sus tramos **limpios**, si hay al menos
-  3; si no, la carrera no aporta deriva.
+- `r_c`: mediana de `pulso / velocidad` de sus tramos **limpios**, si hay al menos 3; si no, la
+  carrera no aporta deriva. La velocidad es la equivalente en llano si la carrera tiene altitud
+  (#191): si no, una subida en el último tercio pasaría por cansancio. Las carreras que aportan
+  deriva sin altitud, con la velocidad en movimiento, se cuentan en
+  `drift_races_without_altitude`.
 
 Los ppm y la velocidad sin normalizar salen al lado, en la tabla, como referencia.
 

@@ -267,6 +267,7 @@ mod tests {
                     stopped_s: stopped,
                     gap_s: 0.0,
                     moving_speed_mps: (v > 0.0).then_some(v),
+                    flat_speed_mps: None,
                     ascent_m: None,
                     descent_m: None,
                     heart_rate_bpm: None,

@@ -7,7 +7,9 @@ Qué pasa después de un error y si el cansancio lo anticipa. Usa los filtros de
 
 - **¿Un error trae otro?**: la tasa de error en el tramo siguiente a uno limpio y a un error y,
   tras un error, según si en ese tramo aceleraste (más de un 5 % más rápido que en tus tramos
-  limpios de esa carrera, con FIT) o no. Con la línea de tu media.
+  limpios de esa carrera, con FIT) o no. Con la línea de tu media. La velocidad descuenta el
+  desnivel: una bajada no cuenta como acelerar ni una subida como frenar. Si el reloj no guarda
+  la altitud no se puede descontar, y el panel lo dice.
 - **Rachas limpias** (oculto de entrada): la tasa de error según cuántos tramos limpios seguidos
   llevabas.
 
@@ -23,7 +25,8 @@ por tercios de la carrera; los dos paneles de pulso solo usan las carreras con F
 
 - **Deriva del pulso**: en los tramos limpios de cada tercio, la relación entre tu pulso y tu
   velocidad, frente a lo habitual en esa carrera. Si para ir igual de rápido necesitas más pulso
-  en el último tercio, te vas cansando.
+  en el último tercio, te vas cansando. También aquí la velocidad descuenta el desnivel, para
+  que una subida al final no parezca cansancio.
 - **Pulso antes del error** (oculto de entrada): el pulso del tramo anterior a un error frente al
   de antes de un tramo limpio, en pulsaciones sobre lo normal de esa carrera.
 - **Esfuerzo percibido** (oculto de entrada): el esfuerzo medio que apuntaste en las etiquetas de

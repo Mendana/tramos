@@ -25,6 +25,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - Entrenamientos: al importar, marca «Es un entrenamiento» (o cámbialo después en la carrera).
   Se analizan igual que las carreras, y en Estadísticas y Mis carreras puedes ver solo carreras o
   solo entrenamientos. Quien te entrena también lo ve.
+- «Después de fallar» y «Cansancio» descuentan el desnivel: la velocidad de cada tramo se pasa a su
+  equivalente en llano, así que una bajada ya no cuenta como acelerar ni una subida como
+  cansancio (si el reloj guarda la altitud).
 
 ## 0.3.0
 

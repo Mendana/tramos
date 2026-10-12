@@ -986,6 +986,7 @@ mod tests {
             accelerated: Rate::default(),
             not_accelerated: Rate::default(),
             after_error_without_speed: 0,
+            compared_without_altitude: 0,
             streaks: Vec::new(),
         }
     }
@@ -1105,6 +1106,7 @@ mod tests {
             races_with_heart_rate: races,
             races_without_heart_rate: 0,
             errors_without_heart_rate: 0,
+            drift_races_without_altitude: 0,
         }
     }
 

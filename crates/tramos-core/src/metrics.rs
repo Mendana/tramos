@@ -12,6 +12,8 @@
 //!   `max_gap_s` es un hueco: no cuenta como parado ni en movimiento.
 //! - La altitud se suaviza con una media móvil en el tiempo sobre el track entero, y la subida
 //!   y la bajada son la suma de los cambios de la altitud suavizada dentro del tramo.
+//! - La velocidad equivalente en llano (#191) pesa cada trozo en movimiento por el coste de
+//!   correr con su pendiente ([`running_cost`]).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -26,6 +28,11 @@ const EARTH_RADIUS_M: f64 = 6_371_008.8;
 const MIN_STRAIGHT_M: f64 = 1.0;
 /// Mayor semiancho del suavizado de la altitud aceptado (s).
 const MAX_ALTITUDE_SMOOTHING_S: f64 = 120.0;
+/// La pendiente se mide en trozos en movimiento de al menos esta distancia (m): en un intervalo
+/// de 1 s (unos 3 m) el ruido de la altitud daría pendientes enormes.
+pub const GRADE_CHUNK_M: f64 = 20.0;
+/// Pendiente máxima (fracción, ±) del modelo de coste; fuera, se recorta.
+pub const MAX_GRADE: f64 = 0.45;
 
 /// Parámetros de las métricas. Los valores por defecto son los de `docs/metricas.md`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -92,6 +99,11 @@ pub struct TrackMetrics {
     pub gap_s: f64,
     /// Distancia en movimiento / tiempo en movimiento (m/s); `None` si no hay movimiento.
     pub moving_speed_mps: Option<f64>,
+    /// Velocidad equivalente en llano (m/s): la distancia en movimiento pesada por el coste de
+    /// correr con la pendiente de cada trozo, entre el tiempo en movimiento. `None` sin
+    /// movimiento o si a algún trozo le falta altitud. Ver `docs/metricas.md`.
+    #[serde(default)]
+    pub flat_speed_mps: Option<f64>,
     /// Subida acumulada con la altitud suavizada (m); `None` sin altitud.
     pub ascent_m: Option<f64>,
     /// Bajada acumulada con la altitud suavizada (m, positiva); `None` sin altitud.
@@ -100,6 +112,41 @@ pub struct TrackMetrics {
     pub heart_rate_bpm: Option<f64>,
     /// Cadencia media ponderada por tiempo (pasos/min); `None` sin cadencia.
     pub cadence_spm: Option<f64>,
+}
+
+/// Qué velocidad se compara entre los tramos de una carrera (P8, P14; #191).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RaceSpeed {
+    /// Equivalente en llano: la tienen todos los tramos con velocidad en movimiento.
+    Flat,
+    /// En movimiento: la carrera no tiene altitud (o le falta en algún tramo).
+    Moving,
+}
+
+impl RaceSpeed {
+    /// La de una carrera. Es la misma para todos sus tramos, para no comparar una velocidad en
+    /// llano con una en movimiento.
+    pub fn of(metrics: &[LegMetrics]) -> Self {
+        let mut tracks = metrics
+            .iter()
+            .filter_map(|m| m.track.as_ref())
+            .filter(|t| t.moving_speed_mps.is_some())
+            .peekable();
+        if tracks.peek().is_some() && tracks.all(|t| t.flat_speed_mps.is_some()) {
+            Self::Flat
+        } else {
+            Self::Moving
+        }
+    }
+
+    /// Esa velocidad en un tramo, si es un número positivo.
+    pub fn of_track(self, track: &TrackMetrics) -> Option<f64> {
+        match self {
+            Self::Flat => track.flat_speed_mps,
+            Self::Moving => track.moving_speed_mps,
+        }
+        .filter(|v| v.is_finite() && *v > 0.0)
+    }
 }
 
 /// Calcula las métricas de cada tramo de `segmentation`, que debe salir de `track`.
@@ -175,6 +222,7 @@ fn track_metrics(
     let mut gap_s = 0.0;
     let mut heart_rate = WeightedMean::default();
     let mut cadence = WeightedMean::default();
+    let mut flat = FlatDistance::default();
 
     for pair in points.windows(2) {
         let [a, b] = pair else { continue };
@@ -186,12 +234,15 @@ fn track_metrics(
         }
         if dt > options.max_gap_s {
             gap_s += dt;
+            flat.close(altitude);
             continue;
         }
         if d / dt >= options.stop_speed_mps {
             moving_s += dt;
             moving_m += d;
+            flat.add(a.time, b.time, d, altitude);
         } else {
+            flat.close(altitude);
             // Solo la parte del intervalo posterior a los primeros `punch_grace_s` del tramo.
             let start = seconds_between(first.time, a.time).max(grace_end);
             stopped_s += (seconds_between(first.time, b.time) - start).max(0.0);
@@ -204,6 +255,7 @@ fn track_metrics(
         }
     }
 
+    flat.close(altitude);
     let straight_m = haversine_m(first, last);
     let (ascent_m, descent_m) = altitude.climb(points).unzip();
     Some(TrackMetrics {
@@ -215,11 +267,70 @@ fn track_metrics(
         stopped_s,
         gap_s,
         moving_speed_mps: (moving_s > 0.0).then(|| moving_m / moving_s),
+        flat_speed_mps: flat
+            .total()
+            .filter(|_| moving_s > 0.0)
+            .map(|m| m / moving_s),
         ascent_m,
         descent_m,
         heart_rate_bpm: heart_rate.value(),
         cadence_spm: cadence.value(),
     })
+}
+
+/// Coste energético de correr con pendiente `grade` (fracción: 0,1 = 10 % de subida), en J por
+/// kg y metro: el polinomio de Minetti et al. (2002), válido entre −45 % y +45 %. Fuera de ese
+/// rango se recorta. En llano vale 3,6.
+pub fn running_cost(grade: f64) -> f64 {
+    let i = grade.clamp(-MAX_GRADE, MAX_GRADE);
+    ((((155.4 * i - 30.4) * i - 43.3) * i + 46.3) * i + 19.5) * i + 3.6
+}
+
+/// Distancia equivalente en llano de los trozos en movimiento de un tramo.
+///
+/// Los intervalos en movimiento seguidos se juntan en trozos de al menos [`GRADE_CHUNK_M`]; un
+/// intervalo parado o un hueco cierra el trozo. Cada trozo vale su distancia por
+/// `running_cost(pendiente) / running_cost(0)`, con la pendiente de la altitud suavizada entre
+/// su principio y su final.
+#[derive(Default)]
+struct FlatDistance {
+    /// Trozo abierto: principio, final y distancia.
+    chunk: Option<(DateTime<Utc>, DateTime<Utc>, f64)>,
+    equivalent_m: f64,
+    chunks: usize,
+    /// Algún trozo sin altitud en sus extremos.
+    missing_altitude: bool,
+}
+
+impl FlatDistance {
+    fn add(&mut self, from: DateTime<Utc>, to: DateTime<Utc>, d: f64, altitude: &SmoothedAltitude) {
+        let (start, _, total) = self.chunk.unwrap_or((from, to, 0.0));
+        self.chunk = Some((start, to, total + d));
+        if total + d >= GRADE_CHUNK_M {
+            self.close(altitude);
+        }
+    }
+
+    fn close(&mut self, altitude: &SmoothedAltitude) {
+        let Some((start, end, d)) = self.chunk.take() else {
+            return;
+        };
+        if d <= 0.0 {
+            return;
+        }
+        match altitude.at(start).zip(altitude.at(end)) {
+            Some((a, b)) => {
+                self.equivalent_m += d * running_cost((b - a) / d) / running_cost(0.0);
+                self.chunks += 1;
+            }
+            None => self.missing_altitude = true,
+        }
+    }
+
+    /// Distancia equivalente (m); `None` sin trozos o si a alguno le faltaba altitud.
+    fn total(&self) -> Option<f64> {
+        (self.chunks > 0 && !self.missing_altitude).then_some(self.equivalent_m)
+    }
 }
 
 /// Distancia de un intervalo: la del reloj si la tienen los dos puntos y no retrocede; si no,
@@ -494,6 +605,97 @@ mod tests {
             (130.0 + 3.0 * 160.0) / 4.0
         ));
         assert!(close(m.cadence_spm.unwrap(), (100.0 + 3.0 * 130.0) / 4.0));
+    }
+
+    /// 40 s a 3 m/s hacia el norte con la altitud subiendo `climb` m por segundo.
+    fn slope_run(climb: f64) -> Vec<TrackPoint> {
+        (0..=40)
+            .map(|s| TrackPoint {
+                altitude_m: Some(500.0 + climb * s as f64),
+                ..point(s as f64, 3.0 * s as f64)
+            })
+            .collect()
+    }
+
+    /// Sin suavizar: en una pendiente constante la suavizada recorta los bordes.
+    fn raw_altitude() -> MetricsOptions {
+        MetricsOptions {
+            altitude_smoothing_s: 0.0,
+            ..MetricsOptions::default()
+        }
+    }
+
+    #[test]
+    fn running_cost_is_minettis_polynomial() {
+        assert!(close(running_cost(0.0), 3.6));
+        // A mano: 155,4·10⁻⁵ − 30,4·10⁻⁴ − 43,3·10⁻³ + 46,3·10⁻² + 19,5·10⁻¹ + 3,6.
+        assert!(close(running_cost(0.1), 5.968214));
+        assert!(close(running_cost(-0.1), 2.151706));
+        // Fuera de ±45 % se recorta.
+        assert!(close(running_cost(0.8), running_cost(MAX_GRADE)));
+        assert!(close(running_cost(-0.8), running_cost(-MAX_GRADE)));
+    }
+
+    #[test]
+    fn flat_speed_weighs_the_slope() {
+        // Llano: igual que la velocidad en movimiento.
+        let m = run(slope_run(0.0), &raw_altitude());
+        assert!((m.flat_speed_mps.unwrap() - 3.0).abs() < 1e-4);
+        // Subida del 10 % (0,3 m por cada 3 m): 3 · 5,968214 / 3,6.
+        let m = run(slope_run(0.3), &raw_altitude());
+        assert!((m.flat_speed_mps.unwrap() - 4.973512).abs() < 1e-3);
+        assert!((m.moving_speed_mps.unwrap() - 3.0).abs() < 1e-4);
+        // Bajada del 10 %: 3 · 2,151706 / 3,6.
+        let m = run(slope_run(-0.3), &raw_altitude());
+        assert!((m.flat_speed_mps.unwrap() - 1.793088).abs() < 1e-3);
+        // Pendiente del 100 %: se recorta al 45 %.
+        let m = run(slope_run(3.0), &raw_altitude());
+        let clipped = 3.0 * running_cost(MAX_GRADE) / 3.6;
+        assert!((m.flat_speed_mps.unwrap() - clipped).abs() < 1e-3);
+    }
+
+    #[test]
+    fn flat_speed_ignores_stops_and_needs_altitude() {
+        // 0–10 s subiendo al 10 %, 20 s parado y 10 s más en llano: el parón no cuenta y cada
+        // trozo lleva su pendiente. 30 m a 5,968214 / 3,6 y 30 m a 1, en 20 s.
+        let mut points: Vec<TrackPoint> = (0..=10)
+            .map(|s| TrackPoint {
+                altitude_m: Some(0.3 * s as f64),
+                ..point(s as f64, 3.0 * s as f64)
+            })
+            .collect();
+        points.extend((11..=30).map(|s| TrackPoint {
+            altitude_m: Some(3.0),
+            ..point(s as f64, 30.0)
+        }));
+        points.extend((31..=40).map(|s| TrackPoint {
+            altitude_m: Some(3.0),
+            ..point(s as f64, 30.0 + 3.0 * (s - 30) as f64)
+        }));
+        let m = run(points.clone(), &raw_altitude());
+        let expected = (30.0 * 5.968214 / 3.6 + 30.0) / 20.0;
+        assert!((m.flat_speed_mps.unwrap() - expected).abs() < 1e-3);
+
+        // Sin altitud en un trozo, no hay velocidad en llano (no se inventa la pendiente).
+        for p in &mut points[35..] {
+            p.altitude_m = None;
+        }
+        assert_eq!(run(points, &raw_altitude()).flat_speed_mps, None);
+        // Ni en un track sin altitud.
+        assert_eq!(
+            run(
+                slope_run(0.0)
+                    .into_iter()
+                    .map(|p| TrackPoint {
+                        altitude_m: None,
+                        ..p
+                    })
+                    .collect(),
+                &raw_altitude()
+            )
+            .flat_speed_mps,
+            None
+        );
     }
 
     #[test]

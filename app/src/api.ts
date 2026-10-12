@@ -1222,6 +1222,9 @@ export interface AfterError {
   accelerated: Rate;
   not_accelerated: Rate;
   after_error_without_speed: number;
+  /** De los que tienen velocidad, los comparados en movimiento porque su carrera no tiene
+   * altitud (#191); los demás, con la velocidad equivalente en llano. */
+  compared_without_altitude: number;
   /** Tramos limpios seguidos justo antes: de `from` a `to` (`null` = sin fin). */
   streaks: { from: number; to: number | null; rate: Rate }[];
 }
@@ -1271,6 +1274,8 @@ export interface Fatigue {
   races_without_heart_rate: number;
   /** Errores sin pulso del tramo anterior para comparar. */
   errors_without_heart_rate: number;
+  /** Carreras de la deriva sin altitud: con la velocidad en movimiento, no en llano (#191). */
+  drift_races_without_altitude: number;
 }
 
 /** `null` si la carrera no tiene el FIT del reloj. */

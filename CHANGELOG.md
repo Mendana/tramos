@@ -34,6 +34,8 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - ¿Estoy mejorando?: en Estadísticas, «¿Cómo evoluciono?», la tendencia de tu IR y de tu tasa de
   error con su margen. Solo dice que mejoras (o empeoras) cuando hay carreras suficientes y el
   margen no deja dudas.
+- Tus rivales: en Estadísticas, quién coincide contigo en el mismo recorrido en 3 carreras o más,
+  cuántas veces le ganas y si le pierdes por ritmo o por fallar.
 
 ## 0.3.0
 

@@ -1334,6 +1334,40 @@ export const raceBreakdown = (resultId: number) =>
 
 export const getHistory = (filter: HistoryFilter) => invoke<HistoryView>("history", { filter });
 
+/** Diferencia por tramo frente a un rival (#193). */
+export interface LegGap {
+  legs: number;
+  /** Mediana de tu split menos el suyo (s); negativa si eres más rápido. */
+  median_gap_s: number | null;
+}
+
+/** Una carrera con un rival. */
+export interface Meeting {
+  date: string;
+  race_name: string | null;
+  own_total_s: number | null;
+  rival_total_s: number | null;
+}
+
+/** Un rival habitual (#193, `docs/historico.md`). */
+export interface Rival {
+  name: string;
+  club: string | null;
+  races: number;
+  races_compared: number;
+  races_ahead: number;
+  /** Mediana de tu tiempo menos el suyo (s); negativa si sueles ganarle. */
+  median_gap_s: number | null;
+  legs_compared: number;
+  legs_ahead: number;
+  clean_legs: LegGap;
+  error_legs: LegGap;
+  /** De la más reciente a la más antigua. */
+  meetings: Meeting[];
+}
+
+export const getRivals = (filter: HistoryFilter) => invoke<Rival[]>("rivals", { filter });
+
 // Etiquetado de errores (docs/taxonomia.md).
 export interface TaxonomyEntry {
   key: string;

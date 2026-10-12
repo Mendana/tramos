@@ -17,6 +17,9 @@
   manda nada a ningún sitio: el fichero lo guarda donde el usuario elige. Al restaurar, la base de
   antes queda en el equipo como `tramos.sqlite.antes-de-restaurar`, con todos sus datos, hasta que
   se borre o la sustituya otra restauración.
+- Los **rivales habituales** (#193) salen de los resultados ya importados (nombre, club y tarjeta
+  de cada corredor del recorrido). Se calculan al pedirlos, en local: no se guardan aparte ni van
+  en los paquetes.
 - Las personas (identidad de un corredor entre carreras) solo guardan lo que escribe el usuario:
   un nombre visible y notas. No llevan fecha de nacimiento ni se rellenan desde el .spl
   (ver `docs/almacenamiento.md`).

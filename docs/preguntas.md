@@ -98,6 +98,10 @@ comparación de todos contra todos en las carreras compartidas. En `docs/app.md`
 con su incertidumbre: solo dice «mejoras» o «empeoras» con al menos 8 carreras en 3 meses y si el
 intervalo al 90 % de la pendiente no cruza el cero. En `docs/historico.md`, "¿Estoy mejorando?".
 
+**Rivales habituales** (#193) Con quién coincides en el mismo recorrido en 3 carreras o más y
+cómo te va frente a cada uno: carreras y tramos que le ganas, la diferencia mediana y si le pierdes
+fallando o sin fallar. En `docs/historico.md`, "Rivales habituales".
+
 ## Descartadas por ahora
 
 P12 (salida de baliza por ritmo) y P16 (ficha por corredor).

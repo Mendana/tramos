@@ -96,6 +96,24 @@ tramo. Hay dos definiciones y se elige en la configuración (`ideal_time`):
 - Un tramo sin clasificados con split no tiene ideal con ninguna de las dos: el ideal acumulado
   queda sin valor desde ese tramo.
 
+## Puesto sin errores
+
+El tiempo sin errores dicho como puesto: «sin errores habrías sido 4.º de 18» (#194). Lo calcula
+`tramos_core::runner_report::place_without_errors` y va en el informe del corredor
+(`place_without_errors`).
+
+- **Puesto**: 1 + los clasificados de **su categoría** (no del recorrido: el puesto es de la
+  categoría) con tiempo total menor que su tiempo sin errores. A él no se le cuenta.
+- **Contra el tiempo real de los demás**, con sus errores: no se les quita nada. La pregunta es
+  «¿dónde habría quedado yo sin mis errores, contra lo que corrieron ese día?». Quitar los
+  errores a todos daría otra clasificación, más parecida a la del tiempo ideal.
+- Con el mismo tiempo se comparte puesto: solo cuentan los **estrictamente** más rápidos.
+- `classified`: los clasificados de la categoría con tiempo total, él incluido: el «de 18».
+- Sin valor si el corredor no está clasificado o no tiene tiempo sin errores (sin rendimiento
+  habitual). Como el tiempo sin errores nunca pasa del total, el puesto nunca es peor que el real.
+- En el fixture de Baltanás, el ganador de M-SEN sigue primero y hay corredores que suben y otros
+  que se quedan (`tests/lost_time_baltanas.rs`).
+
 ## Frente al grupo (P4)
 
 `tramos_core::comparison::course_comparison(&Event, ResultRef, &LostTimeConfig)` da todos los

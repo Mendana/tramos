@@ -11,8 +11,8 @@ use crate::consistency::race_consistency;
 use crate::courses::{ClassRef, group_by_course};
 use crate::gain_loss::{LosingStreak, leg_gains, losing_streaks};
 use crate::identify::ResultRef;
-use crate::lost_time::{LostTimeConfig, analyze_course};
-use crate::model::{ControlCode, Event};
+use crate::lost_time::{LostTimeConfig, RunnerAnalysis, analyze_course};
+use crate::model::{ControlCode, Event, RaceStatus};
 
 /// Informe de un corredor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,6 +40,8 @@ pub struct RunnerLostTime {
     pub lost_time_s: Option<f64>,
     pub error_count: usize,
     pub time_without_errors_s: Option<f64>,
+    /// Puesto que habría tenido con su tiempo sin errores ([`place_without_errors`]).
+    pub place_without_errors: Option<PlaceWithoutErrors>,
     /// Tiempo ideal del recorrido completo (el acumulado del último tramo).
     pub ideal_time_s: Option<f64>,
     /// Diferencia respecto al tiempo ideal en meta.
@@ -50,6 +52,17 @@ pub struct RunnerLostTime {
     /// [`crate::consistency`]); 1 = 100 puntos de IR.
     pub consistency: Option<f64>,
     pub legs: Vec<LegReport>,
+}
+
+/// Puesto en la categoría con el tiempo sin errores (`docs/tiempo-perdido.md`, "Puesto sin
+/// errores").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaceWithoutErrors {
+    /// 1 + clasificados de la categoría (sin contarle a él) con tiempo menor que su tiempo sin
+    /// errores.
+    pub place: usize,
+    /// Clasificados de la categoría con tiempo, él incluido.
+    pub classified: usize,
 }
 
 /// Un tramo: la referencia del recorrido y los números del corredor juntos.
@@ -137,6 +150,7 @@ pub fn runner_report(
         lost_time_s: runner.lost_time_s,
         error_count: runner.error_count,
         time_without_errors_s: runner.time_without_errors_s,
+        place_without_errors: place_without_errors(&course.runners, runner),
         ideal_time_s: course.legs.last().and_then(|l| l.ideal_elapsed_s),
         behind_ideal_s: runner.legs.last().and_then(|l| l.behind_ideal_s),
         losing_streaks: losing_streaks(&gains),
@@ -153,6 +167,36 @@ pub fn runner_report(
             weak_reference: course.weak_reference,
         },
         lost_time,
+    })
+}
+
+/// Puesto de `runner` en su categoría si hubiera corrido su tiempo sin errores; `None` si no
+/// está clasificado o no tiene tiempo sin errores.
+///
+/// Se compara con el tiempo **real** de los demás clasificados, que también tuvieron sus
+/// errores: no se les quitan. Con el mismo tiempo se comparte puesto. `runners` son los del
+/// recorrido; solo cuentan los de la categoría de `runner`.
+pub fn place_without_errors(
+    runners: &[RunnerAnalysis],
+    runner: &RunnerAnalysis,
+) -> Option<PlaceWithoutErrors> {
+    if runner.status != RaceStatus::Ok {
+        return None;
+    }
+    let time = runner.time_without_errors_s?;
+    let classified: Vec<&RunnerAnalysis> = runners
+        .iter()
+        .filter(|r| r.class_index == runner.class_index && r.status == RaceStatus::Ok)
+        .filter(|r| r.total_s.is_some())
+        .collect();
+    let faster = classified
+        .iter()
+        .filter(|r| r.result_index != runner.result_index)
+        .filter(|r| r.total_s.is_some_and(|t| t < time))
+        .count();
+    Some(PlaceWithoutErrors {
+        place: 1 + faster,
+        classified: classified.len(),
     })
 }
 
@@ -293,5 +337,90 @@ mod tests {
         assert_eq!(missing(9, 0), None);
         // La categoría B no tiene resultados.
         assert_eq!(missing(1, 0), None);
+    }
+
+    /// Corredor del recorrido con lo que mira el puesto sin errores.
+    fn analysis(
+        class_index: usize,
+        result_index: usize,
+        status: RaceStatus,
+        total_s: Option<f64>,
+        time_without_errors_s: Option<f64>,
+    ) -> RunnerAnalysis {
+        RunnerAnalysis {
+            class_index,
+            result_index,
+            status,
+            place: None,
+            total_s,
+            usual_performance: None,
+            lost_time_s: None,
+            error_count: 0,
+            time_without_errors_s,
+            legs: vec![],
+        }
+    }
+
+    #[test]
+    fn place_without_errors_counts_faster_classified_of_the_same_class() {
+        let ok = RaceStatus::Ok;
+        let runners = [
+            analysis(0, 0, ok, Some(600.0), Some(600.0)),
+            analysis(0, 1, ok, Some(700.0), Some(650.0)),
+            // Él: 900 s, 680 s sin errores.
+            analysis(0, 2, ok, Some(900.0), Some(680.0)),
+            // Empata con su tiempo sin errores: comparten puesto, no le adelanta.
+            analysis(0, 3, ok, Some(680.0), Some(680.0)),
+            analysis(0, 4, ok, Some(800.0), Some(700.0)),
+            // No clasificado más rápido y clasificado sin tiempo: no cuentan.
+            analysis(0, 5, RaceStatus::NotClassified, Some(500.0), None),
+            analysis(0, 6, ok, None, None),
+            // Otra categoría del mismo recorrido: no cuenta.
+            analysis(1, 0, ok, Some(400.0), Some(400.0)),
+        ];
+        // Se mira el tiempo real de los demás (600, 700, 680 y 800 s), no su tiempo sin
+        // errores: solo el de 600 s es más rápido que 680 s.
+        assert_eq!(
+            place_without_errors(&runners, &runners[2]),
+            Some(PlaceWithoutErrors {
+                place: 2,
+                classified: 5
+            })
+        );
+        // El ganador sin errores sigue primero.
+        assert_eq!(
+            place_without_errors(&runners, &runners[0]),
+            Some(PlaceWithoutErrors {
+                place: 1,
+                classified: 5
+            })
+        );
+        // Sin clasificar o sin tiempo sin errores no hay puesto.
+        assert_eq!(place_without_errors(&runners, &runners[5]), None);
+        assert_eq!(place_without_errors(&runners, &runners[6]), None);
+    }
+
+    #[test]
+    fn report_carries_the_place_without_errors() {
+        let e = event();
+        let config = LostTimeConfig::default();
+        let report = runner_report(
+            &e,
+            ResultRef {
+                class_index: 0,
+                result_index: 0,
+            },
+            &config,
+        )
+        .unwrap();
+        // El ganador de A (120 s) sigue primero entre los dos clasificados de A; C no cuenta
+        // aunque comparta recorrido.
+        assert_eq!(
+            report.lost_time.place_without_errors,
+            Some(PlaceWithoutErrors {
+                place: 1,
+                classified: 2
+            })
+        );
     }
 }

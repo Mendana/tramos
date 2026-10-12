@@ -157,6 +157,12 @@ export interface LosingStreak {
   loss_s: number;
 }
 
+/** Puesto con el tiempo sin errores y cuántos clasificados tiene la categoría. */
+export interface PlaceWithoutErrors {
+  place: number;
+  classified: number;
+}
+
 export interface RunnerReport {
   course: {
     controls: number[];
@@ -170,6 +176,9 @@ export interface RunnerReport {
     lost_time_s: number | null;
     error_count: number;
     time_without_errors_s: number | null;
+    /** Puesto en la categoría con el tiempo sin errores, contra el tiempo real de los demás
+     * (`docs/tiempo-perdido.md`, "Puesto sin errores"). */
+    place_without_errors: PlaceWithoutErrors | null;
     ideal_time_s: number | null;
     behind_ideal_s: number | null;
     losing_streaks: LosingStreak[];
@@ -458,6 +467,15 @@ export function statusLabel(status: RaceStatus, place: number | null): string {
   return `No clasificado (código ${status.unknown})`;
 }
 
+/** «Puesto 4.º de 18» con el tiempo sin errores; nada si no lo hay o si es el puesto real. */
+export function placeWithoutErrors(
+  without: PlaceWithoutErrors | null | undefined,
+  place: number | null,
+): string | undefined {
+  if (without == null || without.place === place) return undefined;
+  return `Puesto ${without.place}.º de ${without.classified}`;
+}
+
 export const coreVersion = () => invoke<string>("core_version");
 
 export interface Settings {
@@ -593,6 +611,8 @@ export interface RaceSummary {
   lost_time_s: number | null;
   error_count: number;
   time_without_errors_s: number | null;
+  /** Desde #194: los paquetes anteriores no lo traen. */
+  place_without_errors?: PlaceWithoutErrors;
   usual_performance: number | null;
   consistency: number | null;
 }

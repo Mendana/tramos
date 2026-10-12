@@ -72,8 +72,8 @@ export function historyTabs(who: Subject): (TabItem<HistoryTab> & { intro: strin
       id: "progress",
       label: who.pick("¿Cómo evoluciono?", "¿Cómo evoluciona?"),
       intro: who.pick(
-        "Tu regularidad a lo largo del tiempo y cómo entras en mapa tras días sin competir.",
-        "Su regularidad a lo largo del tiempo y cómo entra en mapa tras días sin competir.",
+        "Si estás mejorando, tu regularidad y cómo entras en mapa tras días sin competir.",
+        "Si está mejorando, su regularidad y cómo entra en mapa tras días sin competir.",
         "Cómo entra en mapa el grupo tras días sin competir.",
       ),
     },

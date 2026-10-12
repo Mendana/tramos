@@ -19,6 +19,7 @@ import {
   NO_FILTER,
 } from "./api";
 import { ConsistencyPanel } from "./ConsistencyPanel";
+import { TrendPanel } from "./TrendPanel";
 import { DaysOffPanel } from "./DaysOffPanel";
 import {
   FormatErrorRatePanel,
@@ -96,6 +97,7 @@ const INSIGHT_PLACES: Record<HistoryInsightTarget, InsightPlace<HistoryTab>> = {
   fatigue: { tab: "body", panels: ["fatigue-heart-rate"] },
   days_off: { tab: "progress", panels: ["days-off-entry"] },
   consistency: { tab: "progress", panels: ["consistency"] },
+  trend: { tab: "progress", panels: ["trend-performance", "trend-error-rate"] },
 };
 
 function HistoryScreen({
@@ -394,6 +396,12 @@ function Summary({
 
           {tab === "progress" && (
             <div className="panel-grid">
+              {shown("trend-performance", "trend-error-rate") && (
+                <TrendPanel
+                  performance={view.trends.performance}
+                  errorRate={view.trends.error_rate}
+                />
+              )}
               {shown("consistency") && <ConsistencyPanel races={view.races} total={total} />}
               {shown("days-off-entry", "days-off-start") && (
                 <DaysOffPanel

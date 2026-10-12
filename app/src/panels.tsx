@@ -41,6 +41,8 @@ export const PANEL_GROUPS: PanelGroup[] = [
   {
     label: "Estadísticas · ¿Cómo evoluciono?",
     panels: [
+      { id: "trend-performance", title: "Tendencia del IR" },
+      { id: "trend-error-rate", title: "Tendencia de la tasa de error" },
       { id: "consistency", title: "Consistencia por carrera" },
       { id: "days-off-entry", title: "IR al entrar en mapa" },
       { id: "days-off-start", title: "Errores al principio de la carrera" },

@@ -35,6 +35,7 @@ use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::runner_report;
 use tramos_core::slope::{SlopeConfig, SlopeHistory, slope};
 use tramos_core::taxonomy::{LegTag, Taxonomy};
+use tramos_core::trend::{Trends, trends};
 use tramos_store::{EventId, Store};
 
 use crate::import::stored_self_person;
@@ -80,6 +81,8 @@ pub struct HistoryView {
     /// filtro. La anterior puede ser cualquier carrera del usuario, pase o no el filtro de fechas
     /// y formato; con el de tipo, una del mismo tipo.
     pub days_off: DaysOff,
+    /// ¿Estoy mejorando? (#192): la tendencia del IR y de la tasa de error, con el mismo filtro.
+    pub trends: Trends,
 }
 
 /// Una carrera del histórico con sus números.
@@ -205,6 +208,7 @@ pub fn history_view_where(
     let taxonomy = Taxonomy::builtin().ok();
     let consistency = consistency_series(&races, filter);
     let fatigue = fatigue(&fatigue_races, filter);
+    let trends = trends(&races, filter);
     let insights = history_insights(&HistoryAnalyses {
         history: &history,
         by_leg_length: &by_leg_length,
@@ -215,6 +219,7 @@ pub fn history_view_where(
         loss_breakdown: &loss_breakdown,
         consistency: &consistency,
         fatigue: &fatigue,
+        trends: &trends,
         taxonomy: taxonomy.as_ref(),
     });
     Ok(HistoryView {
@@ -233,6 +238,7 @@ pub fn history_view_where(
         after_error,
         common_errors,
         fatigue,
+        trends,
     })
 }
 
@@ -393,6 +399,13 @@ mod tests {
         .unwrap();
         assert_eq!(view.all_races, 2);
         assert_eq!(view.history.total.races, 1);
+        // ¿Estoy mejorando? (#192): con una carrera, sin veredicto y faltan 7.
+        assert_eq!(view.trends.performance.points.len(), 1);
+        assert_eq!(view.trends.performance.missing_races, 7);
+        assert_eq!(
+            view.trends.performance.verdict,
+            tramos_core::trend::TrendVerdict::NotEnoughData
+        );
         assert_eq!(stats(&view, Some(RaceFormat::Middle)).races, 1);
         assert_eq!(stats(&view, Some(RaceFormat::Sprint)).races, 0);
 
@@ -571,6 +584,7 @@ mod tests {
                 loss_breakdown: &view.loss_breakdown,
                 consistency: &consistency,
                 fatigue: &view.fatigue,
+                trends: &view.trends,
                 taxonomy: Some(&taxonomy),
             });
             assert_eq!(view.insights, expected);

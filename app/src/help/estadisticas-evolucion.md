@@ -1,7 +1,23 @@
 # ¿Cómo evoluciono?
 
-Tu regularidad a lo largo del tiempo y cómo entras en mapa cuando llevas días sin competir. Usa
-los filtros de [Estadísticas](estadisticas.md).
+Si estás mejorando, tu regularidad a lo largo del tiempo y cómo entras en mapa cuando llevas días
+sin competir. Usa los filtros de [Estadísticas](estadisticas.md).
+
+## ¿Estoy mejorando?
+
+Dos gráficas, una para tu [IR](ir.md) y otra para tu tasa de error. Cada punto es una carrera; la
+línea gruesa es la tendencia y las dos finas, su **margen**: dónde podría estar de verdad la
+tendencia con el ruido que tienen tus carreras.
+
+La app solo dice «mejoras» o «empeoras» cuando el margen entero va hacia un lado. Si el margen
+incluye «ni sube ni baja», te dice que no hay un cambio claro. Y con menos de 8 carreras o menos
+de 3 meses entre la primera y la última, que todavía no se puede decir.
+
+> Tu IR sube unos 6 puntos cada 3 meses (entre 2 y 10): en un año, de rondar el 80 % a rondar el
+> 100 %. Con 12 carreras y el margen entero por encima de cero, es una mejora de verdad.
+
+En la tasa de error, **bajar es mejorar**. Combinado con el filtro de formato verás si mejoras en
+todo o solo en sprint, por ejemplo.
 
 ## Consistencia por carrera
 

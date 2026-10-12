@@ -315,6 +315,7 @@ export type InsightRule =
   | "days_off"
   | "consistency"
   | "fatigue"
+  | "trend"
   | "clean_race"
   | "concentrated_loss"
   | "race_breakdown"
@@ -331,7 +332,8 @@ export type HistoryInsightTarget =
   | "after_error"
   | "days_off"
   | "consistency"
-  | "fatigue";
+  | "fatigue"
+  | "trend";
 
 /** Parte de la carrera que justifica una frase. */
 export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";
@@ -385,6 +387,42 @@ export interface HistoryView {
   common_errors: CommonErrors;
   /** ¿El cansancio anticipa el error? (P14): por tercio de carrera, con el mismo filtro. */
   fatigue: Fatigue;
+  /** ¿Estoy mejorando? (#192), con el mismo filtro. */
+  trends: Trends;
+}
+
+/** Qué dice una tendencia (#192, `docs/historico.md`). */
+export type TrendVerdict = "improving" | "worsening" | "no_change" | "not_enough_data";
+
+/** Una carrera de la serie, con la recta y su banda al 90 % en su fecha. */
+export interface TrendPoint {
+  date: string;
+  /** IR habitual o tasa de error (1 = 100 %). */
+  value: number;
+  weight: number;
+  fitted: number | null;
+  low: number | null;
+  high: number | null;
+}
+
+export interface Trend {
+  /** De la más antigua a la más reciente. */
+  points: TrendPoint[];
+  span_days: number;
+  /** Pendiente por cada 3 meses (1 = 100 puntos) y su intervalo al 90 %. */
+  slope_per_quarter: number | null;
+  slope_low: number | null;
+  slope_high: number | null;
+  verdict: TrendVerdict;
+  missing_races: number;
+  missing_days: number;
+}
+
+export interface Trends {
+  /** IR habitual: más alto es mejor. */
+  performance: Trend;
+  /** Tasa de error: más baja es mejor. */
+  error_rate: Trend;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */

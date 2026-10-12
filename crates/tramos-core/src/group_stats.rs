@@ -575,6 +575,7 @@ mod tests {
         assert_eq!(alone.by_format.len(), 3);
         let filter = HistoryFilter {
             format: MIDDLE,
+            kind: None,
             ..HistoryFilter::default()
         };
         let middle = pool_history(&filter, &[&ana, &bea]);

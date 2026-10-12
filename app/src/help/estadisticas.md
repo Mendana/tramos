@@ -29,8 +29,15 @@ hueco ([Cabeza y piernas](estadisticas-cabeza.md)).
 
 ## Filtros
 
-**Desde** y **hasta** (las dos fechas entran) y **formato** (todos, sprint, media o larga). Valen
-para todas las pestañas. **Quitar filtros** los borra.
+**Desde** y **hasta** (las dos fechas entran), **formato** (todos, sprint, media o larga) y
+**tipo**: todo, solo carreras o solo entrenamientos. Valen para todas las pestañas. **Quitar
+filtros** los borra.
+
+Si subes entrenamientos con mapa, míralos aparte de vez en cuando: en un entrenamiento se va a otro
+ritmo y se prueban cosas, así que sus números no tienen por qué parecerse a los de las carreras.
+
+> Con «Solo entrenamientos» ves que en los entrenos fallas casi siempre en el ataque, y con «Solo
+> carreras» que en competición te cuesta más la elección de ruta.
 
 ## Cifras
 

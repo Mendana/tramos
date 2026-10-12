@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+use crate::event_kind::EventKind;
 use crate::identify::ResultRef;
 use crate::lost_time::LostTimeConfig;
 use crate::model::{Event, RaceStatus, Track};
@@ -85,6 +86,10 @@ pub struct PackageRace {
     pub date: NaiveDate,
     pub name: Option<String>,
     pub format: Option<RaceFormat>,
+    /// Competición o entrenamiento (#195). Una competición no se escribe, así que los paquetes
+    /// anteriores, sin el campo, se leen como competición.
+    #[serde(default, skip_serializing_if = "EventKind::is_race")]
+    pub kind: EventKind,
 }
 
 /// El corredor que exporta.
@@ -289,6 +294,7 @@ pub struct PackageInput<'a> {
     pub event: &'a Event,
     pub at: ResultRef,
     pub format: Option<RaceFormat>,
+    pub kind: EventKind,
     pub config: LostTimeConfig,
     /// Se incluyen desde `legs`.
     pub tags: Vec<PackageTag>,
@@ -320,6 +326,7 @@ pub fn build(input: PackageInput<'_>) -> Result<RacePackage, PackageError> {
             date: input.event.date,
             name: input.event.name.clone(),
             format: input.format,
+            kind: input.kind,
         },
         config: input.config,
         summary,
@@ -422,6 +429,7 @@ mod tests {
             event,
             at: AT,
             format: Some(RaceFormat::Sprint),
+            kind: EventKind::Race,
             config: LostTimeConfig::default(),
             tags: vec![PackageTag {
                 leg_index: 9,
@@ -486,6 +494,31 @@ mod tests {
                 "tramos-{}-0123456789abcdef0123456789abcdef.json",
                 package.race.race_id
             )
+        );
+    }
+
+    #[test]
+    fn a_training_says_so_and_a_race_is_not_written() {
+        let event = fixture();
+        let race = build(input(&event, ShareLevel::Aggregates)).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&race.to_json().unwrap()).unwrap();
+        // Una competición no lleva el campo: es igual que un paquete de antes de #195.
+        assert!(json["race"].get("kind").is_none());
+        assert_eq!(
+            RacePackage::parse(&json.to_string()).unwrap().race.kind,
+            EventKind::Race
+        );
+
+        let training = build(PackageInput {
+            kind: EventKind::Training,
+            ..input(&event, ShareLevel::Aggregates)
+        })
+        .unwrap();
+        let json = training.to_json().unwrap();
+        assert!(json.contains(r#""kind":"training""#) || json.contains(r#""kind": "training""#));
+        assert_eq!(
+            RacePackage::parse(&json).unwrap().race.kind,
+            EventKind::Training
         );
     }
 

@@ -100,6 +100,7 @@ pub fn race_package(
         event: &event,
         at,
         format: store.event_format(event_id)?,
+        kind: store.event_kind(event_id)?,
         config: settings::lost_time_config(store)?,
         tags,
         track,

@@ -109,9 +109,9 @@ pub fn after_error(races: &[TrackedRace<'_>], filter: &HistoryFilter) -> AfterEr
         streaks: Vec::new(),
     };
     let mut streaks = [Rate::default(); STREAK_STARTS.len()];
-    let counted = races.iter().filter(|r| {
-        filter.includes(r.race.date, r.race.format) && r.race.lost_time.usual_performance.is_some()
-    });
+    let counted = races
+        .iter()
+        .filter(|r| filter.includes_race(r.race) && r.race.lost_time.usual_performance.is_some());
     for r in counted {
         let legs: Vec<&LegReport> = pattern_legs(&r.race.lost_time).collect();
         let kind = r.leg_metrics.map_or(RaceSpeed::Moving, RaceSpeed::of);
@@ -249,6 +249,7 @@ mod tests {
         let race = HistoryRace {
             date: "2026-05-01".parse().unwrap(),
             format: None,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: Some(0.9),

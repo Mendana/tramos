@@ -171,9 +171,9 @@ pub struct BreakdownHistory {
 /// habitual (las mismas que [`crate::history::history`]).
 pub fn breakdown_history(races: &[TrackedRace<'_>], filter: &HistoryFilter) -> BreakdownHistory {
     let mut out = BreakdownHistory::default();
-    let counted = races.iter().filter(|r| {
-        filter.includes(r.race.date, r.race.format) && r.race.lost_time.usual_performance.is_some()
-    });
+    let counted = races
+        .iter()
+        .filter(|r| filter.includes_race(r.race) && r.race.lost_time.usual_performance.is_some());
     for r in counted {
         let lost = &r.race.lost_time;
         let Some(metrics) = r.leg_metrics else {
@@ -392,11 +392,13 @@ mod tests {
         let with = HistoryRace {
             date: "2026-05-01".parse().unwrap(),
             format: None,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: lost.clone(),
         };
         let without = HistoryRace {
             date: "2026-06-01".parse().unwrap(),
             format: None,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: lost,
         };
         let races = [

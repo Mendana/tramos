@@ -45,6 +45,8 @@ export interface ImportRequest {
   fit_path: string | null;
   result: ResultRef;
   format: RaceFormat | null;
+  /** Marcarla como entrenamiento (#195); sin marcar no cambia lo que hubiera. */
+  training: boolean;
   identity: RunnerIdentity;
 }
 
@@ -109,6 +111,7 @@ export interface RaceRow {
   status: RaceStatus;
   place: number | null;
   format: RaceFormat | null;
+  kind: EventKind;
   has_track: boolean;
   total_s: number | null;
   lost_time_s: number | null;
@@ -195,6 +198,7 @@ export interface RaceDetail {
   date: string;
   name: string | null;
   format: RaceFormat | null;
+  kind: EventKind;
   class_name: string;
   given_name: string;
   family_name: string;
@@ -254,7 +258,12 @@ export interface HistoryFilter {
   from: string | null;
   to: string | null;
   format: RaceFormat | null;
+  /** Solo carreras o solo entrenamientos (#195). */
+  kind: EventKind | null;
 }
+
+/** Sin filtro: todas las carreras y entrenamientos. */
+export const NO_FILTER: HistoryFilter = { from: null, to: null, format: null, kind: null };
 
 /** Números agregados de un grupo de carreras (`docs/historico.md`). */
 export interface HistoryStats {
@@ -287,6 +296,7 @@ export interface HistoryRaceRow {
   date: string;
   name: string | null;
   format: RaceFormat | null;
+  kind: EventKind;
   class_name: string;
   status: RaceStatus;
   place: number | null;
@@ -447,6 +457,15 @@ export interface LegLengthStats {
   /** Lo mismo en % del tiempo esperado. */
   mean_loss_pct: number | null;
 }
+
+/** Competición o entrenamiento (#195). */
+export type EventKind = "race" | "training";
+
+/** En singular, para la marca de una carrera. */
+export const KIND_LABELS: Record<EventKind, string> = {
+  race: "Carrera",
+  training: "Entrenamiento",
+};
 
 export const FORMAT_LABELS: Record<RaceFormat, string> = {
   sprint: "Sprint",
@@ -630,6 +649,7 @@ export interface SummaryRace {
   date: string;
   name: string | null;
   format: RaceFormat | null;
+  kind: EventKind;
   summary: RaceSummary;
   /** Ya estaba vista y el atleta la ha vuelto a exportar cambiada desde la última visita. */
   updated: boolean;
@@ -1089,6 +1109,9 @@ export const raceDetail = (resultId: number) => invoke<RaceDetail>("race_detail"
 
 export const setRaceFormat = (resultId: number, format: RaceFormat | null) =>
   invoke<void>("set_race_format", { resultId, format });
+
+export const setRaceKind = (resultId: number, kind: EventKind) =>
+  invoke<void>("set_race_kind", { resultId, kind });
 
 export const raceComparison = (resultId: number) =>
   invoke<CourseComparison>("race_comparison", { resultId });

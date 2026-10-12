@@ -10,6 +10,7 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use thiserror::Error;
 use tramos_core::comparison::{CourseComparison, course_comparison};
+use tramos_core::event_kind::EventKind;
 use tramos_core::insights::{Insight, race_insights};
 use tramos_core::loss_breakdown::{RaceBreakdown, race_breakdown as breakdown};
 use tramos_core::lost_time::LostTimeConfig;
@@ -44,6 +45,7 @@ pub struct RaceRow {
     pub status: RaceStatus,
     pub place: Option<u16>,
     pub format: Option<RaceFormat>,
+    pub kind: EventKind,
     pub has_track: bool,
     /// Tiempo de salida a meta.
     pub total_s: Option<f64>,
@@ -64,6 +66,7 @@ pub struct RaceDetail {
     pub date: NaiveDate,
     pub name: Option<String>,
     pub format: Option<RaceFormat>,
+    pub kind: EventKind,
     pub class_name: String,
     pub given_name: String,
     pub family_name: String,
@@ -109,6 +112,7 @@ pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, RaceError> {
             status: r.status,
             place: r.place,
             format: r.event_format,
+            kind: r.event_kind,
             has_track: r.has_track,
             total_s: lost.as_ref().and_then(|l| l.total_s),
             lost_time_s: lost.as_ref().and_then(|l| l.lost_time_s),
@@ -158,6 +162,7 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
         date: event.date,
         name: event.name.clone(),
         format: store.event_format(event_id)?,
+        kind: store.event_kind(event_id)?,
         class_name: class.name.clone(),
         given_name: race_result.runner.given_name.clone(),
         family_name: race_result.runner.family_name.clone(),
@@ -180,6 +185,14 @@ pub fn set_race_format(
 ) -> Result<(), RaceError> {
     let (event_id, _) = store.result_ref(ResultId(result_id))?;
     store.set_event_format(event_id, format)?;
+    Ok(())
+}
+
+/// Marca la carrera del resultado `result_id` como competición o entrenamiento (#195). Como el
+/// formato, es de la carrera.
+pub fn set_race_kind(store: &mut Store, result_id: i64, kind: EventKind) -> Result<(), RaceError> {
+    let (event_id, _) = store.result_ref(ResultId(result_id))?;
+    store.set_event_kind(event_id, kind)?;
     Ok(())
 }
 
@@ -236,6 +249,7 @@ pub(crate) mod tests {
                 fit_path: None,
                 result: p.candidates[0].result,
                 format: p.suggested_format,
+                training: false,
                 identity: identity(),
             },
         )
@@ -490,6 +504,7 @@ pub(crate) mod tests {
                 fit_path: Some(fit),
                 result: p.candidates[0].result,
                 format: p.suggested_format,
+                training: false,
                 identity: identity(),
             },
         )

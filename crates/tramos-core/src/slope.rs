@@ -179,7 +179,7 @@ pub fn slope(
     };
     let counted = races.iter().filter(|r| {
         // Como en el histórico, una carrera sin rendimiento habitual no tiene números.
-        filter.includes(r.race.date, r.race.format) && r.race.lost_time.usual_performance.is_some()
+        filter.includes_race(r.race) && r.race.lost_time.usual_performance.is_some()
     });
     for r in counted {
         let legs = pattern_legs(&r.race.lost_time);
@@ -523,6 +523,7 @@ mod tests {
         let race = HistoryRace {
             date: date.parse().unwrap(),
             format,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: usual,
@@ -684,6 +685,7 @@ mod tests {
         let sprint = run(
             &HistoryFilter {
                 format: Some(RaceFormat::Sprint),
+                kind: None,
                 ..HistoryFilter::default()
             },
             &config,
@@ -706,6 +708,7 @@ mod tests {
                 from: Some("2026-04-01".parse().unwrap()),
                 to: Some("2026-06-01".parse().unwrap()),
                 format: None,
+                kind: None,
             },
             &config,
         );

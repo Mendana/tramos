@@ -110,6 +110,21 @@ corredor lo confirma (P6 en `docs/preguntas.md`), y se guarda en la carrera.
 - Los cortes (`SPRINT_MAX_WINNER_S`, `MIDDLE_MAX_WINNER_S`) quedan a medio camino entre las
   duraciones típicas y son revisables.
 
+## Competición o entrenamiento
+
+`tramos_core::event_kind::EventKind`: `race` (competición, por defecto) o `training`
+(entrenamiento con mapa, #195). Hay corredores que suben sus entrenamientos semanales para
+analizarlos igual que las carreras, pero no tienen por qué comportarse igual (otro ritmo, se
+prueban cosas, pocos participantes). Ni el .spl ni OReplay lo dicen: lo marca el corredor al
+importar o después en la vista de la carrera, y se guarda en la carrera, como el formato. El
+análisis es el mismo; el histórico deja filtrar por tipo (`docs/historico.md`, "Filtro").
+
+- Con pocos participantes la referencia de cada tramo es débil (con 2–3 corredores, casi el
+  mejor split): vale el aviso de «referencia débil» de siempre (`docs/tiempo-perdido.md`,
+  "Fiabilidad").
+- Los entrenamientos que solo tienen el FIT, sin splits, no se pueden importar: haría falta sacar
+  las picadas del track.
+
 ## Métricas de tramo
 
 `tramos_core::metrics::leg_metrics(&Track, &Segmentation, &MetricsOptions)` mide cada sub-track:

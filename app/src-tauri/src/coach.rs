@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use thiserror::Error;
+use tramos_core::event_kind::EventKind;
 use tramos_core::group::{GroupComparison, GroupEntry, GroupRow, compare, group_row, group_total};
 use tramos_core::group_compare::{
     CompareOptions, GroupsComparison, MemberRaces, MemberStats, RaceSelection, compare_groups,
@@ -82,6 +83,7 @@ pub struct SummaryRace {
     pub date: NaiveDate,
     pub name: Option<String>,
     pub format: Option<RaceFormat>,
+    pub kind: EventKind,
     pub summary: RaceSummary,
     /// Ya estaba vista y el atleta la ha vuelto a exportar cambiada desde la última visita.
     pub updated: bool,
@@ -233,6 +235,7 @@ fn add_race(
             date: package.race.date,
             name: package.race.name.clone(),
             format: package.race.format,
+            kind: package.race.kind,
             summary: package.summary.clone(),
             updated,
         });
@@ -267,6 +270,7 @@ fn add_race(
         })?;
     store.link_result(result, person)?;
     store.set_event_format(saved.id, package.race.format)?;
+    store.set_event_kind(saved.id, package.race.kind)?;
     for tag in &package.tags {
         store.save_tag(result, tag.leg_index, &tag.taxonomy_version, &tag.tag)?;
     }
@@ -1105,6 +1109,34 @@ mod tests {
             races
         };
         assert_eq!(without_ids(&view.store), without_ids(&runner));
+    }
+
+    #[test]
+    fn a_training_arrives_as_a_training() {
+        let (mut runner, result_id) = imported(false);
+        crate::races::set_race_kind(&mut runner, result_id, EventKind::Training).unwrap();
+        let mut coach = Store::open_in_memory().unwrap();
+        for level in [ShareLevel::Legs, ShareLevel::Aggregates] {
+            let mut package = race_package(&mut runner, result_id, level).unwrap();
+            assert_eq!(package.race.kind, EventKind::Training);
+            if level == ShareLevel::Aggregates {
+                // Otro atleta, para tener los dos casos a la vez.
+                package.runner.runner_id = "solo-resumen".into();
+            }
+            coach.save_received_package(&package).unwrap();
+        }
+        let runners = coach_runners(&coach).unwrap();
+        let with_legs = runners
+            .iter()
+            .find(|r| r.runner_id != "solo-resumen")
+            .unwrap();
+        let view = runner_view(&coach, &with_legs.runner_id).unwrap();
+        assert_eq!(
+            list_races(&view.store).unwrap()[0].kind,
+            EventKind::Training
+        );
+        let view = runner_view(&coach, "solo-resumen").unwrap();
+        assert_eq!(view.summary_only[0].kind, EventKind::Training);
     }
 
     /// Nombres de los corredores de la única carrera que ve la entrenadora.

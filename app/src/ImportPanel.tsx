@@ -77,6 +77,7 @@ function ImportPanel({
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [chosen, setChosen] = useState<RunnerChoice | null>(null);
   const [format, setFormat] = useState<RaceFormat | null>(null);
+  const [training, setTraining] = useState(false);
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +173,7 @@ function ImportPanel({
       const p = await previewImport(files.spl, files.fit, identity());
       setPreview(p);
       setFormat(p.suggested_format);
+      setTraining(false);
       setFilter("");
       const single = p.matched === "unique" || p.matched === "unique_name_mismatch";
       setChosen(single ? p.candidates[0] : null);
@@ -193,6 +195,7 @@ function ImportPanel({
         fit_path: files.fit,
         result: chosen.result,
         format,
+        training,
         identity: identity(),
       });
       setOutcome(result);
@@ -423,6 +426,20 @@ function ImportPanel({
                   {Math.round(preview.median_winner_s / 60)} min.
                 </span>
               )}
+            </div>
+
+            <div className="field">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={training}
+                  onChange={(e) => setTraining(e.target.checked)}
+                />
+                Es un entrenamiento
+              </label>
+              <span className="field-hint">
+                Se analiza igual; en Estadísticas puedes ver solo carreras o solo entrenamientos.
+              </span>
             </div>
           </div>
 

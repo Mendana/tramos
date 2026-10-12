@@ -5,6 +5,7 @@
 
 use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use rusqlite::Connection;
+use tramos_core::event_kind::EventKind;
 use tramos_core::model::{
     Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE, Track,
     TrackPoint,
@@ -98,6 +99,9 @@ fn person_results_come_back_in_race_date_order() {
     store.link_result(november.results[0][0], ana).unwrap();
     store.link_result(october.results[0][0], ana).unwrap();
     store.link_result(october.results[0][1], berta).unwrap();
+    store
+        .set_event_kind(november.id, EventKind::Training)
+        .unwrap();
 
     assert_eq!(
         store.person_results(ana).unwrap(),
@@ -109,6 +113,7 @@ fn person_results_come_back_in_race_date_order() {
                 event_name: Some("Sintética de Otoño".into()),
                 event_start: None,
                 event_format: None,
+                event_kind: EventKind::Race,
                 class_name: "F21A".into(),
                 status: RaceStatus::Ok,
                 place: Some(2),
@@ -121,6 +126,8 @@ fn person_results_come_back_in_race_date_order() {
                 event_name: None,
                 event_start: None,
                 event_format: None,
+                // Un entrenamiento (#195): la lista lo dice.
+                event_kind: EventKind::Training,
                 class_name: "F21A".into(),
                 status: RaceStatus::NotClassified,
                 place: None,

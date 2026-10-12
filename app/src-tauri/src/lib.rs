@@ -22,6 +22,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use tauri::Manager;
 use tramos_core::comparison::CourseComparison;
+use tramos_core::event_kind::EventKind;
 use tramos_core::group_compare::{CompareOptions, GroupsComparison};
 use tramos_core::history::HistoryFilter;
 use tramos_core::identify::RunnerIdentity;
@@ -506,6 +507,19 @@ fn set_race_format(
     Ok(())
 }
 
+/// Marca la carrera de un resultado como competición o entrenamiento (#195).
+#[tauri::command]
+fn set_race_kind(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+    kind: EventKind,
+) -> Result<(), String> {
+    let mut store = state.write()?;
+    races::set_race_kind(&mut store, result_id, kind).map_err(|e| e.to_string())?;
+    reshare(&mut store, result_id);
+    Ok(())
+}
+
 /// ¿Lento o desorientado? (P2) de un resultado; `null` sin track.
 #[tauri::command]
 fn race_breakdown(
@@ -742,6 +756,7 @@ pub fn run() -> tauri::Result<()> {
             race_own_athletes,
             race_breakdown,
             set_race_format,
+            set_race_kind,
             race_offset,
             set_race_offset,
             sync_race_offset,
@@ -818,6 +833,13 @@ mod tests {
                 .write()
                 .and_then(|mut s| {
                     races::set_race_format(&mut s, own_result, None).map_err(|e| e.to_string())
+                })
+                .err(),
+            state
+                .write()
+                .and_then(|mut s| {
+                    races::set_race_kind(&mut s, own_result, EventKind::Training)
+                        .map_err(|e| e.to_string())
                 })
                 .err(),
             state

@@ -32,6 +32,17 @@ const secs = (v: number) => `${signed(v)} s`;
 const tickSeconds = (v: number) => `${String(Number(v.toFixed(1))).replace(".", ",")} s`;
 const errorsLabel = (n: number) => `${n} ${n === 1 ? "error" : "errores"}`;
 
+const ATTACK_HOW =
+  "Ataque: el tiempo de más en los últimos 50 m antes de picar, frente a lo que tardas normalmente en esa carrera (mediana de tus tramos sin error). Separa perderse por el camino de no encontrar la baliza al llegar.";
+
+/** «En el ataque se fueron 60 s de 150 s (40 %); en 1 de 2 errores, más de la mitad.» */
+function attackSummary(t: BreakdownTotals): string {
+  if (t.attack_legs === 0 || t.attack_legs_loss_s <= 0) return "";
+  const pct = decimal((t.attack_loss_s / t.attack_legs_loss_s) * 100, 0);
+  const of = t.attack_legs === 1 ? "del error" : `de ${errorsLabel(t.attack_legs)}`;
+  return ` En el ataque se fueron ${decimal(t.attack_loss_s, 0)} s de los ${decimal(t.attack_legs_loss_s, 0)} s ${of} con tiempo de ataque (${pct} %); en ${t.attack_dominant} de ${t.attack_legs}, más de la mitad.`;
+}
+
 /** «desvío 120 s (80 %), paradas 20 s (13 %) y ritmo 10 s (7 %)». */
 function summary(t: BreakdownTotals): string {
   const share = (v: number) => (t.loss_s > 0 ? ` (${decimal((v / t.loss_s) * 100, 0)} %)` : "");
@@ -97,7 +108,7 @@ export function RaceBreakdownPanel({
   const description =
     errors.length === 0
       ? `Ningún error que repartir. ${HOW}`
-      : `De los ${decimal(t.loss_s, 0)} s que perdiste en ${errorsLabel(t.legs)}: ${summary(t)}. ${HOW}`;
+      : `De los ${decimal(t.loss_s, 0)} s que perdiste en ${errorsLabel(t.legs)}: ${summary(t)}.${attackSummary(t)} ${HOW} ${ATTACK_HOW}`;
   return (
     <ChartPanel
       id="race-breakdown"
@@ -132,17 +143,34 @@ export function RaceBreakdownPanel({
           </>
         )
       }
-      table={<LegsTable legs={data.legs} usualRatio={data.usual_ratio} />}
+      table={
+        <LegsTable
+          legs={data.legs}
+          usualRatio={data.usual_ratio}
+          usualAttack={data.usual_attack_s}
+        />
+      }
     />
   );
 }
 
-function LegsTable({ legs, usualRatio }: { legs: LegBreakdown[]; usualRatio: number }) {
+function LegsTable({
+  legs,
+  usualRatio,
+  usualAttack,
+}: {
+  legs: LegBreakdown[];
+  usualRatio: number;
+  usualAttack: number | null;
+}) {
   return (
     <>
       <p className="small muted">
         Recorres normalmente {decimal(usualRatio, 2)} veces la línea recta (mediana de tus tramos
-        sin error).
+        sin error).{" "}
+        {usualAttack === null
+          ? "Sin ataque habitual: hacen falta 3 tramos sin error de más de 100 m."
+          : `Tardas normalmente ${decimal(usualAttack, 0)} s en los últimos 50 m.`}
       </p>
       <table className="table">
         <thead>
@@ -152,6 +180,7 @@ function LegsTable({ legs, usualRatio }: { legs: LegBreakdown[]; usualRatio: num
             <th className="num">Desvío</th>
             <th className="num">Paradas</th>
             <th className="num">Ritmo</th>
+            <th className="num">Ataque</th>
             <th>Notas</th>
           </tr>
         </thead>
@@ -163,6 +192,14 @@ function LegsTable({ legs, usualRatio }: { legs: LegBreakdown[]; usualRatio: num
               <td className="num">{secs(l.detour_s)}</td>
               <td className="num">{decimal(l.stopped_s, 0)} s</td>
               <td className="num">{secs(l.pace_s)}</td>
+              <td
+                className="num"
+                title={
+                  l.attack_s === null ? undefined : `${decimal(l.attack_s, 0)} s cerca de la baliza`
+                }
+              >
+                {l.attack_loss_s === null ? "—" : `${decimal(l.attack_loss_s, 0)} s`}
+              </td>
               <td>{l.is_error ? "Error" : ""}</td>
             </tr>
           ))}
@@ -243,6 +280,75 @@ export function HistoryBreakdownPanel({ breakdown }: { breakdown: BreakdownHisto
           </table>
         }
       />
+      <AttackPanel totals={t} />
     </>
+  );
+}
+
+/** ¿Por el camino o al llegar? (#189): la pérdida de los errores con tiempo de ataque, en el
+ * ataque y en el resto del tramo. */
+function AttackPanel({ totals: t }: { totals: BreakdownTotals }) {
+  const who = useSubject();
+  const base = t.attack_legs_loss_s;
+  const parts = [
+    { key: "attack", label: "Al llegar a la baliza", seconds: t.attack_loss_s },
+    { key: "route", label: "Por el camino", seconds: base - t.attack_loss_s },
+  ];
+  const pct = (v: number) => (base > 0 ? (v / base) * 100 : null);
+  const how = `Ataque: el tiempo de más en los últimos 50 m antes de picar, frente a lo que ${who.pick("tardas", "tarda", "tardan")} normalmente en esa carrera (mediana de los tramos sin error). El resto de la pérdida del error es por el camino. Solo los errores de tramos de más de 100 m en línea recta, con FIT.`;
+  return (
+    <ChartPanel
+      id="breakdown-attack"
+      title="¿Por el camino o al llegar?"
+      description={
+        (t.attack_legs === 0
+          ? "Ningún error con tiempo de ataque."
+          : `De los ${decimal(base, 0)} s perdidos en ${errorsLabel(t.attack_legs)}, ${decimal(t.attack_loss_s, 0)} s fueron al llegar a la baliza. En ${t.attack_dominant} de ${errorsLabel(t.attack_legs)}, más de la mitad.`) +
+        ` ${how}`
+      }
+      cases={errorsLabel(t.attack_legs)}
+      chart={
+        <ColumnChart
+          label="Parte de la pérdida de los errores que es al llegar a la baliza y por el camino"
+          formatTick={tickPercent}
+          columns={parts.map((p, i) => {
+            const v = pct(p.seconds);
+            return {
+              key: p.key,
+              label: p.label,
+              value: v,
+              color: `var(--chart-series-${i + 1})`,
+              tooltip: {
+                value: v === null ? "Sin datos" : `${decimal(v, 0)} %`,
+                detail: `${p.label} · ${decimal(p.seconds, 0)} s de ${decimal(base, 0)} s`,
+              },
+            };
+          })}
+        />
+      }
+      table={
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Dónde</th>
+              <th className="num">Segundos</th>
+              <th className="num">% de la pérdida</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parts.map((p) => {
+              const v = pct(p.seconds);
+              return (
+                <tr key={p.key}>
+                  <td>{p.label}</td>
+                  <td className="num">{decimal(p.seconds, 0)} s</td>
+                  <td className="num">{v === null ? "—" : `${decimal(v, 0)} %`}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      }
+    />
   );
 }

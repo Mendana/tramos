@@ -3,6 +3,9 @@
 //! carrera), **paradas** y **ritmo** (el resto), con las métricas del FIT
 //! ([`crate::metrics`]). Las definiciones y todos los parámetros están en `docs/tiempo-perdido.md`,
 //! "¿Lento o desorientado? (P2)".
+//!
+//! Aparte, **dónde** del tramo se perdió (#189): la pérdida en el ataque, el tiempo de más cerca
+//! de la baliza frente a lo habitual del corredor en la carrera; el resto es pérdida en el tramo.
 
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +36,11 @@ pub struct LegBreakdown {
     pub stopped_s: f64,
     /// Ritmo: el resto, `p_i − desvío − paradas` (s).
     pub pace_s: f64,
+    /// Tiempo de ataque del tramo (s, [`crate::metrics::attack_s`]); `None` en tramos cortos.
+    pub attack_s: Option<f64>,
+    /// Pérdida en el ataque: `attack_s` menos el ataque habitual de la carrera, entre 0 y `p_i`
+    /// (s). `None` sin tiempo de ataque o sin ataque habitual.
+    pub attack_loss_s: Option<f64>,
 }
 
 /// Sumas del reparto de un conjunto de tramos.
@@ -44,6 +52,18 @@ pub struct BreakdownTotals {
     pub detour_s: f64,
     pub stopped_s: f64,
     pub pace_s: f64,
+    /// De los tramos sumados, los que tienen pérdida en el ataque.
+    #[serde(default)]
+    pub attack_legs: usize,
+    /// Pérdida de esos tramos (s): la base del porcentaje del ataque.
+    #[serde(default)]
+    pub attack_legs_loss_s: f64,
+    /// Su pérdida en el ataque (s).
+    #[serde(default)]
+    pub attack_loss_s: f64,
+    /// De esos tramos, en cuántos más de la mitad de la pérdida fue en el ataque.
+    #[serde(default)]
+    pub attack_dominant: usize,
 }
 
 impl BreakdownTotals {
@@ -53,6 +73,14 @@ impl BreakdownTotals {
         self.detour_s += leg.detour_s;
         self.stopped_s += leg.stopped_s;
         self.pace_s += leg.pace_s;
+        if let Some(attack) = leg.attack_loss_s {
+            self.attack_legs += 1;
+            self.attack_legs_loss_s += leg.loss_s;
+            self.attack_loss_s += attack;
+            if attack > leg.loss_s / 2.0 {
+                self.attack_dominant += 1;
+            }
+        }
     }
 
     pub(crate) fn merge(&mut self, other: &BreakdownTotals) {
@@ -61,6 +89,10 @@ impl BreakdownTotals {
         self.detour_s += other.detour_s;
         self.stopped_s += other.stopped_s;
         self.pace_s += other.pace_s;
+        self.attack_legs += other.attack_legs;
+        self.attack_legs_loss_s += other.attack_legs_loss_s;
+        self.attack_loss_s += other.attack_loss_s;
+        self.attack_dominant += other.attack_dominant;
     }
 }
 
@@ -80,6 +112,13 @@ pub struct RaceBreakdown {
     /// Tramos con error que cuentan pero no se pueden repartir (sin sub-track, sin movimiento o
     /// sin `r0`).
     pub errors_without_breakdown: usize,
+    /// Ataque habitual: mediana del tiempo de ataque de los tramos sin error; `None` con menos de
+    /// [`MIN_CLEAN_LEGS`].
+    #[serde(default)]
+    pub usual_attack_s: Option<f64>,
+    /// Tramos sin error con tiempo de ataque de los que sale.
+    #[serde(default)]
+    pub attack_clean_legs: usize,
 }
 
 /// Métricas del FIT del tramo `leg`, si casan su número y sus balizas.
@@ -115,6 +154,18 @@ pub fn race_breakdown(lost: &RunnerLostTime, metrics: &[LegMetrics]) -> RaceBrea
         None
     };
 
+    let mut attacks: Vec<f64> = pattern_legs(lost)
+        .filter(|leg| !leg.is_error)
+        .filter_map(|leg| metrics_of(leg, metrics)?.track.as_ref()?.attack_s)
+        .filter(|a| a.is_finite())
+        .collect();
+    let attack_clean_legs = attacks.len();
+    let usual_attack_s = if attack_clean_legs >= MIN_CLEAN_LEGS {
+        median(&mut attacks)
+    } else {
+        None
+    };
+
     let mut legs = Vec::new();
     let mut errors = BreakdownTotals::default();
     let mut errors_without_breakdown = 0;
@@ -125,6 +176,10 @@ pub fn race_breakdown(lost: &RunnerLostTime, metrics: &[LegMetrics]) -> RaceBrea
             let v = track.moving_speed_mps.filter(|v| *v > 0.0)?;
             let detour_s = (track.distance_m - r0 * track.straight_m) / v;
             let stopped_s = track.stopped_s;
+            let attack_s = track.attack_s.filter(|a| a.is_finite());
+            let attack_loss_s = attack_s
+                .zip(usual_attack_s)
+                .map(|(a, usual)| (a - usual).min(loss_s).max(0.0));
             Some(LegBreakdown {
                 index: leg.index,
                 loss_s,
@@ -132,6 +187,8 @@ pub fn race_breakdown(lost: &RunnerLostTime, metrics: &[LegMetrics]) -> RaceBrea
                 detour_s,
                 stopped_s,
                 pace_s: loss_s - detour_s - stopped_s,
+                attack_s,
+                attack_loss_s,
             })
         });
         match breakdown {
@@ -151,6 +208,8 @@ pub fn race_breakdown(lost: &RunnerLostTime, metrics: &[LegMetrics]) -> RaceBrea
         legs,
         errors,
         errors_without_breakdown,
+        usual_attack_s,
+        attack_clean_legs,
     }
 }
 
@@ -272,6 +331,7 @@ mod tests {
                     descent_m: None,
                     heart_rate_bpm: None,
                     cadence_spm: None,
+                    attack_s: None,
                 }),
                 missing: None,
             })
@@ -327,6 +387,55 @@ mod tests {
         close(b.errors.stopped_s, 20.0);
         close(b.errors.pace_s, 10.0);
         assert_eq!(b.errors_without_breakdown, 0);
+    }
+
+    /// El ejemplo con tiempos de ataque: limpios 12, 15 y 14 s (habitual 14 s).
+    fn with_attacks(attacks: [Option<f64>; 4]) -> (RunnerLostTime, Vec<LegMetrics>) {
+        let (lost, mut metrics) = example();
+        for (m, a) in metrics.iter_mut().zip(attacks) {
+            if let Some(track) = m.track.as_mut() {
+                track.attack_s = a;
+            }
+        }
+        (lost, metrics)
+    }
+
+    #[test]
+    fn the_attack_loss_is_the_time_near_the_control_over_the_usual() {
+        // El error tarda 74 s en el ataque: 60 s más que lo habitual, de sus 150 s perdidos.
+        let (lost, metrics) = with_attacks([Some(12.0), Some(15.0), Some(74.0), Some(14.0)]);
+        let b = race_breakdown(&lost, &metrics);
+        assert_eq!(b.attack_clean_legs, 3);
+        close(b.usual_attack_s.unwrap(), 14.0);
+        let e = b.legs[2];
+        close(e.attack_s.unwrap(), 74.0);
+        close(e.attack_loss_s.unwrap(), 60.0);
+        // Un limpio más rápido que lo habitual no tiene pérdida negativa.
+        close(b.legs[0].attack_loss_s.unwrap(), 0.0);
+        assert_eq!(b.errors.attack_legs, 1);
+        close(b.errors.attack_legs_loss_s, 150.0);
+        close(b.errors.attack_loss_s, 60.0);
+        // 60 s no llega a la mitad de 150 s.
+        assert_eq!(b.errors.attack_dominant, 0);
+
+        // Si se le va casi todo en el ataque, no pasa de la pérdida del tramo y domina.
+        let (lost, metrics) = with_attacks([Some(12.0), Some(15.0), Some(300.0), Some(14.0)]);
+        let b = race_breakdown(&lost, &metrics);
+        close(b.legs[2].attack_loss_s.unwrap(), 150.0);
+        assert_eq!(b.errors.attack_dominant, 1);
+    }
+
+    #[test]
+    fn without_enough_clean_attacks_there_is_no_attack_loss() {
+        // Solo dos limpios con tiempo de ataque (el otro es un tramo corto).
+        let (lost, metrics) = with_attacks([Some(12.0), None, Some(74.0), Some(14.0)]);
+        let b = race_breakdown(&lost, &metrics);
+        assert_eq!(b.attack_clean_legs, 2);
+        assert_eq!(b.usual_attack_s, None);
+        assert_eq!(b.legs[2].attack_loss_s, None);
+        assert_eq!(b.errors.attack_legs, 0);
+        // El reparto de P2 no cambia.
+        close(b.legs[2].detour_s, 120.0);
     }
 
     #[test]

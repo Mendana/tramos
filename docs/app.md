@@ -641,7 +641,9 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
   con su split y su pérdida; un clic en uno lo selecciona.
 - **Frente al grupo**: P4.
 - **Análisis**: pérdida acumulada (P3), dónde gano y dónde pierdo (P5), rendimiento por tramo y
-  ¿lento o desorientado? (P2).
+  ¿lento o desorientado? (P2). En este último, la descripción dice cuánto de la pérdida fue en
+  el ataque y la tabla tiene una columna «Ataque» con la pérdida en el ataque de cada tramo (al
+  pasar el ratón, el tiempo de ataque; #189).
 
 En las pestañas, los paneles están siempre abiertos, sin desplegable (`PanelsOpen` en
 `ChartPanel.tsx`).
@@ -897,7 +899,9 @@ mismos (`pattern_legs`).
   tus errores». Una columna por parte (desvío, paradas y ritmo) con su % de la pérdida de todos
   los errores repartidos (`loss_breakdown`, `docs/historico.md`); el tooltip y la tabla dan los
   segundos. La descripción dice cuántos errores no se pueden repartir (sin FIT o sin datos
-  suficientes).
+  suficientes). Debajo, «¿Por el camino o al llegar?» (#189, `breakdown-attack`): dos columnas,
+  al llegar a la baliza y por el camino, en % de la pérdida de los errores con tiempo de ataque,
+  y en cuántos el ataque pasa de la mitad. Se ocultan por separado.
 - **Después de fallar (P8)** (`AfterErrorPanel.tsx`). Dos paneles, los dos con la tasa de error
   del total como referencia («Tu media») y `n` bajo cada columna:
   - «¿Un error trae otro?»: la tasa de error del tramo siguiente a uno limpio, a un error, a un

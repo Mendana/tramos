@@ -195,6 +195,90 @@ Ejemplo de test (`crates/tramos-core/src/leg_length.rs`): un sprint con tramos q
 **50 %**, 15 / 2 = **7,5 s** y 60 / 2 = **30 %**, y en 30–60 s, 50 %, 10 s y 20 %. Su tramo de
 15 s con error y el último (300 s, error) no cuentan en ningún cubo.
 
+## ¿Estoy mejorando? (#192)
+
+La pregunta que más se hace y la más fácil de contestar mal: con cuatro carreras y mucho ruido,
+cualquier recta «sube». Implementado en `tramos_core::trend`; el comando `history` lo devuelve en
+`trends` y la pantalla lo dibuja en «¿Cómo evoluciono?» (`docs/app.md`, "Vista histórica").
+
+- **Mismas carreras**: las del histórico con el mismo filtro (fechas, formato y tipo) y con
+  rendimiento habitual, de la más antigua a la más reciente.
+- **Dos series**, un punto por carrera:
+  - `performance`: el rendimiento habitual (IR), con peso 1. Más alto es mejor.
+  - `error_rate`: la tasa de error de los tramos que cuentan (`race_stats`), con peso = sus
+    tramos que cuentan (una carrera de 20 tramos dice más que una de 5). Las carreras sin tramos
+    que cuentan no entran. Más baja es mejor.
+- **Recta**: mínimos cuadrados (ponderados en la tasa de error) del valor sobre los días desde la
+  primera carrera. La pendiente se da **por cada 3 meses** (`QUARTER_DAYS` = 365,25 / 4 días;
+  1 = 100 puntos).
+- **Intervalo de la pendiente al 90 %** (`CONFIDENCE`): `b ± t · √(s² / Sxx)`, con
+  `s² = Σ w r² / (n − 2)`, `Sxx = Σ w (x − x̄)²` y `t` el cuantil 0,95 de la t de Student con
+  `n − 2` grados de libertad (calculado con la beta incompleta, sin dependencias; los tests lo
+  comparan con las tablas). Sin recta con menos de 3 carreras o todas el mismo día.
+- **Banda de la recta** en cada carrera (`fitted`, `low`, `high`): `ŷ ± t · s · √(1/Σw + (x − x̄)² / Sxx)`.
+  Es el margen de la recta, no el de una carrera suelta: casi todas las carreras caen fuera.
+- **Veredicto**:
+
+  | `verdict` | Cuándo |
+  | --- | --- |
+  | `not_enough_data` | Menos de **8 carreras** (`MIN_RACES`) o menos de **90 días** entre la primera y la última (`MIN_SPAN_DAYS`). Van `missing_races` y `missing_days`: lo que falta. |
+  | `improving` | El intervalo entero del lado bueno: por encima de 0 en el IR, por debajo en la tasa de error. |
+  | `worsening` | El intervalo entero del lado malo. |
+  | `no_change` | El intervalo cruza el 0. |
+
+- **Por qué una recta**: con 8–30 carreras al año no da para más (estacionalidad, cambios de
+  tendencia). Lo que importa es no decir «mejoras» cuando el ruido lo explica.
+- La frase del resumen (`trend`, `docs/frases.md`) solo sale con `improving` o `worsening`.
+- Las estadísticas de un grupo no la tienen aún: juntar carreras de varios atletas en una sola
+  recta mezclaría niveles.
+
+Ejemplo de test (`crates/tramos-core/src/trend.rs`): 8 carreras cada 15 días con el IR
+`0,80 + 0,003·x ± 0,01` → pendiente de unos **27 puntos por trimestre**, con el intervalo
+calculado a mano (`Sxx` = 9450, `t(0,95; 6)` = 1,943): `improving`. Ruido grande sin tendencia:
+`no_change`. Cinco carreras: `not_enough_data` con 3 que faltan; ocho en 35 días: faltan 55 días.
+
+## Rivales habituales (#193)
+
+Compararse con quien corre siempre contra ti dice más que el puesto, que depende de quién vino ese
+día. Implementado en `tramos_core::rivals`; el comando `rivals(filter)` lo devuelve
+(`docs/app.md`) y la pantalla lo enseña en la pestaña Resumen de Estadísticas.
+
+- **Carreras**: las del usuario que pasan el filtro (fechas, formato y tipo) y en las que tomó la
+  salida. No hace falta rendimiento habitual: basta con haber corrido.
+- **Quién coincide**: los demás resultados del **mismo recorrido** (todas las categorías que lo
+  comparten, como la referencia del tiempo perdido), salvo los no presentados.
+- **El mismo rival en varias carreras**: el nombre y los apellidos normalizados como en
+  `docs/identificacion.md` (sin mayúsculas, tildes ni signos). Si con un mismo nombre aparecen
+  tarjetas SI distintas, son corredores distintos, uno por tarjeta; las apariciones de ese nombre
+  sin tarjeta van con la tarjeta que más se repite (a igualdad, la primera en salir). Dos con el
+  mismo nombre y tarjeta en una misma carrera cuentan una vez. No se reconoce a quien cambia la
+  forma de escribir su nombre de una fuente a otra («Apellidos Nombre» frente a «Nombre
+  Apellidos»).
+- **Rival habitual**: al menos **3 carreras juntas** (`MIN_RACES_TOGETHER`).
+- **Por rival** (`Rival`):
+
+  | Campo | Qué es |
+  | --- | --- |
+  | `name`, `club` | Los de su carrera más reciente. |
+  | `races` | Carreras juntas. |
+  | `races_compared`, `races_ahead` | Las que los dos acabasteis clasificados con tiempo, y en cuántas fuiste más rápido. |
+  | `median_gap_s` | Mediana de `tu tiempo − el suyo` en esas carreras: negativa si sueles ganarle. |
+  | `legs_compared`, `legs_ahead` | Tramos que cuentan (`excluded_from_patterns` falso: ni el último ni los de referencia corta) con split de los dos, y en cuántos fuiste más rápido (un empate no cuenta). |
+  | `clean_legs`, `error_legs` | Mediana de `tu split − el suyo` en los tramos en los que **no fallaste** y en los que **sí** (el error, con los umbrales de los ajustes), con cuántos son. Si le pierdes sobre todo en los errores, le pierdes por orientación; si también sin fallar, por ritmo. |
+  | `meetings` | Las carreras juntas con los dos tiempos, de la más reciente a la más antigua. |
+
+- **Orden**: de más carreras juntas a menos; a igualdad, más tramos comparados.
+- **Al ver a un atleta** sale igual con sus paquetes con tramos (`docs/paquete.md`): traen al resto
+  de corredores de su recorrido con nombre y club, sin tarjeta, así que ahí solo se reconoce por
+  el nombre.
+- Todo se calcula en local con los resultados ya importados; nada de esto sale en los paquetes.
+
+Ejemplo de test (`crates/tramos-core/src/rivals.rs`): tres carreras con Ana en las tres (una vez
+sin tarjeta y en mayúsculas sin tilde), Luis Gil con la tarjeta 300 en dos y con la 301 en la
+tercera (dos corredores), Marta en dos y Pedro, que no salió en una. Con el mínimo de 3, solo Ana:
+le pierdes las tres (mediana 20 s), ningún tramo, y por tramo 2,5 s sin fallar frente a 70 s
+fallando.
+
 ## Días sin competir (P11)
 
 «¿Entro peor en mapa tras días sin competir?» (`docs/preguntas.md`, P11). Implementado en

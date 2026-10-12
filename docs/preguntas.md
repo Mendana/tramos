@@ -92,6 +92,16 @@ de grupo: tabla de corredores por métricas (IR, tasa de error, tipos de error, 
 comparación de todos contra todos en las carreras compartidas. En `docs/app.md`,
 "Atletas"; vista de grupo en `docs/historico.md`, "Vista de grupo (P15)".
 
+## Tanda 5
+
+**¿Estoy mejorando?** (#192) Tendencia del IR y de la tasa de error a lo largo de las carreras,
+con su incertidumbre: solo dice «mejoras» o «empeoras» con al menos 8 carreras en 3 meses y si el
+intervalo al 90 % de la pendiente no cruza el cero. En `docs/historico.md`, "¿Estoy mejorando?".
+
+**Rivales habituales** (#193) Con quién coincides en el mismo recorrido en 3 carreras o más y
+cómo te va frente a cada uno: carreras y tramos que le ganas, la diferencia mediana y si le pierdes
+fallando o sin fallar. En `docs/historico.md`, "Rivales habituales".
+
 ## Descartadas por ahora
 
-P12 (salida de baliza por ritmo), P16 (ficha por corredor) y la tendencia de temporada.
+P12 (salida de baliza por ritmo) y P16 (ficha por corredor).

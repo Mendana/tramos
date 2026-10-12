@@ -19,6 +19,8 @@ import {
   NO_FILTER,
 } from "./api";
 import { ConsistencyPanel } from "./ConsistencyPanel";
+import { RivalsPanel } from "./RivalsPanel";
+import { TrendPanel } from "./TrendPanel";
 import { DaysOffPanel } from "./DaysOffPanel";
 import {
   FormatErrorRatePanel,
@@ -71,8 +73,8 @@ export function historyTabs(who: Subject): (TabItem<HistoryTab> & { intro: strin
       id: "progress",
       label: who.pick("¿Cómo evoluciono?", "¿Cómo evoluciona?"),
       intro: who.pick(
-        "Tu regularidad a lo largo del tiempo y cómo entras en mapa tras días sin competir.",
-        "Su regularidad a lo largo del tiempo y cómo entra en mapa tras días sin competir.",
+        "Si estás mejorando, tu regularidad y cómo entras en mapa tras días sin competir.",
+        "Si está mejorando, su regularidad y cómo entra en mapa tras días sin competir.",
         "Cómo entra en mapa el grupo tras días sin competir.",
       ),
     },
@@ -96,6 +98,7 @@ const INSIGHT_PLACES: Record<HistoryInsightTarget, InsightPlace<HistoryTab>> = {
   fatigue: { tab: "body", panels: ["fatigue-heart-rate"] },
   days_off: { tab: "progress", panels: ["days-off-entry"] },
   consistency: { tab: "progress", panels: ["consistency"] },
+  trend: { tab: "progress", panels: ["trend-performance", "trend-error-rate"] },
 };
 
 function HistoryScreen({
@@ -378,6 +381,7 @@ function Summary({
                 <FormatLossPanel groups={groups} total={total} />
               </div>
               <RaceRows races={view.races} onOpen={onOpen} />
+              <RivalsPanel filter={view.history.filter} revision={view} />
             </>
           )}
 
@@ -396,6 +400,12 @@ function Summary({
 
           {tab === "progress" && (
             <div className="panel-grid">
+              {shown("trend-performance", "trend-error-rate") && (
+                <TrendPanel
+                  performance={view.trends.performance}
+                  errorRate={view.trends.error_rate}
+                />
+              )}
               {shown("consistency") && <ConsistencyPanel races={view.races} total={total} />}
               {shown("days-off-entry", "days-off-start") && (
                 <DaysOffPanel

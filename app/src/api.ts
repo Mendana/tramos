@@ -315,6 +315,7 @@ export type InsightRule =
   | "days_off"
   | "consistency"
   | "fatigue"
+  | "trend"
   | "clean_race"
   | "concentrated_loss"
   | "race_breakdown"
@@ -331,7 +332,8 @@ export type HistoryInsightTarget =
   | "after_error"
   | "days_off"
   | "consistency"
-  | "fatigue";
+  | "fatigue"
+  | "trend";
 
 /** Parte de la carrera que justifica una frase. */
 export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";
@@ -385,6 +387,42 @@ export interface HistoryView {
   common_errors: CommonErrors;
   /** ¿El cansancio anticipa el error? (P14): por tercio de carrera, con el mismo filtro. */
   fatigue: Fatigue;
+  /** ¿Estoy mejorando? (#192), con el mismo filtro. */
+  trends: Trends;
+}
+
+/** Qué dice una tendencia (#192, `docs/historico.md`). */
+export type TrendVerdict = "improving" | "worsening" | "no_change" | "not_enough_data";
+
+/** Una carrera de la serie, con la recta y su banda al 90 % en su fecha. */
+export interface TrendPoint {
+  date: string;
+  /** IR habitual o tasa de error (1 = 100 %). */
+  value: number;
+  weight: number;
+  fitted: number | null;
+  low: number | null;
+  high: number | null;
+}
+
+export interface Trend {
+  /** De la más antigua a la más reciente. */
+  points: TrendPoint[];
+  span_days: number;
+  /** Pendiente por cada 3 meses (1 = 100 puntos) y su intervalo al 90 %. */
+  slope_per_quarter: number | null;
+  slope_low: number | null;
+  slope_high: number | null;
+  verdict: TrendVerdict;
+  missing_races: number;
+  missing_days: number;
+}
+
+export interface Trends {
+  /** IR habitual: más alto es mejor. */
+  performance: Trend;
+  /** Tasa de error: más baja es mejor. */
+  error_rate: Trend;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -1325,6 +1363,40 @@ export const raceBreakdown = (resultId: number) =>
   invoke<RaceBreakdown | null>("race_breakdown", { resultId });
 
 export const getHistory = (filter: HistoryFilter) => invoke<HistoryView>("history", { filter });
+
+/** Diferencia por tramo frente a un rival (#193). */
+export interface LegGap {
+  legs: number;
+  /** Mediana de tu split menos el suyo (s); negativa si eres más rápido. */
+  median_gap_s: number | null;
+}
+
+/** Una carrera con un rival. */
+export interface Meeting {
+  date: string;
+  race_name: string | null;
+  own_total_s: number | null;
+  rival_total_s: number | null;
+}
+
+/** Un rival habitual (#193, `docs/historico.md`). */
+export interface Rival {
+  name: string;
+  club: string | null;
+  races: number;
+  races_compared: number;
+  races_ahead: number;
+  /** Mediana de tu tiempo menos el suyo (s); negativa si sueles ganarle. */
+  median_gap_s: number | null;
+  legs_compared: number;
+  legs_ahead: number;
+  clean_legs: LegGap;
+  error_legs: LegGap;
+  /** De la más reciente a la más antigua. */
+  meetings: Meeting[];
+}
+
+export const getRivals = (filter: HistoryFilter) => invoke<Rival[]>("rivals", { filter });
 
 // Etiquetado de errores (docs/taxonomia.md).
 export interface TaxonomyEntry {

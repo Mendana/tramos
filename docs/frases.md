@@ -74,6 +74,7 @@ filtro) y la taxonomía para el nombre de los tipos de error.
 | 7 | `days_off` | P11, `days_off` y el IR medio del total | El IR de entrada (tres primeros tramos) del peor cubo de **más de 7 días** está ≥ 10 puntos por debajo del IR medio del total (la misma referencia que el panel). | 2 carreras y 5 tramos de entrada en el cubo. | 5 carreras en el cubo. | `days_off` |
 | 8 | `consistency` | P10, la serie de consistencia de cada carrera (`consistency::consistency_series`) | La consistencia media de las **3 últimas carreras** cambia, frente a la media de las anteriores, al menos 5 puntos de IR **y** una quinta parte de la anterior. | 5 carreras con consistencia (las 3 últimas y al menos 2 anteriores). | 8 carreras («con pocas carreras»). | `consistency` |
 | 9 | `fatigue` | P14, `fatigue.by_third`: `before_error` y `before_clean` | Antes de un error el pulso va al menos **5 ppm** (`HEART_RATE_GAP_BPM`) más alto que antes de un tramo limpio **de la misma fase** (abajo, «Cansancio»). | 5 carreras con pulso (`races_with_heart_rate`) y 10 errores comparados; cada tercio que cuenta, con 5 tramos limpios de referencia. | El mismo: por debajo no sale (sin aviso de pocos datos). | `fatigue` |
+| 10 | `trend` | #192, `trends` | La tendencia del IR tiene veredicto `improving` o `worsening`; si no, la de la tasa de error. | Lo del veredicto: 8 carreras en 90 días y un intervalo al 90 % que no cruza el 0 (`docs/historico.md`). | El mismo (sin aviso de pocos datos). | `trend` |
 
 Textos (los números entre llaves salen de cada caso):
 
@@ -103,6 +104,13 @@ Textos (los números entre llaves salen de cada caso):
 - `fatigue`: «Parece que fallas más con el pulso alto: en tus carreras con reloj, antes de un error
   llevas {6} pulsaciones más que antes de un tramo limpio en la misma parte de la carrera (en {12}
   errores).»
+- `trend` (puntos por cada 3 meses, con el intervalo al 90 %):
+  - IR mejora: «Estás mejorando: tu IR sube unos {27} puntos cada 3 meses (entre {25} y {30}) en
+    {8} carreras.»
+  - IR empeora: «Tu IR va a peor: baja unos {27} puntos cada 3 meses (entre …) en {8} carreras.»
+  - Tasa de error baja: «Fallas menos: tu tasa de error baja unos {19} puntos cada 3 meses (entre
+    …) en {8} carreras.»
+  - Tasa de error sube: «Fallas más que antes: tu tasa de error sube …»
 
 **Por qué** solo los cubos de más de 7 días en `days_off`: la pregunta es por el descanso; entrar
 peor compitiendo seguido no es lo que pregunta P11. **Por qué** errores *con tipo* en
@@ -216,6 +224,7 @@ que lo muestra y se desplaza hasta él.
 | `loss_breakdown` | Estadísticas | ¿Dónde fallo? | De qué está hecha la pérdida de tus errores (`breakdown`) |
 | `days_off` | Estadísticas | ¿Cómo evoluciono? | IR al entrar en mapa (`days-off-entry`) |
 | `consistency` | Estadísticas | ¿Cómo evoluciono? | Consistencia por carrera (`consistency`) |
+| `trend` | Estadísticas | ¿Cómo evoluciono? | Tendencia del IR (`trend-performance`) |
 | `after_error` | Estadísticas | Cabeza y piernas | ¿Un error trae otro? (`after-error`) |
 | `fatigue` | Estadísticas | Cabeza y piernas | Pulso antes del error (`fatigue-heart-rate`; oculto de entrada, así que sale el aviso para enseñarlo) |
 | `legs` | Carrera | Tramos | La tabla de tramos (no se oculta) |

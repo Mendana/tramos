@@ -25,12 +25,14 @@ pub mod metrics;
 pub mod model;
 pub mod package;
 pub mod race_format;
+pub mod rivals;
 pub mod route_choice;
 pub mod runner_report;
 pub mod same_race;
 pub mod segmentation;
 pub mod slope;
 pub mod taxonomy;
+pub mod trend;
 
 /// Versión del núcleo, tomada de `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

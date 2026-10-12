@@ -264,6 +264,7 @@ pub fn pool_after_error(members: &[&AfterError]) -> AfterError {
         accelerated: pooled(|m| m.accelerated),
         not_accelerated: pooled(|m| m.not_accelerated),
         after_error_without_speed: members.iter().map(|m| m.after_error_without_speed).sum(),
+        compared_without_altitude: members.iter().map(|m| m.compared_without_altitude).sum(),
         streaks: by_key(members.iter().flat_map(|m| &m.streaks), |s| s.from)
             .into_iter()
             .filter_map(|same| {
@@ -458,6 +459,7 @@ pub fn pool_fatigue(members: &[&Fatigue]) -> Fatigue {
         races_with_heart_rate: members.iter().map(|m| m.races_with_heart_rate).sum(),
         races_without_heart_rate: members.iter().map(|m| m.races_without_heart_rate).sum(),
         errors_without_heart_rate: members.iter().map(|m| m.errors_without_heart_rate).sum(),
+        drift_races_without_altitude: members.iter().map(|m| m.drift_races_without_altitude).sum(),
     }
 }
 
@@ -746,6 +748,7 @@ mod tests {
             accelerated: r(2, 0),
             not_accelerated: r(1, 1),
             after_error_without_speed: 1,
+            compared_without_altitude: 2,
             streaks: streaks([r(4, 1), r(6, 1), r(4, 1), r(0, 0), r(0, 0)]),
         };
         let bea = AfterError {
@@ -754,6 +757,7 @@ mod tests {
             accelerated: r(0, 0),
             not_accelerated: r(2, 1),
             after_error_without_speed: 0,
+            compared_without_altitude: 1,
             streaks: streaks([r(2, 1), r(3, 0), r(3, 0), r(0, 0), r(0, 0)]),
         };
         let pooled = pool_after_error(&[&ana, &bea]);
@@ -765,6 +769,7 @@ mod tests {
         close(pooled.accelerated.error_rate, 0.0);
         close(pooled.not_accelerated.error_rate, 2.0 / 3.0);
         assert_eq!(pooled.after_error_without_speed, 1);
+        assert_eq!(pooled.compared_without_altitude, 3);
         // Rachas: 0 → 2 de 6; 1–2 → 1 de 9; 6–10, vacío.
         assert_eq!(pooled.streaks.len(), 5);
         assert_eq!(pooled.streaks[0].rate, r(6, 2));
@@ -1045,6 +1050,7 @@ mod tests {
             races_with_heart_rate: 1,
             races_without_heart_rate: 1,
             errors_without_heart_rate: 2,
+            drift_races_without_altitude: 1,
         };
         let bea = Fatigue {
             by_third: vec![
@@ -1060,8 +1066,10 @@ mod tests {
             races_with_heart_rate: 1,
             races_without_heart_rate: 0,
             errors_without_heart_rate: 0,
+            drift_races_without_altitude: 0,
         };
         let pooled = pool_fatigue(&[&ana, &bea]);
+        assert_eq!(pooled.drift_races_without_altitude, 1);
         let first = pooled.by_third[0];
         // Deriva: 4 tramos; pulso (150 × 3 + 170) / 4 = 155; velocidad (3 × 3 + 2,5) / 4 =
         // 2,875; relativa (0,95 × 3 + 1,15) / 4 = 1.

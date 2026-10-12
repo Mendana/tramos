@@ -254,6 +254,7 @@ mod tests {
             stopped_s: 0.0,
             gap_s: 0.0,
             moving_speed_mps: Some(distance / 60.0),
+            flat_speed_mps: None,
             ascent_m: ascent,
             descent_m: descent,
             heart_rate_bpm: None,

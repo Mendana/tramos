@@ -6,11 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::history::{HistoryFilter, TrackedRace, pattern_legs};
 use crate::loss_breakdown::median;
-use crate::metrics::LegMetrics;
+use crate::metrics::{LegMetrics, RaceSpeed};
 use crate::runner_report::LegReport;
 
-/// Cuánto más rápido (en movimiento) que su mediana en tramos limpios tiene que ir el corredor
-/// en el tramo siguiente a un error para que cuente como «acelerar»: +5 %.
+/// Cuánto más rápido que su mediana en tramos limpios tiene que ir el corredor en el tramo
+/// siguiente a un error para que cuente como «acelerar»: +5 %. La velocidad es la equivalente en
+/// llano si la carrera tiene altitud ([`RaceSpeed`]).
 pub const ACCELERATION: f64 = 0.05;
 
 /// Tramos limpios con velocidad en movimiento que hacen falta en una carrera para fiarse de su
@@ -64,18 +65,23 @@ pub struct AfterError {
     /// Tramos tras un error sin velocidad para comparar (sin FIT, sin sub-track o carrera con
     /// pocos tramos limpios).
     pub after_error_without_speed: usize,
+    /// De los tramos tras un error con velocidad (`accelerated` + `not_accelerated`), los que se
+    /// han comparado con la velocidad en movimiento porque su carrera no tiene altitud: en ellos
+    /// el desnivel puede pasar por aceleración.
+    #[serde(default)]
+    pub compared_without_altitude: usize,
     /// Los cinco cubos de rachas limpias, en orden.
     pub streaks: Vec<StreakBucket>,
 }
 
-fn moving_speed(leg: &LegReport, metrics: &[LegMetrics]) -> Option<f64> {
-    metrics
-        .iter()
-        .find(|m| m.index == leg.index && m.from == leg.from && m.to == leg.to)?
-        .track
-        .as_ref()?
-        .moving_speed_mps
-        .filter(|v| v.is_finite() && *v > 0.0)
+fn leg_speed(leg: &LegReport, metrics: &[LegMetrics], kind: RaceSpeed) -> Option<f64> {
+    kind.of_track(
+        metrics
+            .iter()
+            .find(|m| m.index == leg.index && m.from == leg.from && m.to == leg.to)?
+            .track
+            .as_ref()?,
+    )
 }
 
 /// Cubo de rachas de `clean` tramos limpios seguidos.
@@ -99,6 +105,7 @@ pub fn after_error(races: &[TrackedRace<'_>], filter: &HistoryFilter) -> AfterEr
         accelerated: Rate::default(),
         not_accelerated: Rate::default(),
         after_error_without_speed: 0,
+        compared_without_altitude: 0,
         streaks: Vec::new(),
     };
     let mut streaks = [Rate::default(); STREAK_STARTS.len()];
@@ -107,11 +114,12 @@ pub fn after_error(races: &[TrackedRace<'_>], filter: &HistoryFilter) -> AfterEr
     });
     for r in counted {
         let legs: Vec<&LegReport> = pattern_legs(&r.race.lost_time).collect();
+        let kind = r.leg_metrics.map_or(RaceSpeed::Moving, RaceSpeed::of);
         let usual_speed = r.leg_metrics.and_then(|metrics| {
             let mut speeds: Vec<f64> = legs
                 .iter()
                 .filter(|l| !l.is_error)
-                .filter_map(|l| moving_speed(l, metrics))
+                .filter_map(|l| leg_speed(l, metrics, kind))
                 .collect();
             if speeds.len() < MIN_CLEAN_LEGS {
                 return None;
@@ -135,8 +143,11 @@ pub fn after_error(races: &[TrackedRace<'_>], filter: &HistoryFilter) -> AfterEr
             out.after_error.add(next);
             let speed = r
                 .leg_metrics
-                .and_then(|metrics| moving_speed(next, metrics))
+                .and_then(|metrics| leg_speed(next, metrics, kind))
                 .zip(usual_speed);
+            if speed.is_some() && kind == RaceSpeed::Moving {
+                out.compared_without_altitude += 1;
+            }
             match speed {
                 Some((v, usual)) if v > usual * (1.0 + ACCELERATION) => out.accelerated.add(next),
                 Some(_) => out.not_accelerated.add(next),
@@ -225,6 +236,7 @@ mod tests {
                         stopped_s: 0.0,
                         gap_s: 0.0,
                         moving_speed_mps: Some(v),
+                        flat_speed_mps: None,
                         ascent_m: None,
                         descent_m: None,
                         heart_rate_bpm: None,
@@ -323,7 +335,27 @@ mod tests {
         assert_eq!((a.accelerated.legs, a.accelerated.errors), (1, 0));
         assert_eq!((a.not_accelerated.legs, a.not_accelerated.errors), (2, 1));
         assert_eq!(a.after_error_without_speed, 0);
+        // Sin altitud, las tres se han comparado con la velocidad en movimiento.
+        assert_eq!(a.compared_without_altitude, 3);
         close(a.not_accelerated.error_rate, 0.5);
+    }
+
+    #[test]
+    fn with_altitude_the_flat_speed_decides() {
+        // Tras el error del tramo 2, el tramo 3 va a 3,4 m/s en movimiento: más de un 5 % sobre
+        // la mediana de los limpios (3,0). Pero es una bajada y en llano equivale a 3,0: no
+        // acelera.
+        let (r, m) = race("ooxooo", Some(&[3.0, 3.0, 2.0, 3.4, 3.0, 3.0, 3.0]));
+        assert_eq!(run(&[(r.clone(), m.clone())]).accelerated.legs, 1);
+        let mut m = m.unwrap();
+        for (leg, flat) in m.iter_mut().zip([3.0, 3.0, 2.0, 3.0, 3.0, 3.0, 3.0]) {
+            if let Some(track) = leg.track.as_mut() {
+                track.flat_speed_mps = Some(flat);
+            }
+        }
+        let a = run(&[(r, Some(m))]);
+        assert_eq!((a.accelerated.legs, a.not_accelerated.legs), (0, 1));
+        assert_eq!(a.compared_without_altitude, 0);
     }
 
     #[test]

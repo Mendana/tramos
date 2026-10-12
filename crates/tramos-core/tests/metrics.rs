@@ -194,3 +194,25 @@ fn private_metrics() {
         );
     }
 }
+
+/// Velocidad equivalente en llano (#191): en el FIT sintético, los tramos que solo suben (más de
+/// 5 m) salen más rápidos en llano que en movimiento, y los que solo bajan, más lentos.
+#[test]
+fn flat_speed_follows_the_slope_of_each_leg() {
+    let (track, result) = load();
+    let (mut up, mut down) = (0, 0);
+    for leg in metrics(&track, &result, &MetricsOptions::default()) {
+        let m = leg.track.unwrap();
+        let (moving, flat) = (m.moving_speed_mps.unwrap(), m.flat_speed_mps.unwrap());
+        let (ascent, descent) = (m.ascent_m.unwrap(), m.descent_m.unwrap());
+        if ascent > 5.0 && descent < 0.5 {
+            assert!(flat > moving, "tramo {}: {flat} <= {moving}", leg.index);
+            up += 1;
+        }
+        if descent > 5.0 && ascent < 0.5 {
+            assert!(flat < moving, "tramo {}: {flat} >= {moving}", leg.index);
+            down += 1;
+        }
+    }
+    assert!(up > 0 && down > 0, "subidas {up}, bajadas {down}");
+}

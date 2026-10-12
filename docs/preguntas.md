@@ -43,7 +43,9 @@ y bajada, pulso y cadencia) están definidas en `docs/metricas.md`.
 - Desvío: `(d_run − r0 · d_line) / v_mov`, con `v_mov` la velocidad en movimiento del tramo.
 - Paradas: tiempo con velocidad < 0,5 m/s, sin contar los 5 s siguientes a cada picada.
 - Ritmo: el resto de `p_i`.
-Resultado por tramo y agregado: qué parte de la pérdida es desvío, paradas o ritmo.
+Resultado por tramo y agregado: qué parte de la pérdida es desvío, paradas o ritmo. Aparte, dónde
+se perdió (#189): en el ataque (los últimos 50 m, frente al ataque habitual de la carrera) o por el
+camino (`docs/tiempo-perdido.md`, "Pérdida en el ataque").
 
 **P7. ¿Tramos largos o cortos?** Cubos por `ref_i` (no por el tiempo propio, para que un error no
 mueva el tramo de cubo), en escala logarítmica: 20–30 s, 30–60 s, 1–2 min, 2–4 min, 4–8 min, más de
@@ -92,10 +94,14 @@ comparación de todos contra todos en las carreras compartidas. En `docs/app.md`
 
 ## Tanda 5
 
+**¿Estoy mejorando?** (#192) Tendencia del IR y de la tasa de error a lo largo de las carreras,
+con su incertidumbre: solo dice «mejoras» o «empeoras» con al menos 8 carreras en 3 meses y si el
+intervalo al 90 % de la pendiente no cruza el cero. En `docs/historico.md`, "¿Estoy mejorando?".
+
 **Rivales habituales** (#193) Con quién coincides en el mismo recorrido en 3 carreras o más y
 cómo te va frente a cada uno: carreras y tramos que le ganas, la diferencia mediana y si le pierdes
 fallando o sin fallar. En `docs/historico.md`, "Rivales habituales".
 
 ## Descartadas por ahora
 
-P12 (salida de baliza por ritmo), P16 (ficha por corredor) y la tendencia de temporada.
+P12 (salida de baliza por ritmo) y P16 (ficha por corredor).

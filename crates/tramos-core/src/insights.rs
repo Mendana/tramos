@@ -26,6 +26,7 @@ use crate::race_format::RaceFormat;
 use crate::runner_report::RunnerReport;
 use crate::slope::{SlopeClass, SlopeHistory, SlopeStats};
 use crate::taxonomy::Taxonomy;
+use crate::trend::{Trend, TrendVerdict, Trends};
 
 /// Frases como mucho en cada sitio (decisión de #126).
 pub const MAX_INSIGHTS: usize = 3;
@@ -129,6 +130,8 @@ pub enum InsightRule {
     Consistency,
     /// P14: antes de un error el pulso va claramente más alto que antes de un tramo limpio.
     Fatigue,
+    /// #192: el IR (o la tasa de error) mejora o empeora con el tiempo, con datos suficientes.
+    Trend,
     // Carrera.
     /// P1: ningún error.
     CleanRace,
@@ -156,6 +159,7 @@ impl InsightRule {
             InsightRule::DaysOff => 7,
             InsightRule::Consistency => 8,
             InsightRule::Fatigue => 9,
+            InsightRule::Trend => 10,
             InsightRule::CleanRace => 1,
             InsightRule::ConcentratedLoss => 2,
             InsightRule::RaceBreakdown => 3,
@@ -189,6 +193,8 @@ pub enum InsightTarget {
     Consistency,
     /// P14: cansancio, el pulso antes del error.
     Fatigue,
+    /// #192: ¿estoy mejorando?
+    Trend,
     // Carrera.
     /// P1: la tabla de tramos.
     Legs,
@@ -239,6 +245,8 @@ pub struct HistoryAnalyses<'a> {
     pub consistency: &'a [f64],
     /// Cansancio (P14).
     pub fatigue: &'a Fatigue,
+    /// ¿Estoy mejorando? (#192).
+    pub trends: &'a Trends,
     /// Para el nombre de los tipos de error; sin ella, sale la clave.
     pub taxonomy: Option<&'a Taxonomy>,
 }
@@ -257,6 +265,7 @@ pub fn history_insights(a: &HistoryAnalyses<'_>) -> Vec<Insight> {
             days_off_insight(a.days_off, a.history),
             consistency_insight(a.consistency),
             fatigue_insight(a.fatigue),
+            trend_insight(a.trends),
         ]
         .into_iter()
         .flatten()
@@ -677,6 +686,55 @@ fn consistency_insight(series: &[f64]) -> Option<Insight> {
     ))
 }
 
+/// #192: la tendencia del IR o, si no tiene veredicto, la de la tasa de error. Solo sale con
+/// veredicto de mejora o empeora: ya exige bastantes carreras y un intervalo que no cruce el cero,
+/// así que no lleva aviso de pocos datos.
+fn trend_insight(t: &Trends) -> Option<Insight> {
+    /// «unos 3 puntos (entre 1 y 5)».
+    fn points(t: &Trend) -> Option<String> {
+        let p = |v: f64| format!("{:.0}", (v.abs() * 100.0).round());
+        let (low, high) = (t.slope_low?.abs(), t.slope_high?.abs());
+        let (low, high) = (low.min(high), low.max(high));
+        Some(format!(
+            "unos {} puntos cada 3 meses (entre {} y {})",
+            p(t.slope_per_quarter?),
+            p(low),
+            p(high)
+        ))
+    }
+    let performance = &t.performance;
+    let errors = &t.error_rate;
+    let text = match (performance.verdict, errors.verdict) {
+        (TrendVerdict::Improving, _) => format!(
+            "Estás mejorando: tu IR sube {} en {} carreras.",
+            points(performance)?,
+            performance.points.len()
+        ),
+        (TrendVerdict::Worsening, _) => format!(
+            "Tu IR va a peor: baja {} en {} carreras.",
+            points(performance)?,
+            performance.points.len()
+        ),
+        (_, TrendVerdict::Improving) => format!(
+            "Fallas menos: tu tasa de error baja {} en {} carreras.",
+            points(errors)?,
+            errors.points.len()
+        ),
+        (_, TrendVerdict::Worsening) => format!(
+            "Fallas más que antes: tu tasa de error sube {} en {} carreras.",
+            points(errors)?,
+            errors.points.len()
+        ),
+        _ => return None,
+    };
+    Some(Insight::new(
+        InsightRule::Trend,
+        InsightTarget::Trend,
+        text,
+        None,
+    ))
+}
+
 /// P14: el pulso del tramo anterior a un error frente al del anterior a un tramo limpio, en la
 /// misma fase. Cada error se compara con los tramos limpios de su tercio (la media de
 /// `mean_relative_bpm` de los errores menos la de los limpios, ponderada por los errores del
@@ -1006,6 +1064,7 @@ mod tests {
                 detour_s,
                 stopped_s,
                 pace_s,
+                ..BreakdownTotals::default()
             },
             races_with_track,
             races_without_track: 0,
@@ -1652,6 +1711,67 @@ mod tests {
         );
     }
 
+    // --- ¿Estoy mejorando? (#192) -------------------------------------------------------------
+
+    /// Ocho carreras cada 15 días con el valor `start + step · i` y un ruido alterno de ±1 punto.
+    fn series(start: f64, step: f64, weight: f64) -> Vec<(chrono::NaiveDate, f64, f64)> {
+        let day0 = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        (0..8)
+            .map(|i| {
+                let noise = if i % 2 == 0 { 0.01 } else { -0.01 };
+                (
+                    day0 + chrono::TimeDelta::days(15 * i),
+                    start + step * i as f64 + noise,
+                    weight,
+                )
+            })
+            .collect()
+    }
+
+    fn trends_of(performance: f64, errors: f64) -> Trends {
+        use crate::trend::trend;
+        Trends {
+            performance: trend(&series(0.85, performance, 1.0), true),
+            error_rate: trend(&series(0.30, errors, 10.0), false),
+        }
+    }
+
+    #[test]
+    fn trend_speaks_only_with_a_verdict_and_the_ir_first() {
+        // IR +4,5 puntos por carrera (cada 15 días): unos 27 cada 3 meses.
+        let i = trend_insight(&trends_of(0.045, 0.0)).unwrap();
+        assert_eq!(
+            (i.rule, i.target, i.few_data),
+            (InsightRule::Trend, InsightTarget::Trend, false)
+        );
+        assert!(
+            i.text
+                .starts_with("Estás mejorando: tu IR sube unos 27 puntos cada 3 meses"),
+            "{}",
+            i.text
+        );
+        assert!(i.text.ends_with("en 8 carreras."), "{}", i.text);
+        // El IR manda aunque la tasa de error empeore.
+        let i = trend_insight(&trends_of(0.045, 0.03)).unwrap();
+        assert!(i.text.starts_with("Estás mejorando"), "{}", i.text);
+        // IR plano (sin veredicto) y la tasa de error bajando.
+        let i = trend_insight(&trends_of(0.0, -0.03)).unwrap();
+        assert!(
+            i.text
+                .starts_with("Fallas menos: tu tasa de error baja unos 19 puntos"),
+            "{}",
+            i.text
+        );
+        let i = trend_insight(&trends_of(-0.045, 0.0)).unwrap();
+        assert!(
+            i.text.starts_with("Tu IR va a peor: baja unos 28 puntos"),
+            "{}",
+            i.text
+        );
+        // Sin tendencia clara en nada, nada.
+        assert_eq!(trend_insight(&trends_of(0.0, 0.0)), None);
+    }
+
     // --- Selección en el histórico ------------------------------------------------------------
 
     /// Análisis que disparan las siete primeras reglas (las dos últimas, consistencia y
@@ -1666,6 +1786,7 @@ mod tests {
         breakdown: BreakdownHistory,
         consistency: Vec<f64>,
         fatigue: Fatigue,
+        trends: Trends,
     }
 
     impl AllRules {
@@ -1690,6 +1811,8 @@ mod tests {
                 // Sin cambio de consistencia: ocho carreras al 20 %.
                 consistency: vec![0.20; 8],
                 fatigue: no_fatigue(),
+                // Sin carreras: sin veredicto.
+                trends: crate::trend::trends(&[], &crate::history::HistoryFilter::default()),
             }
         }
 
@@ -1719,6 +1842,7 @@ mod tests {
                 loss_breakdown: &self.breakdown,
                 consistency: &self.consistency,
                 fatigue: &self.fatigue,
+                trends: &self.trends,
                 taxonomy: None,
             })
         }
@@ -2058,8 +2182,11 @@ mod tests {
                 detour_s: detour,
                 stopped_s: stopped,
                 pace_s: pace,
+                ..BreakdownTotals::default()
             },
             errors_without_breakdown: 0,
+            usual_attack_s: None,
+            attack_clean_legs: 0,
         }
     }
 

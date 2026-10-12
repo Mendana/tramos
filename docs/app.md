@@ -69,7 +69,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format, kind}` (fechas `AAAA-MM-DD` incluidas, formato y tipo, `race` o `training`; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format, kind}` (fechas `AAAA-MM-DD` incluidas, formato y tipo, `race` o `training`; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), la tendencia del IR y de la tasa de error (#192, `trends`: `tramos_core::trend`), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
 | `rivals(filter)` | Rivales habituales (#193): `tramos_core::rivals` sobre las carreras del usuario (o del atleta que se ve) que pasan `filter`, el mismo que el de `history`, con los umbrales de los ajustes. Una fila por rival con al menos 3 carreras juntas (`docs/historico.md`, "Rivales habituales"). |
 
 El núcleo de la app decide qué base leen las vistas (#119): los comandos que leen las vistas de
@@ -642,7 +642,9 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
   con su split y su pérdida; un clic en uno lo selecciona.
 - **Frente al grupo**: P4.
 - **Análisis**: pérdida acumulada (P3), dónde gano y dónde pierdo (P5), rendimiento por tramo y
-  ¿lento o desorientado? (P2).
+  ¿lento o desorientado? (P2). En este último, la descripción dice cuánto de la pérdida fue en
+  el ataque y la tabla tiene una columna «Ataque» con la pérdida en el ataque de cada tramo (al
+  pasar el ratón, el tiempo de ataque; #189).
 
 En las pestañas, los paneles están siempre abiertos, sin desplegable (`PanelsOpen` en
 `ChartPanel.tsx`).
@@ -847,7 +849,7 @@ mirada se recuerda mientras la app está abierta:
 | --- | --- |
 | Resumen | La tabla por formato, las gráficas por formato, las carreras que entran y los rivales habituales (#193). |
 | ¿Dónde fallo? | Por duración del tramo (P7), tipos de error (P9), por desnivel (P13) y ¿lento o desorientado? (P2). |
-| ¿Cómo evoluciono? | Consistencia (P10) y días sin competir (P11). |
+| ¿Cómo evoluciono? | ¿Estoy mejorando? (#192), consistencia (P10) y días sin competir (P11). |
 | Cabeza y piernas | Después de fallar (P8) y cansancio (P14). |
 
 Los paneles están abiertos, en rejilla de dos columnas (una por debajo de 1100 px), y los avisos y
@@ -874,6 +876,12 @@ mismos (`pattern_legs`).
   es poco fiable. Va la tasa en la gráfica porque es la respuesta directa a «¿fallo más en los
   tramos largos o en los cortos?» y `n` es su denominador; la tabla añade la pérdida media por
   tramo en % y en segundos. Los cubos vacíos salen sin columna y con `n = 0`.
+- **¿Estoy mejorando? (#192)** (`TrendPanel.tsx`): dos paneles, «Tendencia del IR» y «Tendencia
+  de la tasa de error» (`trend-performance`, `trend-error-rate`). Cada uno, una línea con el
+  valor de cada carrera, la recta de tendencia (más gruesa) y su margen al 90 % (dos líneas
+  finas), de la más antigua a la más reciente. La descripción da el veredicto en palabras con la
+  pendiente por cada 3 meses y su intervalo; sin datos suficientes, cuántas carreras o días
+  faltan (`docs/historico.md`, "¿Estoy mejorando?").
 - **Consistencia (P10)** (`ConsistencyPanel.tsx`): panel «Consistencia por carrera». Línea con
   la consistencia de cada carrera que la tiene (`races[].stats.mean_consistency`), de la más
   antigua a la más reciente, con un marcador por carrera; la descripción da la media con esos
@@ -898,7 +906,9 @@ mismos (`pattern_legs`).
   tus errores». Una columna por parte (desvío, paradas y ritmo) con su % de la pérdida de todos
   los errores repartidos (`loss_breakdown`, `docs/historico.md`); el tooltip y la tabla dan los
   segundos. La descripción dice cuántos errores no se pueden repartir (sin FIT o sin datos
-  suficientes).
+  suficientes). Debajo, «¿Por el camino o al llegar?» (#189, `breakdown-attack`): dos columnas,
+  al llegar a la baliza y por el camino, en % de la pérdida de los errores con tiempo de ataque,
+  y en cuántos el ataque pasa de la mitad. Se ocultan por separado.
 - **Después de fallar (P8)** (`AfterErrorPanel.tsx`). Dos paneles, los dos con la tasa de error
   del total como referencia («Tu media») y `n` bajo cada columna:
   - «¿Un error trae otro?»: la tasa de error del tramo siguiente a uno limpio, a un error, a un

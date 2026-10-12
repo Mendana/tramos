@@ -315,6 +315,7 @@ export type InsightRule =
   | "days_off"
   | "consistency"
   | "fatigue"
+  | "trend"
   | "clean_race"
   | "concentrated_loss"
   | "race_breakdown"
@@ -331,7 +332,8 @@ export type HistoryInsightTarget =
   | "after_error"
   | "days_off"
   | "consistency"
-  | "fatigue";
+  | "fatigue"
+  | "trend";
 
 /** Parte de la carrera que justifica una frase. */
 export type RaceInsightTarget = "legs" | "gain_loss" | "race_breakdown";
@@ -385,6 +387,42 @@ export interface HistoryView {
   common_errors: CommonErrors;
   /** ¿El cansancio anticipa el error? (P14): por tercio de carrera, con el mismo filtro. */
   fatigue: Fatigue;
+  /** ¿Estoy mejorando? (#192), con el mismo filtro. */
+  trends: Trends;
+}
+
+/** Qué dice una tendencia (#192, `docs/historico.md`). */
+export type TrendVerdict = "improving" | "worsening" | "no_change" | "not_enough_data";
+
+/** Una carrera de la serie, con la recta y su banda al 90 % en su fecha. */
+export interface TrendPoint {
+  date: string;
+  /** IR habitual o tasa de error (1 = 100 %). */
+  value: number;
+  weight: number;
+  fitted: number | null;
+  low: number | null;
+  high: number | null;
+}
+
+export interface Trend {
+  /** De la más antigua a la más reciente. */
+  points: TrendPoint[];
+  span_days: number;
+  /** Pendiente por cada 3 meses (1 = 100 puntos) y su intervalo al 90 %. */
+  slope_per_quarter: number | null;
+  slope_low: number | null;
+  slope_high: number | null;
+  verdict: TrendVerdict;
+  missing_races: number;
+  missing_days: number;
+}
+
+export interface Trends {
+  /** IR habitual: más alto es mejor. */
+  performance: Trend;
+  /** Tasa de error: más baja es mejor. */
+  error_rate: Trend;
 }
 
 /** Un cubo de días desde la carrera anterior (P11, `docs/historico.md`), ambos extremos incluidos. */
@@ -1175,6 +1213,10 @@ export interface LegBreakdown {
   detour_s: number;
   stopped_s: number;
   pace_s: number;
+  /** Tiempo cerca de la baliza antes de picarla (s, #189); `null` en tramos cortos. */
+  attack_s: number | null;
+  /** Lo que pasa del ataque habitual de la carrera, entre 0 y la pérdida (s). */
+  attack_loss_s: number | null;
 }
 
 /** Sumas del reparto de varios tramos. */
@@ -1184,6 +1226,11 @@ export interface BreakdownTotals {
   detour_s: number;
   stopped_s: number;
   pace_s: number;
+  /** Tramos con pérdida en el ataque, su pérdida, la del ataque y en cuántos pasa de la mitad. */
+  attack_legs: number;
+  attack_legs_loss_s: number;
+  attack_loss_s: number;
+  attack_dominant: number;
 }
 
 /** ¿Lento o desorientado? (P2) de una carrera. */
@@ -1196,6 +1243,9 @@ export interface RaceBreakdown {
   /** Suma de los errores de `legs`. */
   errors: BreakdownTotals;
   errors_without_breakdown: number;
+  /** Ataque habitual: mediana de los tramos sin error (s); `null` con pocos. */
+  usual_attack_s: number | null;
+  attack_clean_legs: number;
 }
 
 /** P2 en el histórico. */

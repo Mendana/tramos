@@ -216,3 +216,26 @@ fn flat_speed_follows_the_slope_of_each_leg() {
     }
     assert!(up > 0 && down > 0, "subidas {up}, bajadas {down}");
 }
+
+/// Tiempo de ataque (#189): el corredor sintético no busca ninguna baliza, así que el ataque es
+/// lo que tarda en recorrer los últimos 50 m (unos 15 s a su ritmo). Los tramos de menos de
+/// 100 m en línea recta no tienen.
+#[test]
+fn without_searching_the_attack_is_the_last_fifty_metres() {
+    let (track, result) = load();
+    for leg in metrics(&track, &result, &MetricsOptions::default()) {
+        let m = leg.track.unwrap();
+        match m.attack_s {
+            Some(a) => {
+                assert!(m.straight_m >= 100.0, "tramo {}", leg.index);
+                let expected = 50.0 / m.moving_speed_mps.unwrap();
+                assert!(
+                    (a - expected).abs() < 5.0,
+                    "tramo {}: {a} frente a {expected}",
+                    leg.index
+                );
+            }
+            None => assert!(m.straight_m < 100.0, "tramo {}", leg.index),
+        }
+    }
+}

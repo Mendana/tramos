@@ -43,6 +43,7 @@ lentos de los primeros 5 s.
 | `moving_s`, `stopped_s`, `gap_s` | Ver "Intervalos". |
 | `moving_speed_mps` | Distancia en movimiento / `moving_s` (`v_mov` en P2); `null` si no hay movimiento. |
 | `flat_speed_mps` | Velocidad equivalente en llano (#191, abajo); `null` sin movimiento o si a algún trozo en movimiento le falta altitud. |
+| `attack_s` | Tiempo de ataque (#189, abajo): de la entrada en la zona de la baliza a la picada. `null` si la línea recta mide menos de dos radios. |
 | `ascent_m`, `descent_m` | Subida y bajada acumuladas de la altitud suavizada (abajo); `null` sin altitud. La bajada es positiva. |
 | `heart_rate_bpm` | Pulso medio ponderado por tiempo: cada intervalo (sin huecos) vale la media de sus dos extremos. `null` sin pulso. |
 | `cadence_spm` | Cadencia media (pasos/min, los dos pies) calculada igual. Incluye los segundos parados (cadencia 0). |
@@ -105,6 +106,27 @@ aparte lo que se ha comparado sin altitud.
 En el FIT sintético, los tramos que solo suben (más de 5 m) salen más rápidos en llano que en
 movimiento, y los que solo bajan, más lentos (`tests/metrics.rs`).
 
+## Tiempo de ataque
+
+Cuánto pasa el corredor cerca de la baliza antes de picarla (#189). Separa «me perdí por el
+camino» de «llegué a la zona y no encontraba la baliza», que se entrenan de forma distinta. Lo usa
+la pérdida en el ataque (`docs/tiempo-perdido.md`, "Pérdida en el ataque").
+
+- **Baliza**: el último punto del sub-track, el de su picada (`docs/segmentacion.md`).
+- **Zona**: el círculo de `attack_radius_m` (50 m) alrededor de la baliza.
+- **Entrada**: tras el **último** punto del tramo a dos radios (100 m) o más de la baliza, el
+  primer instante en que baja del radio, interpolado entre los dos puntos que lo cruzan. Contar
+  desde el último punto lejano evita contar desde el principio un tramo que sale cerca de su
+  propia baliza o que pasa cerca, se aleja y vuelve.
+- `attack_s` = picada − entrada. Si busca dando vueltas dentro de la zona, todo cuenta; si sale
+  de la zona sin pasar de 100 m y vuelve a entrar, también.
+- **Sin valor** si la línea recta del tramo mide menos de dos radios: no hay aproximación que
+  medir.
+
+Sin búsquedas, es lo que se tarda en recorrer los últimos 50 m: en el FIT sintético, unos 15 s
+en todos los tramos de más de 100 m (`tests/metrics.rs`). El radio es el mismo en sprint y en
+monte: si en sprint resulta grande, se puede ajustar por formato.
+
 P13 (`tramos_core::slope`, `docs/historico.md`) usa la subida y la bajada de cada tramo divididas
 entre su distancia recorrida (m por cada 100 m) para clasificarlo en subida, llano o bajada; no
 clasifica los tramos de menos de 50 m recorridos, donde este error ya pesa demasiado.
@@ -121,6 +143,7 @@ la mediana de su carrera: el pulso de muñeca cambia mucho de un día a otro.
 | `punch_grace_s` | 5 | Segundos tras la picada de salida del tramo que no cuentan como parado. |
 | `max_gap_s` | 10 | Intervalo que se considera hueco (≥ 1 s), como en la alineación. |
 | `altitude_smoothing_s` | 5 | Semiancho de la media móvil de la altitud (0–120 s; 0 = sin suavizar). |
+| `attack_radius_m` | 50 | Radio de la zona de la baliza para el tiempo de ataque (> 0). |
 
 En JSON se pueden pasar parcialmente: los campos que faltan toman el valor por defecto. Fuera de
 rango, `MetricsError::InvalidOptions`.
@@ -131,7 +154,7 @@ rango, `MetricsError::InvalidOptions`.
 {"index": 9, "from": 42, "to": 46,
  "track": {"duration_s": 427.0, "distance_m": 1215.5, "straight_m": 249.8, "distance_ratio": 4.87,
            "moving_s": 397.0, "stopped_s": 30.0, "gap_s": 0.0, "moving_speed_mps": 3.06,
-           "flat_speed_mps": 3.0, "ascent_m": 2.9, "descent_m": 8.0, "heart_rate_bpm": 165.0, "cadence_spm": 165.0},
+           "flat_speed_mps": 3.0, "attack_s": 18.2, "ascent_m": 2.9, "descent_m": 8.0, "heart_rate_bpm": 165.0, "cadence_spm": 165.0},
  "missing": null}
 ```
 
@@ -142,7 +165,8 @@ rango, `MetricsError::InvalidOptions`.
   relación; medias ponderadas de pulso y cadencia; suavizado frente a ruido alterno; suavizado
   que no cruza huecos; tramos sin sub-track; opciones inválidas; JSON; coste de Minetti a mano
   (llano, ±10 %, recorte), velocidad en llano en llano, subida, bajada y pendiente recortada, con
-  un parón en medio y sin altitud.
+  un parón en medio y sin altitud; tiempo de ataque con una búsqueda en la zona, con un tramo
+  que pasa cerca, se aleja y vuelve, y en tramos cortos.
 - FIT sintético: en los 21 tramos, duración = split, distancia a ±0,5 m, línea recta a ±1 m y
   subida y bajada a ±1,5 m del terreno sin ruido (campos `ascent_m` y `descent_m` del
   `.truth.json`). El rodeo (tramo 9) da una relación > 4 y el resto < 2. La parada mide 30 ± 2 s

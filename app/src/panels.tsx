@@ -36,11 +36,14 @@ export const PANEL_GROUPS: PanelGroup[] = [
       { id: "slope-performance", title: "IR medio según desnivel" },
       { id: "slope-error-rate", title: "Tasa de error según desnivel" },
       { id: "breakdown", title: "De qué está hecha la pérdida de los errores" },
+      { id: "breakdown-attack", title: "¿Por el camino o al llegar?" },
     ],
   },
   {
     label: "Estadísticas · ¿Cómo evoluciono?",
     panels: [
+      { id: "trend-performance", title: "Tendencia del IR" },
+      { id: "trend-error-rate", title: "Tendencia de la tasa de error" },
       { id: "consistency", title: "Consistencia por carrera" },
       { id: "days-off-entry", title: "IR al entrar en mapa" },
       { id: "days-off-start", title: "Errores al principio de la carrera" },

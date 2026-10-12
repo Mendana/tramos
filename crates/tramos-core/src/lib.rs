@@ -31,6 +31,7 @@ pub mod same_race;
 pub mod segmentation;
 pub mod slope;
 pub mod taxonomy;
+pub mod trend;
 
 /// Versión del núcleo, tomada de `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

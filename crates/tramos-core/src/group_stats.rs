@@ -681,6 +681,10 @@ mod tests {
                 detour_s: 50.0,
                 stopped_s: 10.0,
                 pace_s: 30.0,
+                attack_legs: 2,
+                attack_legs_loss_s: 60.0,
+                attack_loss_s: 25.0,
+                attack_dominant: 0,
             },
             races_with_track: 2,
             races_without_track: 1,
@@ -693,6 +697,10 @@ mod tests {
                 detour_s: 0.0,
                 stopped_s: 20.0,
                 pace_s: 10.0,
+                attack_legs: 1,
+                attack_legs_loss_s: 30.0,
+                attack_loss_s: 20.0,
+                attack_dominant: 1,
             },
             races_with_track: 1,
             races_without_track: 0,
@@ -708,6 +716,11 @@ mod tests {
                 detour_s: 50.0,
                 stopped_s: 30.0,
                 pace_s: 40.0,
+                // Ataque: 45 de los 90 s de los tres errores con ataque; en uno domina.
+                attack_legs: 3,
+                attack_legs_loss_s: 90.0,
+                attack_loss_s: 45.0,
+                attack_dominant: 1,
             }
         );
         assert_eq!(

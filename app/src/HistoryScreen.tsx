@@ -388,7 +388,9 @@ function Summary({
               {shown("slope-performance", "slope-error-rate") && (
                 <SlopePanel slope={view.by_slope} />
               )}
-              {shown("breakdown") && <HistoryBreakdownPanel breakdown={view.loss_breakdown} />}
+              {shown("breakdown", "breakdown-attack") && (
+                <HistoryBreakdownPanel breakdown={view.loss_breakdown} />
+              )}
             </div>
           )}
 

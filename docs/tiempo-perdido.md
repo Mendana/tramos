@@ -266,6 +266,30 @@ Ejemplo (test de `crates/tramos-core/src/loss_breakdown.rs`): tramos sin error c
 Criterio de aceptación de #27 (`crates/tramos-core/tests/loss_breakdown.rs`): con el FIT
 sintético, el tramo del rodeo atribuye más de la mitad de su pérdida a desvío y parada.
 
+### Pérdida en el ataque
+
+El reparto dice **qué** fue la pérdida; esto dice **dónde** del tramo (#189): al llegar a la
+baliza o por el camino. Va en el mismo `RaceBreakdown`, aparte de las tres partes, que no cambian.
+
+- **Ataque habitual** (`usual_attack_s`): mediana del tiempo de ataque (`attack_s`,
+  `docs/metricas.md`) de los tramos sin error de la carrera que cuentan y lo tienen. Con menos de
+  3 (`MIN_CLEAN_LEGS`) no hay, y ningún tramo tiene pérdida en el ataque. `attack_clean_legs`
+  dice cuántos había.
+- **Pérdida en el ataque** de un tramo (`attack_loss_s`) = `attack_s − ataque habitual`, sin
+  bajar de 0 y sin pasar de `p_i`. El resto de `p_i` es pérdida **por el camino**.
+- Solo en los tramos que tienen reparto (con `r0`): con `r0` hacen falta ya 3 tramos sin error.
+- **Totales** de los errores (`BreakdownTotals`): `attack_legs` (errores con pérdida en el
+  ataque), `attack_legs_loss_s` (su pérdida), `attack_loss_s` (la del ataque) y
+  `attack_dominant` (en cuántos el ataque pasa de la mitad de la pérdida). El % del ataque es
+  `attack_loss_s / attack_legs_loss_s`: sobre los errores que lo tienen, no sobre todos.
+- La etiqueta del corredor puede decir también la parte del tramo (`start`, `middle`, `attack`,
+  `docs/taxonomia.md`). No se mezclan: esto es la estimación automática, que vale sin etiquetas.
+
+Ejemplo (test de `loss_breakdown.rs`): limpios con 12, 15 y 14 s de ataque → habitual **14 s**.
+El error de 150 s tarda 74 s en el ataque: **60 s** en el ataque (no domina: menos de la mitad) y
+90 s por el camino. Con 300 s en el ataque, la pérdida en el ataque se queda en los 150 s del
+tramo.
+
 ## Salida (`tramos_core::lost_time`)
 
 `analyze_event(&Event, &LostTimeConfig) -> LostTimeReport` (o `analyze_course` para un

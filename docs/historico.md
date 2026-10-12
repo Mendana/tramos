@@ -362,7 +362,10 @@ El reparto de la pérdida de cada tramo en desvío, paradas y ritmo está en
 
 - `errors`: la suma, en todas las carreras que pasan el filtro con rendimiento habitual y track,
   de los errores repartidos (`legs`, `loss_s`, `detour_s`, `stopped_s` y `pace_s`). La pantalla
-  enseña cada parte en % de `loss_s`.
+  enseña cada parte en % de `loss_s`. También la pérdida en el ataque (#189: `attack_legs`,
+  `attack_legs_loss_s`, `attack_loss_s` y `attack_dominant`, `docs/tiempo-perdido.md`,
+  "Pérdida en el ataque"), que la pantalla enseña como «al llegar a la baliza» frente a «por el
+  camino», en % de `attack_legs_loss_s`.
 - `races_with_track` y `races_without_track`.
 - `errors_without_breakdown`: errores que cuentan pero no se reparten (carreras sin track, sin
   `r0` o tramos sin sub-track). Con `errors.legs`, suman los errores del total del histórico.

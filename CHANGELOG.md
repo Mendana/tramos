@@ -36,6 +36,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
   margen no deja dudas.
 - Tus rivales: en Estadísticas, quién coincide contigo en el mismo recorrido en 3 carreras o más,
   cuántas veces le ganas y si le pierdes por ritmo o por fallar.
+- Elección de ruta: en la carrera de varios atletas, los tramos en los que fueron por sitios
+  distintos, con qué opción salió más rápida y quién fue por cada una. Al elegir una opción, sus
+  rutas se resaltan en el mapa.
 
 ## 0.3.0
 

@@ -24,7 +24,7 @@ use crate::model::{ControlCode, Track, TrackPoint};
 use crate::segmentation::{MissingLegTrack, Segmentation};
 
 /// Radio medio de la Tierra (m), el de `docs/alineacion.md` y el generador del FIT sintético.
-const EARTH_RADIUS_M: f64 = 6_371_008.8;
+pub(crate) const EARTH_RADIUS_M: f64 = 6_371_008.8;
 /// Por debajo de esta línea recta (m) no se da la relación distancia / línea recta.
 const MIN_STRAIGHT_M: f64 = 1.0;
 /// Mayor semiancho del suavizado de la altitud aceptado (s).

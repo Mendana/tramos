@@ -1010,9 +1010,37 @@ export interface RaceAthleteRow extends RaceRunner {
 export interface CourseRunner {
   runner: number;
   behind_ideal_s: (number | null)[];
+  split_s: (number | null)[];
   loss_s: (number | null)[];
   /** Según su etiqueta o, sin ella, el cálculo. */
   is_error: boolean[];
+}
+
+/** Un atleta en una opción de ruta. */
+export interface RouteRunner {
+  runner: number;
+  split_s: number | null;
+  is_error: boolean;
+}
+
+/** Una opción de ruta: los atletas que fueron por el mismo sitio (#190). */
+export interface RouteOption {
+  /** Del split más corto al más largo. */
+  runners: RouteRunner[];
+  median_split_s: number | null;
+  distance_m: number | null;
+  ascent_m: number | null;
+}
+
+/** Un tramo en el que los atletas con track fueron por sitios distintos (#190). */
+export interface RouteChoice {
+  leg: number;
+  from: number;
+  to: number;
+  /** De la más rápida a la más lenta. */
+  options: RouteOption[];
+  /** La más lenta menos la más rápida (s). */
+  spread_s: number | null;
 }
 
 /** Un tramo que fallaron dos atletas o más. */
@@ -1034,6 +1062,8 @@ export interface RaceCourseView {
   runners: CourseRunner[];
   shared_errors: SharedLegError[];
   map: CourseMap | null;
+  /** En orden de tramo. */
+  routes: RouteChoice[];
 }
 
 /** Una carrera con todos los atletas que la corrieron (#163). */

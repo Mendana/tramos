@@ -197,10 +197,25 @@ pub(crate) fn aligned_legs(
 
 /// Mapa del resultado `result_id`.
 pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> {
+    race_map_and_legs(store, result_id).map(|(map, _)| map)
+}
+
+/// El track de una carrera y sus tramos, de los que sale su mapa.
+pub(crate) struct Segmented {
+    pub track: Track,
+    pub segmentation: Segmentation,
+}
+
+/// Como [`race_map`] y, con el mapa listo, el track troceado en tramos (#190, para la elección
+/// de ruta).
+pub(crate) fn race_map_and_legs(
+    store: &Store,
+    result_id: i64,
+) -> Result<(RaceMap, Option<Segmented>), RaceMapError> {
     let result = ResultId(result_id);
     let (event_id, at) = store.result_ref(result)?;
     let Some(track) = store.load_track(result)? else {
-        return Ok(RaceMap::NoTrack);
+        return Ok((RaceMap::NoTrack, None));
     };
     let event = store.load_event(event_id)?;
     let race_result = at
@@ -209,7 +224,7 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
     let manual_offset_s = store.manual_offset(result)?;
     let (alignment, segmentation) = match aligned_legs(&track, race_result, manual_offset_s) {
         Ok(done) => done,
-        Err(message) => return Ok(RaceMap::NotAligned { message }),
+        Err(message) => return Ok((RaceMap::NotAligned { message }, None)),
     };
 
     let mut warnings: Vec<String> = alignment.warnings.into_iter().map(|w| w.message).collect();
@@ -289,7 +304,7 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
         .iter()
         .flat_map(|l| l.coordinates.iter().copied())
         .collect();
-    Ok(RaceMap::Ready(Box::new(MapTrack {
+    let map = RaceMap::Ready(Box::new(MapTrack {
         bounds: bounds(&all),
         legs,
         pieces,
@@ -297,7 +312,14 @@ pub fn race_map(store: &Store, result_id: i64) -> Result<RaceMap, RaceMapError> 
         pace,
         heart_rate,
         warnings,
-    })))
+    }));
+    Ok((
+        map,
+        Some(Segmented {
+            track,
+            segmentation,
+        }),
+    ))
 }
 
 /// El track entero del reloj, sin cortar en tramos ni alinear (#186): lo que se dibuja para

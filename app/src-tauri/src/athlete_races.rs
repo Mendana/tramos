@@ -5,6 +5,7 @@
 //! Cada atleta se mide como en su vista de carrera: su base volcada (`coach::runner_view`), con
 //! sus umbrales y sus etiquetas, o la propia. Los números de la carrera salen del núcleo
 //! (`tramos_core::same_race`) y el mapa, de `race_map` de cada uno (`race_map::course_map`).
+//! Con sus tracks, las opciones de ruta de cada tramo (#190, `tramos_core::route_choice`).
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -12,9 +13,11 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use tramos_core::identify::ResultRef;
 use tramos_core::lost_time::LostTimeConfig;
+use tramos_core::metrics::{LegMetrics, MetricsOptions, leg_metrics};
 use tramos_core::model::Event;
 use tramos_core::package::{RacePackage, RaceSummary, ShareLevel, race_id};
 use tramos_core::race_format::RaceFormat;
+use tramos_core::route_choice::{RouteChoice, RouteOptions, RouteTrack, route_choice};
 use tramos_core::same_race::{SameRaceCourse, SameRaceInput, same_race};
 use tramos_core::taxonomy::LegTag;
 use tramos_store::{ResultId, Store, StoreError};
@@ -23,7 +26,7 @@ use crate::coach::{
     CoachError, CoachRunner, RunnerView, coach_runners, is_coach, own_race_ids, own_runner,
     runner_view,
 };
-use crate::race_map::{CourseMap, RaceMap, course_map, race_map};
+use crate::race_map::{CourseMap, RaceMap, Segmented, course_map, race_map_and_legs};
 use crate::settings;
 
 /// Un atleta que corrió una carrera.
@@ -139,6 +142,8 @@ pub struct RaceCourseView {
     pub course: SameRaceCourse,
     /// Los tracks de sus atletas que lo compartieron; `None` si no hay ninguno.
     pub map: Option<CourseMap>,
+    /// Los tramos en los que sus atletas con track cogieron rutas distintas, en orden de tramo.
+    pub routes: Vec<RouteChoice>,
 }
 
 /// Una carrera con todos los atletas que la corrieron.
@@ -331,25 +336,39 @@ pub fn athlete_race(main: &mut Store, race_id: &str) -> Result<AthleteRaceView, 
             }
         }
         let mut maps = Vec::new();
+        let mut tracks = Vec::new();
         for r in &course.runners {
             let Some(source) = sources[r.runner] else {
                 continue;
             };
             let (store, result) = store_of(source);
-            match race_map(store, result.0).map_err(|e| e.to_string()) {
-                Ok(RaceMap::Ready(map)) => maps.push((r.runner, *map)),
-                Ok(RaceMap::NoTrack) => {}
-                Ok(RaceMap::NotAligned { message }) | Err(message) => {
+            match race_map_and_legs(store, result.0).map_err(|e| e.to_string()) {
+                Ok((RaceMap::Ready(map), legs)) => {
+                    maps.push((r.runner, *map));
+                    if let Some(legs) = legs {
+                        let metrics = leg_metrics(
+                            &legs.track,
+                            &legs.segmentation,
+                            &MetricsOptions::default(),
+                        )
+                        .unwrap_or_default();
+                        tracks.push((r.runner, legs, metrics));
+                    }
+                }
+                Ok((RaceMap::NoTrack, _)) => {}
+                Ok((RaceMap::NotAligned { message }, _)) | Err(message) => {
                     view.athletes[r.runner].problem = Some(message);
                 }
             }
         }
+        let routes = route_choices(&course, &tracks);
         for (athlete, _) in &maps {
             view.athletes[*athlete].on_map = true;
         }
         view.courses.push(RaceCourseView {
             course,
             map: course_map(maps),
+            routes,
         });
     }
     if view.date == NaiveDate::default()
@@ -359,6 +378,53 @@ pub fn athlete_race(main: &mut Store, race_id: &str) -> Result<AthleteRaceView, 
         view.date = main.load_event(event_id)?.date;
     }
     Ok(view)
+}
+
+/// Las opciones de ruta de cada tramo de `course` con los tracks de sus atletas (`athlete`, sus
+/// tramos y sus métricas), cada uno con su split y su error de la vista de la carrera.
+fn route_choices(
+    course: &SameRaceCourse,
+    tracks: &[(usize, Segmented, Vec<LegMetrics>)],
+) -> Vec<RouteChoice> {
+    course
+        .legs
+        .iter()
+        .enumerate()
+        .filter_map(|(position, leg)| {
+            let inputs: Vec<RouteTrack<'_>> = tracks
+                .iter()
+                .filter_map(|(athlete, legs, metrics)| {
+                    let runner = course.runners.iter().find(|r| r.runner == *athlete)?;
+                    let same =
+                        |index, from, to| index == leg.index && from == leg.from && to == leg.to;
+                    let sub = legs
+                        .segmentation
+                        .legs
+                        .iter()
+                        .find(|l| same(l.index, l.from, l.to))?;
+                    let measured = metrics
+                        .iter()
+                        .find(|m| same(m.index, m.from, m.to))
+                        .and_then(|m| m.track.as_ref());
+                    Some(RouteTrack {
+                        runner: *athlete,
+                        points: &sub.track.as_ref()?.points,
+                        split_s: runner.split_s.get(position).copied().flatten(),
+                        is_error: runner.is_error.get(position).copied().unwrap_or(false),
+                        distance_m: measured.map(|m| m.distance_m),
+                        ascent_m: measured.and_then(|m| m.ascent_m),
+                    })
+                })
+                .collect();
+            route_choice(
+                leg.index,
+                leg.from,
+                leg.to,
+                &inputs,
+                &RouteOptions::default(),
+            )
+        })
+        .collect()
 }
 
 /// Para el botón «Ver con los demás atletas» de una carrera: su `race_id` y cuántos atletas más
@@ -413,6 +479,7 @@ pub fn race_together(
 mod tests {
     use super::*;
     use crate::package::race_package;
+    use crate::race_map::race_map;
     use crate::race_map::tests::imported;
     use tramos_core::package::{PackageInput, PackageRunner, build};
     use tramos_core::taxonomy::{Confirmation, LegTag};
@@ -609,6 +676,8 @@ mod tests {
         assert_eq!(map.controls, alone.controls);
         assert_eq!(map.tracks[0].legs, alone.legs);
         assert!(view.courses[1].map.is_none());
+        // Con un solo track no hay rutas que comparar.
+        assert!(view.courses.iter().all(|c| c.routes.is_empty()));
     }
 
     #[test]

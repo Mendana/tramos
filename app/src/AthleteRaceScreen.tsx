@@ -1,18 +1,21 @@
 // Una carrera con todos los atletas que la corrieron (#163, docs/app.md, "Atletas"): la tabla de
 // atletas y, por recorrido, la diferencia con el tiempo ideal y la pérdida por tramo (como
-// «Frente al grupo», P4), los tramos que fallaron varios y el mapa con sus tracks. Cada atleta
-// se mide contra su propio ritmo; todo viene calculado de Rust (`athlete_race`).
-import { lazy, Suspense, useEffect, useState } from "react";
+// «Frente al grupo», P4), los tramos que fallaron varios, la elección de ruta (#190) y el mapa
+// con sus tracks. Cada atleta se mide contra su propio ritmo; todo viene calculado de Rust
+// (`athlete_race`).
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   AthleteRaceView,
   FORMAT_LABELS,
   RaceAthleteRow,
   RaceCourseView,
+  RouteChoice,
   SHARE_LABELS,
   Taxonomy,
   athleteRace,
   clock,
   codeLabel,
+  decimal,
   getTaxonomy,
   signed,
   statusLabel,
@@ -34,6 +37,9 @@ const MAX_SHOWN = SERIES_COLORS.length;
 /** Diferencia con el ideal: `+1:23` por detrás, `-0:30` por delante. */
 const behind = (v: number | null) => (v === null ? "—" : `${v > 0 ? "+" : ""}${clock(v)}`);
 const loss = (v: number | null) => (v === null ? "—" : `${signed(v)} s`);
+
+/** «Opción A», «Opción B»…, de la más rápida a la más lenta. */
+const optionName = (i: number) => `Opción ${String.fromCharCode(65 + i)}`;
 
 /** Lo que compartió, en corto. */
 const levelLabel = (a: RaceAthleteRow) => (a.level === null ? "Tuya" : SHARE_LABELS[a.level]);
@@ -245,7 +251,22 @@ function CourseSection({
     Array.from({ length: MAX_SHOWN }, (_, i) => course.runners[i]?.runner ?? null),
   );
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
-  const toggleLeg = (leg: number) => setSelectedLeg((s) => (s === leg ? null : leg));
+  // Opción de ruta resaltada en el mapa (posición en las opciones del tramo elegido).
+  const [routeOption, setRouteOption] = useState<number | null>(null);
+  const selectLeg = (leg: number | null) => {
+    setSelectedLeg(leg);
+    setRouteOption(null);
+  };
+  const toggleLeg = (leg: number) => selectLeg(selectedLeg === leg ? null : leg);
+  const choice = course.routes.find((r) => r.leg === selectedLeg) ?? null;
+  // Memorizado: el mapa vuelve a pintar el tramo cada vez que cambia.
+  const highlighted = useMemo(
+    () =>
+      choice === null || routeOption === null
+        ? null
+        : (choice.options[routeOption]?.runners.map((r) => r.runner) ?? null),
+    [choice, routeOption],
+  );
   const shown = course.runners
     .filter((r) => chosen.includes(r.runner))
     .map((r) => ({
@@ -330,6 +351,15 @@ function CourseSection({
       </tbody>
     </table>
   );
+
+  const showMap = (leg: number) => {
+    selectLeg(leg);
+    document.getElementById("athletes-race-map")?.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  };
+  const onMap = course.runners.filter((r) => athletes[r.runner].on_map).length;
 
   const notOnMap = course.runners
     .map((r) => athletes[r.runner])
@@ -422,20 +452,19 @@ function CourseSection({
         course={course}
         athletes={athletes}
         taxonomy={taxonomy}
-        onMap={
-          course.map === null
-            ? null
-            : (leg) => {
-                setSelectedLeg(leg);
-                document.getElementById("athletes-race-map")?.scrollIntoView({
-                  block: "start",
-                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-                    ? "auto"
-                    : "smooth",
-                });
-              }
-        }
+        onMap={course.map === null ? null : showMap}
       />
+
+      {onMap >= 2 && (
+        <RouteChoices
+          routes={course.routes}
+          athletes={athletes}
+          selected={choice}
+          option={routeOption}
+          onLeg={(leg) => (leg === selectedLeg ? selectLeg(null) : showMap(leg))}
+          onOption={(i) => setRouteOption((o) => (o === i ? null : i))}
+        />
+      )}
 
       <div id="athletes-race-map">
         {course.map === null ? (
@@ -463,6 +492,8 @@ function CourseSection({
                   .map((s) => ({ athlete: s.runner.runner, label: s.label, color: s.color }))}
                 selected={selectedLeg}
                 onSelect={toggleLeg}
+                highlighted={highlighted}
+                highlightLabel={routeOption === null ? null : optionName(routeOption)}
               />
             </Suspense>
             {notOnMap.length > 0 && (
@@ -472,6 +503,130 @@ function CourseSection({
         )}
       </div>
     </section>
+  );
+}
+
+/** Los tramos en los que los atletas con track fueron por sitios distintos (#190) y, con uno
+ *  elegido, sus opciones de ruta. */
+function RouteChoices({
+  routes,
+  athletes,
+  selected,
+  option,
+  onLeg,
+  onOption,
+}: {
+  routes: RouteChoice[];
+  athletes: RaceAthleteRow[];
+  /** La elección del tramo elegido en el mapa, si la tiene. */
+  selected: RouteChoice | null;
+  option: number | null;
+  onLeg: (leg: number) => void;
+  onOption: (option: number) => void;
+}) {
+  return (
+    <div className="card">
+      <h3>Elección de ruta</h3>
+      <p className="small muted">
+        Los tramos en los que los atletas con track fueron por sitios distintos. Dos rutas que van a
+        menos de 30 m de media son la misma opción; las opciones van de la más rápida a la más
+        lenta, por la mediana de sus tiempos.
+      </p>
+      {routes.length === 0 ? (
+        <p className="muted">En ningún tramo cogieron rutas distintas.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="num">Tramo</th>
+                <th>Balizas</th>
+                <th className="num">Opciones</th>
+                <th className="num">Mejor frente a peor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {routes.map((r) => (
+                <tr
+                  key={r.leg}
+                  className={r.leg === selected?.leg ? "clickable is-selected" : "clickable"}
+                  tabIndex={0}
+                  title="Ver sus opciones en el mapa"
+                  onClick={() => onLeg(r.leg)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onLeg(r.leg);
+                  }}
+                >
+                  <td className="num">{r.leg}</td>
+                  <td className="num">
+                    {codeLabel(r.from)} → {codeLabel(r.to)}
+                  </td>
+                  <td className="num">{r.options.length}</td>
+                  <td className="num">{r.spread_s === null ? "—" : `+${clock(r.spread_s)}`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {selected !== null && (
+        <>
+          <h4>
+            Tramo {selected.leg} · {codeLabel(selected.from)} → {codeLabel(selected.to)}
+          </h4>
+          <p className="small muted">
+            Elige una opción para resaltar sus rutas en el mapa. «Con error» es un tramo que ese
+            atleta falló: su tiempo dice más del error que de la ruta.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Opción</th>
+                  <th className="num">Mediana</th>
+                  <th className="num">Distancia</th>
+                  <th className="num">Subida</th>
+                  <th>Atletas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selected.options.map((o, i) => (
+                  <tr key={i}>
+                    <td>
+                      <button
+                        type="button"
+                        className="chip"
+                        aria-pressed={option === i}
+                        onClick={() => onOption(i)}
+                      >
+                        {optionName(i)}
+                      </button>
+                    </td>
+                    <td className="num">{clock(o.median_split_s)}</td>
+                    <td className="num">
+                      {o.distance_m === null ? "—" : `${decimal(o.distance_m / 1000, 2)} km`}
+                    </td>
+                    <td className="num">
+                      {o.ascent_m === null ? "—" : `${Math.round(o.ascent_m)} m`}
+                    </td>
+                    <td>
+                      {o.runners.map((r, k) => (
+                        <span key={r.runner}>
+                          {k > 0 && ", "}
+                          {athleteName(athletes[r.runner])}{" "}
+                          <span className="num">{clock(r.split_s)}</span>
+                          {r.is_error && <span className="loss-bad"> (con error)</span>}
+                        </span>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

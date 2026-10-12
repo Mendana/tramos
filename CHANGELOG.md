@@ -28,6 +28,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - «Después de fallar» y «Cansancio» descuentan el desnivel: la velocidad de cada tramo se pasa a su
   equivalente en llano, así que una bajada ya no cuenta como acelerar ni una subida como
   cansancio (si el reloj guarda la altitud).
+- ¿Por el camino o al llegar?: con el FIT, la app separa lo que pierdes al llegar a la baliza (en
+  los últimos 50 m) de lo que pierdes antes. Sale en el análisis de cada carrera y en
+  Estadísticas.
 - ¿Estoy mejorando?: en Estadísticas, «¿Cómo evoluciono?», la tendencia de tu IR y de tu tasa de
   error con su margen. Solo dice que mejoras (o empeoras) cuando hay carreras suficientes y el
   margen no deja dudas.

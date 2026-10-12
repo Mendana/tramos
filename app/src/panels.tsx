@@ -36,6 +36,7 @@ export const PANEL_GROUPS: PanelGroup[] = [
       { id: "slope-performance", title: "IR medio según desnivel" },
       { id: "slope-error-rate", title: "Tasa de error según desnivel" },
       { id: "breakdown", title: "De qué está hecha la pérdida de los errores" },
+      { id: "breakdown-attack", title: "¿Por el camino o al llegar?" },
     ],
   },
   {

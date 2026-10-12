@@ -1213,6 +1213,10 @@ export interface LegBreakdown {
   detour_s: number;
   stopped_s: number;
   pace_s: number;
+  /** Tiempo cerca de la baliza antes de picarla (s, #189); `null` en tramos cortos. */
+  attack_s: number | null;
+  /** Lo que pasa del ataque habitual de la carrera, entre 0 y la pérdida (s). */
+  attack_loss_s: number | null;
 }
 
 /** Sumas del reparto de varios tramos. */
@@ -1222,6 +1226,11 @@ export interface BreakdownTotals {
   detour_s: number;
   stopped_s: number;
   pace_s: number;
+  /** Tramos con pérdida en el ataque, su pérdida, la del ataque y en cuántos pasa de la mitad. */
+  attack_legs: number;
+  attack_legs_loss_s: number;
+  attack_loss_s: number;
+  attack_dominant: number;
 }
 
 /** ¿Lento o desorientado? (P2) de una carrera. */
@@ -1234,6 +1243,9 @@ export interface RaceBreakdown {
   /** Suma de los errores de `legs`. */
   errors: BreakdownTotals;
   errors_without_breakdown: number;
+  /** Ataque habitual: mediana de los tramos sin error (s); `null` con pocos. */
+  usual_attack_s: number | null;
+  attack_clean_legs: number;
 }
 
 /** P2 en el histórico. */

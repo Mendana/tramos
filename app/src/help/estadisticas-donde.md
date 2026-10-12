@@ -32,7 +32,9 @@ entran y cuántos no se pueden clasificar (sin FIT, o tramos muy cortos).
 ## ¿Lento o desorientado?
 
 De qué está hecha la pérdida de todos tus errores juntos: qué parte es **desvío**, qué parte
-**paradas** y qué parte **ritmo**. Explicado en [¿Lento o desorientado?](lento-o-desorientado.md).
+**paradas** y qué parte **ritmo**. Debajo, **¿Por el camino o al llegar?**: qué parte se fue en los
+últimos 50 m antes de picar y qué parte antes. Explicado en
+[¿Lento o desorientado?](lento-o-desorientado.md).
 
 Detalle técnico:
 [histórico, «Pérdida según duración del tramo»](https://github.com/Mendana/tramos/blob/main/docs/historico.md#pérdida-según-duración-del-tramo-p7).

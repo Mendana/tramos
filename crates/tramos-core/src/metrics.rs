@@ -14,6 +14,7 @@
 //!   y la bajada son la suma de los cambios de la altitud suavizada dentro del tramo.
 //! - La velocidad equivalente en llano (#191) pesa cada trozo en movimiento por el coste de
 //!   correr con su pendiente ([`running_cost`]).
+//! - El tiempo de ataque (#189) es el que pasa el corredor cerca de la baliza antes de picarla.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,8 @@ pub struct MetricsOptions {
     pub max_gap_s: f64,
     /// Semiancho (s) de la media móvil con la que se suaviza la altitud.
     pub altitude_smoothing_s: f64,
+    /// Radio (m) de la zona de la baliza para el tiempo de ataque.
+    pub attack_radius_m: f64,
 }
 
 impl Default for MetricsOptions {
@@ -55,6 +58,7 @@ impl Default for MetricsOptions {
             punch_grace_s: 5.0,
             max_gap_s: 10.0,
             altitude_smoothing_s: 5.0,
+            attack_radius_m: 50.0,
         }
     }
 }
@@ -112,6 +116,11 @@ pub struct TrackMetrics {
     pub heart_rate_bpm: Option<f64>,
     /// Cadencia media ponderada por tiempo (pasos/min); `None` sin cadencia.
     pub cadence_spm: Option<f64>,
+    /// Tiempo de ataque (s): desde que el corredor entra en la zona de la baliza (a
+    /// `attack_radius_m`) en su última aproximación hasta que la pica ([`attack_s`]). `None` si
+    /// la línea recta del tramo mide menos de dos radios.
+    #[serde(default)]
+    pub attack_s: Option<f64>,
 }
 
 /// Qué velocidad se compara entre los tramos de una carrera (P8, P14; #191).
@@ -200,6 +209,11 @@ fn validate(options: &MetricsOptions) -> Result<(), MetricsError> {
             "altitude_smoothing_s debe estar entre 0 y 120 s",
         ));
     }
+    if !(options.attack_radius_m.is_finite() && options.attack_radius_m > 0.0) {
+        return Err(MetricsError::InvalidOptions(
+            "attack_radius_m debe ser positivo",
+        ));
+    }
     Ok(())
 }
 
@@ -275,7 +289,34 @@ fn track_metrics(
         descent_m,
         heart_rate_bpm: heart_rate.value(),
         cadence_spm: cadence.value(),
+        attack_s: attack_s(points, options.attack_radius_m),
     })
+}
+
+/// Tiempo de ataque de un sub-track (s): desde que entra en la zona de la baliza hasta que la
+/// pica. La baliza es el último punto del sub-track (su picada).
+///
+/// La entrada es el primer instante en que baja de `radius_m` tras el último punto a más de dos
+/// radios: así no cuenta desde el principio un tramo que sale cerca de su propia baliza o que
+/// pasa cerca y se aleja. El instante se interpola entre los dos puntos que cruzan el radio.
+/// `None` si la línea recta del tramo mide menos de dos radios: no hay aproximación que medir.
+pub fn attack_s(points: &[TrackPoint], radius_m: f64) -> Option<f64> {
+    let (first, control) = (points.first()?, points.last()?);
+    if haversine_m(first, control) < 2.0 * radius_m {
+        return None;
+    }
+    let distances: Vec<f64> = points.iter().map(|p| haversine_m(p, control)).collect();
+    let far = distances.iter().rposition(|&d| d >= 2.0 * radius_m)?;
+    let inside = far + distances.get(far..)?.iter().position(|&d| d < radius_m)?;
+    let (before, after) = (points.get(inside.checked_sub(1)?)?, points.get(inside)?);
+    let (d0, d1) = (distances[inside - 1], distances[inside]);
+    let f = if d0 > d1 {
+        (d0 - radius_m) / (d0 - d1)
+    } else {
+        0.0
+    };
+    let entry = seconds_between(before.time, after.time) * f;
+    Some(seconds_between(before.time, control.time) - entry)
 }
 
 /// Coste energético de correr con pendiente `grade` (fracción: 0,1 = 10 % de subida), en J por
@@ -766,6 +807,61 @@ mod tests {
     }
 
     #[test]
+    fn attack_counts_from_entering_the_control_zone() {
+        // 200 m en línea recta a 4 m/s (50 s) y, a 50 m de la baliza, 40 s buscando en
+        // círculos a 20 m antes de llegar. La zona (50 m) empieza a los 150 m, a los 37,5 s; se
+        // pica a los 90 s: 52,5 s de ataque.
+        let mut points: Vec<TrackPoint> =
+            (0..=45).map(|s| point(s as f64, 4.0 * s as f64)).collect();
+        points.extend(
+            (46..=85).map(|s| point(s as f64, 180.0 + if s % 2 == 0 { 5.0 } else { -5.0 })),
+        );
+        points.extend((86..=90).map(|s| point(s as f64, 180.0 + 4.0 * (s - 85) as f64)));
+        let m = run(points, &MetricsOptions::default());
+        assert!(close(m.attack_s.unwrap(), 52.5), "{:?}", m.attack_s);
+
+        // Limpio: entra a los 37,5 s y pica a los 50 s.
+        let clean: Vec<TrackPoint> = (0..=50).map(|s| point(s as f64, 4.0 * s as f64)).collect();
+        assert!(close(
+            run(clean, &MetricsOptions::default()).attack_s.unwrap(),
+            12.5
+        ));
+    }
+
+    #[test]
+    fn attack_starts_after_the_last_time_far_from_the_control() {
+        // Sale hacia la baliza, pasa a 30 m (dentro de la zona) sin verla, se aleja a 150 m y
+        // vuelve: el ataque cuenta desde la segunda entrada, no desde la primera.
+        let mut points: Vec<TrackPoint> =
+            (0..=17).map(|s| point(s as f64, 10.0 * s as f64)).collect();
+        // A 170 m (30 m de la baliza en 200 m), se da la vuelta hasta 50 m del origen.
+        points.extend((18..=29).map(|s| point(s as f64, 170.0 - 10.0 * (s - 17) as f64)));
+        // Y vuelve hasta la baliza, a 200 m.
+        points.extend((30..=44).map(|s| point(s as f64, 50.0 + 10.0 * (s - 29) as f64)));
+        let m = run(points, &MetricsOptions::default());
+        // Segunda entrada en la zona a los 150 m de la salida (50 m de la baliza), a los 39 s;
+        // pica a los 44 s.
+        assert!(close(m.attack_s.unwrap(), 5.0), "{:?}", m.attack_s);
+    }
+
+    #[test]
+    fn short_legs_have_no_attack() {
+        // 90 m en línea recta: menos de dos radios (100 m).
+        let points: Vec<TrackPoint> = (0..=30).map(|s| point(s as f64, 3.0 * s as f64)).collect();
+        assert_eq!(
+            run(points.clone(), &MetricsOptions::default()).attack_s,
+            None
+        );
+        // Con un radio de 20 m sí: entra a los 70 m (23,3 s) y pica a los 30 s.
+        let small = MetricsOptions {
+            attack_radius_m: 20.0,
+            ..MetricsOptions::default()
+        };
+        let a = run(points, &small).attack_s.unwrap();
+        assert!((a - 20.0 / 3.0).abs() < 1e-3, "{a}");
+    }
+
+    #[test]
     fn invalid_options_are_rejected() {
         let (track, segmentation) = one_leg(vec![point(0.0, 0.0), point(1.0, 1.0)]);
         let bad = [
@@ -787,6 +883,10 @@ mod tests {
             },
             MetricsOptions {
                 altitude_smoothing_s: 121.0,
+                ..MetricsOptions::default()
+            },
+            MetricsOptions {
+                attack_radius_m: 0.0,
                 ..MetricsOptions::default()
             },
         ];

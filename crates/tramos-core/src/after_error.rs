@@ -241,6 +241,7 @@ mod tests {
                         descent_m: None,
                         heart_rate_bpm: None,
                         cadence_spm: None,
+                        attack_s: None,
                     }),
                     missing: None,
                 })

@@ -1064,6 +1064,7 @@ mod tests {
                 detour_s,
                 stopped_s,
                 pace_s,
+                ..BreakdownTotals::default()
             },
             races_with_track,
             races_without_track: 0,
@@ -2181,8 +2182,11 @@ mod tests {
                 detour_s: detour,
                 stopped_s: stopped,
                 pace_s: pace,
+                ..BreakdownTotals::default()
             },
             errors_without_breakdown: 0,
+            usual_attack_s: None,
+            attack_clean_legs: 0,
         }
     }
 

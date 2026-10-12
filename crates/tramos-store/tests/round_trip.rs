@@ -5,6 +5,7 @@
 
 use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use rusqlite::Connection;
+use tramos_core::event_kind::EventKind;
 use tramos_core::model::{
     Class, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, Runner, START_CODE, Sex,
     Track, TrackPoint,
@@ -580,6 +581,28 @@ fn event_format_is_set_read_and_cleared() {
     ));
     assert!(matches!(
         store.event_format(missing),
+        Err(StoreError::EventNotFound(_))
+    ));
+}
+
+#[test]
+fn event_kind_defaults_to_race_and_is_set() {
+    let mut store = Store::open_in_memory().unwrap();
+    let saved = store.save_event(&sample_event(), None).unwrap();
+    assert_eq!(store.event_kind(saved.id).unwrap(), EventKind::Race);
+
+    store.set_event_kind(saved.id, EventKind::Training).unwrap();
+    assert_eq!(store.event_kind(saved.id).unwrap(), EventKind::Training);
+    store.set_event_kind(saved.id, EventKind::Race).unwrap();
+    assert_eq!(store.event_kind(saved.id).unwrap(), EventKind::Race);
+
+    let missing = EventId(saved.id.0 + 1);
+    assert!(matches!(
+        store.set_event_kind(missing, EventKind::Training),
+        Err(StoreError::EventNotFound(_))
+    ));
+    assert!(matches!(
+        store.event_kind(missing),
         Err(StoreError::EventNotFound(_))
     ));
 }

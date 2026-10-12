@@ -17,6 +17,7 @@ import {
   athleteGroups,
   groupView,
   setIncludeSelf,
+  NO_FILTER,
 } from "./api";
 import { GroupDot } from "./GroupsScreen";
 import { Filters } from "./HistoryScreen";
@@ -24,7 +25,6 @@ import { percent } from "./HistoryPanels";
 import { bucketLabel } from "./LegLengthPanel";
 import { EmptyState, GroupIcon, Notice, PageHeader } from "./ui";
 
-const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const SLOPE_CLASSES = Object.keys(SLOPE_LABELS) as SlopeClass[];
 
 const ir = (v: number | null) => (v === null ? "—" : percent(v * 100));

@@ -3,7 +3,13 @@
 // Solo salen los análisis que se pueden juntar sin aproximar: la consistencia no. Los números
 // vienen del núcleo; aquí solo se dibujan, con los mismos paneles que Estadísticas.
 import { useEffect, useState } from "react";
-import { GroupStatsMember, GroupStatsView, HistoryFilter, athleteGroupStats } from "./api";
+import {
+  GroupStatsMember,
+  GroupStatsView,
+  HistoryFilter,
+  athleteGroupStats,
+  NO_FILTER,
+} from "./api";
 import { PanelsOpen } from "./charts/ChartPanel";
 import { allHidden, usePanelVisibility } from "./panels";
 import {
@@ -32,8 +38,6 @@ import { FatiguePanel } from "./FatiguePanel";
 import { GroupDot } from "./GroupsScreen";
 import { SubjectContext, subjectOf } from "./subject";
 import { ChartIcon, EmptyState, Notice, PageHeader, SlidersIcon, Stat, Tabs } from "./ui";
-
-const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 
 /** Las pestañas de Estadísticas, contadas para el grupo. */
 const TABS = historyTabs(subjectOf("group"));

@@ -22,6 +22,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
   reloj y el cronometraje, aunque el cálculo automático no haya encajado.
 - Puesto sin errores: en el resumen de la carrera, debajo del tiempo sin errores, el puesto que
   te habría dado en tu categoría («Puesto 4.º de 18»).
+- Entrenamientos: al importar, marca «Es un entrenamiento» (o cámbialo después en la carrera).
+  Se analizan igual que las carreras, y en Estadísticas y Mis carreras puedes ver solo carreras o
+  solo entrenamientos. Quien te entrena también lo ve.
 
 ## 0.3.0
 

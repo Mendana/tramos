@@ -20,6 +20,7 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0008_result_sharing.sql"),
     include_str!("../migrations/0009_athlete_groups.sql"),
     include_str!("../migrations/0010_received_first_import.sql"),
+    include_str!("../migrations/0011_event_kind.sql"),
 ];
 
 /// Versión del esquema que deja `migrate`.
@@ -100,8 +101,8 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(SCHEMA_VERSION, 10);
-        assert_eq!(user_version(&conn).unwrap(), 10);
+        assert_eq!(SCHEMA_VERSION, 11);
+        assert_eq!(user_version(&conn).unwrap(), 11);
         assert_eq!(table_names(&conn), TABLES.to_vec());
     }
 
@@ -171,6 +172,29 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap()
+    }
+
+    #[test]
+    fn version_10_events_are_races() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate_to(&conn, 10);
+        conn.execute(
+            "INSERT INTO events (id, name, date) VALUES (1, 'Vieja', '2025-05-04')",
+            [],
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        let kind: String = conn
+            .query_row("SELECT kind FROM events WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(kind, "race");
+        // Solo los dos tipos.
+        assert!(
+            conn.execute("UPDATE events SET kind = 'relay' WHERE id = 1", [])
+                .is_err()
+        );
     }
 
     #[test]

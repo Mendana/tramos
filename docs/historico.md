@@ -10,18 +10,23 @@ Una carrera del histórico (`HistoryRace`) es un resultado del corredor con:
 
 - `date`: la fecha local de la carrera;
 - `format`: el formato confirmado al importar (`sprint`, `middle`, `long`) o ninguno;
+- `kind`: competición o entrenamiento (`race`, `training`; `docs/modelo.md`, "Competición o
+  entrenamiento");
 - `lost_time`: su tiempo perdido (`RunnerLostTime` de `tramos_core::runner_report`), calculado
   al pedirlo con los umbrales de los ajustes. Nada se guarda: cambiar un umbral cambia el
   histórico.
 
 ## Filtro
 
-`HistoryFilter { from, to, format }`; un campo ausente o `null` no filtra.
+`HistoryFilter { from, to, format, kind }`; un campo ausente o `null` no filtra.
 
 - **Fechas**: `from ≤ date ≤ to`, las dos **incluidas**, sobre la fecha local de la carrera. Con
   `from > to` no entra ninguna carrera (no es un error).
 - **Formato**: solo las carreras de ese formato. Las carreras **sin formato** solo entran sin
   filtro de formato.
+- **Tipo** (#195): solo competiciones (`race`) o solo entrenamientos (`training`). Sin filtro
+  entran las dos, así que nada cambia para quien no sube entrenamientos. Lo aplican todos los
+  análisis del histórico, la vista de grupo, las estadísticas de un grupo y comparar grupos.
 
 ## Qué cuenta
 
@@ -196,13 +201,15 @@ Ejemplo de test (`crates/tramos-core/src/leg_length.rs`): un sprint con tramos q
 `tramos_core::days_off` (#33); el comando `history` lo devuelve en `days_off` y la pantalla lo
 dibuja en la sección «Días sin competir» (`docs/app.md`, "Vista histórica").
 
-- **Mismas carreras**: las del histórico con el mismo filtro (fechas y formato) y con
+- **Mismas carreras**: las del histórico con el mismo filtro (fechas, formato y tipo) y con
   rendimiento habitual.
 - **Días desde la carrera anterior**: `fecha − fecha de la anterior`, en días. La anterior es la
   carrera de fecha más reciente **estrictamente anterior** entre **todas** las del usuario en
   las que tomó la salida (estado distinto de no presentado), **pasen o no el filtro**: competir
   es competir, sea del formato que sea, y filtrar por fechas no borra la carrera de la semana
-  anterior. Un no presentado no cuenta como anterior. Dos carreras del mismo día tienen la misma
+  anterior. **El tipo sí cuenta** (#195): sin filtro de tipo, la anterior puede ser una
+  competición o un entrenamiento, porque los dos son mapa; con el filtro, solo una del mismo tipo
+  (los días entre competiciones, o entre entrenamientos). Un no presentado no cuenta como anterior. Dos carreras del mismo día tienen la misma
   anterior (sin horas, no se sabe cuál fue antes). Una carrera sin anterior (la primera
   importada) no cae en ningún cubo y se cuenta en `without_previous`.
 - **Cubos**, con los dos extremos incluidos:

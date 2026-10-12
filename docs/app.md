@@ -52,6 +52,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos tramos con error quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe y, con track, sobre el reparto de P2; `docs/frases.md`). |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
+| `set_race_kind(resultId, kind)` | Marca la carrera del resultado como competición (`race`) o entrenamiento (`training`, #195). Es de la carrera entera. |
 | `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
 | `race_offset(resultId)` | Desfase entre el reloj y el cronometraje del resultado (abajo, "Reloj y cronometraje"): el calculado con su confianza y avisos, el error si no se puede alinear, la sugerencia de ±1/2 h, el fijado a mano y las balizas con las que se puede sincronizar en el mapa (`sync_controls`: las que tienen hora, sin la salida). `null` sin track. |
@@ -68,13 +69,13 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
-| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format}` (fechas `AAAA-MM-DD` incluidas y formato; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
+| `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format, kind}` (fechas `AAAA-MM-DD` incluidas, formato y tipo, `race` o `training`; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
 
 El núcleo de la app decide qué base leen las vistas (#119): los comandos que leen las vistas de
 corredor (`list_races`, `race_detail`, `race_comparison`, `race_breakdown`, `race_offset`,
 `race_map`, `race_track_line`, `leg_tags`, `race_together` y `history`) leen las carreras del atleta que se está viendo o, si no se ve
 a ninguno, las propias. Mientras se ve a un atleta, los que tocan carreras (`import_race`,
-`import_folder`, `set_race_format`, `set_race_offset`, `sync_race_offset`, `save_leg_tag`, `race_sharing`,
+`import_folder`, `set_race_format`, `set_race_kind`, `set_race_offset`, `sync_race_offset`, `save_leg_tag`, `race_sharing`,
 `set_race_sharing`, `share_all` y `export_race_package`) dan error: «mientras ves a un atleta no
 se puede modificar nada», porque sus `result_id` son de otra base y no deben tocar la propia. Los
 ajustes del usuario (`save_settings`, los paneles ocultos e «Incluirme») sí se pueden cambiar:
@@ -114,7 +115,10 @@ Los errores llegan a la interfaz como texto en español. La lógica está en
      guarda nada.
    - Se guarda el .spl original. Si ya había una carrera enlazada a ese mismo fichero (mismo
      SHA-256), se reutiliza: **reimportar no duplica**. Si no, se guarda la carrera entera.
-   - Se fija el formato elegido (si eligió uno).
+   - Se fija el formato elegido (si eligió uno). Si marcó **«Es un entrenamiento»** (#195), la
+     carrera queda como entrenamiento; sin marcar no se toca (reimportar no vuelve competición un
+     entrenamiento). La importación de una carpeta no pregunta: todo entra como competición y se
+     cambia en la vista de la carrera.
    - El resultado se vincula con la **persona del usuario** (`docs/almacenamiento.md`,
      Personas). La primera vez se crea con el nombre que escribió (o «Yo» si lo dejó vacío), nunca
      con datos del .spl. Si el resultado ya estaba vinculado a otra persona, no se cambia y se avisa.
@@ -576,6 +580,9 @@ ordena las filas de `list_races`, sin calcular nada:
   distinguir mayúsculas ni tildes.
 - **Formato**: todas, sprint, media, larga o sin formato.
 - **Temporada**: los años con carreras.
+- **Tipo** (#195): carreras y entrenamientos, solo carreras o solo entrenamientos. Los
+  entrenamientos llevan la marca «Entrenamiento» en su fila, también en las carreras de un atleta
+  compartidas solo con el resumen.
 - **Solo con track**.
 - **Orden**: más recientes (lo normal), más tiempo perdido o mejor rendimiento habitual. Las
   carreras sin ese valor van al final.
@@ -591,7 +598,9 @@ sin revisar (`unreviewed_count`). Con filtros que no deja ninguna, se ofrece qui
 - **Cabecera**: carrera, fecha, categoría, corredor y resultado. A la derecha, el **formato**
   en un desplegable (sprint, media, larga o sin formato): se sugiere al importar y aquí se
   puede corregir (#97). El cambio se guarda al momento y mueve la carrera de grupo en la vista
-  histórica. Si compartes lo tuyo y hay carpeta compartida, al lado, **qué se comparte** de la
+  histórica. Al lado, el **tipo**: carrera o entrenamiento (#195), que también se guarda al
+  momento. Al ver a un atleta no hay desplegables: el formato y, si lo es, «Entrenamiento» salen
+  como marcas. Si compartes lo tuyo y hay carpeta compartida, al lado, **qué se comparte** de la
   carrera con quien te entrena: «por defecto» (el ajuste), nada, resumen, tramos o track completo
   (#36). Al abrir la carrera y al cambiarlo se exporta si hace falta; si falla, se avisa con el
   motivo, y si se pide el track de una carrera sin track, se dice que van los tramos.
@@ -804,8 +813,10 @@ Pantalla **Estadísticas** de la barra lateral (`HistoryScreen.tsx`): todas las 
 agregadas por formato. Las definiciones (qué carreras y tramos cuentan, IR medio, tasa de error,
 pérdida media por tramo, carreras sin formato) están en `docs/historico.md`.
 
-- **Filtros**: desde y hasta (fechas incluidas) y formato (todos, sprint, media, larga). Cambiar
-  uno vuelve a pedir el histórico. «Quitar filtros» los borra.
+- **Filtros**: desde y hasta (fechas incluidas), formato (todos, sprint, media, larga) y tipo
+  (todo, carreras o entrenamientos, #195). Cambiar uno vuelve a pedir el histórico. «Quitar
+  filtros» los borra. Los mismos filtros están en la vista de grupo, en las estadísticas de un
+  grupo y en comparar grupos. En la tabla de carreras, los entrenamientos llevan su marca.
 - **Resumen en frases** (#126, `docs/frases.md`): debajo de los filtros y encima de las cifras,
   como mucho tres frases que resumen lo importante con los filtros puestos («Fallas más en los
   tramos largos…»). Cada una es un enlace al panel de su análisis: abre su pestaña, se

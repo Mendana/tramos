@@ -474,6 +474,7 @@ mod tests {
                 result_index: 0,
             },
             format: None,
+            kind: tramos_core::event_kind::EventKind::Race,
             config: LostTimeConfig::default(),
             tags: Vec::new(),
             track: None,

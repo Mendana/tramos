@@ -14,6 +14,8 @@ junto a **Mis carreras** en la barra lateral es el total de errores sin revisar.
   da igual mayúsculas y tildes.
 - **Formato**: todas, sprint, media, larga o sin formato.
 - **Temporada**: el año.
+- **Tipo**: carreras y entrenamientos, solo carreras o solo entrenamientos. Los entrenamientos
+  llevan la marca «Entrenamiento».
 - **Solo con track**: solo las que tienen el FIT del reloj.
 - **Orden**: más recientes (lo normal), más tiempo perdido o mejor
   [rendimiento habitual](ir.md). Las carreras sin ese dato van al final.

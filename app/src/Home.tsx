@@ -10,6 +10,7 @@ import {
   getHistory,
   getSettings,
   statusLabel,
+  NO_FILTER,
 } from "./api";
 import { newRacesLabel } from "./AthletesScreen";
 import type { RaceTab } from "./RaceView";
@@ -130,7 +131,7 @@ function Home({
   // El IR medio sale del histórico sin filtros (`docs/historico.md`): no se calcula aquí.
   useEffect(() => {
     if (count === 0) return;
-    getHistory({ from: null, to: null, format: null })
+    getHistory(NO_FILTER)
       .then((h) => setMeanPerformance(h.history.total.mean_performance))
       .catch(() => undefined);
   }, [count]);

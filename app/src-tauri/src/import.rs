@@ -20,6 +20,7 @@ use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tramos_core::alignment::{AlignmentError, AlignmentOptions, align};
+use tramos_core::event_kind::EventKind;
 use tramos_core::identify::{Identification, ResultRef, RunnerIdentity, identify_runner};
 use tramos_core::importers::fit::{self, FitError};
 use tramos_core::importers::oreplay::{self, OReplayError};
@@ -110,6 +111,10 @@ pub struct ImportRequest {
     /// Su resultado en la carrera.
     pub result: ResultRef,
     pub format: Option<RaceFormat>,
+    /// Marcarla como entrenamiento (#195). Sin marcar no cambia lo que hubiera: una carrera ya
+    /// guardada como entrenamiento lo sigue siendo.
+    #[serde(default)]
+    pub training: bool,
     /// Su identidad, que se guarda para la siguiente carrera.
     #[serde(default)]
     pub identity: RunnerIdentity,
@@ -219,6 +224,9 @@ pub fn import(store: &mut Store, request: &ImportRequest) -> Result<ImportOutcom
     let result_id = result_id(store, event_id, request.result)?;
     if let Some(format) = request.format {
         store.set_event_format(event_id, Some(format))?;
+    }
+    if request.training {
+        store.set_event_kind(event_id, EventKind::Training)?;
     }
 
     let mut warnings = Vec::new();
@@ -420,6 +428,7 @@ mod tests {
             fit_path,
             result: preview.candidates[0].result,
             format: preview.suggested_format,
+            training: false,
             identity: identity(),
         }
     }
@@ -439,6 +448,24 @@ mod tests {
         assert_eq!(p.suggested_format, Some(RaceFormat::Sprint));
         assert!(!p.already_imported);
         assert_eq!(p.fit_points, Some(1661));
+    }
+
+    #[test]
+    fn importing_as_a_training_marks_the_race() {
+        let mut store = Store::open_in_memory().unwrap();
+        let p = preview(&store, &spl(), None, &identity()).unwrap();
+        import(
+            &mut store,
+            &ImportRequest {
+                training: true,
+                ..request(&p, None)
+            },
+        )
+        .unwrap();
+        assert_eq!(list_races(&store).unwrap()[0].kind, EventKind::Training);
+        // Importarla otra vez sin marcar no la vuelve competición.
+        import(&mut store, &request(&p, None)).unwrap();
+        assert_eq!(list_races(&store).unwrap()[0].kind, EventKind::Training);
     }
 
     #[test]

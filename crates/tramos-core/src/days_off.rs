@@ -119,7 +119,7 @@ pub fn days_off(races: &[HistoryRace], competed: &[NaiveDate], filter: &HistoryF
     let mut without_previous = 0;
     let counted = races
         .iter()
-        .filter(|r| filter.includes(r.date, r.format) && r.lost_time.usual_performance.is_some());
+        .filter(|r| filter.includes_race(r) && r.lost_time.usual_performance.is_some());
     for race in counted {
         let bucket = days_since_previous(race.date, &competed)
             .and_then(bucket_index)
@@ -238,6 +238,7 @@ mod tests {
         HistoryRace {
             date: date.parse().unwrap(),
             format,
+            kind: crate::event_kind::EventKind::Race,
             lost_time: RunnerLostTime {
                 total_s: None,
                 usual_performance: ran.then_some(0.9),
@@ -401,6 +402,7 @@ mod tests {
         // (B y C). La anterior de F es E (larga, fuera del filtro) → 35 días, no los 65 desde D.
         let filter = HistoryFilter {
             format: Some(RaceFormat::Sprint),
+            kind: None,
             ..HistoryFilter::default()
         };
         let d = run(&filter);

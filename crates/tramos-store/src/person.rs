@@ -7,10 +7,11 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
+use tramos_core::event_kind::EventKind;
 use tramos_core::model::RaceStatus;
 use tramos_core::race_format::RaceFormat;
 
-use crate::convert::{ms_to_instant, sql_to_format, sql_to_status, text_to_date};
+use crate::convert::{ms_to_instant, sql_to_format, sql_to_kind, sql_to_status, text_to_date};
 use crate::event::EVENT_START_MS_SQL;
 use crate::{EventId, ResultId, Store, StoreError};
 
@@ -42,6 +43,8 @@ pub struct PersonResult {
     pub event_start: Option<DateTime<Utc>>,
     /// Formato de la carrera, si se ha fijado.
     pub event_format: Option<RaceFormat>,
+    /// Competición o entrenamiento.
+    pub event_kind: EventKind,
     /// Nombre de la categoría.
     pub class_name: String,
     pub status: RaceStatus,
@@ -174,7 +177,7 @@ impl Store {
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT r.id, e.id, e.date, e.name, c.name, r.status, r.status_code, r.place, \
              {EVENT_START_MS_SQL} AS start_ms, e.format, \
-             EXISTS (SELECT 1 FROM tracks t WHERE t.result_id = r.id) \
+             EXISTS (SELECT 1 FROM tracks t WHERE t.result_id = r.id), e.kind \
              FROM results r \
              JOIN classes c ON c.id = r.class_id \
              JOIN events e ON e.id = c.event_id \
@@ -204,6 +207,7 @@ impl Store {
                     .map(sql_to_format)
                     .transpose()?,
                 has_track: row.get(10)?,
+                event_kind: sql_to_kind(&row.get::<_, String>(11)?)?,
             });
         }
         Ok(results)

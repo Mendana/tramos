@@ -32,5 +32,9 @@ Las carreras se agrupan por los días que pasaron desde la carrera anterior que 
 Debajo de cada columna, cuántas carreras hay (n). La primera carrera importada no tiene anterior
 y no entra.
 
+Si subes entrenamientos, cuentan como «carrera anterior»: también son mapa. Con el filtro de solo
+carreras se cuentan los días entre carreras, y con el de solo entrenamientos, entre
+entrenamientos.
+
 Detalle técnico:
 [histórico, «Días sin competir»](https://github.com/Mendana/tramos/blob/main/docs/historico.md#días-sin-competir-p11).

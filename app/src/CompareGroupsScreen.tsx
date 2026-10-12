@@ -15,6 +15,7 @@ import {
   compareAthleteGroups,
   decimal,
   getTaxonomy,
+  NO_FILTER,
 } from "./api";
 import { ChartPanel, PanelsOpen } from "./charts/ChartPanel";
 import { Legend, SERIES_COLORS } from "./charts/common";
@@ -25,7 +26,6 @@ import { percent, tickPercent } from "./HistoryPanels";
 import { bucketLabel } from "./LegLengthPanel";
 import { EmptyState, GroupIcon, Notice, PageHeader } from "./ui";
 
-const NO_FILTER: HistoryFilter = { from: null, to: null, format: null };
 const START: CompareOptions = { overlap: "count_in_both", races: "shared" };
 /** Tipos de error que salen en la gráfica, los más comunes entre los dos grupos. */
 const MAX_TYPES = 6;

@@ -1,4 +1,12 @@
-import { FORMAT_LABELS, RaceFormat, RaceRow, SummaryRace, clock, statusLabel } from "./api";
+import {
+  EventKind,
+  FORMAT_LABELS,
+  RaceFormat,
+  RaceRow,
+  SummaryRace,
+  clock,
+  statusLabel,
+} from "./api";
 import {
   NO_FILTER,
   PAGE_SIZE,
@@ -154,6 +162,9 @@ function RaceList({
                             {race.format !== null && (
                               <span className="pill pill-accent">{FORMAT_LABELS[race.format]}</span>
                             )}
+                            {race.kind === "training" && (
+                              <span className="pill">Entrenamiento</span>
+                            )}
                             {updatedResults.includes(race.result_id) && <UpdatedPill />}
                             {race.has_track && (
                               <span className="pill" title="Con el FIT del reloj">
@@ -256,6 +267,21 @@ function RaceToolbar({
             {year}
           </option>
         ))}
+      </select>
+      <select
+        className="select"
+        aria-label="Tipo"
+        value={filter.kind ?? ""}
+        onChange={(e) =>
+          onChange({
+            ...filter,
+            kind: e.target.value === "" ? null : (e.target.value as EventKind),
+          })
+        }
+      >
+        <option value="">Carreras y entrenamientos</option>
+        <option value="race">Solo carreras</option>
+        <option value="training">Solo entrenamientos</option>
       </select>
       <select
         className="select"
@@ -381,9 +407,12 @@ function SummaryOnlyRaces({ races }: { races: SummaryRace[] }) {
                   <td className="num muted">{race.date}</td>
                   <td>
                     <div className="strong">{race.name ?? "Sin nombre"}</div>
-                    {race.format !== null && (
+                    {(race.format !== null || race.kind === "training") && (
                       <div className="meta">
-                        <span className="pill pill-accent">{FORMAT_LABELS[race.format]}</span>
+                        {race.format !== null && (
+                          <span className="pill pill-accent">{FORMAT_LABELS[race.format]}</span>
+                        )}
+                        {race.kind === "training" && <span className="pill">Entrenamiento</span>}
                       </div>
                     )}
                     {race.updated && (

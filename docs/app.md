@@ -70,10 +70,11 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format, kind}` (fechas `AAAA-MM-DD` incluidas, formato y tipo, `race` o `training`; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
+| `rivals(filter)` | Rivales habituales (#193): `tramos_core::rivals` sobre las carreras del usuario (o del atleta que se ve) que pasan `filter`, el mismo que el de `history`, con los umbrales de los ajustes. Una fila por rival con al menos 3 carreras juntas (`docs/historico.md`, "Rivales habituales"). |
 
 El núcleo de la app decide qué base leen las vistas (#119): los comandos que leen las vistas de
 corredor (`list_races`, `race_detail`, `race_comparison`, `race_breakdown`, `race_offset`,
-`race_map`, `race_track_line`, `leg_tags`, `race_together` y `history`) leen las carreras del atleta que se está viendo o, si no se ve
+`race_map`, `race_track_line`, `leg_tags`, `race_together`, `history` y `rivals`) leen las carreras del atleta que se está viendo o, si no se ve
 a ninguno, las propias. Mientras se ve a un atleta, los que tocan carreras (`import_race`,
 `import_folder`, `set_race_format`, `set_race_kind`, `set_race_offset`, `sync_race_offset`, `save_leg_tag`, `race_sharing`,
 `set_race_sharing`, `share_all` y `export_race_package`) dan error: «mientras ves a un atleta no
@@ -844,7 +845,7 @@ mirada se recuerda mientras la app está abierta:
 
 | Pestaña | Qué tiene |
 | --- | --- |
-| Resumen | La tabla por formato, las gráficas por formato y las carreras que entran. |
+| Resumen | La tabla por formato, las gráficas por formato, las carreras que entran y los rivales habituales (#193). |
 | ¿Dónde fallo? | Por duración del tramo (P7), tipos de error (P9), por desnivel (P13) y ¿lento o desorientado? (P2). |
 | ¿Cómo evoluciono? | Consistencia (P10) y días sin competir (P11). |
 | Cabeza y piernas | Después de fallar (P8) y cansancio (P14). |

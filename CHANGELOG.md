@@ -28,6 +28,8 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - «Después de fallar» y «Cansancio» descuentan el desnivel: la velocidad de cada tramo se pasa a su
   equivalente en llano, así que una bajada ya no cuenta como acelerar ni una subida como
   cansancio (si el reloj guarda la altitud).
+- Tus rivales: en Estadísticas, quién coincide contigo en el mismo recorrido en 3 carreras o más,
+  cuántas veces le ganas y si le pierdes por ritmo o por fallar.
 
 ## 0.3.0
 

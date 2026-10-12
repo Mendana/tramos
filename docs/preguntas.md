@@ -90,6 +90,12 @@ de grupo: tabla de corredores por métricas (IR, tasa de error, tipos de error, 
 comparación de todos contra todos en las carreras compartidas. En `docs/app.md`,
 "Atletas"; vista de grupo en `docs/historico.md`, "Vista de grupo (P15)".
 
+## Tanda 5
+
+**Rivales habituales** (#193) Con quién coincides en el mismo recorrido en 3 carreras o más y
+cómo te va frente a cada uno: carreras y tramos que le ganas, la diferencia mediana y si le pierdes
+fallando o sin fallar. En `docs/historico.md`, "Rivales habituales".
+
 ## Descartadas por ahora
 
 P12 (salida de baliza por ritmo), P16 (ficha por corredor) y la tendencia de temporada.

@@ -19,6 +19,7 @@ import {
   NO_FILTER,
 } from "./api";
 import { ConsistencyPanel } from "./ConsistencyPanel";
+import { RivalsPanel } from "./RivalsPanel";
 import { DaysOffPanel } from "./DaysOffPanel";
 import {
   FormatErrorRatePanel,
@@ -378,6 +379,7 @@ function Summary({
                 <FormatLossPanel groups={groups} total={total} />
               </div>
               <RaceRows races={view.races} onOpen={onOpen} />
+              <RivalsPanel filter={view.history.filter} revision={view} />
             </>
           )}
 

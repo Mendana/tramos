@@ -32,6 +32,7 @@ use tramos_core::loss_breakdown::{BreakdownHistory, breakdown_history};
 use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
+use tramos_core::rivals::{MIN_RACES_TOGETHER, Rival, RivalRace, rivals};
 use tramos_core::runner_report::runner_report;
 use tramos_core::slope::{SlopeConfig, SlopeHistory, slope};
 use tramos_core::taxonomy::{LegTag, Taxonomy};
@@ -234,6 +235,43 @@ pub fn history_view_where(
         common_errors,
         fatigue,
     })
+}
+
+/// Rivales habituales (#193) en las carreras del usuario (los resultados vinculados a su persona)
+/// que pasan `filter`: `tramos_core::rivals` con los umbrales de los ajustes, que deciden qué
+/// tramos suyos son error.
+pub fn rivals_view(store: &Store, filter: &HistoryFilter) -> Result<Vec<Rival>, RaceError> {
+    let config = settings::lost_time_config(store)?;
+    let results = match stored_self_person(store)? {
+        Some(person) => store.person_results(person)?,
+        None => Vec::new(),
+    };
+    let mut events: HashMap<EventId, Event> = HashMap::new();
+    let mut refs = Vec::new();
+    for r in results
+        .iter()
+        .filter(|r| filter.includes(r.event_date, r.event_format, r.event_kind))
+    {
+        let (event_id, at) = store.result_ref(r.result)?;
+        if let Entry::Vacant(entry) = events.entry(event_id) {
+            entry.insert(store.load_event(event_id)?);
+        }
+        refs.push((r, event_id, at));
+    }
+    let races: Vec<RivalRace<'_>> = refs
+        .iter()
+        .filter_map(|&(r, event_id, at)| {
+            Some(RivalRace {
+                date: r.event_date,
+                name: r.event_name.as_deref(),
+                format: r.event_format,
+                kind: r.event_kind,
+                event: events.get(&event_id)?,
+                at,
+            })
+        })
+        .collect();
+    Ok(rivals(&races, filter, &config, MIN_RACES_TOGETHER))
 }
 
 #[cfg(test)]
@@ -455,6 +493,42 @@ mod tests {
             (in_buckets(&races), races.days_off.without_previous),
             (0, 1)
         );
+    }
+
+    #[test]
+    fn rivals_are_the_others_on_the_course_in_three_races() {
+        let (mut store, result_id) = two_races();
+        // Con dos carreras nadie llega a las tres juntas.
+        assert!(
+            rivals_view(&store, &HistoryFilter::default())
+                .unwrap()
+                .is_empty()
+        );
+        // Una tercera copia de Baltanás con el mismo resultado.
+        let (_, at) = store.result_ref(ResultId(result_id)).unwrap();
+        let mut copy = spl::read(&std::fs::read(spl_path()).unwrap()).unwrap();
+        copy.date = date("2026-08-01");
+        let saved = store.save_event(&copy, None).unwrap();
+        let person = stored_self_person(&store).unwrap().unwrap();
+        store
+            .link_result(saved.results[at.class_index][at.result_index], person)
+            .unwrap();
+
+        let found = rivals_view(&store, &HistoryFilter::default()).unwrap();
+        // Los que tomaron la salida en su recorrido (M-SEN, 18 clasificados y algún no
+        // clasificado), sin él.
+        assert!(found.len() >= 17, "{}", found.len());
+        assert!(found.iter().all(|r| r.races == 3 && r.meetings.len() == 3));
+        assert!(found.iter().all(|r| !r.name.contains("Apellido143")));
+        // Las tres carreras son la misma: las diferencias son iguales en las tres.
+        let first = &found[0];
+        assert!(first.races_ahead == 0 || first.races_ahead == first.races_compared);
+        // Con el filtro, solo dos: nadie.
+        let filter = HistoryFilter {
+            from: Some(date("2026-07-01")),
+            ..HistoryFilter::default()
+        };
+        assert!(rivals_view(&store, &filter).unwrap().is_empty());
     }
 
     #[test]

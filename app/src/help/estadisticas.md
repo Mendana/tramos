@@ -68,6 +68,16 @@ carrera. Las carreras sin [formato](formatos.md) salen en su propia fila.
   en %. En %, porque los tramos de un sprint duran mucho menos que los de una larga y los segundos
   no se pueden comparar.
 - **Carreras**: las que entran con los filtros, con sus números. Un clic abre la carrera.
+- **Tus rivales**: quien coincide contigo en el mismo recorrido en 3 carreras o más. Por cada
+  uno, cuántas carreras le ganas, la diferencia mediana (tu tiempo menos el suyo: negativa si
+  le ganas), el % de tramos que le ganas y cuánto le sacas o le pierdes por tramo **sin fallar**
+  y **fallando**. Un clic despliega vuestras carreras juntas.
+
+> Con Ana coincides en 9 carreras y le ganas 3. Por tramo, sin fallar le pierdes 2 s; fallando,
+> 40 s. No es más rápida que tú: te gana porque fallas más.
+
+Se reconoce a cada rival por su nombre (y su tarjeta, si dos se llaman igual). Si alguien escribe
+su nombre de otra forma en otra carrera, sale como otra persona.
 
 ## Ocultar paneles
 

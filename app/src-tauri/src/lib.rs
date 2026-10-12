@@ -694,6 +694,15 @@ fn history(
     state.read(|s| history::history_view(s, &filter))
 }
 
+/// Rivales habituales (#193) del usuario o del atleta que se ve, con el filtro del histórico.
+#[tauri::command]
+fn rivals(
+    state: tauri::State<'_, AppState>,
+    filter: HistoryFilter,
+) -> Result<Vec<tramos_core::rivals::Rival>, String> {
+    state.read(|s| history::rivals_view(s, &filter))
+}
+
 /// Arranca la app. Devuelve el error de Tauri en lugar de abortar.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
@@ -771,7 +780,8 @@ pub fn run() -> tauri::Result<()> {
             taxonomy,
             leg_tags,
             save_leg_tag,
-            history
+            history,
+            rivals
         ])
         .run(tauri::generate_context!())
 }

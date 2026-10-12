@@ -195,6 +195,48 @@ Ejemplo de test (`crates/tramos-core/src/leg_length.rs`): un sprint con tramos q
 **50 %**, 15 / 2 = **7,5 s** y 60 / 2 = **30 %**, y en 30–60 s, 50 %, 10 s y 20 %. Su tramo de
 15 s con error y el último (300 s, error) no cuentan en ningún cubo.
 
+## ¿Estoy mejorando? (#192)
+
+La pregunta que más se hace y la más fácil de contestar mal: con cuatro carreras y mucho ruido,
+cualquier recta «sube». Implementado en `tramos_core::trend`; el comando `history` lo devuelve en
+`trends` y la pantalla lo dibuja en «¿Cómo evoluciono?» (`docs/app.md`, "Vista histórica").
+
+- **Mismas carreras**: las del histórico con el mismo filtro (fechas, formato y tipo) y con
+  rendimiento habitual, de la más antigua a la más reciente.
+- **Dos series**, un punto por carrera:
+  - `performance`: el rendimiento habitual (IR), con peso 1. Más alto es mejor.
+  - `error_rate`: la tasa de error de los tramos que cuentan (`race_stats`), con peso = sus
+    tramos que cuentan (una carrera de 20 tramos dice más que una de 5). Las carreras sin tramos
+    que cuentan no entran. Más baja es mejor.
+- **Recta**: mínimos cuadrados (ponderados en la tasa de error) del valor sobre los días desde la
+  primera carrera. La pendiente se da **por cada 3 meses** (`QUARTER_DAYS` = 365,25 / 4 días;
+  1 = 100 puntos).
+- **Intervalo de la pendiente al 90 %** (`CONFIDENCE`): `b ± t · √(s² / Sxx)`, con
+  `s² = Σ w r² / (n − 2)`, `Sxx = Σ w (x − x̄)²` y `t` el cuantil 0,95 de la t de Student con
+  `n − 2` grados de libertad (calculado con la beta incompleta, sin dependencias; los tests lo
+  comparan con las tablas). Sin recta con menos de 3 carreras o todas el mismo día.
+- **Banda de la recta** en cada carrera (`fitted`, `low`, `high`): `ŷ ± t · s · √(1/Σw + (x − x̄)² / Sxx)`.
+  Es el margen de la recta, no el de una carrera suelta: casi todas las carreras caen fuera.
+- **Veredicto**:
+
+  | `verdict` | Cuándo |
+  | --- | --- |
+  | `not_enough_data` | Menos de **8 carreras** (`MIN_RACES`) o menos de **90 días** entre la primera y la última (`MIN_SPAN_DAYS`). Van `missing_races` y `missing_days`: lo que falta. |
+  | `improving` | El intervalo entero del lado bueno: por encima de 0 en el IR, por debajo en la tasa de error. |
+  | `worsening` | El intervalo entero del lado malo. |
+  | `no_change` | El intervalo cruza el 0. |
+
+- **Por qué una recta**: con 8–30 carreras al año no da para más (estacionalidad, cambios de
+  tendencia). Lo que importa es no decir «mejoras» cuando el ruido lo explica.
+- La frase del resumen (`trend`, `docs/frases.md`) solo sale con `improving` o `worsening`.
+- Las estadísticas de un grupo no la tienen aún: juntar carreras de varios atletas en una sola
+  recta mezclaría niveles.
+
+Ejemplo de test (`crates/tramos-core/src/trend.rs`): 8 carreras cada 15 días con el IR
+`0,80 + 0,003·x ± 0,01` → pendiente de unos **27 puntos por trimestre**, con el intervalo
+calculado a mano (`Sxx` = 9450, `t(0,95; 6)` = 1,943): `improving`. Ruido grande sin tendencia:
+`no_change`. Cinco carreras: `not_enough_data` con 3 que faltan; ocho en 35 días: faltan 55 días.
+
 ## Días sin competir (P11)
 
 «¿Entro peor en mapa tras días sin competir?» (`docs/preguntas.md`, P11). Implementado en

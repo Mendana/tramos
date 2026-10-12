@@ -31,6 +31,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - ¿Por el camino o al llegar?: con el FIT, la app separa lo que pierdes al llegar a la baliza (en
   los últimos 50 m) de lo que pierdes antes. Sale en el análisis de cada carrera y en
   Estadísticas.
+- ¿Estoy mejorando?: en Estadísticas, «¿Cómo evoluciono?», la tendencia de tu IR y de tu tasa de
+  error con su margen. Solo dice que mejoras (o empeoras) cuando hay carreras suficientes y el
+  margen no deja dudas.
 
 ## 0.3.0
 

@@ -14,6 +14,8 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+## 0.4.0
+
 - Carreras de OReplay: en Importar, pega el enlace de la carrera en OReplay y la app descarga los
   resultados con sus parciales, sin tener que buscar el .spl en WinSplits. Vale para carreras
   individuales con parciales (no relevos ni score).

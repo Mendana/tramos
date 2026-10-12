@@ -115,5 +115,8 @@ jobs:
             echo 'Si ya tienes Tramos instalado, no hace falta descargar nada: la app te avisará al'
             echo 'arrancar de que hay versión nueva.'
           } > "$RUNNER_TEMP/release-body.md"
+          # Con el tag y `draft` explícitos: si no, GitHub publica el borrador con un tag
+          # `untagged-…` y las URL de `latest.json` (que llevan el tag) dan 404.
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -f tag_name="$GITHUB_REF_NAME" -F draft=true \
             -F body=@"$RUNNER_TEMP/release-body.md" --silent

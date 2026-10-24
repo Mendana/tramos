@@ -14,6 +14,9 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+- Tramos para Linux: cada versión trae también un AppImage, que vale para casi cualquier
+  distribución, y paquetes `.deb` y `.rpm`. Se actualizan solos, como en Windows.
+
 ## 0.4.0
 
 - Carreras de OReplay: en Importar, pega el enlace de la carrera en OReplay y la app descarga los

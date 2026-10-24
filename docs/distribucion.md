@@ -1,7 +1,7 @@
 # Distribución
 
-Los usuarios tienen Windows y el desarrollo se hace en Linux: el instalador se genera en la CI
-(`.github/workflows/release.yml`, #39).
+Los usuarios tienen sobre todo Windows y el desarrollo se hace en Linux: los instaladores de los
+dos sistemas se generan en la CI (`.github/workflows/release.yml`, #39 y, Linux, #206).
 
 ## Instalar (usuarios)
 
@@ -12,6 +12,16 @@ Los usuarios tienen Windows y el desarrollo se hace en Linux: el instalador se g
    formas». Es lo esperado con una app de código abierto sin certificado de firma; el instalador
    sale de la CI de este repositorio a partir del código del tag.
 4. Si el equipo no tiene WebView2 (Windows 10 antiguo), el instalador lo descarga.
+
+En **Linux** (#206), de la misma release:
+
+- **AppImage** (`Tramos_X.Y.Z_amd64.AppImage`), el recomendado: vale para casi cualquier
+  distribución x86-64 sin instalar nada. Dale permiso de ejecución (`chmod +x`) y ábrelo; para
+  tenerlo en el menú, una herramienta como Gear Lever o AppImageLauncher. Necesita FUSE 2
+  (`libfuse2` en Debian y Ubuntu, `fuse2` en Arch). Se compila en Ubuntu 22.04, así que pide una
+  glibc de esa época o más nueva.
+- **`.deb`** (Debian, Ubuntu y derivadas) y **`.rpm`** (Fedora, openSUSE): se instalan con el
+  gestor de paquetes y traen sus dependencias (WebKitGTK).
 
 Los datos (la base de datos local con tus carreras) no están en la carpeta de la app sino en el
 directorio de datos del usuario, así que instalar una versión nueva encima no los borra.
@@ -37,6 +47,11 @@ GitHub.
   en modo `passive` (`plugins.updater.windows.installMode`): una ventana con la barra de progreso,
   sin preguntas. El instalador cierra la app y la vuelve a abrir con la versión nueva. Los datos
   no se tocan.
+- **En Linux** la app sabe con qué se instaló (el plugin lo lleva compilado) y busca en
+  `latest.json` lo suyo: `linux-x86_64-appimage` (o `linux-x86_64`), `-deb` o `-rpm`. El AppImage
+  se sustituye a sí mismo, sin pedir nada; el `.deb` y el `.rpm` los instala el sistema y piden la
+  contraseña de administrador (`pkexec`). Después la app se reinicia sola (`relaunch` en
+  `app/src/updates.tsx`).
 - **Qué trae.** El aviso y el apartado de Ajustes llevan un **Qué trae** desplegable con las notas
   de la versión nueva (#160): el campo `notes` de `latest.json`, que el plugin entrega como
   `body` de la actualización. Son la sección de esa versión del `CHANGELOG.md` (abajo, "Notas de
@@ -47,7 +62,7 @@ GitHub.
   La privada y su contraseña están en los secretos del repositorio
   (`TAURI_SIGNING_PRIVATE_KEY` y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`), que el workflow pasa a
   `tauri-action`; con ellas (y `bundle.createUpdaterArtifacts`) genera las firmas `.sig` y sube
-  `latest.json` a la release.
+  `latest.json` a la release, con una entrada por sistema e instalador.
 - **La clave privada no se puede perder.** Si se pierde, las instalaciones existentes no aceptarán
   ninguna versión firmada con otra clave: habría que reinstalar a mano en todos los equipos. Hay
   una copia fuera del equipo de desarrollo.
@@ -72,10 +87,10 @@ arriba, solo con párrafos y listas de `- ` (es lo único que pinta la app: `Rel
 El workflow de release (`tools/changelog_seccion.py`, con tests en
 `tools/test_changelog_seccion.py`) saca la sección de la versión del tag y:
 
-- la pone como `releaseBody` de `tauri-action`, que la copia tal cual en el `notes` de
-  `latest.json`: lo que enseña la app antes de instalar;
-- y, ya con la release creada, la deja en la descripción de la release **delante** de las
-  instrucciones de instalación (`gh api` sobre el `releaseId` que devuelve la acción).
+- la deja en la descripción de la release **delante** de las instrucciones de instalación, al
+  crear el borrador (`gh api`);
+- y la pone como `releaseBody` de `tauri-action`, que la copia tal cual en el `notes` de
+  `latest.json`: lo que enseña la app antes de instalar.
 
 Si el `CHANGELOG.md` no tiene sección para la versión del tag, o está vacía, el workflow falla
 antes de compilar.
@@ -115,19 +130,27 @@ actualiza el año del copyright.
    git push origin v0.2.0
    ```
 
-4. El workflow **Release** comprueba que el tag coincide con la versión de `tauri.conf.json` y que
-   el `CHANGELOG.md` tiene sección para ella (si no, falla sin compilar), compila en
-   `windows-latest` con la acción oficial `tauri-apps/tauri-action` y deja una **release en
-   borrador** con el `.exe` (NSIS) y el `.msi`, y las notas de la versión delante de las
-   instrucciones de instalación.
-5. Revisa la release (lee las notas; descarga e instala el `.exe` en un Windows) y publícala a
-   mano desde GitHub. Mientras está en borrador no la ve nadie más. Al publicarla, las
-   instalaciones que ya existen la encuentran en su siguiente arranque. Comprueba antes que la
-   release trae `latest.json` (con las notas en `notes`) y los `.sig`: sin ellos, nadie se actualiza.
+4. El workflow **Release**:
+   - **Release en borrador**: comprueba que el tag coincide con la versión de `tauri.conf.json` y
+     que el `CHANGELOG.md` tiene sección para ella (si no, falla sin compilar) y crea la **release
+     en borrador** con las notas de la versión delante de las instrucciones de instalación. Si se
+     repite con el mismo tag, reutiliza su borrador; si la release ya está publicada, falla.
+   - **Instaladores**: compila con la acción oficial `tauri-apps/tauri-action` y sube a ese
+     borrador (por su `releaseId`), primero en `windows-latest` (el `.exe` de NSIS y el `.msi`) y
+     después en `ubuntu-22.04` (AppImage, `.deb` y `.rpm`). Van **uno detrás de otro**
+     (`max-parallel: 1`): cada uno descarga `latest.json`, le añade su sistema y lo vuelve a subir,
+     y a la vez el último borraría lo del otro.
+5. Revisa la release (lee las notas; descarga e instala el `.exe` en un Windows y, si puedes, abre
+   el AppImage en un Linux) y publícala a mano desde GitHub. Mientras está en borrador no la ve
+   nadie más. Al publicarla, las instalaciones que ya existen la encuentran en su siguiente
+   arranque. Comprueba antes que la release trae `latest.json` (con las notas en `notes` y las
+   entradas `windows-x86_64` y `linux-x86_64`) y un `.sig` por instalador: sin ellos, nadie se
+   actualiza.
 
-Para probar el workflow sin publicar nada, se puede subir un tag de prueba con la versión actual
-de la app (`v` más la de `tauri.conf.json`, que ya tiene su sección en el `CHANGELOG.md`) y, tras
-revisarla, borrar la release en borrador y el tag.
+Para probar el workflow sin publicar nada: en una rama, pon una versión de prueba en los cuatro
+sitios (por ejemplo `0.4.1-1`, numérica por el MSI) con su sección en el `CHANGELOG.md`, sube el
+tag `v0.4.1-1` desde esa rama y, tras revisar el borrador, bórralo junto con el tag. Con la
+versión de una release ya publicada el workflow falla, para no tocarla.
 
 ## Pendiente
 

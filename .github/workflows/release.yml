@@ -1,8 +1,8 @@
 name: Release
 
-# Al subir un tag `vX.Y.Z` compila la app en Windows y deja el instalador en una release en
-# borrador, para revisarla y publicarla a mano (docs/distribucion.md). Las notas de la versión
-# salen de la sección `## X.Y.Z` del CHANGELOG.md; sin ella, el workflow falla.
+# Al subir un tag `vX.Y.Z` compila la app en Windows y en Linux y deja los instaladores en una
+# release en borrador, para revisarla y publicarla a mano (docs/distribucion.md). Las notas de la
+# versión salen de la sección `## X.Y.Z` del CHANGELOG.md; sin ella, el workflow falla.
 on:
   push:
     tags: ["v*"]
@@ -19,17 +19,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  windows:
-    name: Instalador de Windows
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
+  # Comprueba el tag, saca las notas y crea la release en borrador. Los dos sistemas suben a esta
+  # misma release (por su id): si cada uno la buscara o la creara por su cuenta, podrían salir dos
+  # borradores.
+  release:
+    name: Release en borrador
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.crear.outputs.id }}
+      notas: ${{ steps.notas.outputs.body }}
     steps:
       - uses: actions/checkout@v4
 
-      # El instalador lleva la versión de tauri.conf.json: el tag tiene que coincidir con ella
-      # para que el nombre de la release y el del instalador digan lo mismo.
+      # Los instaladores llevan la versión de tauri.conf.json: el tag tiene que coincidir con ella
+      # para que el nombre de la release y el de los instaladores digan lo mismo.
       - name: Comprobar la versión del tag
         run: |
           app=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
@@ -55,6 +58,82 @@ jobs:
             echo 'NOTAS_EOF'
           } >> "$GITHUB_OUTPUT"
 
+      # La descripción de la release: las notas de la versión y, detrás, las instrucciones de
+      # instalación. Si el workflow se repite con el mismo tag, se reutiliza su borrador; si la
+      # release ya está publicada, falla en vez de tocarla.
+      - name: Crear la release en borrador
+        id: crear
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo '### Qué trae'
+            echo
+            cat "$RUNNER_TEMP/notas.md"
+            echo
+            echo '### Instalar'
+            echo
+            echo 'Si ya tienes Tramos instalado, no hace falta descargar nada: la app te avisará al'
+            echo 'arrancar de que hay versión nueva.'
+            echo
+            echo '**Windows.** Descarga el `.exe` (o el `.msi`) de abajo y ábrelo. El instalador aún no'
+            echo 'está firmado: Windows SmartScreen avisará de que la aplicación no es de un editor'
+            echo 'reconocido. Pulsa «Más información» y luego «Ejecutar de todas formas».'
+            echo
+            echo '**Linux.** Descarga el `.AppImage`, que vale para casi cualquier distribución y se'
+            echo 'actualiza solo: dale permiso de ejecución (`chmod +x Tramos_*.AppImage`) y ábrelo. Si'
+            echo 'no arranca, instala FUSE 2 (`libfuse2` en Debian y Ubuntu, `fuse2` en Arch). También'
+            echo 'están el `.deb` (Debian, Ubuntu) y el `.rpm` (Fedora, openSUSE).'
+          } > "$RUNNER_TEMP/release-body.md"
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | \"\(.id) \(.draft)\"" | head -n 1)
+          if [ -z "$existing" ]; then
+            id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$GITHUB_REF_NAME" -f name="Tramos $GITHUB_REF_NAME" \
+              -F draft=true -F prerelease=false \
+              -F body=@"$RUNNER_TEMP/release-body.md" --jq .id)
+          elif [ "${existing#* }" = "true" ]; then
+            id="${existing%% *}"
+            # Con el tag y `draft` explícitos: si no, GitHub publica el borrador con un tag
+            # `untagged-…` y las URL de `latest.json` (que llevan el tag) dan 404.
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+              -f tag_name="$GITHUB_REF_NAME" -F draft=true \
+              -F body=@"$RUNNER_TEMP/release-body.md" --silent
+          else
+            echo "::error::La release de $GITHUB_REF_NAME ya está publicada."
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  instaladores:
+    name: Instaladores de ${{ matrix.name }}
+    needs: release
+    strategy:
+      # Uno detrás de otro: cada uno descarga `latest.json` de la release, le añade su sistema y lo
+      # vuelve a subir. A la vez, el último en subirlo borraría el sistema del otro.
+      max-parallel: 1
+      matrix:
+        include:
+          # NSIS (.exe) y MSI.
+          - name: Windows
+            runner: windows-latest
+          # AppImage, .deb y .rpm. La 22.04 tiene una glibc más antigua: el AppImage arranca en
+          # más distribuciones.
+          - name: Linux
+            runner: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de sistema
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
@@ -71,52 +150,20 @@ jobs:
         working-directory: app
         run: npm ci
 
-      # Compila el frontend (beforeBuildCommand) y la app, y genera los instaladores NSIS (.exe)
-      # y MSI de bundle.targets. Con createUpdaterArtifacts, los firma con la clave de
-      # actualizaciones y sube `latest.json`, que es lo que consulta la app instalada para saber si
-      # hay versión nueva (docs/distribucion.md, "Actualizaciones").
+      # Compila el frontend (beforeBuildCommand) y la app, y genera los instaladores de
+      # bundle.targets para el sistema. Con createUpdaterArtifacts, los firma con la clave de
+      # actualizaciones y añade el sistema a `latest.json`, que es lo que consulta la app instalada
+      # para saber si hay versión nueva (docs/distribucion.md, "Actualizaciones").
       # `releaseBody` son solo las notas de la versión: tauri-action las copia tal cual en el `notes`
-      # de `latest.json`, que es lo que enseña la app antes de instalar. La descripción de la
-      # release, con las instrucciones detrás, se completa en el paso siguiente.
+      # de `latest.json`, que es lo que enseña la app antes de instalar. Con `releaseId` sube a la
+      # release del trabajo anterior y no toca su nombre ni su descripción.
       - uses: tauri-apps/tauri-action@v0
-        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
+          releaseId: ${{ needs.release.outputs.id }}
           tagName: ${{ github.ref_name }}
-          releaseName: Tramos ${{ github.ref_name }}
-          releaseBody: ${{ steps.notas.outputs.body }}
-          releaseDraft: true
-          prerelease: false
-
-      # La descripción de la release: las notas de la versión y, detrás, las instrucciones de
-      # instalación.
-      - name: Descripción de la release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
-        run: |
-          {
-            echo '### Qué trae'
-            echo
-            cat "$RUNNER_TEMP/notas.md"
-            echo
-            echo '### Instalar'
-            echo
-            echo 'Instalador para Windows. Descarga el `.exe` (o el `.msi`) de abajo y ábrelo.'
-            echo
-            echo 'El instalador aún no está firmado: Windows SmartScreen avisará de que la aplicación'
-            echo 'no es de un editor reconocido. Pulsa «Más información» y luego «Ejecutar de todas'
-            echo 'formas».'
-            echo
-            echo 'Si ya tienes Tramos instalado, no hace falta descargar nada: la app te avisará al'
-            echo 'arrancar de que hay versión nueva.'
-          } > "$RUNNER_TEMP/release-body.md"
-          # Con el tag y `draft` explícitos: si no, GitHub publica el borrador con un tag
-          # `untagged-…` y las URL de `latest.json` (que llevan el tag) dan 404.
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
-            -f tag_name="$GITHUB_REF_NAME" -F draft=true \
-            -F body=@"$RUNNER_TEMP/release-body.md" --silent
+          releaseBody: ${{ needs.release.outputs.notas }}

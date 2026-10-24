@@ -8,11 +8,15 @@ busca patrones de error en tu histórico. App de escritorio local (Tauri 2), de 
 
 ## Instalar
 
-Descarga el instalador de Windows de la última versión en
-[Releases](https://github.com/Mendana/tramos/releases) y ábrelo. Aún no está firmado, así que
-Windows SmartScreen avisará de que no es de un editor reconocido: pulsa «Más información» y
-«Ejecutar de todas formas». Solo hay que instalarla a mano una vez: después, la app avisa al
-arrancar cuando hay versión nueva y se actualiza sola si se lo pides. Más detalles, y cómo se
+Descarga el instalador de la última versión en
+[Releases](https://github.com/Mendana/tramos/releases):
+
+- **Windows**: el `.exe` (o el `.msi`). Aún no está firmado, así que Windows SmartScreen avisará de
+  que no es de un editor reconocido: pulsa «Más información» y «Ejecutar de todas formas».
+- **Linux**: el `.AppImage` (dale permiso de ejecución y ábrelo), o el `.deb` o el `.rpm`.
+
+Solo hay que instalarla a mano una vez: después, la app avisa al arrancar cuando hay versión nueva
+y se actualiza sola si se lo pides. Más detalles, y cómo se
 publica una versión, en [docs/distribucion.md](docs/distribucion.md).
 
 ## Documentación

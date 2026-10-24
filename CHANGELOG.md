@@ -14,6 +14,8 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+## 0.4.1
+
 - Tramos para Linux: cada versión trae también un AppImage, que vale para casi cualquier
   distribución, y paquetes `.deb` y `.rpm`. Se actualizan solos, como en Windows.
 

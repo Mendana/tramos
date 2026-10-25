@@ -18,14 +18,9 @@ Un aviso dice cuántas carreras entran y qué pasa con quien está en los dos.
 
 ## Qué se compara
 
-- Una tabla con los atletas, las carreras, los tramos, el **IR medio**, la **tasa de error** y la
-  **pérdida media** de cada grupo, y la **diferencia** A − B en puntos ([IR](ir.md),
-  [tiempo perdido](tiempo-perdido.md)).
-- **Tipos de error de cada grupo**: qué parte de sus errores es de cada
-  [tipo](tipos-de-error.md), los seis más comunes entre los dos.
-- **Tasa de error según duración del tramo**: en qué tramos, por lo que duran, falla más cada
-  grupo.
-- **IR medio según desnivel**: en subida, llano y bajada; solo las carreras con track.
+Una tabla con los atletas, las carreras, los tramos, el **IR medio**, la **tasa de error** y la
+**pérdida media** de cada grupo, y la **diferencia** A − B en puntos ([IR](ir.md),
+[tiempo perdido](tiempo-perdido.md)). Debajo, tres paneles.
 
 Los tres paneles se pueden ocultar, como los de Estadísticas. En las gráficas, A va siempre en el
 primer color y B en el segundo, no en el color de cada grupo, que podría ser el mismo.
@@ -33,6 +28,19 @@ primer color y B en el segundo, no en el color de cada grupo, que podría ser el
 > Juveniles tiene IR medio 86 % y Sénior 91 %: la diferencia es −5 puntos. En la gráfica por
 > duración, Juveniles falla el doble en los tramos largos. Con «Las de los dos grupos», esa
 > comparación sale solo de las carreras que corrieron los dos. (Números inventados.)
+
+### Tipos de error de cada grupo
+
+Qué parte de los errores de orientación de cada grupo es de cada [tipo](tipos-de-error.md), los
+seis más comunes entre los dos. Los errores sin tipo cuentan en el total.
+
+### Tasa de error según duración del tramo
+
+En qué tramos, por lo que duran, falla más cada grupo.
+
+### IR medio según desnivel
+
+El IR medio en subida, llano y bajada, en cada grupo; solo con las carreras con track.
 
 Detalle técnico:
 [histórico, «Comparar grupos»](https://github.com/Mendana/tramos/blob/main/docs/historico.md#comparar-grupos-121).

@@ -2055,3 +2055,73 @@
   stroke: var(--surface);
   stroke-width: 1.5;
 }
+
+/* --- «?» con la explicación en un tooltip (HelpTip) --- */
+
+.help-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Título de una tarjeta con su «?» al lado. */
+.title-help {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.help-tip-button {
+  color: var(--text-faint);
+}
+
+.help-tip-button:hover {
+  color: var(--text);
+}
+
+.help-tip-text {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(380px, 80vw);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.help-tip-text.is-shown {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Un puente invisible entre el botón y el tooltip: se puede llevar el ratón hasta él. */
+.help-tip-text::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  right: 0;
+  left: 0;
+  height: 8px;
+}
+
+/* La sección de la ayuda a la que se llega desde el «?» de una gráfica, marcada un momento. */
+.help-doc .is-target {
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.help-doc h2,
+.help-doc h3 {
+  scroll-margin-top: var(--space-4);
+}

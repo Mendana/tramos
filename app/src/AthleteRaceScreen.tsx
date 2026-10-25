@@ -26,7 +26,7 @@ import { GroupedColumnChart } from "./charts/GroupedColumnChart";
 import { MultiLineChart } from "./charts/MultiLineChart";
 import { SERIES_COLORS } from "./charts/common";
 import { typeLabel } from "./LegTags";
-import { ChevronRight, Notice, PageHeader } from "./ui";
+import { ChevronRight, Notice, PageHeader, TitleWithHelp } from "./ui";
 
 // MapLibre pesa: se carga solo si hay tracks.
 const CourseTrackMap = lazy(() => import("./MapView").then((m) => ({ default: m.CourseTrackMap })));
@@ -387,6 +387,7 @@ function CourseSection({
       <PanelsOpen.Provider value={true}>
         <ChartPanel
           id="athletes-race-ideal"
+          help={{ page: "carreras-atletas", section: "Diferencia con el tiempo ideal" }}
           title="Diferencia con el tiempo ideal"
           description="Tiempo por detrás del ideal del recorrido al acabar cada tramo: cuanto más abajo, más lejos del ideal; una línea que baja de golpe es un tramo malo."
           cases={cases}
@@ -418,6 +419,7 @@ function CourseSection({
         />
         <ChartPanel
           id="athletes-race-loss"
+          help={{ page: "carreras-atletas", section: "Pérdida por tramo comparada" }}
           title="Pérdida por tramo comparada"
           description="Segundos perdidos (arriba) o ganados (abajo) en cada tramo frente a lo esperado con el rendimiento habitual de cada uno: cada atleta, contra su propio ritmo."
           cases={cases}
@@ -526,12 +528,11 @@ function RouteChoices({
 }) {
   return (
     <div className="card">
-      <h3>Elección de ruta</h3>
-      <p className="small muted">
-        Los tramos en los que los atletas con track fueron por sitios distintos. Dos rutas que van a
-        menos de 30 m de media son la misma opción; las opciones van de la más rápida a la más
-        lenta, por la mediana de sus tiempos.
-      </p>
+      <TitleWithHelp
+        title="Elección de ruta"
+        text="Los tramos en los que los atletas con track fueron por sitios distintos. Dos rutas que van a menos de 30 m de media son la misma opción; las opciones van de la más rápida a la más lenta, por la mediana de sus tiempos."
+        help={{ page: "carreras-atletas", section: "Elección de ruta" }}
+      />
       {routes.length === 0 ? (
         <p className="muted">En ningún tramo cogieron rutas distintas.</p>
       ) : (
@@ -645,11 +646,11 @@ function SharedErrors({
   if (course.runners.length < 2) return null;
   return (
     <div className="card">
-      <h3>Tramos que fallaron varios</h3>
-      <p className="small muted">
-        Los tramos con error en dos atletas o más. Qué es error lo dice la etiqueta de cada uno y,
-        si no la tiene, el cálculo.
-      </p>
+      <TitleWithHelp
+        title="Tramos que fallaron varios"
+        text="Los tramos con error en dos atletas o más. Qué es error lo dice la etiqueta de cada uno y, si no la tiene, el cálculo."
+        help={{ page: "carreras-atletas", section: "Tramos que fallaron varios" }}
+      />
       {course.shared_errors.length === 0 ? (
         <p className="muted">Ningún tramo lo fallaron dos o más.</p>
       ) : (

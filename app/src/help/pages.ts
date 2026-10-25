@@ -66,6 +66,15 @@ export type HelpPageId =
   | "compartir"
   | "atletas";
 
+/**
+ * Dónde está la explicación de una gráfica: una página y el título (`## …` o `### …`) de su
+ * sección. `vite.config.ts` comprueba al compilar que la sección existe.
+ */
+export interface HelpTarget {
+  page: HelpPageId;
+  section: string;
+}
+
 type HelpGroup = "start" | "screens" | "race" | "history" | "concepts";
 
 /** Bloques del índice, en orden. */

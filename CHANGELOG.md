@@ -14,6 +14,11 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+- Las gráficas tienen menos texto a la vista: la explicación de cómo leer cada una está ahora en
+  un **?** junto a su título. Pasa el ratón por encima (o enfócalo con el teclado) para leerla, y
+  púlsalo para abrir la ayuda en la sección de esa gráfica. Los avisos sobre tus datos, como «sin
+  altitud en 2 carreras», se quedan a la vista.
+
 ## 0.4.2
 
 - Lo que etiquetas manda en toda la app: si marcas «No» o «Físico» en un tramo, deja de contar

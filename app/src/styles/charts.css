@@ -193,6 +193,7 @@
 
 /* Cabecera con el botón de ocultar al lado (#130). */
 .chart-panel-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -207,6 +208,17 @@
 .chart-panel-hide {
   flex: none;
   color: var(--text-faint);
+}
+
+/* El «?» del título: su tooltip se ancla a la cabecera y cae justo debajo, dentro del panel. */
+.chart-panel-head .help-tip {
+  position: static;
+  flex: none;
+}
+
+.chart-panel-head .help-tip-text {
+  left: var(--space-4);
+  max-width: min(380px, calc(100% - 2 * var(--space-4)));
 }
 
 /*
@@ -244,7 +256,13 @@
 }
 
 .chart-panel-header.is-static .chart-panel-title {
+  flex: 0 1 auto;
   font-size: var(--text-md);
+}
+
+/* Con el «?» pegado al título, el número de casos va al final. */
+.chart-panel-header.is-static .pill {
+  margin-left: auto;
 }
 
 .chart-panel-chevron {
@@ -275,6 +293,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+.chart-panel-note {
+  flex: 1 1 240px;
+  margin: 0;
+}
+
+/* Sin aviso, el selector Gráfica / Tabla sigue a la derecha. */
+.chart-panel-toolbar .segmented {
+  margin-left: auto;
 }
 
 /* --- Compañeros con los que comparar (P4) --- */

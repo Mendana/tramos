@@ -74,12 +74,12 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
   ];
   const withoutSpeed =
     data.after_error_without_speed > 0
-      ? ` ${legsLabel(data.after_error_without_speed)} tras un error no tienen velocidad para comparar (sin FIT o con pocos tramos limpios) y solo cuentan en «Tras un error».`
-      : "";
+      ? `${legsLabel(data.after_error_without_speed)} tras un error no tienen velocidad para comparar (sin FIT o con pocos tramos limpios) y solo cuentan en «Tras un error».`
+      : undefined;
   const withoutAltitude =
     data.compared_without_altitude > 0
-      ? ` ${legsLabel(data.compared_without_altitude)} se ${data.compared_without_altitude === 1 ? "compara" : "comparan"} sin descontar el desnivel (su carrera no tiene altitud): una bajada puede parecer acelerar.`
-      : "";
+      ? `${legsLabel(data.compared_without_altitude)} se ${data.compared_without_altitude === 1 ? "compara" : "comparan"} sin descontar el desnivel (su carrera no tiene altitud): una bajada puede parecer acelerar.`
+      : undefined;
   const streaks = data.streaks.map((s) => ({
     key: String(s.from),
     label: streakLabel(s.from, s.to),
@@ -90,8 +90,10 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
       <h3 className="section-title">Después de fallar</h3>
       <ChartPanel
         id="after-error"
+        help={{ page: "estadisticas-cabeza", section: "¿Un error trae otro?" }}
         title="¿Un error trae otro?"
-        description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según ${who.pick("aceleraste", "aceleró", "aceleraron")} (más de un 5 % más rápido que ${who.yourOne} mediana en los tramos limpios de esa carrera, con la velocidad equivalente en llano para que una bajada no cuente como acelerar) o no.${withoutSpeed}${withoutAltitude}`}
+        description={`Tasa de error del tramo siguiente a uno limpio y a un error. Tras un error, separado según ${who.pick("aceleraste", "aceleró", "aceleraron")} (más de un 5 % más rápido que ${who.yourOne} mediana en los tramos limpios de esa carrera, con la velocidad equivalente en llano para que una bajada no cuente como acelerar) o no.`}
+        note={[withoutSpeed, withoutAltitude].filter((n) => n !== undefined).join(" ") || undefined}
         cases={legsLabel(data.after_clean.legs + data.after_error.legs)}
         chart={
           <ColumnChart
@@ -105,6 +107,7 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
       />
       <ChartPanel
         id="clean-streaks"
+        help={{ page: "estadisticas-cabeza", section: "Rachas limpias" }}
         title="Rachas limpias"
         description={`Tasa de error de un tramo según cuántos tramos limpios seguidos ${who.pick("llevabas", "llevaba", "llevaban")} justo antes (0 = ${who.pick("venías", "venía", "venían")} de un error), frente a ${who.pick("tu media", "su media", "la media del grupo")}. Si las rachas largas acaban en error, puede ser exceso de confianza.`}
         cases={legsLabel(streaks.reduce((sum, s) => sum + s.rate.legs, 0))}

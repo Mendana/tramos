@@ -26,7 +26,8 @@ import GroupsScreen from "./GroupsScreen";
 import CompareGroupsScreen from "./CompareGroupsScreen";
 import GroupStatsScreen from "./GroupStatsScreen";
 import HelpScreen from "./help/HelpScreen";
-import { HelpPageId, helpTitle } from "./help/pages";
+import { HelpOpenContext } from "./help/open";
+import { HelpPageId, HelpTarget, helpTitle } from "./help/pages";
 import { useHelpShortcut } from "./help/shortcut";
 import { helpFor } from "./help/views";
 import HistoryScreen, { HistoryTab } from "./HistoryScreen";
@@ -109,6 +110,21 @@ function ReceiveStatus({ report, error }: { report: ReceiveReport | null; error:
   );
 }
 
+/** Lo que necesitan los paneles de análisis: los ocultos (#130) y abrir su ayuda (#216). */
+function PanelsProvider({
+  openHelp,
+  children,
+}: {
+  openHelp: (target: HelpTarget) => void;
+  children: ReactNode;
+}) {
+  return (
+    <HelpOpenContext.Provider value={openHelp}>
+      <PanelVisibilityProvider>{children}</PanelVisibilityProvider>
+    </HelpOpenContext.Provider>
+  );
+}
+
 /**
  * Pantalla abierta. Una carrera se abre desde la lista (o al acabar de importarla). Cada pantalla
  * (y cada pestaña) tiene su página de ayuda en `help/views.ts`: si añades una, dale página.
@@ -128,7 +144,8 @@ export type Screen =
   | { kind: "import" }
   | { kind: "profile" }
   | { kind: "settings" }
-  | { kind: "help"; page: HelpPageId };
+  /** `section`: el título de la sección a la que baja la página (el «?» de una gráfica). */
+  | { kind: "help"; page: HelpPageId; section?: string };
 
 /** Pantallas que se recuerdan para el botón de volver. */
 const BACK_LIMIT = 30;
@@ -504,13 +521,16 @@ function App() {
   const goTo = (kind: Exclude<Screen["kind"], "race" | "help" | "group-stats" | "athlete-race">) =>
     navigate({ kind });
   const openHelp = (page: HelpPageId) => navigate({ kind: "help", page });
+  // El «?» de una gráfica: a la sección de su página.
+  const openHelpSection = (target: HelpTarget) =>
+    navigate({ kind: "help", page: target.page, section: target.section });
   // Lo que se ve de un atleta (y lleva la franja de solo lectura).
   const athleteScreen = viewing && at("races", "race", "history");
   const newRaces = news.reduce((n, a) => n + a.new_races.length, 0);
 
   return (
     <ViewerContext.Provider value={viewer}>
-      <PanelVisibilityProvider>
+      <PanelsProvider openHelp={openHelpSection}>
         <div className="shell">
           <aside className="sidebar">
             <div className="brand">
@@ -745,6 +765,7 @@ function App() {
               {screen.kind === "help" && (
                 <HelpScreen
                   page={screen.page}
+                  section={screen.section}
                   onOpen={openHelp}
                   // Desde Inicio, para que esté el «?» que señala el último paso.
                   onTour={() => {
@@ -766,7 +787,7 @@ function App() {
             }}
           />
         )}
-      </PanelVisibilityProvider>
+      </PanelsProvider>
     </ViewerContext.Provider>
   );
 }

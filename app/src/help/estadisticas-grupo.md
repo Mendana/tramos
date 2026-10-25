@@ -40,7 +40,8 @@ la de otro sin inventarse números. Tampoco la lista de carreras ni el resumen e
 está en las Estadísticas de cada atleta.
 
 Los textos de las gráficas hablan del grupo («sus carreras», «fallan», «media del grupo»), no de
-un solo corredor: los números son los de todos los miembros juntos.
+un solo corredor: los números son los de todos los miembros juntos. El **?** de cada panel abre la
+sección de las Estadísticas personales que lo explica.
 
 Los paneles se ocultan con **Personalizar**, como en Estadísticas: ocultar uno lo oculta en las
 dos pantallas, porque es el mismo panel.

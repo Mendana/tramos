@@ -40,6 +40,7 @@ export function LegLengthPanel({
       <h3 className="section-title">Por duración del tramo</h3>
       <ChartPanel
         id="leg-length"
+        help={{ page: "estadisticas-donde", section: "Pérdida según duración del tramo" }}
         title="Pérdida según duración del tramo"
         description={`Tasa de error de ${who.your} tramos agrupados por su tiempo de referencia, de los más cortos a los más largos, frente a ${who.pick("tu media", "su media", "la media del grupo")}. Debajo de cada cubo, sus tramos (n): un cubo con pocos tramos es poco fiable. En la tabla, también la pérdida media por tramo.`}
         cases={legsLabel(legs)}

@@ -19,7 +19,7 @@ El reparto de tus errores por [tipo](tipos-de-error.md), de más a menos, con un
 los errores sin tipo. Dos desplegables lo cruzan con el **formato** y con la **duración del
 tramo**. Lo marcado como **Físico** no cuenta como error de orientación: se da aparte.
 
-Solo funciona si etiquetas: la descripción del panel dice cuántos errores no tienen tipo y
+Solo funciona si etiquetas: el aviso del panel dice cuántos errores no tienen tipo y
 cuántos están sin revisar.
 
 ## Pérdida según desnivel
@@ -32,9 +32,16 @@ entran y cuántos no se pueden clasificar (sin FIT, o tramos muy cortos).
 ## ¿Lento o desorientado?
 
 De qué está hecha la pérdida de todos tus errores juntos: qué parte es **desvío**, qué parte
-**paradas** y qué parte **ritmo**. Debajo, **¿Por el camino o al llegar?**: qué parte se fue en los
-últimos 50 m antes de picar y qué parte antes. Explicado en
+**paradas** y qué parte **ritmo**. Explicado en
 [¿Lento o desorientado?](lento-o-desorientado.md).
+
+### ¿Por el camino o al llegar?
+
+Qué parte de la pérdida se fue en los últimos 50 m antes de picar (**al llegar a la baliza**) y
+qué parte antes (**por el camino**). El ataque es el tiempo de más en esos últimos 50 m, frente a lo
+que tardas normalmente en esa carrera (la mediana de tus tramos sin error); el resto de la pérdida
+es por el camino. Solo cuentan los errores de tramos de más de 100 m en línea recta, con FIT.
+Separa perderse por el camino de no encontrar la baliza al llegar.
 
 Detalle técnico:
 [histórico, «Pérdida según duración del tramo»](https://github.com/Mendana/tramos/blob/main/docs/historico.md#pérdida-según-duración-del-tramo-p7).

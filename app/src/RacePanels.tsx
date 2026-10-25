@@ -23,6 +23,7 @@ export function PerformancePanel({ legs }: { legs: LegReport[] }) {
   return (
     <ChartPanel
       id="race-performance"
+      help={{ page: "carrera-analisis", section: "Rendimiento por tramo" }}
       title="Rendimiento por tramo"
       description="IR de cada tramo: 100 % es ir tan rápido como la referencia del recorrido; por debajo, más lento."
       cases={cases(withIr)}
@@ -77,6 +78,7 @@ export function LossPanel({ legs }: { legs: LegReport[] }) {
   return (
     <ChartPanel
       id="race-loss"
+      help={{ page: "carrera", section: "Pérdida por tramo" }}
       title="Pérdida por tramo"
       description="Segundos perdidos (arriba) o ganados (abajo) en cada tramo frente a lo esperado con tu rendimiento habitual."
       cases={cases(withLoss)}
@@ -153,6 +155,7 @@ export function CumulativeLossPanel({ legs }: { legs: LegReport[] }) {
   return (
     <ChartPanel
       id="race-cumulative"
+      help={{ page: "carrera-analisis", section: "Pérdida acumulada" }}
       title="Pérdida acumulada"
       description="Tiempo perdido sumado tramo a tramo: solo suben los tramos con error (los puntos). Acaba en el tiempo perdido de la carrera."
       cases={`${errors} ${errors === 1 ? "error" : "errores"} en ${cases(legs.length)}`}
@@ -228,6 +231,7 @@ export function GainLossPanel({ legs, streaks }: { legs: LegReport[]; streaks: L
   return (
     <ChartPanel
       id="race-gain-loss"
+      help={{ page: "carrera-analisis", section: "Dónde gano y dónde pierdo" }}
       title="Dónde gano y dónde pierdo"
       description="Segundos ganados (arriba) o perdidos (abajo) en cada tramo frente a lo esperado con tu rendimiento habitual, y la línea con lo que llevas acumulado. Las franjas son rachas de dos o más tramos seguidos perdiendo."
       cases={`${cases(withGain)} · ${streaks.length} ${streaks.length === 1 ? "racha" : "rachas"}`}

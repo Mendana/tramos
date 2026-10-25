@@ -53,8 +53,7 @@ números se apoyan en muy pocos corredores y valen menos.
 
 - Si quedan errores sin revisar, un aviso con **Revisar ahora**, que lleva a
   [Tramos](carrera-tramos.md).
-- **Pérdida por tramo**: una columna por tramo. Hacia arriba si perdiste tiempo y hacia abajo si
-  ganaste; los errores, en naranja.
+- **Pérdida por tramo**: la gráfica de columnas, una por tramo (explicada más abajo).
 - **Dónde más perdiste**: los tres tramos con más pérdida, con tu split y la referencia. Con
   track, **Ver en el mapa** lo enseña en el [Mapa](carrera-mapa.md).
 - Con track, el recorrido en miniatura y **Abrir el mapa**.
@@ -63,7 +62,19 @@ Si seleccionas un tramo (en la tabla, en el mapa o en la lista de tramos), sigue
 cambiar de pestaña. Con las flechas del teclado pasas de una pestaña a otra.
 
 Cada gráfica tiene un selector **Gráfica / Tabla**: la tabla da todos los números que la gráfica
-enseña al pasar el ratón.
+enseña al pasar el ratón. Y un **?** junto al título: con el ratón encima (o con el teclado) te
+explica en una frase qué enseña, y si lo pulsas abre esta ayuda en la sección de esa gráfica. Lo
+que se ve debajo del título son avisos sobre los datos de esa carrera, como «sin altitud».
+
+## Pérdida por tramo
+
+Una columna por tramo con los segundos que perdiste (hacia arriba) o ganaste (hacia abajo) frente
+a lo que te tocaba con tu rendimiento habitual de ese día ([Tiempo perdido](tiempo-perdido.md)).
+Los tramos que cuentan como error van en naranja y el resto en gris, así que una columna naranja
+muy alta es el tramo donde se te fue la carrera.
+
+> Una columna naranja de 45 s en el tramo 7 y, en los demás, columnas grises de 1 o 2 s arriba o
+> abajo: la carrera fue buena salvo ese tramo. (Ejemplo inventado.)
 
 Detalle técnico:
 [app, «Vista de carrera»](https://github.com/Mendana/tramos/blob/main/docs/app.md#vista-de-carrera-p1).

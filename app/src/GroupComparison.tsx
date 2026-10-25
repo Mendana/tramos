@@ -141,6 +141,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
     <>
       <ChartPanel
         id="race-group-ideal"
+        help={{ page: "carrera-grupo", section: "Diferencia con el tiempo ideal" }}
         title="Diferencia con el tiempo ideal"
         description="Tiempo por detrás del ideal del recorrido al acabar cada tramo: cuanto más abajo, más lejos del ideal; una línea que baja de golpe es un tramo malo."
         cases={runnerCount}
@@ -201,6 +202,7 @@ export function GroupComparison({ resultId }: { resultId: number }) {
       />
       <ChartPanel
         id="race-group-loss"
+        help={{ page: "carrera-grupo", section: "Pérdida por tramo comparada" }}
         title="Pérdida por tramo comparada"
         description="Segundos perdidos (arriba) o ganados (abajo) en cada tramo frente a lo esperado con el rendimiento habitual de cada uno."
         cases={runnerCount}

@@ -142,12 +142,12 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
   );
   const withoutHeartRate =
     data.errors_without_heart_rate > 0
-      ? ` ${data.errors_without_heart_rate === 1 ? "Un error no tiene" : `${data.errors_without_heart_rate} errores no tienen`} pulso del tramo anterior (sin FIT o sin pulso) y no se compara.`
-      : "";
+      ? `${data.errors_without_heart_rate === 1 ? "Un error no tiene" : `${data.errors_without_heart_rate} errores no tienen`} pulso del tramo anterior (sin FIT o sin pulso) y no se compara.`
+      : undefined;
   const withoutAltitude =
     data.drift_races_without_altitude > 0
-      ? ` En ${racesLabel(data.drift_races_without_altitude)} sin altitud se usa la velocidad en movimiento: ahí una subida puede parecer cansancio.`
-      : "";
+      ? `En ${racesLabel(data.drift_races_without_altitude)} sin altitud se usa la velocidad en movimiento: ahí una subida puede parecer cansancio.`
+      : undefined;
   return (
     <>
       <h3 className="section-title">Cansancio</h3>
@@ -162,8 +162,10 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
       </p>
       <ChartPanel
         id="fatigue-drift"
+        help={{ page: "estadisticas-cabeza", section: "Deriva del pulso" }}
         title="Deriva del pulso"
-        description={`Pulso dividido entre la velocidad equivalente en llano (que descuenta el desnivel) de ${who.your} tramos limpios, en cada tercio de la carrera, frente a lo habitual en esa carrera (0: la mediana de sus tramos limpios). Si sube al final, ${who.pick("necesitas", "necesita", "necesitan")} más pulso para ir igual de rápido: cansancio. Debajo de cada tercio, sus tramos (n).${withoutAltitude}`}
+        description={`Pulso dividido entre la velocidad equivalente en llano (que descuenta el desnivel) de ${who.your} tramos limpios, en cada tercio de la carrera, frente a lo habitual en esa carrera (0: la mediana de sus tramos limpios). Si sube al final, ${who.pick("necesitas", "necesita", "necesitan")} más pulso para ir igual de rápido: cansancio. Debajo de cada tercio, sus tramos (n).`}
+        note={withoutAltitude}
         cases={legsLabel(driftLegs)}
         chart={
           <ColumnChart
@@ -190,8 +192,10 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
       />
       <ChartPanel
         id="fatigue-heart-rate"
+        help={{ page: "estadisticas-cabeza", section: "Pulso antes del error" }}
         title="Pulso antes del error"
-        description={`Pulso del tramo anterior a un error y a un tramo limpio, en la misma fase de la carrera, en ppm sobre la mediana de los tramos de esa carrera. Si antes de fallar ${who.pick("vas", "va", "van")} más alto que antes de un tramo limpio, el cansancio puede anticipar el error. Debajo, n antes de error / antes de limpio. Lo marcado como físico no entra.${withoutHeartRate}`}
+        description={`Pulso del tramo anterior a un error y a un tramo limpio, en la misma fase de la carrera, en ppm sobre la mediana de los tramos de esa carrera. Si antes de fallar ${who.pick("vas", "va", "van")} más alto que antes de un tramo limpio, el cansancio puede anticipar el error. Debajo, n antes de error / antes de limpio. Lo marcado como físico no entra.`}
+        note={withoutHeartRate}
         cases={legsLabel(beforeLegs)}
         chart={
           <>
@@ -225,6 +229,7 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
       />
       <ChartPanel
         id="fatigue-effort"
+        help={{ page: "estadisticas-cabeza", section: "Esfuerzo percibido" }}
         title="Esfuerzo percibido"
         description={`Esfuerzo (1–10) que ${who.pick("apuntaste", "apuntó", "apuntaron")} al etiquetar ${who.your} errores, ${who.your} tramos limpios y los marcados como físico, por tercio de carrera. Solo cuenta donde lo ${who.pick("apuntaste", "apuntó", "apuntaron")} (en la tabla de tramos de cada carrera). Debajo, n de errores / limpios / físico.`}
         cases={`${legsLabel(effortLegs)} con esfuerzo`}

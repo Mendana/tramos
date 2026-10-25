@@ -15,6 +15,7 @@ import estadisticas from "./estadisticas.md?raw";
 import estadisticasCabeza from "./estadisticas-cabeza.md?raw";
 import estadisticasDonde from "./estadisticas-donde.md?raw";
 import estadisticasEvolucion from "./estadisticas-evolucion.md?raw";
+import estadisticasFisico from "./estadisticas-fisico.md?raw";
 import estadisticasGrupo from "./estadisticas-grupo.md?raw";
 import formatos from "./formatos.md?raw";
 import grupo from "./grupo.md?raw";
@@ -58,6 +59,7 @@ export type HelpPageId =
   | "estadisticas-donde"
   | "estadisticas-evolucion"
   | "estadisticas-cabeza"
+  | "estadisticas-fisico"
   | "tiempo-perdido"
   | "ir"
   | "tipos-de-error"
@@ -117,6 +119,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   "estadisticas-donde": { source: estadisticasDonde, group: "history" },
   "estadisticas-evolucion": { source: estadisticasEvolucion, group: "history" },
   "estadisticas-cabeza": { source: estadisticasCabeza, group: "history" },
+  "estadisticas-fisico": { source: estadisticasFisico, group: "history" },
   "tiempo-perdido": { source: tiempoPerdido, group: "concepts" },
   ir: { source: ir, group: "concepts" },
   "tipos-de-error": { source: tiposDeError, group: "concepts" },

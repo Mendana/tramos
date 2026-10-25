@@ -97,11 +97,17 @@ pub struct TransitStats {
     /// Pulso medio ponderado por tiempo (ppm); `None` con pulso en menos de [`MIN_COVERAGE`]
     /// del traslado.
     pub heart_rate_bpm: Option<f64>,
+    /// Tiempo de los trozos con pulso (s): el peso del pulso y de la eficiencia al juntar grupos
+    /// de varias carreras ([`crate::physical_history`]). 0 sin pulso.
+    pub heart_rate_s: f64,
     /// Metros por latido con la velocidad de la carrera ([`SpeedKind`]); `None` sin pulso.
     pub efficiency_m_per_beat: Option<f64>,
     /// Cadencia media (pasos/min); `None` con cadencia en menos de [`MIN_COVERAGE`] del
     /// traslado.
     pub cadence_spm: Option<f64>,
+    /// Tiempo de los trozos con cadencia (s): el peso de la cadencia y de la zancada al juntar
+    /// grupos. 0 sin cadencia.
+    pub cadence_s: f64,
     /// Metros por paso (distancia real); `None` sin cadencia o con cadencia 0.
     pub stride_m: Option<f64>,
 }
@@ -597,8 +603,10 @@ fn stats<'a>(chunks: impl IntoIterator<Item = &'a Chunk>, speed: SpeedKind) -> T
         speed_mps: per_second(distance_m),
         flat_speed_mps: flat_m.and_then(per_second),
         heart_rate_bpm: has_heart_rate.then(|| beats * 60.0 / heart_rate_s),
+        heart_rate_s: if has_heart_rate { heart_rate_s } else { 0.0 },
         efficiency_m_per_beat: (has_heart_rate && beats > 0.0).then(|| compared_m / beats),
         cadence_spm: has_cadence.then(|| steps * 60.0 / cadence_s),
+        cadence_s: if has_cadence { cadence_s } else { 0.0 },
         stride_m: (has_cadence && steps > 0.0).then(|| stepped_m / steps),
     }
 }
@@ -700,6 +708,7 @@ mod tests {
         assert_eq!(p.vam_m_per_h, None);
         assert_eq!(p.heart_rate_bpm, None);
         assert_eq!(p.transit.efficiency_m_per_beat, None);
+        assert!(close(p.transit.heart_rate_s, 0.0));
         assert_eq!(p.transit.cadence_spm, None);
         // 64 s de traslado no dan para dos mitades de 2 min.
         assert_eq!(p.halves, None);
@@ -735,6 +744,14 @@ mod tests {
         let [first, second] = p.halves.clone().unwrap();
         assert!(close(first.transit_s, 300.0));
         assert!(close(second.transit_s, 300.0));
+        // Pulso y cadencia en todo el traslado: son los pesos al juntar carreras.
+        assert!(close(first.heart_rate_s, 300.0));
+        assert!(close(second.cadence_s, 300.0));
+        assert!(close(p.transit.heart_rate_s, 600.0));
+        assert!(close(
+            p.by_grade.iter().map(|g| g.stats.heart_rate_s).sum::<f64>(),
+            600.0
+        ));
         // Primera mitad: (299 · 150 + 157,5) / 300 = 150,025 ppm; 240 m/min / 150,025.
         let hr1 = (299.0 * 150.0 + 157.5) / 300.0;
         assert!(close(first.heart_rate_bpm.unwrap(), hr1));
@@ -890,6 +907,7 @@ mod tests {
         assert_eq!(p.heart_rate_bpm, None);
         assert_eq!(p.transit.heart_rate_bpm, None);
         assert_eq!(p.transit.efficiency_m_per_beat, None);
+        assert!(close(p.transit.heart_rate_s, 0.0));
         let [first, _] = p.halves.unwrap();
         // En la primera mitad (150 s) sí hay pulso en 100 s.
         assert!(close(first.heart_rate_bpm.unwrap(), 150.0));

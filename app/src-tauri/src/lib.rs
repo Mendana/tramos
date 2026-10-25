@@ -12,6 +12,7 @@ pub mod history;
 pub mod import;
 pub mod oreplay;
 pub mod package;
+pub mod physical_history;
 pub mod race_map;
 pub mod race_physical;
 pub mod races;
@@ -44,6 +45,7 @@ use crate::coach::{
 use crate::groups::{GroupFields, GroupsView};
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
+use crate::physical_history::PhysicalHistoryView;
 use crate::race_map::RaceMap;
 use crate::race_physical::PhysicalView;
 use crate::races::{RaceDetail, RaceRow};
@@ -734,6 +736,16 @@ fn rivals(
     state.read(|s| history::rivals_view(s, &filter))
 }
 
+/// Pestaña Físico del histórico (#214): el rendimiento físico de las carreras con FIT del usuario o
+/// del atleta que se ve, con el filtro del histórico.
+#[tauri::command]
+fn physical_history(
+    state: tauri::State<'_, AppState>,
+    filter: HistoryFilter,
+) -> Result<PhysicalHistoryView, String> {
+    state.read(|s| physical_history::physical_history_view(s, &filter))
+}
+
 /// Arranca la app. Devuelve el error de Tauri en lugar de abortar.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
@@ -804,6 +816,7 @@ pub fn run() -> tauri::Result<()> {
             race_track_line,
             race_map,
             race_physical,
+            physical_history,
             export_race_package,
             import_race_package,
             race_sharing,

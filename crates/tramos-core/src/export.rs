@@ -1465,8 +1465,10 @@ mod tests {
             speed_mps: Some(4.0),
             flat_speed_mps: Some(4.5),
             heart_rate_bpm: Some(150.0),
+            heart_rate_s: 500.0,
             efficiency_m_per_beat: Some(1.8),
             cadence_spm: None,
+            cadence_s: 0.0,
             stride_m: None,
         };
         RacePhysical {

@@ -2,8 +2,8 @@
 
 Todas tus carreras juntas, para ver patrones que en una sola carrera no se ven. Arriba los filtros
 y las cifras; debajo, una pestaña por pregunta: **Resumen**,
-[¿Dónde fallo?](estadisticas-donde.md), [¿Cómo evoluciono?](estadisticas-evolucion.md) y
-[Cabeza y piernas](estadisticas-cabeza.md). El botón **?** abre la página de la pestaña abierta.
+[¿Dónde fallo?](estadisticas-donde.md), [¿Cómo evoluciono?](estadisticas-evolucion.md),
+[Cabeza y piernas](estadisticas-cabeza.md) y [Físico](estadisticas-fisico.md). El botón **?** abre la página de la pestaña abierta.
 
 ## Resumen en frases
 

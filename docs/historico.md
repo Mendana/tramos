@@ -639,6 +639,55 @@ Resultados:
   **7,5** y limpio 4 (un error del cálculo marcado «No»); 3.º error 7. No cuentan el esfuerzo
   del último tramo ni el de un tramo de referencia corta.
 
+## Rendimiento físico (#214)
+
+Cómo evoluciona el físico de carrera en carrera. Implementado en `tramos_core::physical_history`
+(sobre `race_physical`, `docs/rendimiento-fisico.md`, "Histórico"); en la app,
+`physical_history::physical_history_view` y la pestaña **Físico** de Estadísticas. Es un comando
+aparte, `physical_history(filter)`, y no va en `history`: calcular el físico de cada carrera es
+caro y solo se pide al abrir la pestaña.
+
+- **Qué carreras:** las del usuario (o del atleta que se ve) que pasan el **mismo filtro** que el
+  resto del histórico (fechas, formato y tipo) y tienen FIT que se puede alinear con sus picadas.
+  Las demás se cuentan (`races_without_track`) y no aportan nada. Se calcula desde el track
+  guardado, alineado y troceado como el mapa, como P13 y P14, con las zonas de pulso de Ajustes.
+  No hace falta tiempo perdido ni etiquetas: no mira la orientación.
+- **Por carrera** (`RaceFigures`): eficiencia, desacople, velocidad de traslado (en llano o real,
+  según `speed`), pulso medio, VAM, cadencia, zancada y carga. Se dibujan con la fecha en el eje X
+  y **una serie por formato**: sprint, media y larga no se mezclan.
+- **Por pendiente** (`by_grade`): velocidad real, en llano y pulso por clase de pendiente, con
+  los trozos de todas las carreras juntos. No es la media de las medias de cada carrera: cada una
+  pesa por su tiempo en la clase (velocidad = Σ distancia / Σ tiempo; pulso, ponderado por el
+  tiempo con pulso…). El cálculo exacto está en `docs/rendimiento-fisico.md`, "Juntar grupos de
+  trozos". Solo aportan las carreras con altitud en todo su traslado.
+- **Deriva media** (`drift`): la eficiencia de cada décima del traslado entre la de su carrera
+  (1 = su media), promediada entre las carreras, con cuántas aporta cada décima. Para ver si el
+  corredor se cae siempre al final.
+- **Con el filtro de formato** todo es de ese formato; sin él, la pendiente y la deriva juntan los
+  formatos (la interfaz lo avisa).
+- **Vista de un atleta:** el mismo comando sobre su base, así que quien entrena ve lo mismo que
+  en las Estadísticas del atleta. Sus zonas de pulso no vienen en el paquete: sin carga.
+- **Un grupo no tiene pestaña Físico**: comparar el físico entre atletas queda fuera.
+
+### Ejemplo de test
+
+`crates/tramos-core/src/physical_history.rs`, con tres carreras sintéticas: dos sprints en llano y
+una larga sin altitud.
+
+- **Pendiente `flat`:** dos grupos (A: 100 s, 4 m/s reales, 5 en llano, pulso 150; B: 300 s, 2
+  reales, 3 en llano, pulso 170). Juntos: 400 s, **2,5 m/s** reales, **3,5 m/s** en llano, pulso
+  **165 ppm** y 1400 / 1100 = **1,2727** m de llano por latido. `graded_races` = 2 de 3 (la larga
+  no tiene pendientes).
+- **Deriva, décima 1:** eficiencias 2,2 de 2,0, 1,2 de 1,0 y 1,5 de 1,5: media de 1,1, 1,2 y 1,0 =
+  **1,1** con 3 carreras. Con el filtro de sprint, (1,1 + 1,2) / 2 = **1,15**.
+- **Filtro:** el de formato deja fuera la larga; el de tipo, las competiciones; el de fechas, las
+  que caen fuera.
+
+`app/src-tauri/src/physical_history.rs` lo comprueba con el fixture de Baltanás (`baltanas-anon.spl`
+con `baltanas-sintetico.fit` el 3-oct-2026, más una copia sin FIT el 1-jun): solo aporta la carrera
+con FIT y sus cifras son las de su pestaña Físico; con una carrera, sus clases y sus décimas son
+las suyas.
+
 ## Vista de grupo (P15)
 
 «La entrenadora ve [...] una vista de grupo: tabla de corredores por métricas y comparación de
@@ -770,7 +819,8 @@ Las pestañas y los paneles de Estadísticas con **todos los miembros de un grup
 - **Solo lo que se puede juntar sin aproximar.** Todo lo de abajo. No sale la **consistencia**
   (P10), ni la media ni la serie por carrera: la de cada miembro es ya una media de las carreras
   que la tienen, sin saber cuántas, y la serie por carrera mezclaría a corredores distintos. Tampoco
-  la lista de carreras ni el resumen en frases (#126): no son agregados.
+  la lista de carreras ni el resumen en frases (#126): no son agregados, ni la pestaña Físico
+  (#214), que no se compara entre atletas.
 - **Textos del grupo (#165).** Los paneles son los de Estadísticas, con las palabras del grupo
   («sus carreras», «fallan», «media del grupo») en vez de las del corredor («tus carreras»,
   «fallas», «tu media»). La app lo decide con un contexto (`app/src/subject.tsx`), no con paneles

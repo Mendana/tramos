@@ -18,6 +18,11 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
   (`samples.csv`): una fila por segundo con la distancia, la altitud, la velocidad, el pulso, la
   cadencia, la zancada, el tramo y el estado, para modelos de secuencias. Es opcional (casilla
   desmarcada), y con otra casilla, también desmarcada, añade las coordenadas de cada segundo.
+- Nueva pestaña **Físico** en Estadísticas: cómo evoluciona tu rendimiento físico de carrera en
+  carrera (eficiencia, desacople, velocidad, pulso, VAM, cadencia, zancada y carga), con una línea
+  por formato; cómo corres en cada pendiente con todas las carreras juntas; y si te caes siempre
+  al final de la carrera. Usa las carreras con FIT, con los mismos filtros que el resto, y también
+  la ve quien entrena en las Estadísticas de un atleta.
 - Las gráficas tienen menos texto a la vista: la explicación de cómo leer cada una está ahora en
   un **?** junto a su título. Pasa el ratón por encima (o enfócalo con el teclado) para leerla, y
   púlsalo para abrir la ayuda en la sección de esa gráfica. Los avisos sobre tus datos, como «sin

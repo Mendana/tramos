@@ -34,8 +34,9 @@ Las mismas pestañas que en Estadísticas, con los mismos paneles:
 - **Cabeza y piernas**: qué pasa después de un error y si el cansancio lo anticipa. Lo explica
   [Cabeza y piernas](estadisticas-cabeza.md).
 
-**Lo que no sale.** Solo salen los análisis que se pueden juntar sin aproximar. La
-**consistencia** no: la de cada atleta ya es una media de sus carreras, y no se puede juntar con
+**Lo que no sale.** Solo salen los análisis que se pueden juntar sin aproximar. La pestaña
+[Físico](estadisticas-fisico.md) tampoco: el rendimiento físico se mira en las Estadísticas de cada
+atleta, no se compara entre atletas. La **consistencia** no: la de cada atleta ya es una media de sus carreras, y no se puede juntar con
 la de otro sin inventarse números. Tampoco la lista de carreras ni el resumen en frases. Todo eso
 está en las Estadísticas de cada atleta.
 

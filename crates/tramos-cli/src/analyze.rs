@@ -152,7 +152,8 @@ pub fn analyze(
     else {
         bail!("error interno: la identificación apunta a un resultado que no existe");
     };
-    let Some(report) = runner_report(event, candidate.result, config) else {
+    // La CLI no tiene etiquetas: los errores son los del cálculo.
+    let Some(report) = runner_report(event, candidate.result, config, &[]) else {
         bail!(
             "error interno: el corredor de {} no está en el análisis de su recorrido",
             class.name

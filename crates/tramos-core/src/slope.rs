@@ -500,6 +500,7 @@ mod tests {
                     loss_s: Some(if l.error { 30.0 } else { 0.0 }),
                     loss_pct: Some(if l.error { 30.0 } else { 0.0 }),
                     is_error: l.error,
+                    calculated_error: l.error,
                     gain_s: None,
                     cumulative_gain_s: None,
                     ideal_elapsed_s: None,

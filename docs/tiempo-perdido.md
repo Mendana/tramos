@@ -18,7 +18,8 @@ Para el tramo *i* de un recorrido:
 - **Tiempo esperado** `esp_i = ref_i / habitual`.
 - **Pérdida** `p_i = t_i − esp_i` (segundos, puede ser negativa) y `p_i / esp_i` (porcentaje).
 - **Error**: el tramo es error si `p_i > umbral_segundos` **y** `p_i / esp_i > umbral_porcentaje`.
-  Ambos umbrales son configurables. Valores iniciales: 15 s y 10 %.
+  Ambos umbrales son configurables. Valores iniciales: 15 s y 10 %. Es el error **propuesto**: la
+  etiqueta del corredor, si la hay, decide (ver "Errores revisados").
 - **Tiempo sin errores**: tiempo total menos la suma de pérdidas de los tramos con error.
 
 ## Exclusiones
@@ -96,6 +97,36 @@ tramo. Hay dos definiciones y se elige en la configuración (`ideal_time`):
 - Un tramo sin clasificados con split no tiene ideal con ninguna de las dos: el ideal acumulado
   queda sin valor desde ese tramo.
 
+## Errores revisados
+
+El cálculo propone qué tramos son error; el corredor lo revisa con la etiqueta del tramo
+(`docs/taxonomia.md`). Para que todas las cifras cuenten lo mismo, la etiqueta manda en todos los
+análisis (#209): `RunnerAnalysis::apply_tags` y `runner_report`, que recibe las etiquetas del
+resultado.
+
+- **Error revisado** de un tramo: el estado de `reviewed_status` (`docs/historico.md`, "Errores más
+  comunes (P9)"): «Sí», o un tipo sin confirmar, es error; «No» y «Físico», no; sin etiqueta (o
+  con una que no confirma ni pone tipo), lo que diga el cálculo.
+- **«Físico» no es error**: no cuenta en los errores ni se resta del tiempo sin errores, que
+  responde a «¿cuánto habría hecho sin fallar al orientarme?». Es tiempo perdido de verdad.
+- **Totales** con los errores revisados: `error_count`, el tiempo perdido (suma de `p_i` de esos
+  tramos), el tiempo sin errores y el puesto sin errores. Un error marcado a mano en un tramo con
+  `p_i` negativa suma **0**: el tiempo sin errores nunca pasa del total. Si `p_i` no existe (falta
+  el split), cuenta como error pero no suma pérdida.
+- La pérdida, el `IR_i`, el rendimiento habitual y las referencias no cambian: solo se decide qué
+  tramos son error.
+- En el informe, `is_error` es el error revisado y `calculated_error` el propuesto por el
+  cálculo, que es el que se ofrece para revisar («n de m propuestos revisados», errores sin
+  revisar de la lista de carreras).
+- Las etiquetas son las del propio corredor: en «Frente al grupo» y en los rivales solo cambian
+  sus tramos; los de los demás son los del cálculo. Lo que se construye sobre el informe (el
+  histórico y sus patrones, las frases, el paquete y la vista de quien entrena) hereda los errores
+  revisados.
+
+Ejemplo (test de `lost_time.rs`, con el de abajo): el corredor D marca «No» en el tramo 1
+(18 s): 0 errores, 0 s perdidos y 150 s sin errores. El A marca «Sí» en su tramo 2 (3,143 s, por
+debajo de los umbrales): 1 error, 3,143 s perdidos y 122,857 s sin errores.
+
 ## Puesto sin errores
 
 El tiempo sin errores dicho como puesto: «sin errores habrías sido 4.º de 18» (#194). Lo calcula
@@ -116,16 +147,17 @@ El tiempo sin errores dicho como puesto: «sin errores habrías sido 4.º de 18�
 
 ## Frente al grupo (P4)
 
-`tramos_core::comparison::course_comparison(&Event, ResultRef, &LostTimeConfig)` da todos los
-corredores del recorrido de un resultado (todas las categorías que lo comparten), para
+`tramos_core::comparison::course_comparison(&Event, ResultRef, &LostTimeConfig, etiquetas)` da
+todos los corredores del recorrido de un resultado (todas las categorías que lo comparten), para
 superponerlos en las gráficas de P4. Sale del mismo `analyze_course` que el informe del
-corredor, así que sus números coinciden con los de `runner_report`.
+corredor, con las mismas etiquetas, así que sus números coinciden con los de `runner_report`.
 
 - `legs[]` (`index`, `from`, `to`) e `ideal_time_s` (tiempo ideal del recorrido entero, según
   `ideal_time`).
 - `runners[]`: `result` (`class_index`, `result_index`), `is_self` (el resultado pedido),
   nombre, club, `class_name`, `status`, `place` (en su categoría), `course_place`, `total_s` y,
-  una posición por tramo, `behind_ideal_s`, `loss_s` e `is_error`.
+  una posición por tramo, `behind_ideal_s`, `loss_s` e `is_error` (del resultado pedido, el
+  revisado con sus etiquetas; de los demás, el del cálculo).
 - **Puesto en el recorrido** (`course_place`): 1 + clasificados del recorrido con tiempo total
   estrictamente menor (empates con el mismo puesto). Solo los clasificados con tiempo.
 - **Orden**: clasificados por tiempo total (los empates, en el orden de la carrera) y después el
@@ -163,9 +195,9 @@ corrieron la misma carrera (el mismo `race_id`, `docs/paquete.md`; #163). Cada a
   de la copia de su primer atleta en la entrada: con los mismos originales, son los mismos para
   todos. Cada atleta, sus series de P4 de su propia copia: `behind_ideal_s`, `loss_s` e
   `is_error`, y su `split_s` de cada tramo (para la elección de ruta, `docs/segmentacion.md`).
-- **Error** de un tramo: el de `leg_status` (`docs/historico.md`, "Errores más comunes (P9)"):
-  manda la etiqueta del atleta (Sí, o con tipo, es error; No y Físico, no) y, sin ella, el cálculo
-  (error «sin revisar»). Así lo que el atleta descartó no cuenta como error.
+- **Error** de un tramo: el revisado ("Errores revisados"), con las etiquetas de cada atleta: Sí,
+  o con tipo, es error; No y Físico, no; sin ella, el cálculo (error «sin revisar»). Así lo que el
+  atleta descartó no cuenta como error, tampoco en su resumen.
 - **Tramos que fallaron varios** (`shared_errors`): los tramos del recorrido con error en dos
   atletas o más, en orden de tramo, y de cada uno de esos atletas su pérdida calculada, si lo ha
   revisado y su etiqueta.

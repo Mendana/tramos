@@ -142,7 +142,10 @@ export interface LegReport {
   expected_s: number | null;
   loss_s: number | null;
   loss_pct: number | null;
+  /** Error revisado: el de la etiqueta del corredor y, sin ella, el del cálculo (#209). */
   is_error: boolean;
+  /** Error según el cálculo (los umbrales), diga lo que diga la etiqueta: el error propuesto. */
+  calculated_error: boolean;
   /** `expected_s − split_s` (P5): positiva si el tramo fue mejor de lo esperado. */
   gain_s: number | null;
   cumulative_gain_s: number | null;

@@ -43,6 +43,7 @@ use crate::import::stored_self_person;
 use crate::race_map::stored_leg_metrics;
 use crate::races::RaceError;
 use crate::settings;
+use crate::tags::result_tags;
 
 /// El histórico del usuario con un filtro.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -136,18 +137,14 @@ pub fn history_view_where(
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(store.load_event(event_id)?),
         };
-        let report = runner_report(event, at, &config).ok_or(RaceError::NotAnalyzed(r.result.0))?;
+        let race_tags = result_tags(store, r.result)?;
+        let report = runner_report(event, at, &config, &race_tags)
+            .ok_or(RaceError::NotAnalyzed(r.result.0))?;
         metrics.push(match at.get(event) {
             Some(race_result) if r.has_track => stored_leg_metrics(store, r.result, race_result)?,
             _ => None,
         });
-        tags.push(
-            store
-                .tags(r.result)?
-                .into_iter()
-                .map(|t| (t.leg_index, t.tag))
-                .collect(),
-        );
+        tags.push(race_tags);
         rows.push(HistoryRaceRow {
             result_id: r.result.0,
             date: r.event_date,
@@ -244,8 +241,8 @@ pub fn history_view_where(
 }
 
 /// Rivales habituales (#193) en las carreras del usuario (los resultados vinculados a su persona)
-/// que pasan `filter`: `tramos_core::rivals` con los umbrales de los ajustes, que deciden qué
-/// tramos suyos son error.
+/// que pasan `filter`: `tramos_core::rivals` con los umbrales de los ajustes y sus etiquetas, que
+/// deciden qué tramos suyos son error.
 pub fn rivals_view(store: &Store, filter: &HistoryFilter) -> Result<Vec<Rival>, RaceError> {
     let config = settings::lost_time_config(store)?;
     let results = match stored_self_person(store)? {
@@ -262,18 +259,19 @@ pub fn rivals_view(store: &Store, filter: &HistoryFilter) -> Result<Vec<Rival>, 
         if let Entry::Vacant(entry) = events.entry(event_id) {
             entry.insert(store.load_event(event_id)?);
         }
-        refs.push((r, event_id, at));
+        refs.push((r, event_id, at, result_tags(store, r.result)?));
     }
     let races: Vec<RivalRace<'_>> = refs
         .iter()
-        .filter_map(|&(r, event_id, at)| {
+        .filter_map(|(r, event_id, at, tags)| {
             Some(RivalRace {
                 date: r.event_date,
                 name: r.event_name.as_deref(),
                 format: r.event_format,
                 kind: r.event_kind,
-                event: events.get(&event_id)?,
-                at,
+                event: events.get(event_id)?,
+                at: *at,
+                tags,
             })
         })
         .collect();
@@ -375,6 +373,31 @@ mod tests {
             .find(|g| g.format == format)
             .unwrap()
             .stats
+    }
+
+    /// Manda la etiqueta (#209): un error descartado con «No» deja de contar en los totales, y
+    /// los totales y los errores más comunes (P9) cuentan lo mismo.
+    #[test]
+    fn a_discarded_error_does_not_count_in_the_history() {
+        use crate::tags::save_leg_tag;
+        use tramos_core::taxonomy::{Confirmation, LegTag};
+
+        let (mut store, result_id) = two_races();
+        let lost = race_detail(&store, result_id).unwrap().report.lost_time;
+        let (_, errors, _, _) = counted(&lost);
+        let error = pattern_legs(&lost).find(|l| l.is_error).unwrap().index;
+        let before = history_view(&store, &HistoryFilter::default()).unwrap();
+        assert_eq!(before.history.total.errors, 2 * errors);
+        assert_eq!(before.common_errors.total.errors, 2 * errors);
+
+        let no = LegTag {
+            confirmation: Some(Confirmation::NoError),
+            ..LegTag::default()
+        };
+        save_leg_tag(&mut store, result_id, error, no).unwrap();
+        let after = history_view(&store, &HistoryFilter::default()).unwrap();
+        assert_eq!(after.history.total.errors, 2 * errors - 1);
+        assert_eq!(after.common_errors.total.errors, 2 * errors - 1);
     }
 
     /// Los números del histórico salen de los de la vista de carrera.

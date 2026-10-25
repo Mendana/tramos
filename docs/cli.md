@@ -79,8 +79,10 @@ RFC 3339 y UTC, `null` lo que no se puede calcular):
 - `legs[]`, un elemento por tramo, con la referencia del recorrido y los números del corredor en
   el mismo objeto: `index` (desde 1), `from`, `to` (32736 = salida, 32752 = meta), `split_s`,
   `elapsed_s`, `place`, `reference_s`, `reference_count`, `valid_splits`, `performance_index`,
-  `expected_s`, `loss_s`, `loss_pct`, `is_error`, `gain_s` (`−loss_s`), `cumulative_gain_s`,
-  `ideal_elapsed_s`, `behind_ideal_s`, `is_last`, `short_reference` y `excluded_from_patterns`.
+  `expected_s`, `loss_s`, `loss_pct`, `is_error`, `calculated_error`, `gain_s` (`−loss_s`),
+  `cumulative_gain_s`, `ideal_elapsed_s`, `behind_ideal_s`, `is_last`, `short_reference` y
+  `excluded_from_patterns`. La CLI no tiene etiquetas: `is_error` y `calculated_error` son el
+  error del cálculo (`docs/tiempo-perdido.md`, "Errores revisados").
 
 `alignment` es el `Alignment` del núcleo (`docs/alineacion.md`, "Resultado") **sin** `punches`
 (las picadas situadas en el track): `offset_s`, `offset_estimated`, `confidence`, `quality`,
@@ -110,8 +112,8 @@ Ejemplo recortado (fixture público de Baltanás, M-SEN, tarjeta 143, con el FIT
       {"index": 1, "from": 32736, "to": 49, "split_s": 54.0, "elapsed_s": 54.0, "place": 16,
        "reference_s": 42.2, "reference_count": 5, "valid_splits": 18,
        "performance_index": 0.7815, "expected_s": 48.79, "loss_s": 5.21, "loss_pct": 10.67,
-       "is_error": false, "gain_s": -5.21, "cumulative_gain_s": -5.21, "ideal_elapsed_s": 42.2,
-       "behind_ideal_s": 11.8, "is_last": false, "short_reference": false,
+       "is_error": false, "calculated_error": false, "gain_s": -5.21, "cumulative_gain_s": -5.21,
+       "ideal_elapsed_s": 42.2, "behind_ideal_s": 11.8, "is_last": false, "short_reference": false,
        "excluded_from_patterns": false}
     ]
   },

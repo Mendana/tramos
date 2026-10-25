@@ -380,6 +380,7 @@ mod tests {
                 loss_s: Some(if k == 'x' { 30.0 } else { 0.0 }),
                 loss_pct: Some(0.0),
                 is_error: k == 'x',
+                calculated_error: k == 'x',
                 gain_s: None,
                 cumulative_gain_s: None,
                 ideal_elapsed_s: None,

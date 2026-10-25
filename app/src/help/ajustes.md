@@ -5,8 +5,9 @@ tema y los paneles, que cambian al momento. A la izquierda, un índice salta a c
 
 ## Tramo con error
 
-Cuándo un tramo cuenta como error: tiene que perder **más de tantos segundos** y **más de tanto
-por ciento** de lo esperado, las dos cosas. De entrada, 15 s y 10 %. Cambiarlos recalcula al
+Cuándo la app propone un tramo como error: tiene que perder **más de tantos segundos** y **más de
+tanto por ciento** de lo esperado, las dos cosas. De entrada, 15 s y 10 %. Si etiquetas el tramo,
+manda tu etiqueta. Cambiarlos recalcula al
 momento todas las carreras y las estadísticas. Qué significa cada número:
 [Tiempo perdido](tiempo-perdido.md).
 

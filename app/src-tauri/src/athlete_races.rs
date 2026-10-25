@@ -28,6 +28,7 @@ use crate::coach::{
 };
 use crate::race_map::{CourseMap, RaceMap, Segmented, course_map, race_map_and_legs};
 use crate::settings;
+use crate::tags::result_tags;
 
 /// Un atleta que corrió una carrera.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -182,11 +183,7 @@ fn load(store: &Store, result: ResultId, athlete: usize) -> Result<Loaded, Store
         event: store.load_event(event_id)?,
         at,
         config: settings::lost_time_config(store)?,
-        tags: store
-            .tags(result)?
-            .into_iter()
-            .map(|t| (t.leg_index, t.tag))
-            .collect(),
+        tags: result_tags(store, result)?,
     })
 }
 
@@ -611,9 +608,18 @@ mod tests {
         assert_eq!(view.athletes.len(), 4);
         let me = &view.athletes[0];
         assert!(me.athlete.is_self);
-        // Es la misma carrera y el mismo resultado: el mismo resumen que Ana, con los mismos
-        // umbrales (los de por defecto).
-        assert_eq!(me.summary, view.athletes[1].summary);
+        // Es la misma carrera y el mismo resultado, con los mismos umbrales (los de por defecto):
+        // el mismo resumen que Ana, salvo el tramo 2, que ella marcó como error y el cálculo no.
+        let mine = me.summary.clone().unwrap();
+        let ana = view.athletes[1].summary.clone().unwrap();
+        assert_eq!(ana.error_count, mine.error_count + 1);
+        assert_eq!(
+            tramos_core::package::RaceSummary {
+                error_count: ana.error_count,
+                ..mine
+            },
+            ana
+        );
         assert_eq!(me.course, Some(0));
         let own = crate::races::list_races(&coach).unwrap();
         assert_eq!(me.result_id, Some(own[0].result_id));

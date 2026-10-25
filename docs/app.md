@@ -49,11 +49,11 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `preview_import(splPath, fitPath, identity)` | Primer paso de importar: lee los ficheros sin guardar nada. |
 | `import_race(request)` | Segundo paso: guarda la carrera con lo que ha confirmado el usuario. |
 | `import_folder(folderPath)` | Importa todas las carreras de una carpeta, cada una con su FIT, y devuelve el resumen (abajo, "Importar una carpeta"). Es asíncrono: no bloquea la ventana mientras alinea. |
-| `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos tramos con error quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). |
+| `list_races` | Carreras del usuario, de la más reciente a la más antigua, con su tiempo perdido, su rendimiento habitual (`usual_performance`) y cuántos errores propuestos por el cálculo quedan sin revisar (`unreviewed_count`: sin respuesta Sí, No o Físico en su etiqueta, como el contador de la vista de carrera). Las cifras cuentan los errores revisados (`docs/tiempo-perdido.md`, "Errores revisados"). |
 | `race_detail(resultId)` | Una carrera con la tabla de tramos del resultado y su resumen en frases (`insights`: como mucho tres, `tramos_core::insights::race_insights` sobre el mismo informe y, con track, sobre el reparto de P2; `docs/frases.md`). |
 | `set_race_format(resultId, format)` | Cambia el formato de la carrera del resultado (`sprint`, `middle`, `long` o `null` = sin formato). Es de la carrera entera. |
 | `set_race_kind(resultId, kind)` | Marca la carrera del resultado como competición (`race`) o entrenamiento (`training`, #195). Es de la carrera entera. |
-| `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes. |
+| `race_comparison(resultId)` | Corredores del recorrido del resultado, para compararse con ellos (P4): `course_comparison` del núcleo con los umbrales de los ajustes y las etiquetas del resultado. |
 | `race_breakdown(resultId)` | ¿Lento o desorientado? (P2): `tramos_core::loss_breakdown::race_breakdown` con las métricas del track guardado, alineado y troceado como en `race_map` (con su desfase manual si lo tiene; `docs/tiempo-perdido.md`). `null` sin track o si no se puede alinear ni trocear. |
 | `race_offset(resultId)` | Desfase entre el reloj y el cronometraje del resultado (abajo, "Reloj y cronometraje"): el calculado con su confianza y avisos, el error si no se puede alinear, la sugerencia de ±1/2 h, el fijado a mano y las balizas con las que se puede sincronizar en el mapa (`sync_controls`: las que tienen hora, sin la salida). `null` sin track. |
 | `set_race_offset(resultId, offsetS)` | Fija el desfase a mano (segundos; `null` vuelve al automático) y devuelve lo mismo que `race_offset`. Antes comprueba que con él la carrera cae en el track (`align_with_offset`); si no, da el error y no guarda nada. Sin track, error. |
@@ -644,9 +644,9 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
   - «Dónde más perdiste»: los tres tramos con más pérdida, con su split y su referencia y, con
     track, «Ver en el mapa», que lo selecciona y abre Mapa;
   - con track, el recorrido en miniatura (`TrackSvg`) y «Abrir el mapa».
-- **Tramos**: la tabla de tramos con el etiquetado, la casilla «Solo errores» (los propuestos y
-  los etiquetados como error) y el contador «n de m propuestos revisados». La pestaña lleva un
-  contador con los que quedan sin revisar.
+- **Tramos**: la tabla de tramos con el etiquetado, la casilla «Solo errores» (los errores y los
+  propuestos, también los descartados, para poder cambiar de idea) y el contador «n de m
+  propuestos revisados». La pestaña lleva un contador con los que quedan sin revisar.
 - **Mapa**: «Reloj y cronometraje» plegado encima, el mapa y, a su derecha, la lista de tramos
   con su split y su pérdida; un clic en uno lo selecciona.
 - **Frente al grupo**: P4.
@@ -716,6 +716,10 @@ Los tres niveles de `docs/taxonomia.md`, sin ninguno obligatorio:
   «No» se ocultan el tipo y el subtipo y no se guardan. El lápiz está en todos los tramos, así que
   sirve también para añadir un error en un tramo no propuesto. Abrirlo selecciona el tramo en el
   mapa.
+- **La etiqueta manda** (#209): al guardarla, la vista vuelve a pedir la carrera y la fila, las
+  cifras (errores, tiempo perdido, tiempo y puesto sin errores), las frases y el resto de la app
+  cuentan el error revisado (`docs/tiempo-perdido.md`, "Errores revisados"). «Propuesto» sigue
+  siendo lo que dice el cálculo (`calculated_error`).
 - El tipo y el subtipo etiquetados salen en las notas de la fila. Una clave que ya no esté en la
   taxonomía se muestra tal cual.
 - Los botones de la fila no la seleccionan (ni con clic ni con teclado).

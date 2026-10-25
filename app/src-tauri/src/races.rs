@@ -17,11 +17,13 @@ use tramos_core::lost_time::LostTimeConfig;
 use tramos_core::model::{Event, RaceStatus};
 use tramos_core::race_format::RaceFormat;
 use tramos_core::runner_report::{RunnerLostTime, RunnerReport, runner_report};
+use tramos_core::taxonomy::LegTag;
 use tramos_store::{EventId, ResultId, Store, StoreError};
 
 use crate::import::stored_self_person;
 use crate::race_map::stored_leg_metrics;
 use crate::settings;
+use crate::tags::result_tags;
 
 /// Errores al consultar las carreras. Los mensajes van a la interfaz, en español.
 #[derive(Debug, Error)]
@@ -98,11 +100,9 @@ pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, RaceError> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(store.load_event(event_id)?),
         };
-        let lost = runner_report(event, at, &config).map(|report| report.lost_time);
-        let unreviewed_count = match &lost {
-            Some(lost) => unreviewed(store, r.result, lost)?,
-            None => 0,
-        };
+        let tags = result_tags(store, r.result)?;
+        let lost = runner_report(event, at, &config, &tags).map(|report| report.lost_time);
+        let unreviewed_count = lost.as_ref().map_or(0, |lost| unreviewed(&tags, lost));
         rows.push(RaceRow {
             event_id: r.event.0,
             result_id: r.result.0,
@@ -125,20 +125,18 @@ pub fn list_races(store: &Store) -> Result<Vec<RaceRow>, RaceError> {
     Ok(rows)
 }
 
-/// Tramos con error de un resultado cuya etiqueta aún no dice si lo fue (nivel 1 de
+/// Errores propuestos por el cálculo cuya etiqueta aún no dice si lo fueron (nivel 1 de
 /// `docs/taxonomia.md`), como el contador «n de m propuestos revisados» de la vista de carrera.
-fn unreviewed(store: &Store, result: ResultId, lost: &RunnerLostTime) -> Result<usize, RaceError> {
-    let confirmed: HashSet<usize> = store
-        .tags(result)?
-        .into_iter()
-        .filter(|t| t.tag.confirmation.is_some())
-        .map(|t| t.leg_index)
-        .collect();
-    Ok(lost
-        .legs
+fn unreviewed(tags: &[(usize, LegTag)], lost: &RunnerLostTime) -> usize {
+    let confirmed: HashSet<usize> = tags
         .iter()
-        .filter(|leg| leg.is_error && !confirmed.contains(&leg.index))
-        .count())
+        .filter(|(_, tag)| tag.confirmation.is_some())
+        .map(|(leg, _)| *leg)
+        .collect();
+    lost.legs
+        .iter()
+        .filter(|leg| leg.calculated_error && !confirmed.contains(&leg.index))
+        .count()
 }
 
 /// Una carrera con la tabla de tramos del resultado `result_id`.
@@ -147,7 +145,9 @@ pub fn race_detail(store: &Store, result_id: i64) -> Result<RaceDetail, RaceErro
     let (event_id, at) = store.result_ref(result)?;
     let event = store.load_event(event_id)?;
     let config = settings::lost_time_config(store)?;
-    let report = runner_report(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))?;
+    let tags = result_tags(store, result)?;
+    let report =
+        runner_report(&event, at, &config, &tags).ok_or(RaceError::NotAnalyzed(result_id))?;
     let (Some(class), Some(race_result)) = (event.classes.get(at.class_index), at.get(&event))
     else {
         return Err(RaceError::NotAnalyzed(result_id));
@@ -198,10 +198,12 @@ pub fn set_race_kind(store: &mut Store, result_id: i64, kind: EventKind) -> Resu
 
 /// Corredores del recorrido del resultado `result_id`, para compararse con ellos (P4).
 pub fn race_comparison(store: &Store, result_id: i64) -> Result<CourseComparison, RaceError> {
-    let (event_id, at) = store.result_ref(ResultId(result_id))?;
+    let result = ResultId(result_id);
+    let (event_id, at) = store.result_ref(result)?;
     let event = store.load_event(event_id)?;
     let config = settings::lost_time_config(store)?;
-    course_comparison(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))
+    let tags = result_tags(store, result)?;
+    course_comparison(&event, at, &config, &tags).ok_or(RaceError::NotAnalyzed(result_id))
 }
 
 /// ¿Lento o desorientado? (P2) del resultado `result_id`: la pérdida de sus tramos repartida en
@@ -211,7 +213,9 @@ pub fn race_breakdown(store: &Store, result_id: i64) -> Result<Option<RaceBreakd
     let (event_id, at) = store.result_ref(result)?;
     let event = store.load_event(event_id)?;
     let config = settings::lost_time_config(store)?;
-    let report = runner_report(&event, at, &config).ok_or(RaceError::NotAnalyzed(result_id))?;
+    let tags = result_tags(store, result)?;
+    let report =
+        runner_report(&event, at, &config, &tags).ok_or(RaceError::NotAnalyzed(result_id))?;
     let race_result = at.get(&event).ok_or(RaceError::NotAnalyzed(result_id))?;
     let metrics = stored_leg_metrics(store, result, race_result)?;
     Ok(metrics.map(|m| breakdown(&report.lost_time, &m)))
@@ -270,7 +274,7 @@ pub(crate) mod tests {
             result_index: 15,
         };
         assert_eq!(event.classes[9].name, "M-SEN");
-        let expected = runner_report(&event, at, &LostTimeConfig::default()).unwrap();
+        let expected = runner_report(&event, at, &LostTimeConfig::default(), &[]).unwrap();
         assert_eq!(detail.report, expected);
         assert_eq!(detail.report.lost_time.legs.len(), 21);
         assert_eq!(
@@ -357,6 +361,67 @@ pub(crate) mod tests {
             row.usual_performance,
             detail.report.lost_time.usual_performance
         );
+    }
+
+    /// Manda la etiqueta (#209): la vista de carrera, la lista y «Frente al grupo» cuentan los
+    /// errores revisados; el error propuesto sigue siendo el del cálculo.
+    #[test]
+    fn the_tags_decide_the_errors_of_the_race() {
+        use crate::tags::save_leg_tag;
+        use tramos_core::taxonomy::{Confirmation, LegTag};
+
+        let (mut store, result_id) = imported();
+        let before = race_detail(&store, result_id).unwrap().report.lost_time;
+        let error = before.legs.iter().find(|l| l.is_error).unwrap().clone();
+        let clean = before
+            .legs
+            .iter()
+            .find(|l| !l.is_error && l.loss_s.is_some())
+            .unwrap()
+            .clone();
+        let confirm = |c| LegTag {
+            confirmation: Some(c),
+            ..LegTag::default()
+        };
+        save_leg_tag(
+            &mut store,
+            result_id,
+            error.index,
+            confirm(Confirmation::NoError),
+        )
+        .unwrap();
+        save_leg_tag(
+            &mut store,
+            result_id,
+            clean.index,
+            confirm(Confirmation::Error),
+        )
+        .unwrap();
+
+        let after = race_detail(&store, result_id).unwrap().report.lost_time;
+        let leg = |index: usize| &after.legs[index - 1];
+        assert!(!leg(error.index).is_error && leg(error.index).calculated_error);
+        assert!(leg(clean.index).is_error && !leg(clean.index).calculated_error);
+        assert_eq!(after.error_count, before.error_count);
+        // Sale la pérdida del error descartado y entra la del marcado (0 si fue negativa).
+        let lost =
+            before.lost_time_s.unwrap() - error.loss_s.unwrap() + clean.loss_s.unwrap().max(0.0);
+        assert!((after.lost_time_s.unwrap() - lost).abs() < 1e-9);
+        assert!(
+            (after.time_without_errors_s.unwrap() - (after.total_s.unwrap() - lost)).abs() < 1e-9
+        );
+
+        let row = &list_races(&store).unwrap()[0];
+        assert_eq!(row.error_count, after.error_count);
+        assert_eq!(row.lost_time_s, after.lost_time_s);
+        let own = race_comparison(&store, result_id)
+            .unwrap()
+            .runners
+            .into_iter()
+            .find(|r| r.is_self)
+            .unwrap();
+        let errors: Vec<bool> = after.legs.iter().map(|l| l.is_error).collect();
+        assert_eq!(own.is_error, errors);
     }
 
     /// Criterio de aceptación de #17: cambiar el umbral cambia los tramos marcados como error.

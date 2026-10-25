@@ -301,6 +301,7 @@ mod tests {
                 loss_s: Some(l.loss),
                 loss_pct: Some(10.0),
                 is_error: l.error,
+                calculated_error: l.error,
                 gain_s: None,
                 cumulative_gain_s: None,
                 ideal_elapsed_s: None,

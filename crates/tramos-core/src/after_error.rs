@@ -210,6 +210,7 @@ mod tests {
                 loss_pct: Some(0.0),
                 // Un tramo corto con error no cuenta: no debe cortar la racha.
                 is_error: k == 'x' || k == 's',
+                calculated_error: k == 'x' || k == 's',
                 gain_s: None,
                 cumulative_gain_s: None,
                 ideal_elapsed_s: None,

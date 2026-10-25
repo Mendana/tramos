@@ -12,6 +12,7 @@ use crate::courses::group_by_course;
 use crate::identify::ResultRef;
 use crate::lost_time::{LostTimeConfig, analyze_course};
 use crate::model::{ControlCode, Event, RaceStatus};
+use crate::taxonomy::LegTag;
 
 /// Corredores del recorrido de un resultado, listos para compararse.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -53,20 +54,31 @@ pub struct ComparedRunner {
     pub behind_ideal_s: Vec<Option<f64>>,
     /// Pérdida de cada tramo frente a lo esperado con su rendimiento habitual.
     pub loss_s: Vec<Option<f64>>,
+    /// Del resultado pedido, el error revisado con sus etiquetas (como en su informe); de los
+    /// demás, el del cálculo.
     pub is_error: Vec<bool>,
 }
 
-/// Corredores del recorrido de `result`; `None` si `result` no existe en la carrera.
+/// Corredores del recorrido de `result`; `None` si `result` no existe en la carrera. `tags` son
+/// las etiquetas de `result` (`(tramo, etiqueta)`, con el tramo desde 1).
 pub fn course_comparison(
     event: &Event,
     result: ResultRef,
     config: &LostTimeConfig,
+    tags: &[(usize, LegTag)],
 ) -> Option<CourseComparison> {
     result.get(event)?;
     let group = group_by_course(event)
         .into_iter()
         .find(|g| g.classes.iter().any(|c| c.index == result.class_index))?;
-    let course = analyze_course(event, &group, config);
+    let mut course = analyze_course(event, &group, config);
+    if let Some(own) = course
+        .runners
+        .iter_mut()
+        .find(|r| r.class_index == result.class_index && r.result_index == result.result_index)
+    {
+        own.apply_tags(tags);
+    }
 
     let classified_total =
         |status: RaceStatus, total: Option<f64>| total.filter(|_| status == RaceStatus::Ok);
@@ -223,7 +235,7 @@ mod tests {
 
     #[test]
     fn runners_of_the_shared_course_sorted_by_total_time() {
-        let c = course_comparison(&event(), me(), &LostTimeConfig::default()).unwrap();
+        let c = course_comparison(&event(), me(), &LostTimeConfig::default(), &[]).unwrap();
         let names: Vec<&str> = c.runners.iter().map(|r| r.given_name.as_str()).collect();
         // c0 120 s; a0 y c1 empatan a 150 s (orden de la carrera); a1 no clasificado, al final.
         // b0 corre otro recorrido.
@@ -241,9 +253,9 @@ mod tests {
     fn series_match_each_runner_report() {
         let e = event();
         let config = LostTimeConfig::default();
-        let c = course_comparison(&e, me(), &config).unwrap();
+        let c = course_comparison(&e, me(), &config, &[]).unwrap();
         for runner in &c.runners {
-            let report = runner_report(&e, runner.result, &config).unwrap();
+            let report = runner_report(&e, runner.result, &config, &[]).unwrap();
             let legs = &report.lost_time.legs;
             assert_eq!(runner.total_s, report.lost_time.total_s);
             assert_eq!(
@@ -259,8 +271,36 @@ mod tests {
     }
 
     #[test]
+    fn the_tags_decide_only_the_errors_of_the_own_result() {
+        use crate::taxonomy::{Confirmation, LegTag};
+        let e = event();
+        let config = LostTimeConfig::default();
+        let tag = |confirmation| LegTag {
+            confirmation: Some(confirmation),
+            ..LegTag::default()
+        };
+        let tags = [
+            (1, tag(Confirmation::NoError)),
+            (2, tag(Confirmation::Error)),
+        ];
+        let plain = course_comparison(&e, me(), &config, &[]).unwrap();
+        let tagged = course_comparison(&e, me(), &config, &tags).unwrap();
+        for (p, t) in plain.runners.iter().zip(&tagged.runners) {
+            if t.is_self {
+                // Como en su informe con las mismas etiquetas.
+                assert_eq!(t.is_error, [false, true]);
+                let report = runner_report(&e, me(), &config, &tags).unwrap();
+                let errors: Vec<bool> = report.lost_time.legs.iter().map(|l| l.is_error).collect();
+                assert_eq!(t.is_error, errors);
+            } else {
+                assert_eq!(p, t);
+            }
+        }
+    }
+
+    #[test]
     fn winner_finishes_behind_the_ideal_by_total_minus_ideal() {
-        let c = course_comparison(&event(), me(), &LostTimeConfig::default()).unwrap();
+        let c = course_comparison(&event(), me(), &LostTimeConfig::default(), &[]).unwrap();
         let winner = &c.runners[0];
         let ideal = c.ideal_time_s.unwrap();
         let at_finish = winner.behind_ideal_s.last().copied().flatten().unwrap();
@@ -275,7 +315,7 @@ mod tests {
             result_index: 5,
         };
         assert_eq!(
-            course_comparison(&e, missing, &LostTimeConfig::default()),
+            course_comparison(&e, missing, &LostTimeConfig::default(), &[]),
             None
         );
     }

@@ -1927,6 +1927,7 @@ mod tests {
                 loss_s: l.map(|(p, _)| p),
                 loss_pct: None,
                 is_error: l.is_some_and(|(_, e)| e),
+                calculated_error: l.is_some_and(|(_, e)| e),
                 gain_s: None,
                 cumulative_gain_s: None,
                 ideal_elapsed_s: None,

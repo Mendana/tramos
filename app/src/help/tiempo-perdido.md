@@ -16,8 +16,9 @@ tramos, solo en los que de verdad se le torcieron. Es el método de WinSplits, a
    la referencia entre tu rendimiento habitual.
 5. **Pérdida**: tu split menos el tiempo esperado, en segundos y en % del esperado. Puede ser
    negativa: ese tramo lo hiciste mejor de lo que te tocaba.
-6. **Error**: un tramo con pérdida de **más de 15 s y más del 10 %**, las dos cosas. Los umbrales
-   se cambian en [Ajustes](ajustes.md).
+6. **Error**: la app **propone** como error un tramo con pérdida de **más de 15 s y más del
+   10 %**, las dos cosas. Los umbrales se cambian en [Ajustes](ajustes.md). Si lo
+   [etiquetas](carrera-tramos.md), manda lo que digas tú.
 7. **Tiempo perdido** de la carrera: la suma de las pérdidas de los tramos con error. **Tiempo sin
    errores**: tu tiempo menos el tiempo perdido.
 
@@ -34,6 +35,11 @@ tramos, solo en los que de verdad se le torcieron. Es el método de WinSplits, a
   calculan, pero no entran en las [Estadísticas](estadisticas.md).
 - Un tramo **sin picada** en una de sus balizas no tiene split ni pérdida.
 - Los umbrales son tuyos: cambiarlos recalcula al momento todas las carreras.
+- Tu etiqueta cuenta en **toda** la app: un tramo que marcas **No** o **Físico** deja de ser error
+  en las cifras de la carrera, en las [Estadísticas](estadisticas.md) y en lo que ve quien te
+  entrena. Uno que marcas **Sí** (o al que le pones tipo) pasa a serlo, aunque no llegue a los
+  umbrales; si ese tramo fue más rápido de lo esperado, no suma tiempo perdido.
+- **Físico** no es error de orientación: tampoco se resta del tiempo sin errores.
 
 Detalle técnico:
 [tiempo perdido](https://github.com/Mendana/tramos/blob/main/docs/tiempo-perdido.md).

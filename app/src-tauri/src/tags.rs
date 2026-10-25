@@ -55,6 +55,16 @@ pub fn leg_tags(store: &Store, result_id: i64) -> Result<Vec<TagView>, TagError>
         .collect())
 }
 
+/// Etiquetas de un resultado como `(tramo, etiqueta)`: con ellas el núcleo decide qué tramos
+/// fueron error (`docs/tiempo-perdido.md`, "Errores revisados").
+pub fn result_tags(store: &Store, result: ResultId) -> Result<Vec<(usize, LegTag)>, StoreError> {
+    Ok(store
+        .tags(result)?
+        .into_iter()
+        .map(|t| (t.leg_index, t.tag))
+        .collect())
+}
+
 /// Guarda la etiqueta del tramo `leg_index` (desde 1) de un resultado, en forma canónica
 /// ([`LegTag::normalized`]) y con la versión de la taxonomía. Comprueba antes que el tramo
 /// existe en el recorrido y que la etiqueta encaja en la taxonomía. Una etiqueta vacía borra la

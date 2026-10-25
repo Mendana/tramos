@@ -225,6 +225,7 @@ mod tests {
                     loss_s: l.leg.map(|(_, e)| if e { 30.0 } else { 0.0 }),
                     loss_pct: l.leg.map(|(_, e)| if e { 50.0 } else { 0.0 }),
                     is_error: l.leg.is_some_and(|(_, e)| e),
+                    calculated_error: l.leg.is_some_and(|(_, e)| e),
                     gain_s: None,
                     cumulative_gain_s: None,
                     ideal_elapsed_s: None,

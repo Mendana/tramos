@@ -317,6 +317,7 @@ mod tests {
                 loss_s: l.loss.map(|(s, _)| s),
                 loss_pct: l.loss.map(|(_, p)| p),
                 is_error: l.error,
+                calculated_error: l.error,
                 gain_s: None,
                 cumulative_gain_s: None,
                 ideal_elapsed_s: None,

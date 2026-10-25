@@ -9,17 +9,15 @@ planas, limpias y documentadas:
 | --- | --- |
 | `races.csv` | Una fila por carrera propia. |
 | `legs.csv` | Una fila por tramo de esas carreras: el formato natural para ML. |
+| `samples.csv` | **Opcional** (#219): la serie del track de cada carrera con FIT, un instante por segundo, para modelos de secuencias. |
 | `schema.json` | Cada columna con su tipo, unidad, descripción y el documento de `docs/` donde se define. |
 | `LEEME.md` | Lo mismo para una persona: cómo cargarlo y las columnas. |
 
-La serie del track por segundo (`samples.csv`, para modelos de secuencias) no está en esta
-versión del formato (#219).
-
 Todo sale del núcleo (`tramos_core::export` arma las filas y escribe el CSV, el esquema y el
 `LEEME.md`) con lo que la app ya calcula: el informe de cada carrera (`runner_report`, con las
-etiquetas del corredor), las métricas de tramo y el rendimiento físico. La app lee la base y
-llama al núcleo (`app/src-tauri/src/export.rs`, comando `export_analysis`); no recalcula nada, así
-que los números son los que se ven en pantalla.
+etiquetas del corredor), las métricas de tramo, el rendimiento físico y la serie de la carrera
+(`race_series`). La app lee la base y llama al núcleo (`app/src-tauri/src/export.rs`, comando
+`export_analysis`); no recalcula nada, así que los números son los que se ven en pantalla.
 
 ## Qué se exporta
 
@@ -32,6 +30,10 @@ que los números son los que se ven en pantalla.
   dependen de ellos (`is_error`, `lost_time_s`, `heart_rate_load`…).
 - Los mismos `race_id` mientras la carrera siga en la base de datos: son los identificadores de
   la app. Sirven para unir dos exportaciones distintas.
+- `samples.csv` solo si se marca **Incluir la serie de cada carrera** al exportar (desmarcada por
+  defecto: ocupa mucho más que las otras tablas), y sus coordenadas solo si además se marca
+  **Incluir coordenadas** (también desmarcada). Sin marcar nada, la exportación son los cuatro
+  ficheros de siempre.
 
 ## Formato
 
@@ -41,8 +43,9 @@ que los números son los que se ven en pantalla.
 - **CSV en UTF-8**, sin BOM, separado por comas, con un `\n` al final de cada línea y la
   cabecera en la primera. Los campos con coma, comillas o saltos de línea van entre comillas
   dobles, con las comillas dobladas (RFC 4180).
-- **Punto decimal** y sin separador de miles. Los números se escriben con toda su precisión (sin
-  redondear): `0.3333333333333333`.
+- **Punto decimal** y sin separador de miles. Los números de `races.csv` y `legs.csv` se escriben
+  con toda su precisión (sin redondear): `0.3333333333333333`. Los de `samples.csv` van
+  redondeados para que el fichero no pese de más (abajo).
 - **Fechas** en ISO 8601, `AAAA-MM-DD`: la fecha local de la carrera.
 - **Sí o no**: `true` o `false`.
 - **Vacío para lo que falta** (sin FIT, sin pulso, sin etiqueta, sin split…). Un vacío no es un
@@ -66,18 +69,21 @@ que los números son los que se ven en pantalla.
         { "name": "total_s", "type": "number", "unit": "s", "description": "...",
           "source": "docs/tiempo-perdido.md" }
       ]
-    }
+    },
+    { "file": "samples.csv", "description": "...", "step_s": 1.0, "columns": ["..."] }
   ]
 }
 ```
 
 `type` es `integer`, `number`, `string`, `boolean` o `date`. `unit` y `allowed_values` solo salen
-cuando hay.
+cuando hay. El esquema describe solo lo que se ha exportado: `samples.csv` solo está si se pidió, y
+con `lat` y `lon` solo si se pidieron las coordenadas. `step_s` (solo en las series) son los
+segundos entre dos filas.
 
 ## Columnas
 
-La lista es la de `RACE_COLUMNS` y `LEG_COLUMNS` en `crates/tramos-core/src/export.rs`, y un test
-comprueba que este documento nombra todas. La última columna dice dónde se define cada número.
+La lista es la de `RACE_COLUMNS`, `LEG_COLUMNS` y `SAMPLE_COLUMNS` en
+`crates/tramos-core/src/export.rs`, y un test comprueba que este documento nombra todas. La última columna dice dónde se define cada número.
 
 ### `races.csv`
 
@@ -193,6 +199,46 @@ los análisis de la app.
 | `days_since_previous_race` | integer | días | Contexto: días desde la carrera anterior (el mismo valor que en races.csv). | `docs/historico.md` |
 | `previous_leg_error` | boolean |  | Contexto: el tramo anterior fue error revisado. Vacío en el primer tramo o si el anterior no tiene pérdida. | `docs/historico.md` |
 
+### `samples.csv`
+
+La serie de la carrera de `docs/rendimiento-fisico.md` ("Serie de la carrera"), tal cual la da el
+núcleo: la misma que dibuja la pestaña Físico, pero con un instante **cada segundo** (`SAMPLES_STEP_S`;
+la pestaña usa 5 s). Un segundo es lo que piden los modelos de secuencias y sale a unas 3.600 filas
+(unos 200 KB) por hora de carrera; con 100 carreras de una hora, unos 20 MB. Más fino no tiene sentido:
+el FIT del reloj es, como mucho, a 1 Hz.
+
+- Una carrera entra si tiene FIT guardado y se ha podido alinear con las picadas (las que en
+  `races.csv` tienen `has_track` a `true`), con una fila por instante, de la salida a la meta. El
+  último instante es la meta y puede quedar a menos de un segundo del anterior. Las demás carreras
+  no tienen filas. El fichero lleva siempre la cabecera, aunque no haya ninguna fila.
+- Los vacíos son los de la serie: sin altitud, pulso o cadencia, esas columnas van vacías, y en un
+  **hueco** del track (`state` = `gap`) solo hay `t_s`, `distance_m` y `state`. El estado es el de
+  `race_physical` y la tabla de abajo cuenta el resto.
+- `leg` es el `leg` de `legs.csv`, así que se une por `race_id` y `leg`.
+- **Redondeo**, para que el fichero no pese de más: `t_s` a milisegundos, `distance_m` y
+  `altitude_m` a centímetros, las velocidades y `stride_m` a milímetros, `heart_rate_bpm` y
+  `cadence_spm` a décimas, `lat` y `lon` a 6 decimales (unos 0,1 m).
+- **Coordenadas**: `lat` y `lon` (grados) solo salen si se marca **Incluir coordenadas**. Son la
+  posición del track en el instante, interpolada en línea recta entre los dos puntos del FIT que
+  lo rodean (`tramos_core::physical_series::series_positions`, igual que la segmentación con las
+  picadas), y van vacías en los huecos. **Dicen por dónde ha corrido el usuario**, y con la fecha de
+  `races.csv`, dónde estaba: es el dato más delicado de la exportación (ver "Privacidad").
+- El orden de las filas es el de `races.csv` (de la carrera más antigua a la más reciente) y, dentro
+  de cada carrera, el del tiempo.
+
+| `race_id` | integer |  | Carrera del instante: el race_id de races.csv. | `docs/exportar-datos.md` |
+| `t_s` | number | s | Segundos desde la salida (la picada de salida), cada segundo; el último instante es la meta y puede quedar a menos de un segundo del anterior. | `docs/rendimiento-fisico.md` |
+| `distance_m` | number | m | Metros recorridos desde la salida. En un hueco del track sigue contando la línea recta. | `docs/rendimiento-fisico.md` |
+| `altitude_m` | number | m | Altitud suavizada. Vacío sin altitud y en los huecos. | `docs/rendimiento-fisico.md` |
+| `speed_mps` | number | m/s | Velocidad real: la distancia recorrida en ±5 s. Vacío en los huecos. | `docs/rendimiento-fisico.md` |
+| `flat_speed_mps` | number | m/s | Velocidad equivalente en llano, según la pendiente de la zona. Vacío sin altitud o sin pendiente medible. | `docs/rendimiento-fisico.md` |
+| `heart_rate_bpm` | number | ppm | Pulso: media de las muestras a ±5 s. Vacío sin pulso. | `docs/rendimiento-fisico.md` |
+| `cadence_spm` | number | pasos/min | Cadencia: media de las muestras a ±5 s. Vacío sin cadencia. | `docs/rendimiento-fisico.md` |
+| `stride_m` | number | m | Zancada: velocidad real entre cadencia. Vacío sin cadencia y parado. | `docs/rendimiento-fisico.md` |
+| `leg` | integer |  | Tramo del instante: el leg de legs.csv. Vacío en los huecos. | `docs/rendimiento-fisico.md` |
+| `state` | string |  | Qué hace el corredor: traslado (transit), zona de ataque de la baliza (attack), parado (stopped) o sin datos (gap). | `docs/rendimiento-fisico.md` |
+| `lat` | number | grados | Latitud del instante, interpolada en el track. Solo con las coordenadas. Vacío en los huecos. | `docs/rendimiento-fisico.md` |
+| `lon` | number | grados | Longitud del instante, interpolada en el track. Solo con las coordenadas. Vacío en los huecos. | `docs/rendimiento-fisico.md` |
 
 ## Ejemplo con pandas
 
@@ -201,6 +247,7 @@ import pandas as pd
 
 races = pd.read_csv("races.csv", parse_dates=["date"])
 legs = pd.read_csv("legs.csv")
+samples = pd.read_csv("samples.csv")  # solo si se exportó la serie
 
 # Cada tramo con los datos de su carrera.
 data = legs.merge(races, on="race_id", suffixes=("", "_race"))
@@ -211,6 +258,10 @@ print(counted.groupby("format")["is_error"].mean())
 
 # Eficiencia y desacople de las carreras con FIT, por fecha.
 print(races.loc[races["has_track"], ["date", "efficiency_m_per_beat", "decoupling_pct"]])
+
+# La serie de una carrera como secuencia, sin los huecos.
+one = samples[(samples["race_id"] == 7) & (samples["state"] != "gap")]
+print(one[["t_s", "speed_mps", "heart_rate_bpm"]].describe())
 ```
 
 Las columnas `true`/`false` se leen como booleanas; las enteras con vacíos (`place`, `effort`…)
@@ -227,10 +278,16 @@ servicio externo sin arrastrar datos de otras personas (`docs/datos-y-privacidad
   agregados que la app ya usa: la referencia del tramo (`reference_s`, la media del 25 % más
   rápido) con cuántos corredores la forman, los corredores del recorrido (`course_runners`) y los
   clasificados de la categoría (`classified`).
-- **Sin coordenadas**: no hay posiciones GPS ni el track. Hay cifras que salen de él (distancias,
-  velocidades, pulso, cadencia, subida y bajada), que son datos personales de por sí: dicen cómo
-  corre una persona, y la fecha y la distancia de una carrera pueden identificarla para quien
-  conozca la prueba.
+- **Sin coordenadas por defecto**: no hay posiciones GPS ni el track. Hay cifras que salen de él
+  (distancias, velocidades, pulso, cadencia, subida y bajada), que son datos personales de por sí:
+  dicen cómo corre una persona, y la fecha y la distancia de una carrera pueden identificarla para
+  quien conozca la prueba. La serie de `samples.csv` (si se marca) lleva esas mismas cifras
+  instante a instante, y es más identificable que los resúmenes.
+- **Coordenadas, solo si se piden**: con **Incluir coordenadas**, `samples.csv` lleva `lat` y `lon`
+  de cada segundo. Es la ruta exacta, y con la fecha de `races.csv` dice dónde estaba la persona;
+  un terreno de orientación puede ser un sitio concreto y conocido. La pantalla de exportar y el
+  `LEEME.md` lo avisan. Quien lo comparta o lo suba a un servicio externo debe hacerlo sabiendo
+  eso. Sin esa casilla (y sin la de la serie), ningún fichero lleva coordenadas.
 - Los identificadores (`race_id`, `event_id`) son números de la base de datos de la app. No llevan
   datos de nadie.
 
@@ -238,11 +295,20 @@ El fichero se escribe en la carpeta que elige el usuario y la app no lo envía a
 la carpeta ya tiene un `races.csv`, un `legs.csv`, un `schema.json` o un `LEEME.md` anteriores,
 los sustituye; los demás ficheros no se tocan.
 
+Con una excepción: si esta vez **no** se pide la serie y la carpeta ya tiene un `samples.csv`, la
+app lo **borra** y lo dice en la pantalla. Es un fichero con el nombre del formato, de una
+exportación anterior, y dejarlo junto al `schema.json` nuevo (que ya no lo cuenta) sería dejar
+datos que parecen de esta exportación y no lo son; si llevaba coordenadas, sería además dejarlas
+donde el usuario ya había decidido no sacarlas. Quien quiera conservar una exportación con la serie
+debe elegir otra carpeta.
+
 ## Pruebas
 
 - `crates/tramos-core/src/export.rs`: filas calculadas a mano (con y sin track, con y sin
-  etiqueta), escapado del CSV, el esquema, el `LEEME.md` y que este documento nombra todas las
-  columnas.
+  etiqueta, las de la serie con y sin coordenadas), escapado del CSV, el esquema, el `LEEME.md` y
+  que este documento nombra todas las columnas, también las de `samples.csv`.
+- `crates/tramos-core/src/physical_series.rs`: las posiciones de la serie, calculadas a mano.
 - `app/src-tauri/src/export.rs`: guarda una carrera con el fixture anonimizado de Baltanás y su
   FIT sintético, exporta a una carpeta temporal y comprueba las columnas, las filas y que no sale
-  ningún nombre.
+  ningún nombre; con y sin la serie, con y sin coordenadas (sin la casilla no sale ninguna) y el
+  borrado de un `samples.csv` anterior.

@@ -26,6 +26,13 @@
   tramo). Sí llevan fechas, tiempos, pulso, cadencia y velocidades del propio usuario, que dicen
   cómo corre y pueden identificarle para quien conozca la prueba: se comparten con cuidado. Los
   identificadores son los números de la base de datos. La app no envía el fichero a ningún sitio.
+  Dos casillas, **desmarcadas por defecto**, añaden más (#219): **Incluir la serie de cada
+  carrera** escribe `samples.csv`, la velocidad, el pulso y la cadencia de cada segundo (más
+  detalle que los resúmenes, y más identificable); y **Incluir coordenadas**, solo con la serie,
+  añade a cada segundo su **latitud y longitud**. Esas coordenadas dicen por dónde ha corrido el
+  usuario y, con la fecha, dónde estaba: son el dato más delicado que la app saca de sí misma, y
+  la pantalla de exportar lo avisa. Sin marcar esa casilla, ningún fichero exportado lleva
+  coordenadas.
 - Los **rivales habituales** (#193) salen de los resultados ya importados (nombre, club y tarjeta
   de cada corredor del recorrido). Se calculan al pedirlos, en local: no se guardan aparte ni van
   en los paquetes.

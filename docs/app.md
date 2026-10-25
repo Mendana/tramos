@@ -28,7 +28,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `hidden_panels` / `set_hidden_panels(ids)` | Paneles de análisis ocultos (#130), por identificador. Se leen y guardan en la base propia también mientras se ve a un atleta, así que valen para todos. |
 | `theme` / `set_theme(theme)` | Tema de la interfaz (#143): `system`, `light` o `dark`. Se lee y guarda al momento, sin pasar por `save_settings`; un valor que no se entiende es `system`. |
 | `backup_export(path)` / `backup_summary(path)` / `backup_restore(path)` | Copia de seguridad de la base (#161, abajo, "Copia de seguridad"): guardarla en `path`; leer una copia sin tocarla (fecha, carreras, etiquetas, si se actualizará) o por qué no vale; y sustituir la base por ella, guardando la de antes al lado. |
-| `export_analysis(dir)` | Exportar datos para análisis (#217, abajo, "Exportar datos para análisis"): escribe en la carpeta `dir` (la crea si no existe) `races.csv`, `legs.csv`, `schema.json` y `LEEME.md` con las carreras propias (`docs/exportar-datos.md`) y devuelve la carpeta, cuántas carreras y tramos y los ficheros. Lee siempre la base propia, aunque se esté viendo a un atleta. |
+| `export_analysis(dir, samples, coordinates)` | Exportar datos para análisis (#217, abajo, "Exportar datos para análisis"): escribe en la carpeta `dir` (la crea si no existe) `races.csv`, `legs.csv`, `schema.json` y `LEEME.md` con las carreras propias (`docs/exportar-datos.md`). Con `samples` escribe también `samples.csv` (#219), la serie de cada carrera con FIT cada segundo, y con `coordinates` (solo con `samples`) le añade `lat` y `lon`. Sin `samples` borra el `samples.csv` que hubiera de antes. Devuelve la carpeta, cuántas carreras y tramos, cuántas carreras y filas de la serie, los ficheros escritos y los borrados. Lee siempre la base propia, aunque se esté viendo a un atleta. |
 | `role_chosen` / `choose_role(role)` | Si ya se ha dicho cómo se usa la app y decirlo sin tocar los demás ajustes: `runner` (corre), `coach` (entrena) o `both` (las dos cosas; abajo, "Atletas"). |
 | `coach_runners` | Si entrena, los atletas de los que hay paquetes, por nombre visible: identificador, nombre, cuántas carreras y el instante de su paquete más reciente. |
 | `athlete_news` | Si entrena, lo nuevo de cada atleta de los que hay paquetes (#142, abajo, "Atletas"): el atleta, la última vez que se entró en él (`athletes.last_seen`; `null` = nunca) y las carreras recibidas después (fecha, nombre, formato e instante de recepción), de la más reciente a la más antigua. Solo lee los paquetes nuevos; los que no se pueden leer no salen. Si no entrena, error. |
@@ -345,6 +345,12 @@ documentadas. No pasa por «Guardar».
   (`dialog:allow-open`, la misma que usan los demás selectores de carpeta) y escribe ahí, sin más
   pasos, `races.csv` (una fila por carrera propia), `legs.csv` (una fila por tramo), `schema.json`
   y `LEEME.md`. Si ya hay ficheros con esos nombres, los sustituye; los demás no se tocan.
+- Dos casillas encima del botón, **desmarcadas** (#219): **Incluir la serie de cada carrera
+  (samples.csv)** añade `samples.csv`, la serie de `race_series` cada segundo de cada carrera con
+  FIT (puede ser grande: unas 3.600 filas por hora de carrera), y **Incluir coordenadas**, que solo
+  se activa con la serie, le añade `lat` y `lon`. Ambas llevan su aviso en pantalla: las
+  coordenadas dicen dónde ha corrido el usuario. Si se exporta sin la serie y la carpeta tenía un
+  `samples.csv` de antes, se borra y el resumen lo dice.
 - Después enseña un resumen: cuántas carreras y tramos se han exportado, en qué carpeta y qué
   ficheros. Si algo falla, el error en español y la carpeta no se toca (se arma todo antes de
   escribir).
@@ -354,8 +360,8 @@ documentadas. No pasa por «Guardar».
   otros corredores (`docs/datos-y-privacidad.md`); la pantalla lo dice antes de exportar.
 - Todo sale del núcleo (`tramos_core::export`) con lo que la app ya calcula
   (`app/src-tauri/src/export.rs`): el informe de cada carrera con las etiquetas, las métricas de
-  tramo del FIT y el rendimiento físico (`docs/rendimiento-fisico.md`). No recalcula nada.
-- La serie del track por segundo (`samples.csv`) no está todavía (#219).
+  tramo del FIT, el rendimiento físico y la serie de la carrera
+  (`docs/rendimiento-fisico.md`). No recalcula nada.
 
 ### Acerca de Tramos (#40, #159)
 

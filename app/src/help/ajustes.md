@@ -75,7 +75,7 @@ fichero a `tramos.sqlite`. Solo se guarda la última: si restauras otra vez, la 
 
 Para mirar tus carreras fuera de la app (en una hoja de cálculo, con pandas o R, o para entrenar
 un modelo) no sirve la copia de seguridad: es la base entera. Para eso está **Exportar datos…**:
-eliges una carpeta y Tramos escribe ahí cuatro ficheros.
+eliges una carpeta y Tramos escribe ahí cuatro ficheros, o cinco si pides la serie.
 
 - `races.csv`: una fila por carrera tuya, con el tiempo perdido, tus errores, el puesto y, si
   tiene FIT, las cifras físicas (eficiencia, desacople, VAM, zancada, carga…).
@@ -84,12 +84,27 @@ eliges una carpeta y Tramos escribe ahí cuatro ficheros.
   distancia, las velocidades, el pulso y el ataque. Se une con `races.csv` por `race_id`.
 - `schema.json` y `LEEME.md`: qué es cada columna, con su unidad y de dónde sale.
 
+Hay dos casillas, desmarcadas de entrada:
+
+- **Incluir la serie de cada carrera (samples.csv)** añade `samples.csv`: una fila por segundo,
+  de la salida a la meta, de cada carrera con FIT, con la distancia, la altitud, la velocidad
+  (real y en llano), el pulso, la cadencia, la zancada, el tramo y si ibas en traslado, en ataque,
+  parado o sin datos. Son los mismos números de la pestaña Físico, pero cada segundo. Sirve para
+  modelos de secuencias, y ocupa mucho más que las otras tablas: unas 3.600 filas por hora de
+  carrera.
+- **Incluir coordenadas** (solo con la serie) añade la latitud y la longitud de cada segundo.
+  **Dicen por dónde has corrido** y, con la fecha, dónde estabas: no las marques si no las
+  necesitas, y si las compartes, hazlo con mucho cuidado.
+
 Salen todas tus carreras, con los números que ves en la app: los umbrales de error de arriba, tus
 etiquetas y tus zonas de pulso de ahora. Al acabar, te dice cuántas carreras y tramos ha
-exportado. Si la carpeta ya tenía esos ficheros, los sustituye.
+exportado. Si la carpeta ya tenía esos ficheros, los sustituye. Si exportas **sin** la serie y en
+la carpeta había un `samples.csv` de una exportación anterior, **lo borra** (y te lo dice), para que
+no quede junto a un esquema que ya no lo cuenta; si quieres conservarlo, exporta en otra carpeta.
 
-**No llevan nombres de nadie** (ni el tuyo), **ni tus notas, ni coordenadas, ni los tiempos de
-los demás corredores**; de ellos, solo la referencia de cada tramo. Aun así son tus datos, con tus
+**No llevan nombres de nadie** (ni el tuyo), **ni tus notas, ni los tiempos de los demás
+corredores**; de ellos, solo la referencia de cada tramo. **Coordenadas, solo si marcas la
+casilla.** Aun así son tus datos, con tus
 fechas y tu pulso: compártelos con cuidado. Cada columna está explicada en
 [Exportar datos](https://github.com/Mendana/tramos/blob/main/docs/exportar-datos.md).
 

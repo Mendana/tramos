@@ -1,13 +1,16 @@
 //! Exportar los datos para analizarlos fuera de la app (#217): una fila por carrera
 //! (`races.csv`) y una por tramo (`legs.csv`), con un `schema.json` y un `LEEME.md` que cuentan
-//! cada columna. El formato completo está en `docs/exportar-datos.md`.
+//! cada columna. Si se pide, también la serie de cada carrera con track (`samples.csv`, #219). El
+//! formato completo está en `docs/exportar-datos.md`.
 //!
 //! Aquí no se calcula nada: las filas se arman con lo que ya dan [`crate::runner_report`], las
-//! métricas de tramo ([`crate::metrics`]) y el rendimiento físico ([`crate::physical`]). Tampoco
-//! se lee la base ni se escriben ficheros: eso lo hace la app, con estas filas y estos escritores.
+//! métricas de tramo ([`crate::metrics`]), el rendimiento físico ([`crate::physical`]) y la serie
+//! de la carrera ([`crate::physical_series`]). Tampoco se lee la base ni se escriben ficheros:
+//! eso lo hace la app, con estas filas y estos escritores.
 //!
-//! Privacidad: ninguna columna lleva nombres, notas libres, coordenadas ni resultados de otros
-//! corredores (solo la referencia del tramo, que ya se usa en toda la app).
+//! Privacidad: `races.csv` y `legs.csv` no llevan nombres, notas libres, coordenadas ni
+//! resultados de otros corredores (solo la referencia del tramo, que ya se usa en toda la app).
+//! Las coordenadas solo salen en `samples.csv` y solo si se piden (`lat` y `lon`).
 
 use std::io::{self, Write};
 
@@ -21,6 +24,7 @@ use crate::history::race_third;
 use crate::metrics::{LegMetrics, TrackMetrics};
 use crate::model::RaceStatus;
 use crate::physical::{RacePhysical, SpeedKind};
+use crate::physical_series::{RaceSeries, SeriesState};
 use crate::race_format::RaceFormat;
 use crate::runner_report::{LegReport, RunnerReport};
 use crate::taxonomy::LegTag;
@@ -28,6 +32,27 @@ use crate::taxonomy::LegTag;
 /// Versión del formato. Sube cuando se quita o cambia una columna; añadir columnas al final no
 /// la cambia.
 pub const FORMAT_VERSION: u32 = 1;
+
+/// Segundos entre un instante y el siguiente en `samples.csv`. Un segundo es lo que piden los
+/// modelos de secuencias, y cuesta unas 3.600 filas por hora de carrera (la pestaña Físico usa
+/// 5 s para dibujar).
+pub const SAMPLES_STEP_S: f64 = 1.0;
+
+/// Qué ficheros opcionales se exportan.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ExportOptions {
+    /// Incluir `samples.csv`, la serie de cada carrera con track.
+    pub samples: bool,
+    /// Añadir `lat` y `lon` a `samples.csv`. Sin `samples` no hace nada.
+    pub coordinates: bool,
+}
+
+impl ExportOptions {
+    /// Si `samples.csv` lleva las coordenadas.
+    pub fn with_coordinates(self) -> bool {
+        self.samples && self.coordinates
+    }
+}
 
 /// Errores al escribir las tablas.
 #[derive(Debug, Error)]
@@ -669,12 +694,124 @@ pub const LEG_COLUMNS: &[Column] = &[
     ),
 ];
 
+/// Estados de un instante de `samples.csv` (los de [`SeriesState`]).
+const SAMPLE_STATES: &[&str] = &["transit", "attack", "stopped", "gap"];
+
+/// Columnas de `samples.csv`, en orden: las dos últimas (`lat` y `lon`) solo salen si se piden
+/// las coordenadas.
+pub const SAMPLE_COLUMNS: &[Column] = &[
+    col(
+        "race_id",
+        Integer,
+        None,
+        "Carrera del instante: el race_id de races.csv.",
+        EXPORT,
+    ),
+    col(
+        "t_s",
+        Number,
+        Some("s"),
+        "Segundos desde la salida (la picada de salida), cada segundo; el último instante es la meta y puede quedar a menos de un segundo del anterior.",
+        PHYSICAL,
+    ),
+    col(
+        "distance_m",
+        Number,
+        Some("m"),
+        "Metros recorridos desde la salida. En un hueco del track sigue contando la línea recta.",
+        PHYSICAL,
+    ),
+    col(
+        "altitude_m",
+        Number,
+        Some("m"),
+        "Altitud suavizada. Vacío sin altitud y en los huecos.",
+        PHYSICAL,
+    ),
+    col(
+        "speed_mps",
+        Number,
+        Some("m/s"),
+        "Velocidad real: la distancia recorrida en ±5 s. Vacío en los huecos.",
+        PHYSICAL,
+    ),
+    col(
+        "flat_speed_mps",
+        Number,
+        Some("m/s"),
+        "Velocidad equivalente en llano, según la pendiente de la zona. Vacío sin altitud o sin pendiente medible.",
+        PHYSICAL,
+    ),
+    col(
+        "heart_rate_bpm",
+        Number,
+        Some("ppm"),
+        "Pulso: media de las muestras a ±5 s. Vacío sin pulso.",
+        PHYSICAL,
+    ),
+    col(
+        "cadence_spm",
+        Number,
+        Some("pasos/min"),
+        "Cadencia: media de las muestras a ±5 s. Vacío sin cadencia.",
+        PHYSICAL,
+    ),
+    col(
+        "stride_m",
+        Number,
+        Some("m"),
+        "Zancada: velocidad real entre cadencia. Vacío sin cadencia y parado.",
+        PHYSICAL,
+    ),
+    col(
+        "leg",
+        Integer,
+        None,
+        "Tramo del instante: el leg de legs.csv. Vacío en los huecos.",
+        PHYSICAL,
+    ),
+    category(
+        "state",
+        "Qué hace el corredor: traslado (transit), zona de ataque de la baliza (attack), parado (stopped) o sin datos (gap).",
+        PHYSICAL,
+        SAMPLE_STATES,
+    ),
+    col(
+        "lat",
+        Number,
+        Some("grados"),
+        "Latitud del instante, interpolada en el track. Solo con las coordenadas. Vacío en los huecos.",
+        PHYSICAL,
+    ),
+    col(
+        "lon",
+        Number,
+        Some("grados"),
+        "Longitud del instante, interpolada en el track. Solo con las coordenadas. Vacío en los huecos.",
+        PHYSICAL,
+    ),
+];
+
+/// Cuántas columnas de [`SAMPLE_COLUMNS`] salen sin las coordenadas.
+const SAMPLE_COLUMNS_WITHOUT_COORDINATES: usize = 11;
+
+/// Las columnas de `samples.csv`, con o sin `lat` y `lon`.
+pub fn sample_columns(coordinates: bool) -> &'static [Column] {
+    if coordinates {
+        SAMPLE_COLUMNS
+    } else {
+        &SAMPLE_COLUMNS[..SAMPLE_COLUMNS_WITHOUT_COORDINATES]
+    }
+}
+
 /// Una tabla exportada.
 #[derive(Debug, Clone, Copy)]
 pub struct Table {
     pub file: &'static str,
     pub description: &'static str,
     pub columns: &'static [Column],
+    /// Segundos entre filas de una serie; `None` si la tabla no es una serie.
+    pub step_s: Option<f64>,
 }
 
 /// Las tablas que se exportan, en orden.
@@ -683,13 +820,29 @@ pub const TABLES: &[Table] = &[
         file: "races.csv",
         description: "Una fila por carrera propia (sin las no presentadas).",
         columns: RACE_COLUMNS,
+        step_s: None,
     },
     Table {
         file: "legs.csv",
         description: "Una fila por tramo de cada carrera de races.csv.",
         columns: LEG_COLUMNS,
+        step_s: None,
     },
 ];
+
+/// Las tablas de una exportación: las dos de siempre y, si se pide, `samples.csv`.
+pub fn tables(options: ExportOptions) -> Vec<Table> {
+    let mut tables = TABLES.to_vec();
+    if options.samples {
+        tables.push(Table {
+            file: "samples.csv",
+            description: "La serie de cada carrera de races.csv con track alineado: una fila por instante, de la salida a la meta.",
+            columns: sample_columns(options.with_coordinates()),
+            step_s: Some(SAMPLES_STEP_S),
+        });
+    }
+    tables
+}
 
 /// Datos de una carrera que no salen de su informe.
 #[derive(Debug, Clone, PartialEq)]
@@ -913,6 +1066,57 @@ pub fn leg_records(
         .collect()
 }
 
+/// Las filas de `samples.csv` de una carrera: un instante de `series` por fila, en las columnas
+/// de [`sample_columns`]. Con `positions` (una por instante, de
+/// [`crate::physical_series::series_positions`]) añade `lat` y `lon`. Los números se redondean
+/// para que el fichero no pese de más: el tiempo a milisegundos, las distancias y la altitud a
+/// centímetros, las velocidades y la zancada a milímetros, el pulso y la cadencia a décimas y las
+/// coordenadas a 6 decimales (unos 0,1 m).
+pub fn sample_rows(
+    race_id: i64,
+    series: &RaceSeries,
+    positions: Option<&[Option<(f64, f64)>]>,
+) -> Vec<Vec<String>> {
+    series
+        .samples
+        .iter()
+        .enumerate()
+        .map(|(i, sample)| {
+            let mut cells = vec![
+                race_id.to_string(),
+                rounded(Some(sample.t_s), 3),
+                rounded(Some(sample.distance_m), 2),
+                rounded(sample.altitude_m, 2),
+                rounded(sample.speed_mps, 3),
+                rounded(sample.flat_speed_mps, 3),
+                rounded(sample.heart_rate_bpm, 1),
+                rounded(sample.cadence_spm, 1),
+                rounded(sample.stride_m, 3),
+                opt(sample.leg),
+                match sample.state {
+                    SeriesState::Transit => "transit",
+                    SeriesState::Attack => "attack",
+                    SeriesState::Stopped => "stopped",
+                    SeriesState::Gap => "gap",
+                }
+                .to_string(),
+            ];
+            if let Some(positions) = positions {
+                let position = positions.get(i).copied().flatten();
+                cells.push(rounded(position.map(|(lat, _)| lat), 6));
+                cells.push(rounded(position.map(|(_, lon)| lon), 6));
+            }
+            cells
+        })
+        .collect()
+}
+
+/// Un número redondeado a `decimals` decimales, como [`number`]; sin «-0».
+fn rounded(value: Option<f64>, decimals: i32) -> String {
+    let scale = 10f64.powi(decimals);
+    number(value.map(|v| (v * scale).round() / scale + 0.0))
+}
+
 /// Un número como texto con punto decimal; vacío si falta o no es finito.
 fn number(value: Option<f64>) -> String {
     value
@@ -970,8 +1174,24 @@ pub fn write_csv(
     columns: &[Column],
     rows: &[Vec<String>],
 ) -> Result<(), ExportError> {
+    write_csv_header(out, columns)?;
+    write_csv_rows(out, columns, rows)
+}
+
+/// Escribe la cabecera de una tabla CSV. Con [`write_csv_rows`] permite escribir una tabla grande
+/// por partes, sin tener todas las filas a la vez.
+pub fn write_csv_header(out: &mut impl Write, columns: &[Column]) -> Result<(), ExportError> {
     let header: Vec<&str> = columns.iter().map(|c| c.name).collect();
     write_record(out, &header)?;
+    Ok(())
+}
+
+/// Escribe filas de una tabla CSV, con el formato de [`write_csv`].
+pub fn write_csv_rows(
+    out: &mut impl Write,
+    columns: &[Column],
+    rows: &[Vec<String>],
+) -> Result<(), ExportError> {
     for row in rows {
         if row.len() != columns.len() {
             return Err(ExportError::RowLength {
@@ -984,16 +1204,21 @@ pub fn write_csv(
     Ok(())
 }
 
-/// El `schema.json`: la versión del formato, las convenciones y cada columna de cada tabla.
-pub fn schema_json() -> Value {
-    let tables: Vec<Value> = TABLES
+/// El `schema.json`: la versión del formato, las convenciones y cada columna de cada tabla
+/// exportada.
+pub fn schema_json(options: ExportOptions) -> Value {
+    let tables: Vec<Value> = tables(options)
         .iter()
         .map(|t| {
-            json!({
+            let mut table = json!({
                 "file": t.file,
                 "description": t.description,
                 "columns": t.columns,
-            })
+            });
+            if let (Some(step_s), Some(object)) = (t.step_s, table.as_object_mut()) {
+                object.insert("step_s".into(), json!(step_s));
+            }
+            table
         })
         .collect();
     json!({
@@ -1016,10 +1241,18 @@ pub fn schema_json() -> Value {
 pub struct ExportSummary {
     pub races: usize,
     pub legs: usize,
+    /// Carreras con filas en `samples.csv` (0 si no se exporta).
+    pub sample_races: usize,
+    /// Filas de `samples.csv` (0 si no se exporta).
+    pub sample_rows: usize,
 }
 
 /// El `LEEME.md` de la carpeta exportada.
-pub fn readme_md(summary: ExportSummary, generated_at: DateTime<Utc>) -> String {
+pub fn readme_md(
+    summary: ExportSummary,
+    options: ExportOptions,
+    generated_at: DateTime<Utc>,
+) -> String {
     let mut text = format!(
         "# Datos exportados de Tramos\n\n\
          Exportados el {} con la versión {} del formato: {} carreras y {} tramos. Los ha generado \
@@ -1027,30 +1260,52 @@ pub fn readme_md(summary: ExportSummary, generated_at: DateTime<Utc>) -> String 
          completo está en `docs/exportar-datos.md` del repositorio.\n\n\
          ## Ficheros\n\n\
          - `races.csv`: una fila por carrera tuya.\n\
-         - `legs.csv`: una fila por tramo. Se une con `races.csv` por `race_id`.\n\
-         - `schema.json`: cada columna con su tipo, unidad, descripción y el documento de `docs/` \
-         donde se define, en formato legible por programas.\n\n\
-         ## Formato\n\n\
-         CSV en UTF-8 sin BOM, separado por comas, con punto decimal, fechas ISO 8601 \
-         (AAAA-MM-DD), `true` o `false` en las columnas de sí o no y el campo vacío para lo que \
-         no hay (sin FIT, sin pulso, sin etiqueta…). Los vacíos no son ceros.\n\n\
-         ## Privacidad\n\n\
-         No hay nombres de nadie, ni notas, ni coordenadas, ni resultados de otros corredores \
-         (solo la referencia de cada tramo, que es un agregado). Aun así son tus datos: fechas, \
-         pulso y cómo corres. Compártelos con cuidado.\n\n\
-         ## Cargar los datos con pandas\n\n\
-         ```python\n\
-         import pandas as pd\n\n\
-         races = pd.read_csv(\"races.csv\", parse_dates=[\"date\"])\n\
-         legs = pd.read_csv(\"legs.csv\")\n\
-         data = legs.merge(races, on=\"race_id\", suffixes=(\"\", \"_race\"))\n\
-         ```\n",
+         - `legs.csv`: una fila por tramo. Se une con `races.csv` por `race_id`.\n",
         generated_at.format("%Y-%m-%d %H:%M UTC"),
         FORMAT_VERSION,
         summary.races,
         summary.legs,
     );
-    for table in TABLES {
+    if options.samples {
+        text.push_str(&format!(
+            "- `samples.csv`: la serie de cada carrera con track, una fila por segundo ({} filas de \
+             {} carreras). Se une con `races.csv` por `race_id` y con `legs.csv` por `race_id` y \
+             `leg`.\n",
+            summary.sample_rows, summary.sample_races,
+        ));
+    }
+    text.push_str(
+        "- `schema.json`: cada columna con su tipo, unidad, descripción y el documento de `docs/` \
+         donde se define, en formato legible por programas.\n\n\
+         ## Formato\n\n\
+         CSV en UTF-8 sin BOM, separado por comas, con punto decimal, fechas ISO 8601 \
+         (AAAA-MM-DD), `true` o `false` en las columnas de sí o no y el campo vacío para lo que \
+         no hay (sin FIT, sin pulso, sin etiqueta…). Los vacíos no son ceros.\n\n\
+         ## Privacidad\n\n",
+    );
+    text.push_str(if options.with_coordinates() {
+        "No hay nombres de nadie, ni notas, ni resultados de otros corredores (solo la referencia \
+         de cada tramo, que es un agregado). Pero `samples.csv` lleva `lat` y `lon` de cada \
+         instante: dicen por dónde has corrido y, con la fecha, dónde estabas. Aun así son tus \
+         datos: compártelos con cuidado, y más este fichero.\n\n"
+    } else {
+        "No hay nombres de nadie, ni notas, ni coordenadas, ni resultados de otros corredores \
+         (solo la referencia de cada tramo, que es un agregado). Aun así son tus datos: fechas, \
+         pulso y cómo corres. Compártelos con cuidado.\n\n"
+    });
+    text.push_str(
+        "## Cargar los datos con pandas\n\n\
+         ```python\n\
+         import pandas as pd\n\n\
+         races = pd.read_csv(\"races.csv\", parse_dates=[\"date\"])\n\
+         legs = pd.read_csv(\"legs.csv\")\n\
+         data = legs.merge(races, on=\"race_id\", suffixes=(\"\", \"_race\"))\n",
+    );
+    if options.samples {
+        text.push_str("samples = pd.read_csv(\"samples.csv\")\n");
+    }
+    text.push_str("```\n");
+    for table in tables(options) {
         text.push_str(&format!(
             "\n## Columnas de `{}`\n\n| Columna | Tipo | Unidad | Qué es | Definición |\n| --- | --- | --- | --- | --- |\n",
             table.file
@@ -1075,6 +1330,7 @@ mod tests {
     use super::*;
     use crate::model::ControlCode;
     use crate::physical::{HeartRateZones, TransitStats};
+    use crate::physical_series::SeriesSample;
     use crate::runner_report::{CourseSummary, PlaceWithoutErrors, RunnerLostTime};
     use crate::taxonomy::Confirmation;
 
@@ -1393,7 +1649,7 @@ mod tests {
 
     #[test]
     fn schema_lists_every_column_with_its_source() {
-        let schema = schema_json();
+        let schema = schema_json(ExportOptions::default());
         assert_eq!(schema["format_version"], FORMAT_VERSION);
         let tables = schema["tables"].as_array().unwrap();
         assert_eq!(tables.len(), 2);
@@ -1411,10 +1667,187 @@ mod tests {
         assert!(kind.get("unit").is_none());
     }
 
+    const WITH_SAMPLES: ExportOptions = ExportOptions {
+        samples: true,
+        coordinates: false,
+    };
+    const WITH_COORDINATES: ExportOptions = ExportOptions {
+        samples: true,
+        coordinates: true,
+    };
+
+    /// `samples.csv` solo está en el esquema si se pide, y con él su paso; `lat` y `lon` solo con
+    /// las coordenadas.
+    #[test]
+    fn schema_has_samples_only_when_asked() {
+        let files = |options| -> Vec<String> {
+            schema_json(options)["tables"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["file"].as_str().unwrap().to_string())
+                .collect()
+        };
+        assert_eq!(files(ExportOptions::default()), ["races.csv", "legs.csv"]);
+        // Las coordenadas sin la serie no hacen nada.
+        let only_coordinates = ExportOptions {
+            samples: false,
+            coordinates: true,
+        };
+        assert_eq!(files(only_coordinates), ["races.csv", "legs.csv"]);
+        assert_eq!(
+            files(WITH_SAMPLES),
+            ["races.csv", "legs.csv", "samples.csv"]
+        );
+
+        let column_names = |options| -> Vec<String> {
+            let schema = schema_json(options);
+            schema["tables"][2]["columns"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["name"].as_str().unwrap().to_string())
+                .collect()
+        };
+        assert_eq!(
+            column_names(WITH_SAMPLES),
+            [
+                "race_id",
+                "t_s",
+                "distance_m",
+                "altitude_m",
+                "speed_mps",
+                "flat_speed_mps",
+                "heart_rate_bpm",
+                "cadence_spm",
+                "stride_m",
+                "leg",
+                "state"
+            ]
+        );
+        assert_eq!(
+            &column_names(WITH_COORDINATES)[11..],
+            ["lat".to_string(), "lon".to_string()]
+        );
+        let schema = schema_json(WITH_SAMPLES);
+        assert_eq!(schema["tables"][2]["step_s"], 1.0);
+        assert_eq!(
+            schema["tables"][2]["columns"][10]["allowed_values"],
+            json!(["transit", "attack", "stopped", "gap"])
+        );
+        assert!(schema["tables"][0].get("step_s").is_none());
+    }
+
+    fn sample(t_s: f64, state: SeriesState) -> SeriesSample {
+        SeriesSample {
+            t_s,
+            distance_m: 4.0 * t_s,
+            altitude_m: Some(500.0),
+            speed_mps: Some(4.0),
+            flat_speed_mps: Some(4.5),
+            heart_rate_bpm: Some(150.0),
+            cadence_spm: Some(180.0),
+            stride_m: Some(4.0 * 60.0 / 180.0),
+            leg: Some(1),
+            state,
+        }
+    }
+
+    fn series() -> RaceSeries {
+        let gap = SeriesSample {
+            distance_m: 8.0,
+            altitude_m: None,
+            speed_mps: None,
+            flat_speed_mps: None,
+            heart_rate_bpm: None,
+            cadence_spm: None,
+            stride_m: None,
+            leg: None,
+            ..sample(2.0, SeriesState::Gap)
+        };
+        RaceSeries {
+            step_s: SAMPLES_STEP_S,
+            duration_s: 2.5,
+            samples: vec![
+                sample(0.0, SeriesState::Transit),
+                sample(1.0, SeriesState::Attack),
+                gap,
+                SeriesSample {
+                    heart_rate_bpm: None,
+                    speed_mps: Some(1.0 / 3.0),
+                    ..sample(2.5, SeriesState::Stopped)
+                },
+            ],
+            legs: vec![],
+            controls: vec![],
+        }
+    }
+
+    /// Una fila por instante, con los números de la serie en su sitio y los huecos vacíos.
+    #[test]
+    fn sample_rows_take_the_series_numbers_in_order() {
+        let rows = sample_rows(7, &series(), None);
+        assert_eq!(rows.len(), 4);
+        assert!(rows.iter().all(|r| r.len() == sample_columns(false).len()));
+        assert_eq!(rows[0].join(","), "7,0,0,500,4,4.5,150,180,1.333,1,transit");
+        assert_eq!(rows[1].join(","), "7,1,4,500,4,4.5,150,180,1.333,1,attack");
+        // Un hueco: distancia y estado, y nada más.
+        assert_eq!(rows[2].join(","), "7,2,8,,,,,,,,gap");
+        // Redondeado: 1/3 m/s a milímetros y t = 2,5 s.
+        assert_eq!(
+            rows[3].join(","),
+            "7,2.5,10,500,0.333,4.5,,180,1.333,1,stopped"
+        );
+    }
+
+    #[test]
+    fn sample_rows_add_the_coordinates_only_when_given() {
+        let positions = vec![
+            Some((40.123_456_789, -4.5)),
+            Some((40.0, -4.000_000_4)),
+            None,
+            Some((-0.000_000_1, 0.0)),
+        ];
+        let rows = sample_rows(7, &series(), Some(&positions));
+        assert!(rows.iter().all(|r| r.len() == sample_columns(true).len()));
+        let tails: Vec<String> = rows.iter().map(|r| r[11..].join(",")).collect();
+        // Seis decimales; sin «-0»; vacío en el hueco.
+        assert_eq!(tails, ["40.123457,-4.5", "40,-4", ",", "0,0"]);
+        // Sin posiciones no hay ni las columnas.
+        assert!(
+            sample_rows(7, &series(), None)
+                .iter()
+                .all(|r| r.len() == 11)
+        );
+    }
+
+    #[test]
+    fn csv_can_be_written_in_parts() {
+        let columns = sample_columns(false);
+        let mut parts = Vec::new();
+        write_csv_header(&mut parts, columns).unwrap();
+        write_csv_rows(&mut parts, columns, &sample_rows(7, &series(), None)[..2]).unwrap();
+        write_csv_rows(&mut parts, columns, &sample_rows(8, &series(), None)[2..]).unwrap();
+        let mut whole = Vec::new();
+        let mut rows = sample_rows(7, &series(), None)[..2].to_vec();
+        rows.extend_from_slice(&sample_rows(8, &series(), None)[2..]);
+        write_csv(&mut whole, columns, &rows).unwrap();
+        assert_eq!(parts, whole);
+        let text = String::from_utf8(parts).unwrap();
+        assert!(text.starts_with("race_id,t_s,distance_m,altitude_m,"));
+        assert_eq!(text.lines().count(), 1 + 4);
+    }
+
     #[test]
     fn readme_lists_the_summary_and_the_columns() {
         let at = "2026-10-25T10:30:00Z".parse().unwrap();
-        let text = readme_md(ExportSummary { races: 3, legs: 61 }, at);
+        let summary = ExportSummary {
+            races: 3,
+            legs: 61,
+            sample_races: 2,
+            sample_rows: 5400,
+        };
+        let text = readme_md(summary, ExportOptions::default(), at);
         assert!(text.contains("2026-10-25 10:30 UTC"));
         assert!(text.contains("3 carreras y 61 tramos"));
         for table in TABLES {
@@ -1422,6 +1855,35 @@ mod tests {
                 assert!(text.contains(&format!("| `{}` |", c.name)), "{}", c.name);
             }
         }
+        // Sin la serie, el LEEME no la menciona.
+        assert!(!text.contains("samples"));
+        assert!(text.contains("ni coordenadas"));
+    }
+
+    /// Con la serie, el LEEME la cuenta y avisa de las coordenadas solo si salen.
+    #[test]
+    fn readme_describes_the_series_and_warns_about_coordinates() {
+        let at = "2026-10-25T10:30:00Z".parse().unwrap();
+        let summary = ExportSummary {
+            races: 3,
+            legs: 61,
+            sample_races: 2,
+            sample_rows: 5400,
+        };
+        let plain = readme_md(summary, WITH_SAMPLES, at);
+        assert!(plain.contains("`samples.csv`: la serie de cada carrera"));
+        assert!(plain.contains("5400 filas de 2 carreras"));
+        assert!(plain.contains("samples = pd.read_csv"));
+        assert!(plain.contains("ni coordenadas"));
+        assert!(!plain.contains("| `lat` |"));
+        for c in sample_columns(false) {
+            assert!(plain.contains(&format!("| `{}` |", c.name)), "{}", c.name);
+        }
+
+        let located = readme_md(summary, WITH_COORDINATES, at);
+        assert!(located.contains("| `lat` |") && located.contains("| `lon` |"));
+        assert!(located.contains("dicen por dónde has corrido"));
+        assert!(!located.contains("ni coordenadas"));
     }
 
     /// El documento del formato nombra todas las columnas y la versión.
@@ -1430,10 +1892,14 @@ mod tests {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/exportar-datos.md");
         let doc = std::fs::read_to_string(path).unwrap();
         assert!(doc.contains(&format!("`format_version`: {FORMAT_VERSION}")));
-        // Cada tabla tiene su sección «### `fichero.csv`», en el orden de TABLES.
+        // Cada tabla tiene su sección «### `fichero.csv`», en el orden de `tables`; con las
+        // coordenadas salen todas las columnas de `samples.csv`, también `lat` y `lon`.
         let (_, rest) = doc.split_once("### `races.csv`").unwrap();
-        let (races, legs) = rest.split_once("### `legs.csv`").unwrap();
-        for (table, section) in TABLES.iter().zip([races, legs]) {
+        let (races, rest) = rest.split_once("### `legs.csv`").unwrap();
+        let (legs, samples) = rest.split_once("### `samples.csv`").unwrap();
+        let all = tables(WITH_COORDINATES);
+        assert_eq!(all.len(), 3);
+        for (table, section) in all.iter().zip([races, legs, samples]) {
             for c in table.columns {
                 assert!(
                     section.contains(&format!("| `{}` |", c.name)),

@@ -14,6 +14,10 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+- Exportar datos para análisis puede incluir ahora la serie de cada carrera con FIT
+  (`samples.csv`): una fila por segundo con la distancia, la altitud, la velocidad, el pulso, la
+  cadencia, la zancada, el tramo y el estado, para modelos de secuencias. Es opcional (casilla
+  desmarcada), y con otra casilla, también desmarcada, añade las coordenadas de cada segundo.
 - Las gráficas tienen menos texto a la vista: la explicación de cómo leer cada una está ahora en
   un **?** junto a su título. Pasa el ratón por encima (o enfócalo con el teclado) para leerla, y
   púlsalo para abrir la ayuda en la sección de esa gráfica. Los avisos sobre tus datos, como «sin

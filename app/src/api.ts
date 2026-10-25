@@ -1156,11 +1156,21 @@ export interface ExportReport {
   folder: string;
   races: number;
   legs: number;
+  /** Carreras con filas en `samples.csv` y filas en total (0 si no se pidió la serie). */
+  sample_races: number;
+  sample_rows: number;
   files: string[];
+  /** Ficheros de una exportación anterior que se han borrado (el `samples.csv` si ya no se pide). */
+  removed: string[];
 }
 
-/** Escribe en la carpeta `dir` los CSV y el esquema para analizar las carreras fuera de la app. */
-export const exportAnalysis = (dir: string) => invoke<ExportReport>("export_analysis", { dir });
+/**
+ * Escribe en la carpeta `dir` los CSV y el esquema para analizar las carreras fuera de la app.
+ * Con `samples`, también la serie de cada carrera con FIT (#219); con `coordinates` (solo con
+ * `samples`), la latitud y la longitud de cada instante.
+ */
+export const exportAnalysis = (dir: string, samples: boolean, coordinates: boolean) =>
+  invoke<ExportReport>("export_analysis", { dir, samples, coordinates });
 
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });

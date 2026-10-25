@@ -208,7 +208,7 @@ pub fn race_series(
         legs: Vec::new(),
         controls: Vec::new(),
     };
-    let Some(start) = legs.first().and_then(|(_, p)| p.first()).map(|p| p.time) else {
+    let Some(start) = series_start(segmentation) else {
         return Ok(empty);
     };
     let secs = |time: DateTime<Utc>| seconds_between(start, time);
@@ -374,6 +374,59 @@ pub fn race_series(
         legs: series_legs,
         controls,
     })
+}
+
+/// Instante de la salida de la serie: el primer punto del primer tramo con track.
+fn series_start(segmentation: &Segmentation) -> Option<DateTime<Utc>> {
+    segmentation
+        .legs
+        .iter()
+        .filter_map(|leg| leg.track.as_ref())
+        .find(|track| track.points.len() >= 2)
+        .and_then(|track| track.points.first())
+        .map(|p| p.time)
+}
+
+/// Posición `(latitud, longitud)` en grados de cada instante de `series`, en su orden: la del
+/// track interpolada en línea recta entre los dos puntos que rodean el instante, como hace la
+/// segmentación con las picadas. `None` en los instantes de hueco, donde no hay track que
+/// interpolar. `series` debe salir de `race_series` con este `track` y esta `segmentation`.
+pub fn series_positions(
+    track: &Track,
+    segmentation: &Segmentation,
+    series: &RaceSeries,
+) -> Vec<Option<(f64, f64)>> {
+    let Some(start) = series_start(segmentation) else {
+        return vec![None; series.samples.len()];
+    };
+    series
+        .samples
+        .iter()
+        .map(|sample| {
+            if sample.state == SeriesState::Gap {
+                return None;
+            }
+            let time = start + TimeDelta::microseconds((sample.t_s * 1e6).round() as i64);
+            let after = track.points.partition_point(|p| p.time <= time);
+            let next = track.points.get(after);
+            let Some(previous) = after.checked_sub(1).and_then(|i| track.points.get(i)) else {
+                return next.map(|p| (p.lat, p.lon));
+            };
+            let Some(next) = next else {
+                return Some((previous.lat, previous.lon));
+            };
+            let span = seconds_between(previous.time, next.time);
+            let f = if span > 0.0 {
+                seconds_between(previous.time, time) / span
+            } else {
+                0.0
+            };
+            Some((
+                previous.lat + f * (next.lat - previous.lat),
+                previous.lon + f * (next.lon - previous.lon),
+            ))
+        })
+        .collect()
 }
 
 /// Media de las muestras `(t, valor)` (en orden de `t`) a `half_s` o menos de `t_s`; `None` si no
@@ -769,6 +822,50 @@ mod tests {
         assert_eq!(s.legs.iter().map(|l| l.index).collect::<Vec<_>>(), [1, 3]);
         // La velocidad de después del hueco no mira lo de antes: 4 m/s.
         assert!(close(s.samples[4].speed_mps.unwrap(), 4.0));
+    }
+
+    /// La posición de cada instante se interpola en el track; en un hueco no hay.
+    #[test]
+    fn positions_are_interpolated_in_the_track_and_empty_in_gaps() {
+        // 0–5 s a 2 m/s hacia el norte, hueco de 20 s y 25–30 s a 2 m/s (50 m al norte en el 25).
+        let mut points: Vec<TrackPoint> =
+            (0..=5).map(|s| point(s as f64, 2.0 * s as f64)).collect();
+        points.extend((25..=30).map(|s| point(s as f64, 50.0 + 2.0 * (s - 25) as f64)));
+        let (track, segmentation) = one_leg(points);
+        let s = race_series(&track, &segmentation, &raw_altitude(), 1.5).unwrap();
+        let positions = series_positions(&track, &segmentation, &s);
+        assert_eq!(positions.len(), s.samples.len());
+        let north = |m: f64| 40.0 + m / M_PER_DEG;
+        // t = 0 en el primer punto; t = 1,5 entre los de 1 s y 2 s: 3 m al norte.
+        let (lat, lon) = positions[0].unwrap();
+        assert!(close(lat, north(0.0)) && close(lon, -4.0));
+        assert!(close(positions[1].unwrap().0, north(3.0)));
+        // t = 25,5 (índice 17): 1 m después del punto de 25 s.
+        assert!(close(s.samples[17].t_s, 25.5));
+        assert!(close(positions[17].unwrap().0, north(51.0)));
+        // t = 7,5 está en el hueco.
+        assert_eq!(s.samples[5].state, SeriesState::Gap);
+        assert_eq!(positions[5], None);
+        assert!(
+            positions
+                .iter()
+                .zip(&s.samples)
+                .all(|(p, x)| (x.state == SeriesState::Gap) == p.is_none())
+        );
+    }
+
+    #[test]
+    fn without_track_there_are_no_positions() {
+        let track = Track {
+            points: Vec::new(),
+            sport: None,
+        };
+        let segmentation = Segmentation {
+            controls: Vec::new(),
+            legs: Vec::new(),
+        };
+        let s = race_series(&track, &segmentation, &MetricsOptions::default(), 5.0).unwrap();
+        assert!(series_positions(&track, &segmentation, &s).is_empty());
     }
 
     #[test]

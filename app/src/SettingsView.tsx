@@ -17,6 +17,7 @@ import {
 import { THEMES, applyAndStoreTheme } from "./theme";
 import { AboutSection } from "./about";
 import { BackupSection } from "./BackupSection";
+import { ExportDataSection } from "./ExportDataSection";
 import { Notice, PageHeader } from "./ui";
 import { PANEL_GROUPS, usePanelVisibility } from "./panels";
 import ZoneEditor, { ZoneDraft, ZoneMetric, fromDraft, toDraft, zonesError } from "./ZoneEditor";
@@ -292,6 +293,13 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
     fields: <BackupSection />,
   };
 
+  const exportDataSection: Section = {
+    id: "export-data",
+    title: "Exportar datos para análisis",
+    text: "Tus carreras y tramos en tablas CSV para analizarlas fuera de la app (pandas, R, modelos). Sin nombres ni coordenadas. No pasa por «Guardar».",
+    fields: <ExportDataSection />,
+  };
+
   const aboutSection: Section = {
     id: "about",
     title: "Acerca de Tramos",
@@ -549,6 +557,7 @@ function SettingsView({ page, onSaved }: { page: "profile" | "settings"; onSaved
       panelsSection,
       coach,
       backupSection,
+      exportDataSection,
       aboutSection,
     ];
   };

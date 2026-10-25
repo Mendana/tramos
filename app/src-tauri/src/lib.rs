@@ -6,6 +6,7 @@ pub mod backup;
 pub mod batch;
 pub mod clock_offset;
 pub mod coach;
+pub mod export;
 pub mod groups;
 pub mod history;
 pub mod import;
@@ -206,6 +207,17 @@ fn backup_summary(path: String) -> Result<backup::BackupSummary, String> {
 #[tauri::command]
 fn backup_restore(state: tauri::State<'_, AppState>, path: String) -> Result<String, String> {
     backup::restore(&mut *state.store()?, &path).map_err(|e| e.to_string())
+}
+
+/// Escribe en la carpeta `dir`, que ha elegido el usuario, `races.csv`, `legs.csv`, `schema.json` y
+/// `LEEME.md` con sus carreras propias, para analizarlas fuera de la app (#217). Devuelve cuántas
+/// carreras y tramos ha exportado.
+#[tauri::command]
+fn export_analysis(
+    state: tauri::State<'_, AppState>,
+    dir: String,
+) -> Result<export::ExportReport, String> {
+    export::export_analysis(&*state.store()?, &dir).map_err(|e| e.to_string())
 }
 
 /// Si ya se ha dicho cómo se usa la app (corre, entrena o las dos cosas). Al instalar, no: la
@@ -734,6 +746,7 @@ pub fn run() -> tauri::Result<()> {
             backup_export,
             backup_summary,
             backup_restore,
+            export_analysis,
             role_chosen,
             choose_role,
             coach_runners,

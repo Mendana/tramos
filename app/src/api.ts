@@ -1151,6 +1151,17 @@ export const backupSummary = (path: string) => invoke<BackupSummary>("backup_sum
 /** Sustituye la base por la copia `path`; devuelve dónde ha quedado la de antes. */
 export const backupRestore = (path: string) => invoke<string>("backup_restore", { path });
 
+/** Lo que ha escrito `export_analysis` (#217). */
+export interface ExportReport {
+  folder: string;
+  races: number;
+  legs: number;
+  files: string[];
+}
+
+/** Escribe en la carpeta `dir` los CSV y el esquema para analizar las carreras fuera de la app. */
+export const exportAnalysis = (dir: string) => invoke<ExportReport>("export_analysis", { dir });
+
 export const previewImport = (splPath: string, fitPath: string | null, identity: RunnerIdentity) =>
   invoke<ImportPreview>("preview_import", { splPath, fitPath, identity });
 

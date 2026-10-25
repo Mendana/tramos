@@ -9,6 +9,7 @@ pub mod consistency;
 pub mod courses;
 pub mod days_off;
 pub mod event_kind;
+pub mod export;
 pub mod fatigue;
 pub mod gain_loss;
 pub mod group;

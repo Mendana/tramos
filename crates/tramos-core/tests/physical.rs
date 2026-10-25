@@ -13,6 +13,7 @@ use tramos_core::importers::{fit, spl};
 use tramos_core::metrics::{MetricsOptions, leg_metrics};
 use tramos_core::model::{RaceResult, Track};
 use tramos_core::physical::{BLOCKS, RacePhysical, SpeedKind, race_physical};
+use tramos_core::physical_series::{SeriesState, race_series};
 use tramos_core::segmentation::{Segmentation, segment};
 
 fn fixtures() -> PathBuf {
@@ -118,6 +119,73 @@ fn without_altitude_it_compares_the_real_speed() {
     // La eficiencia sigue, con la velocidad real.
     assert!(p.transit.efficiency_m_per_beat.is_some());
     assert!(p.decoupling_pct.is_some());
+}
+
+#[test]
+fn series_adds_up_to_the_physical_figures() {
+    let (track, result) = load();
+    let segmentation = segmentation(&track, &result);
+    let options = MetricsOptions::default();
+    let p = race_physical(&track, &segmentation, &options, None).unwrap();
+    // Un instante por segundo: cada uno cae en un intervalo del FIT (a 1 Hz), así que los segundos
+    // de cada estado son los de `race_physical`, salvo por los intervalos partidos en las
+    // picadas, que no empiezan en un segundo entero: como mucho 1 s por tramo y estado.
+    let s = race_series(&track, &segmentation, &options, 1.0).unwrap();
+    assert!(
+        (s.duration_s - p.duration_s).abs() < 1.0,
+        "{}",
+        s.duration_s
+    );
+    let (last, rest) = s.samples.split_last().unwrap();
+    let legs = segmentation
+        .legs
+        .iter()
+        .filter(|l| l.track.is_some())
+        .count();
+    let seconds = |wanted: SeriesState| rest.iter().filter(|x| x.state == wanted).count() as f64;
+    for (state, expected) in [
+        (SeriesState::Transit, p.transit.transit_s),
+        (SeriesState::Attack, p.attack_s),
+        (SeriesState::Gap, p.gap_s),
+    ] {
+        let diff = (seconds(state) - expected).abs();
+        assert!(diff <= legs as f64, "{state:?}: {diff}");
+    }
+    assert!((last.distance_m - p.distance_m).abs() < 1e-6);
+    // Sube y baja de verdad, y la distancia solo crece.
+    assert!(
+        s.samples
+            .windows(2)
+            .all(|w| w[1].distance_m >= w[0].distance_m)
+    );
+    let altitudes: Vec<f64> = s.samples.iter().filter_map(|x| x.altitude_m).collect();
+    assert_eq!(altitudes.len(), s.samples.len());
+    assert!(altitudes.iter().cloned().fold(f64::MIN, f64::max) > altitudes[0] + 5.0);
+    // Pulso máximo de la serie: el de `race_physical` (suavizado igual, pero centrado en los puntos
+    // del track y no en los instantes de la serie), con menos de 1 ppm de diferencia.
+    let max_hr = s
+        .samples
+        .iter()
+        .filter_map(|x| x.heart_rate_bpm)
+        .fold(f64::MIN, f64::max);
+    assert!(
+        (max_hr - p.heart_rate_max_bpm.unwrap()).abs() < 1.0,
+        "{max_hr}"
+    );
+    assert!(s.samples.iter().all(|x| x.cadence_spm.is_some()));
+    // Un tramo por cada tramo del resultado y una picada por baliza con hora.
+    let legs = segmentation
+        .legs
+        .iter()
+        .filter(|l| l.track.is_some())
+        .count();
+    assert_eq!(s.legs.len(), legs);
+    assert!(s.controls.len() >= legs);
+    assert!(s.controls.windows(2).all(|w| w[1].t_s >= w[0].t_s));
+    // Con 5 s se cubre lo mismo con menos puntos.
+    let coarse = race_series(&track, &segmentation, &options, 5.0).unwrap();
+    assert!(coarse.samples.len() < s.samples.len() / 4);
+    assert!((coarse.duration_s - s.duration_s).abs() < 1e-9);
 }
 
 /// Par real de `fixtures/private/` (fuera del repositorio), como `private_metrics` en

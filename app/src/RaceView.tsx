@@ -34,6 +34,7 @@ import { GroupComparison } from "./GroupComparison";
 import { InsightPlace, Insights, useInsightFocus } from "./Insights";
 import { LegTagsState, TagControls, TagEditor, TagSummary, typeLabel, useLegTags } from "./LegTags";
 import { PanelsOpen } from "./charts/ChartPanel";
+import PhysicalTab from "./PhysicalTab";
 import { CumulativeLossPanel, GainLossPanel, LossPanel, PerformancePanel } from "./RacePanels";
 import { TrackSvg, useMapTrack } from "./TrackThumb";
 import { ChevronRight, Notice, PageHeader, Stat, TabItem, Tabs } from "./ui";
@@ -43,7 +44,7 @@ import { useViewer } from "./viewer";
 const MapView = lazy(() => import("./MapView"));
 
 /** Pestañas de la vista de carrera (#129). */
-export type RaceTab = "summary" | "legs" | "map" | "group" | "analysis";
+export type RaceTab = "summary" | "legs" | "map" | "group" | "analysis" | "physical";
 
 /** Pestaña y panel donde está lo que justifica cada frase del resumen (#126, #144). */
 const INSIGHT_PLACES: Record<RaceInsightTarget, InsightPlace<RaceTab>> = {
@@ -84,6 +85,7 @@ function RaceView({
   onTab,
   onChanged,
   onTogether,
+  onSettings,
 }: {
   resultId: number;
   tab: RaceTab;
@@ -92,6 +94,8 @@ function RaceView({
   onChanged: () => void;
   /** Si entrena: abre la carrera con todos los atletas que la corrieron (#163). */
   onTogether?: (raceId: string, name: string | null) => void;
+  /** Abre Ajustes (la pestaña Físico manda ahí a definir las zonas de pulso). */
+  onSettings: () => void;
 }) {
   const [detail, setDetail] = useState<RaceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +144,7 @@ function RaceView({
           tab={tab}
           onTab={onTab}
           onTogether={onTogether}
+          onSettings={onSettings}
         />
       )}
     </>
@@ -154,6 +159,7 @@ function Detail({
   tab,
   onTab,
   onTogether,
+  onSettings,
 }: {
   detail: RaceDetail;
   onFormatChange: (format: RaceFormat | null) => void;
@@ -163,6 +169,7 @@ function Detail({
   tab: RaceTab;
   onTab: (tab: RaceTab) => void;
   onTogether?: (raceId: string, name: string | null) => void;
+  onSettings: () => void;
 }) {
   // Tramo seleccionado, compartido por el mapa y la tabla. Otro clic en el mismo lo quita.
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
@@ -208,6 +215,7 @@ function Detail({
     { id: "map", label: "Mapa" },
     { id: "group", label: "Frente al grupo" },
     { id: "analysis", label: "Análisis" },
+    { id: "physical", label: "Físico" },
   ];
   const legs = onlyErrors
     ? lost.legs.filter(
@@ -471,6 +479,17 @@ function Detail({
               <PerformancePanel legs={lost.legs} />
               <RaceBreakdownPanel resultId={detail.result_id} revision={trackRevision} />
             </div>
+          </PanelsOpen.Provider>
+        )}
+
+        {tab === "physical" && (
+          <PanelsOpen.Provider value={true}>
+            <PhysicalTab
+              resultId={detail.result_id}
+              revision={trackRevision}
+              legs={lost.legs}
+              onSettings={onSettings}
+            />
           </PanelsOpen.Provider>
         )}
       </div>

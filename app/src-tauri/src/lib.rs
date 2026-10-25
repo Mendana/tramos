@@ -13,6 +13,7 @@ pub mod import;
 pub mod oreplay;
 pub mod package;
 pub mod race_map;
+pub mod race_physical;
 pub mod races;
 pub mod settings;
 pub mod sharing;
@@ -44,6 +45,7 @@ use crate::groups::{GroupFields, GroupsView};
 use crate::history::HistoryView;
 use crate::import::{ImportOutcome, ImportPreview, ImportRequest};
 use crate::race_map::RaceMap;
+use crate::race_physical::PhysicalView;
 use crate::races::{RaceDetail, RaceRow};
 use crate::settings::{Role, Settings};
 use crate::sharing::{MoveReport, RaceSharing, ReceiveReport, SeenFiles, ShareReport};
@@ -597,6 +599,15 @@ fn race_map(state: tauri::State<'_, AppState>, result_id: i64) -> Result<RaceMap
     state.read(|s| race_map::race_map(s, result_id))
 }
 
+/// Pestaña Físico de un resultado: rendimiento físico, serie para las gráficas y zonas de pulso.
+#[tauri::command]
+fn race_physical(
+    state: tauri::State<'_, AppState>,
+    result_id: i64,
+) -> Result<PhysicalView, String> {
+    state.read(|s| race_physical::race_physical_view(s, result_id))
+}
+
 /// Exporta el paquete de una carrera del usuario a una carpeta (`docs/paquete.md`) con el nivel
 /// de permiso elegido. Devuelve la ruta del fichero.
 #[tauri::command]
@@ -784,6 +795,7 @@ pub fn run() -> tauri::Result<()> {
             sync_race_offset,
             race_track_line,
             race_map,
+            race_physical,
             export_race_package,
             import_race_package,
             race_sharing,

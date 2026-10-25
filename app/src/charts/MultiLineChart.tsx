@@ -120,12 +120,7 @@ export function MultiLineChart({
                 stroke={s.color}
                 strokeWidth={1}
               />
-              <text
-                className="chart-end-label"
-                x={MARGIN.left + plotW + 14}
-                y={ly}
-                dy="0.32em"
-              >
+              <text className="chart-end-label" x={MARGIN.left + plotW + 14} y={ly} dy="0.32em">
                 {s.label}
               </text>
             </g>

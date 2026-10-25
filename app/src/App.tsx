@@ -714,6 +714,7 @@ function App() {
                   onTab={(tab) => setScreen({ ...screen, tab })}
                   onChanged={refresh}
                   onTogether={coach ? openTogether : undefined}
+                  onSettings={() => navigate({ kind: "settings" })}
                 />
               )}
               {screen.kind === "history" && (

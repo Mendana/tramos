@@ -22,6 +22,12 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
   la carpeta que elijas tus carreras y tramos en tablas CSV (con un esquema que explica cada
   columna), para analizarlas fuera de la app con pandas, R o un modelo. No llevan nombres, notas
   ni coordenadas, ni los tiempos de los demás corredores.
+- Nueva pestaña **Físico** en cada carrera con FIT: tu rendimiento sin mezclarlo con la
+  orientación. Altitud, ritmo (real y ajustado a la pendiente), pulso y cadencia o zancada de la
+  salida a la meta, con el cursor sincronizado, y capas opcionales con las picadas, los tramos con
+  error y el ataque y las paradas. Debajo, la velocidad de traslado, la eficiencia, el desacople
+  (deriva cardiaca), el pulso, la VAM, la cadencia y la zancada, cómo cambian a lo largo de la
+  carrera, cómo corres según la pendiente y el tiempo en cada zona de pulso.
 
 ## 0.4.2
 

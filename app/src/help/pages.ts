@@ -4,6 +4,7 @@
 import ajustes from "./ajustes.md?raw";
 import carrera from "./carrera.md?raw";
 import carreraAnalisis from "./carrera-analisis.md?raw";
+import carreraFisico from "./carrera-fisico.md?raw";
 import carreraGrupo from "./carrera-grupo.md?raw";
 import carreraMapa from "./carrera-mapa.md?raw";
 import carreraTramos from "./carrera-tramos.md?raw";
@@ -52,6 +53,7 @@ export type HelpPageId =
   | "carrera-mapa"
   | "carrera-grupo"
   | "carrera-analisis"
+  | "carrera-fisico"
   | "estadisticas"
   | "estadisticas-donde"
   | "estadisticas-evolucion"
@@ -110,6 +112,7 @@ export const HELP_PAGES: Record<HelpPageId, HelpPage> = {
   "carrera-mapa": { source: carreraMapa, group: "race" },
   "carrera-grupo": { source: carreraGrupo, group: "race" },
   "carrera-analisis": { source: carreraAnalisis, group: "race" },
+  "carrera-fisico": { source: carreraFisico, group: "race" },
   estadisticas: { source: estadisticas, group: "history" },
   "estadisticas-donde": { source: estadisticasDonde, group: "history" },
   "estadisticas-evolucion": { source: estadisticasEvolucion, group: "history" },

@@ -95,6 +95,57 @@ La **carga** suma los minutos en cada zona por su número, empezando en 1: con 3
 porcentaje del pulso máximo. Si las zonas de Ajustes son otras, la carga solo sirve para comparar
 carreras del mismo corredor con las mismas zonas.
 
+## Serie de la carrera
+
+`tramos_core::physical_series::race_series(&Track, &Segmentation, &MetricsOptions, step_s) ->
+Result<RaceSeries, MetricsError>` da el track de la salida a la meta cada `step_s` segundos (al
+menos 1 s; la app usa 5 s) para las gráficas de la pestaña Físico (#213). La interfaz solo dibuja
+lo que recibe: ni suaviza, ni decide qué es un ataque o una parada. Los tests están en
+`crates/tramos-core/src/physical_series.rs` (tracks calculados a mano) y
+`crates/tramos-core/tests/physical.rs` (FIT sintético, contra `race_physical`).
+
+La serie empieza en el primer punto del primer tramo con track y acaba en el último punto del
+último; son `duration_s` segundos. Hay un instante en `0, step_s, 2·step_s…` y otro en la meta
+(que puede quedar más cerca del anterior). Cada instante lleva:
+
+| Campo | Qué es |
+| --- | --- |
+| `t_s` | Segundos desde la salida. |
+| `distance_m` | Metros recorridos desde la salida, sumando los intervalos de los tramos (los huecos también, como `RacePhysical::distance_m`). |
+| `altitude_m` | Altitud suavizada (`altitude_smoothing_s`); `null` sin altitud. |
+| `speed_mps` | **Velocidad real**: metros recorridos en una ventana de ±5 s (`SPEED_WINDOW_S`) entre su duración, la misma ventana que el ritmo del mapa (`docs/app.md`, "Mapa"). La ventana se recorta al tramo continuo: no cruza un hueco ni un tramo sin track. |
+| `flat_speed_mps` | **Velocidad en llano**: la real por `C(pendiente) / C(0)` (Minetti, como los trozos). La pendiente es la de la altitud suavizada en esa misma ventana; si no llega a 20 m (`GRADE_CHUNK_M`), se ensancha al doble y luego al cuádruple. `null` sin altitud o sin pendiente medible. |
+| `heart_rate_bpm` | Media de las muestras de pulso a ±5 s (`HEART_RATE_SMOOTHING_S`, la del pulso máximo); `null` si no hay ninguna. |
+| `cadence_spm` | Media de la cadencia a ±5 s (`CADENCE_SMOOTHING_S`). |
+| `stride_m` | **Zancada**: velocidad real entre cadencia suavizada, en m por paso; `null` sin cadencia o parado (menos de `stop_speed_mps`). |
+| `leg` | Número del tramo (empezando en 1); `null` en un hueco. |
+| `state` | `transit`, `attack`, `stopped` o `gap`, abajo. |
+
+### Estado de un instante
+
+El instante cae en un intervalo entre dos puntos seguidos del track y toma su estado, con las
+mismas reglas que `race_physical`: por este orden,
+
+1. `gap`: el intervalo dura más de `max_gap_s`, o no hay track en ese tiempo (un tramo sin
+   sub-track). No tiene datos: todo `null` menos `t_s` y `distance_m`.
+2. `attack`: empieza dentro de la zona de ataque de su tramo (`docs/metricas.md`, "Tiempo de
+   ataque"), parado o en movimiento.
+3. `transit`: va a `stop_speed_mps` o más.
+4. `stopped`: va más lento.
+
+Los intervalos `transit` son justo el traslado de `race_physical`, y los `attack` y `gap` sus
+`attack_s` y `gap_s`. `stopped` incluye también los segundos de después de picar que
+`stopped_s` no cuenta (`punch_grace_s`): no son traslado ni ataque. Con `step_s` = 1 y un FIT a 1 Hz,
+los segundos de cada estado coinciden con las cifras de la carrera, salvo por los intervalos
+partidos por una picada, que no empiezan en un segundo entero (como mucho 1 s por tramo).
+
+### Tramos y picadas
+
+`legs` pone cada tramo con track en la serie (`from_s`, `to_s`, `from_m`, `to_m`, y sus balizas) y
+`controls`, cada picada con hora que cae dentro de la serie (`position`, `code`, `t_s`,
+`distance_m`). Con eso la interfaz sitúa las líneas de las picadas y los tramos con error sin
+buscar nada en el track.
+
 ## Límites
 
 - **Pulso de muñeca**: tiene retraso (sube y baja medio minuto después que el esfuerzo) y saltos.
@@ -127,3 +178,8 @@ con `4 · 2,745924 / 3,6 = 3,0510` m/s. VAM: 40 m en 100 s, 1440 m/h.
 Zonas con límites 140 y 160 y pulso 130, 150 y 170 durante 60, 120 y 60 s: los intervalos de los
 cambios valen 140 y 160, así que caen en la zona de arriba: 59, 120 y 61 s. Carga:
 `(59 · 1 + 120 · 2 + 61 · 3) / 60 = 8,03`.
+
+Serie (60 s a 4 m/s, pulso 150 hasta el segundo 29 y 170 desde el 30, un instante cada 5 s): en
+el segundo 30 la ventana de ±5 s tiene 5 muestras a 150 (25 a 29) y 6 a 170 (30 a 35), así que el
+pulso es `(5 · 150 + 6 · 170) / 11 = 160,91`. Con 180 pasos/min, la zancada es `4 · 60 / 180 =
+1,3333` m. Subiendo al 10 % a 4 m/s, la velocidad en llano es `4 · 5,968214 / 3,6 = 6,6313` m/s.

@@ -70,6 +70,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `leg_tags(resultId)` | Etiquetas de los tramos del resultado, por tramo, con la versión de la taxonomía y los instantes de creación y última modificación. |
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
+| `race_physical(resultId)` | La pestaña Físico del resultado (#213, abajo, "Pestaña Físico"): `status` `no_track` (sin FIT), `not_aligned` (con el `message` de por qué, como el mapa) o `ready` con `physical` (`tramos_core::physical::race_physical`, `docs/rendimiento-fisico.md`), `series` (`tramos_core::physical_series::race_series` cada 5 s) y `zones`, las zonas de pulso de Ajustes con sus colores (`null` si no hay: en la vista de un atleta no las hay). Alinea y trocea el track guardado como `race_map` (con su desfase manual si lo tiene). |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format, kind}` (fechas `AAAA-MM-DD` incluidas, formato y tipo, `race` o `training`; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), la tendencia del IR y de la tasa de error (#192, `trends`: `tramos_core::trend`), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
 | `rivals(filter)` | Rivales habituales (#193): `tramos_core::rivals` sobre las carreras del usuario (o del atleta que se ve) que pasan `filter`, el mismo que el de `history`, con los umbrales de los ajustes. Una fila por rival con al menos 3 carreras juntas (`docs/historico.md`, "Rivales habituales"). |
 
@@ -678,6 +679,8 @@ pestaña no cuenta como otra pantalla. Desde Inicio, «Revisar» abre directamen
   ¿lento o desorientado? (P2). En este último, la descripción dice cuánto de la pérdida fue en
   el ataque y la tabla tiene una columna «Ataque» con la pérdida en el ataque de cada tramo (al
   pasar el ratón, el tiempo de ataque; #189).
+- **Físico** (#213): el rendimiento físico del track del reloj, sin mezclarlo con la orientación
+  salvo que se pida (abajo, "Pestaña Físico").
 
 En las pestañas, los paneles están siempre abiertos, sin desplegable (`PanelsOpen` en
 `ChartPanel.tsx`).
@@ -846,6 +849,51 @@ y la tabla el recorrido (`docs/segmentacion.md`).
 - Es un servicio gratuito para un uso moderado. Si el grupo creciera mucho, habría que pasar a
   un proveedor de teselas con clave o a uno propio.
 - Pedir teselas revela la zona que se mira (`docs/datos-y-privacidad.md`).
+
+## Pestaña Físico (#213)
+
+El rendimiento físico de una carrera con FIT (`PhysicalTab.tsx`, `physicalApi.ts`). Todo viene del
+comando `race_physical` (`src-tauri/src/race_physical.rs`) y, detrás, del núcleo
+(`docs/rendimiento-fisico.md`); la interfaz solo dibuja, no recalcula nada. Se vuelve a pedir
+cuando cambia el desfase del reloj. De arriba abajo:
+
+- **Avisos de lo que falta**, uno por cada cosa que el FIT no trae: pulso (o en menos de la mitad
+  de la carrera), cadencia y altitud (sin ella, las cifras usan la velocidad real). Cada cifra y
+  cada gráfica que depende de lo que falta lo dice en su sitio (una raya y el motivo, o el aviso
+  en lugar de la gráfica). Sin FIT, la pestaña lo dice y manda a importar la carrera con él; con un
+  track que no se puede situar, dice por qué y manda a «Reloj y cronometraje» del Mapa.
+- **Cifras** (`RacePhysical`): traslado (con el ataque y el parado debajo), velocidad de traslado
+  (ritmo, y en llano), eficiencia, desacople (con el cambio de pulso y de velocidad entre mitades),
+  pulso medio y máximo, VAM, cadencia, zancada (con su cambio), desnivel y carga.
+- **La carrera, de la salida a la meta** (`charts/StackedCharts.tsx`, panel `race-physical-series`):
+  gráficas apiladas con el mismo eje X, a elegir entre **tiempo** y **distancia**. De arriba abajo,
+  altitud, ritmo (el real y el ajustado a la pendiente, con lo más rápido arriba), pulso y, a
+  elegir, cadencia o zancada. Una magnitud por gráfica, cada una con su escala: nunca dos escalas en
+  una. El ritmo se ajusta a los percentiles 2 a 98 de sus valores (andar cuesta arriba no aplasta el
+  resto); lo que se sale sigue en el tooltip. Donde el estado de la serie es parado o hueco, el
+  ritmo no se dibuja. Al pasar el ratón, o con las flechas del teclado, una línea vertical sale en
+  todas a la vez y, en cada una, un tooltip: el de la primera lleva el instante, el kilómetro, el
+  tramo y el estado (traslado, ataque, parado o sin datos) y los demás, su valor. Los estados son
+  los del núcleo (`docs/rendimiento-fisico.md`, "Estado de un instante"). Capas, apagadas de
+  entrada:
+  - **Picadas**: una línea fina en cada picada con el código de la baliza (S, M), sin pisar las
+    etiquetas;
+  - **Tramos con error**: franja de fondo en los tramos con `is_error` del informe de la carrera,
+    el estado revisado (la etiqueta manda, #209);
+  - **Ataque y paradas**: franjas de fondo en dos tonos (azul el ataque, gris las paradas).
+
+  Con alguna capa, su leyenda encima. La tabla da la serie cada minuto.
+- **Deriva** (`race_physical.blocks`): eficiencia, pulso y velocidad en llano por décimas del
+  traslado, cada una en su gráfica (`LineChart` con `zeroBased={false}`: el eje sigue los datos,
+  porque en el pulso o la eficiencia lo que importa es el cambio, no el cero).
+- **Por pendiente** (`by_grade`): la velocidad real junto a la equivalente en llano en cada clase
+  de pendiente (columnas agrupadas, en km/h) y el pulso por clase (línea con un punto por clase).
+  El rango de la clase y su tiempo salen en el eje y el tooltip. Sin altitud, un aviso.
+- **Tiempo en zonas** (`heart_rate_zones`): minutos en cada zona de pulso de Ajustes, con su color
+  y el % del tiempo, y la carga en la descripción. Sin zonas, un botón a Ajustes (en la vista de un
+  atleta, un texto: su paquete no las lleva); sin pulso, el aviso.
+
+Los siete paneles se pueden ocultar (`race-physical-*`, "Carrera · Físico" en Personalizar).
 
 ## Vista histórica (P6)
 
@@ -1155,14 +1203,22 @@ no se pinta debajo del título: está en el «?» (`HelpTip`, en `ui.tsx`).
 
 Piezas:
 
-- `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0.
+- `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0
+  (`niceDomain`); para lo que no parte del 0, `niceRange` (el rango de los datos) y `niceTicks`
+  (marcas «redondas» de un eje, con pasos a elegir).
 - `ColumnChart`: una serie de columnas (también negativas), línea de referencia opcional, color por
   columna opcional y tooltip con el valor delante y el detalle detrás. Opcionalmente, una línea de
   datos en la **misma unidad y escala** (p. ej. un acumulado; sigue siendo un solo eje), franjas
   de fondo resaltadas (p. ej. rachas) y una segunda línea de etiqueta en el eje X (p. ej. el
   número de casos de cada columna).
-- `LineChart`: una línea de 2 px con un velo del 10 % hasta el 0, marcadores opcionales con un
+- `LineChart`: una línea de 2 px con un velo del 10 % hasta el 0 (o, con `zeroBased={false}`,
+  hasta la base de la gráfica, con el eje en el rango de los datos), marcadores opcionales con un
   anillo del color de la superficie y un cursor vertical que se ajusta al punto más cercano.
+- `StackedCharts`: varias gráficas de línea apiladas con el mismo eje X continuo (tiempo o
+  distancia), cada una con su escala Y propia (también invertida, o ajustada a los percentiles
+  2 a 98) y su leyenda si tiene dos series. Un cursor vertical y un tooltip sincronizados en
+  todas (ratón y teclado: flechas, Inicio, Fin, Esc), franjas de fondo y líneas verticales con
+  etiqueta como capas opcionales. Lo usa la pestaña Físico.
 - `MultiLineChart`: varias líneas sobre los mismos puntos, la destacada (el corredor) más
   gruesa, etiqueta directa al final de cada línea y tooltip con el valor de cada serie.
 - `GroupedColumnChart`: columnas agrupadas, una por serie y punto, con 2 px de separación, y

@@ -35,6 +35,7 @@ const RACE_TAB_HELP: Record<RaceTab, HelpPageId> = {
   map: "carrera-mapa",
   group: "carrera-grupo",
   analysis: "carrera-analisis",
+  physical: "carrera-fisico",
 };
 
 /** Página de cada pestaña de Estadísticas. */

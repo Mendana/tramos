@@ -168,7 +168,7 @@ pub fn leg_metrics(
     options: &MetricsOptions,
 ) -> Result<Vec<LegMetrics>, MetricsError> {
     validate(options)?;
-    let altitude = SmoothedAltitude::build(track, options);
+    let altitude = Smoothed::altitude(track, options);
     Ok(segmentation
         .legs
         .iter()
@@ -185,7 +185,7 @@ pub fn leg_metrics(
         .collect())
 }
 
-fn validate(options: &MetricsOptions) -> Result<(), MetricsError> {
+pub(crate) fn validate(options: &MetricsOptions) -> Result<(), MetricsError> {
     let non_negative = |v: f64| v.is_finite() && v >= 0.0;
     if !(options.stop_speed_mps.is_finite() && options.stop_speed_mps > 0.0) {
         return Err(MetricsError::InvalidOptions(
@@ -220,7 +220,7 @@ fn validate(options: &MetricsOptions) -> Result<(), MetricsError> {
 /// Métricas de un sub-track; `None` si tiene menos de dos puntos.
 fn track_metrics(
     points: &[TrackPoint],
-    altitude: &SmoothedAltitude,
+    altitude: &Smoothed,
     options: &MetricsOptions,
 ) -> Option<TrackMetrics> {
     if points.len() < 2 {
@@ -344,7 +344,7 @@ struct FlatDistance {
 }
 
 impl FlatDistance {
-    fn add(&mut self, from: DateTime<Utc>, to: DateTime<Utc>, d: f64, altitude: &SmoothedAltitude) {
+    fn add(&mut self, from: DateTime<Utc>, to: DateTime<Utc>, d: f64, altitude: &Smoothed) {
         let (start, _, total) = self.chunk.unwrap_or((from, to, 0.0));
         self.chunk = Some((start, to, total + d));
         if total + d >= GRADE_CHUNK_M {
@@ -352,7 +352,7 @@ impl FlatDistance {
         }
     }
 
-    fn close(&mut self, altitude: &SmoothedAltitude) {
+    fn close(&mut self, altitude: &Smoothed) {
         let Some((start, end, d)) = self.chunk.take() else {
             return;
         };
@@ -392,7 +392,7 @@ pub(crate) fn haversine_m(a: &TrackPoint, b: &TrackPoint) -> f64 {
     2.0 * EARTH_RADIUS_M * h.sqrt().min(1.0).asin()
 }
 
-fn seconds_between(a: DateTime<Utc>, b: DateTime<Utc>) -> f64 {
+pub(crate) fn seconds_between(a: DateTime<Utc>, b: DateTime<Utc>) -> f64 {
     (b - a)
         .num_microseconds()
         .map_or(f64::NAN, |us| us as f64 / 1e6)
@@ -416,36 +416,49 @@ impl WeightedMean {
     }
 }
 
-/// Altitud del track entero suavizada con una media móvil en el tiempo.
-struct SmoothedAltitude {
-    /// Instantes y altitudes suavizadas de los puntos con altitud, en orden.
+/// Serie del track entero (altitud, pulso) suavizada con una media móvil en el tiempo.
+pub(crate) struct Smoothed {
+    /// Instantes y valores suavizados de los puntos con valor, en orden.
     times: Vec<DateTime<Utc>>,
     values: Vec<f64>,
 }
 
-impl SmoothedAltitude {
-    /// Media de las altitudes a `altitude_smoothing_s` o menos de cada punto, sin cruzar huecos
-    /// de más de `max_gap_s` (a un lado y otro de un hueco el terreno puede ser otro).
-    fn build(track: &Track, options: &MetricsOptions) -> Self {
-        let raw: Vec<(DateTime<Utc>, f64)> = track
-            .points
-            .iter()
-            .filter_map(|p| Some((p.time, p.altitude_m?)))
-            .filter(|(_, alt)| alt.is_finite())
-            .collect();
+impl Smoothed {
+    /// La altitud del track con el suavizado de `options` (`altitude_smoothing_s`).
+    pub(crate) fn altitude(track: &Track, options: &MetricsOptions) -> Self {
+        Self::new(
+            track
+                .points
+                .iter()
+                .filter_map(|p| Some((p.time, p.altitude_m?))),
+            options.altitude_smoothing_s,
+            options.max_gap_s,
+        )
+    }
+
+    /// Media de los valores a `window_s` o menos de cada punto, sin cruzar huecos de más de
+    /// `max_gap_s` (a un lado y otro de un hueco el terreno puede ser otro). `samples` va en
+    /// orden de tiempo.
+    pub(crate) fn new(
+        samples: impl IntoIterator<Item = (DateTime<Utc>, f64)>,
+        window_s: f64,
+        max_gap_s: f64,
+    ) -> Self {
+        let raw: Vec<(DateTime<Utc>, f64)> =
+            samples.into_iter().filter(|(_, v)| v.is_finite()).collect();
         // Tramo continuo (sin huecos) de cada punto, para no promediar a través de un hueco.
         let mut run = Vec::with_capacity(raw.len());
         let mut current = 0usize;
         let mut previous: Option<DateTime<Utc>> = None;
         for &(t, _) in &raw {
-            if previous.is_some_and(|p| seconds_between(p, t) > options.max_gap_s) {
+            if previous.is_some_and(|p| seconds_between(p, t) > max_gap_s) {
                 current += 1;
             }
             run.push(current);
             previous = Some(t);
         }
 
-        let w = options.altitude_smoothing_s;
+        let w = window_s;
         let (mut lo, mut hi, mut sum) = (0usize, 0usize, 0.0);
         let mut values = Vec::with_capacity(raw.len());
         for (i, &(t, _)) in raw.iter().enumerate() {
@@ -466,9 +479,19 @@ impl SmoothedAltitude {
         }
     }
 
-    /// Altitud suavizada en `t`, interpolada entre los dos puntos que lo rodean; `None` fuera
-    /// del tramo con altitud o sin altitud.
-    fn at(&self, t: DateTime<Utc>) -> Option<f64> {
+    /// Mayor valor suavizado de los puntos entre `from` y `to` (incluidos); `None` si no hay.
+    pub(crate) fn max_between(&self, from: DateTime<Utc>, to: DateTime<Utc>) -> Option<f64> {
+        self.times
+            .iter()
+            .zip(&self.values)
+            .filter(|(t, _)| (from..=to).contains(*t))
+            .map(|(_, v)| *v)
+            .reduce(f64::max)
+    }
+
+    /// Valor suavizado en `t`, interpolado entre los dos puntos que lo rodean; `None` fuera
+    /// de la serie o sin valores.
+    pub(crate) fn at(&self, t: DateTime<Utc>) -> Option<f64> {
         let after = self.times.partition_point(|&p| p < t);
         if self.times.get(after) == Some(&t) {
             return self.values.get(after).copied();
@@ -481,7 +504,7 @@ impl SmoothedAltitude {
     }
 
     /// Subida y bajada acumuladas de la altitud suavizada en los instantes de `points`.
-    fn climb(&self, points: &[TrackPoint]) -> Option<(f64, f64)> {
+    pub(crate) fn climb(&self, points: &[TrackPoint]) -> Option<(f64, f64)> {
         let series: Vec<f64> = points.iter().filter_map(|p| self.at(p.time)).collect();
         if series.len() < 2 {
             return None;
@@ -779,7 +802,7 @@ mod tests {
             });
         }
         let (track, _) = one_leg(points.clone());
-        let altitude = SmoothedAltitude::build(&track, &MetricsOptions::default());
+        let altitude = Smoothed::altitude(&track, &MetricsOptions::default());
         assert_eq!(altitude.at(t0() + TimeDelta::seconds(10)), Some(100.0));
         assert_eq!(altitude.at(t0() + TimeDelta::seconds(40)), Some(200.0));
         assert_eq!(altitude.at(t0() + TimeDelta::seconds(25)), Some(150.0));

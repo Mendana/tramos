@@ -102,6 +102,11 @@ intervalo al 90 % de la pendiente no cruza el cero. En `docs/historico.md`, "¿E
 cómo te va frente a cada uno: carreras y tramos que le ganas, la diferencia mediana y si le pierdes
 fallando o sin fallar. En `docs/historico.md`, "Rivales habituales".
 
+**¿Cómo rindo en lo físico?** (#212, #213, #214) Solo el rendimiento, sin la orientación: velocidad
+de traslado (real y ajustada a la pendiente), eficiencia (metros por latido), desacople y deriva a
+lo largo de la carrera, cadencia y zancada, cómo sube y cómo baja, VAM y tiempo en zonas de pulso.
+En `docs/rendimiento-fisico.md`.
+
 ## Descartadas por ahora
 
 P12 (salida de baliza por ritmo) y P16 (ficha por corredor).

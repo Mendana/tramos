@@ -8,44 +8,41 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 - Una sección por versión, con el título exacto `## X.Y.Z`, la más nueva arriba.
 - Solo párrafos y listas con `- `, en español y en llano: lo que se ve o se puede hacer ahora, no
   detalles técnicos. Sin títulos dentro de la sección.
-- Mientras no se publica, los cambios van en `## Sin publicar`. El PR que sube la versión cambia
-  ese título por `## X.Y.Z` y deja arriba un `## Sin publicar` vacío. La release falla si no hay
-  sección para el tag.
+- Mientras no se publica, los cambios van en `## Sin publicar
 
-## Sin publicar
+## 0.5.0
 
-- Las gráficas dicen la unidad de cada eje a simple vista: «ppm», «s», «min/km» arriba a la
-  izquierda del eje vertical y «tramo», «fecha (dd/mm/aa)» o «tiempo de carrera (mm:ss)» abajo a
-  la derecha del horizontal, una sola vez en lugar de en cada número. Los ejes de porcentajes,
-  IR o recuentos dicen qué miden, y los lectores de pantalla oyen las dos unidades.
-- Exportar datos para análisis puede incluir ahora la serie de cada carrera con FIT
-  (`samples.csv`): una fila por segundo con la distancia, la altitud, la velocidad, el pulso, la
-  cadencia, la zancada, el tramo y el estado, para modelos de secuencias. Es opcional (casilla
-  desmarcada), y con otra casilla, también desmarcada, añade las coordenadas de cada segundo.
-- Nueva pestaña **Físico** en Estadísticas: cómo evoluciona tu rendimiento físico de carrera en
-  carrera (eficiencia, desacople, velocidad, pulso, VAM, cadencia, zancada y carga), con una línea
-  por formato; cómo corres en cada pendiente con todas las carreras juntas; y si te caes siempre
-  al final de la carrera. Usa las carreras con FIT, con los mismos filtros que el resto, y también
-  la ve quien entrena en las Estadísticas de un atleta.
-- Las gráficas tienen menos texto a la vista: la explicación de cómo leer cada una está ahora en
-  un **?** junto a su título. Pasa el ratón por encima (o enfócalo con el teclado) para leerla, y
-  púlsalo para abrir la ayuda en la sección de esa gráfica. Los avisos sobre tus datos, como «sin
-  altitud en 2 carreras», se quedan a la vista.
-- Exportar datos para análisis: en Ajustes, junto a la copia de seguridad, un botón escribe en
-  la carpeta que elijas tus carreras y tramos en tablas CSV (con un esquema que explica cada
-  columna), para analizarlas fuera de la app con pandas, R o un modelo. No llevan nombres, notas
-  ni coordenadas, ni los tiempos de los demás corredores.
 - Nueva pestaña **Físico** en cada carrera con FIT: tu rendimiento sin mezclarlo con la
   orientación. Altitud, ritmo (real y ajustado a la pendiente), pulso y cadencia o zancada de la
   salida a la meta, con el cursor sincronizado, y capas opcionales con las picadas, los tramos con
   error y el ataque y las paradas. Debajo, la velocidad de traslado, la eficiencia, el desacople
   (deriva cardiaca), el pulso, la VAM, la cadencia y la zancada, cómo cambian a lo largo de la
   carrera, cómo corres según la pendiente y el tiempo en cada zona de pulso.
-
+- Nueva pestaña **Físico** en Estadísticas: cómo evoluciona tu rendimiento físico de carrera en
+  carrera (eficiencia, desacople, velocidad, pulso, VAM, cadencia, zancada y carga), con una línea
+  por formato; cómo corres en cada pendiente con todas las carreras juntas; y si te caes siempre
+  al final de la carrera. Usa las carreras con FIT, con los mismos filtros que el resto, y también
+  la ve quien entrena en las Estadísticas de un atleta.
 - El ritmo ajustado a la pendiente es más realista en las bajadas: ahora sale de cómo corre la
   gente de verdad (el ajuste de Strava, basado en el pulso) y no de un modelo de laboratorio que
   suponía que bajar ahorra mucho. En las bajadas empinadas ya no parece que vayas lentísimo, y la
   eficiencia y la velocidad en llano por pendiente se pueden comparar entre subidas y bajadas.
+- Exportar datos para análisis: en Ajustes, junto a la copia de seguridad, un botón escribe en
+  la carpeta que elijas tus carreras y tramos en tablas CSV (con un esquema que explica cada
+  columna), para analizarlas fuera de la app con pandas, R o un modelo. No llevan nombres, notas
+  ni coordenadas, ni los tiempos de los demás corredores. Opcionalmente (casilla desmarcada),
+  también la serie de cada carrera con FIT (`samples.csv`): una fila por segundo con la
+  distancia, la altitud, la velocidad, el pulso, la cadencia, la zancada, el tramo y el estado,
+  para modelos de secuencias; y, con otra casilla también desmarcada, las coordenadas de cada
+  segundo.
+- Las gráficas tienen menos texto a la vista: la explicación de cómo leer cada una está ahora en
+  un **?** junto a su título. Pasa el ratón por encima (o enfócalo con el teclado) para leerla, y
+  púlsalo para abrir la ayuda en la sección de esa gráfica. Los avisos sobre tus datos, como «sin
+  altitud en 2 carreras», se quedan a la vista.
+- Las gráficas dicen la unidad de cada eje a simple vista: «ppm», «s», «min/km» arriba a la
+  izquierda del eje vertical y «tramo», «fecha (dd/mm/aa)» o «tiempo de carrera (mm:ss)» abajo a
+  la derecha del horizontal, una sola vez en lugar de en cada número. Los ejes de porcentajes,
+  IR o recuentos dicen qué miden, y los lectores de pantalla oyen las dos unidades.
 
 ## 0.4.2
 

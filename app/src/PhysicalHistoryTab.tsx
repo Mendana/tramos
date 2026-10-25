@@ -367,7 +367,7 @@ function GradePanels({ view, formats }: { view: PhysicalHistoryView; formats: nu
     { page: "estadisticas-fisico", section: "Pulso por pendiente" },
   ] as const;
   const descriptions = [
-    "Km/h reales y equivalentes en llano en cada clase de pendiente, sumando los trozos de todas las carreras (cada una pesa por su tiempo en la clase). Si subes más despacio de lo que tu ritmo en llano haría esperar, ahí pierdes. En bajada fuerte el ajuste exagera lo que se ahorra: mira la real.",
+    "Km/h reales y equivalentes en llano en cada clase de pendiente, sumando los trozos de todas las carreras (cada una pesa por su tiempo en la clase). Si subes más despacio de lo que tu ritmo en llano haría esperar, ahí pierdes.",
     "Pulso medio del traslado en cada clase, sumando los trozos de todas las carreras (cada una pesa por su tiempo con pulso). El pulso de muñeca tarda en reaccionar: en las subidas cortas se queda corto.",
   ];
   if (graded === 0) {

@@ -6,7 +6,7 @@
 //!   tramo ([`crate::metrics::attack_s`]). Paradas, huecos y ataques no son físico.
 //! - El traslado se trocea como la velocidad en llano: trozos seguidos de al menos
 //!   [`GRADE_CHUNK_M`] con su pendiente y su distancia equivalente en llano
-//!   ([`crate::metrics::running_cost`]). Las mitades, las décimas y las clases de pendiente son
+//!   ([`crate::metrics::grade_factor`]). Las mitades, las décimas y las clases de pendiente son
 //!   grupos de trozos.
 //! - La eficiencia son los metros (en llano) por latido, y el desacople, cuánto cae de la
 //!   primera mitad del traslado a la segunda.
@@ -15,8 +15,8 @@ use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::metrics::{
-    GRADE_CHUNK_M, MetricsError, MetricsOptions, Smoothed, attack_s, interval_distance_m,
-    running_cost, seconds_between, validate,
+    GRADE_CHUNK_M, MetricsError, MetricsOptions, Smoothed, attack_s, grade_factor,
+    interval_distance_m, seconds_between, validate,
 };
 use crate::model::{Track, TrackPoint};
 use crate::segmentation::Segmentation;
@@ -553,7 +553,7 @@ impl<'a> Chunker<'a> {
             .map(|(a, b)| b - a);
         chunk.flat_m = chunk
             .grade()
-            .map(|grade| chunk.distance_m * running_cost(grade) / running_cost(0.0));
+            .map(|grade| chunk.distance_m * grade_factor(grade));
         self.done.push(chunk);
     }
 }
@@ -832,15 +832,15 @@ mod tests {
         assert_eq!(p.by_grade.len(), 5);
         assert!(close(class(GradeClass::Flat).transit_s, 100.0));
         assert!(close(class(GradeClass::Flat).flat_speed_mps.unwrap(), 4.0));
-        // Subida del 10 %: 4 · 5,968214 / 3,6 = 6,631349 m/s en llano.
+        // Subida del 10 %: 4 · 1,459 = 5,836 m/s en llano.
         let up = class(GradeClass::SteepUp);
         assert!(close(up.transit_s, 100.0));
         assert!(close(up.speed_mps.unwrap(), 4.0));
-        assert!((up.flat_speed_mps.unwrap() - 6.631349).abs() < 1e-5);
-        // Bajada del 5 %: 4 · 2,745924 / 3,6 = 3,051027 m/s en llano.
+        assert!(close(up.flat_speed_mps.unwrap(), 5.836));
+        // Bajada del 5 %: 4 · (0,918 + 0,891) / 2 = 3,618 m/s en llano.
         let down = class(GradeClass::Down);
         assert!(close(down.transit_s, 100.0));
-        assert!((down.flat_speed_mps.unwrap() - 3.051027).abs() < 1e-5);
+        assert!(close(down.flat_speed_mps.unwrap(), 3.618));
         assert!(close(class(GradeClass::Up).transit_s, 0.0));
         assert_eq!(class(GradeClass::SteepDown).speed_mps, None);
         // VAM: 40 m en los 100 s de subida.

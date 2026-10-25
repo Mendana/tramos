@@ -87,8 +87,9 @@ muy distintos: filtra por formato para separarlos.
 ### Velocidad por pendiente
 
 La velocidad real y la equivalente en llano en cada clase. Si en la subida vas mucho más despacio
-de lo que tu ritmo en llano haría esperar, ahí pierdes. En **bajada fuerte** el ajuste exagera lo
-que se ahorra (ahí manda la técnica, no la energía): mira la velocidad real.
+de lo que tu ritmo en llano haría esperar, ahí pierdes. En **bajada fuerte**, el ajuste ya cuenta
+que bajar muy empinado frena: si ahí tu velocidad en llano es más baja que en el resto, bajas peor
+que la media.
 
 ### Pulso por pendiente
 
@@ -120,8 +121,8 @@ la carrera. «Sin altitud» marca las que usan la velocidad real.
 
 - **El pulso de muñeca** llega con retraso y da saltos: la eficiencia y el desacople de un día
   suelto pueden bailar. Fíate de la tendencia de varias carreras, no de un punto.
-- **El ajuste a pendiente** usa un modelo general de lo que cuesta correr cada pendiente, no el
-  tuyo, y exagera la bajada fuerte.
+- **El ajuste a pendiente** es una media de muchos corredores (el de Strava, sacado del pulso), no
+  el tuyo.
 - **Compara dentro de un formato**, y mejor entre carreras de terreno parecido: el calor, la
   vegetación o las piedras mueven la eficiencia sin que cambie tu forma.
 - **El traslado no es solo correr**: dentro también hay trozos andando mientras lees el mapa.

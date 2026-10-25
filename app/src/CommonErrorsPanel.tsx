@@ -101,16 +101,16 @@ export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
   const share = (n: number) => (t.errors > 0 ? (n / t.errors) * 100 : null);
   const untyped =
     t.untyped > 0
-      ? ` ${errorsLabel(t.untyped)} sin tipo${t.unreviewed > 0 ? ` (${t.unreviewed} sin revisar)` : ""}: ${who.pick("etiquétalos", "se etiquetan")} en la tabla de tramos de cada carrera.`
-      : "";
+      ? `${errorsLabel(t.untyped)} sin tipo${t.unreviewed > 0 ? ` (${t.unreviewed} sin revisar)` : ""}: ${who.pick("etiquétalos", "se etiquetan")} en la tabla de tramos de cada carrera.`
+      : undefined;
   const physical =
     t.physical_legs > 0
-      ? ` Aparte, ${legsLabel(t.physical_legs)} ${t.physical_legs === 1 ? "marcado" : "marcados"} como físico (${seconds(t.physical_loss_s)} perdidos): no cuentan como error de orientación.`
-      : "";
-  const description =
-    t.errors === 0
-      ? `Ningún error en estos tramos.${physical}`
-      : `Qué parte de ${who.your} ${errorsLabel(t.errors)} es de cada tipo.${untyped}${physical}`;
+      ? `Aparte, ${legsLabel(t.physical_legs)} ${t.physical_legs === 1 ? "marcado" : "marcados"} como físico (${seconds(t.physical_loss_s)} perdidos): no cuentan como error de orientación.`
+      : undefined;
+  // Los avisos de este caso, a la vista: la explicación fija va en el «?».
+  const note = [t.errors === 0 ? "Ningún error en estos tramos." : undefined, untyped, physical]
+    .filter((n) => n !== undefined)
+    .join(" ");
 
   const columns = [
     ...t.by_type.map((ty) => {
@@ -149,8 +149,10 @@ export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
       <h3 className="section-title">Errores más comunes</h3>
       <ChartPanel
         id="common-errors"
+        help={{ page: "estadisticas-donde", section: "Tipos de error" }}
         title="Tipos de error"
-        description={description}
+        description={`Qué parte de ${who.your} errores es de cada tipo.`}
+        note={note === "" ? undefined : note}
         cases={`${errorsLabel(t.errors)} · ${legsLabel(t.legs)}`}
         chart={
           <>

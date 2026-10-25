@@ -1,6 +1,8 @@
 // Componentes de la base de diseño (docs/app.md, "Diseño"): iconos, avisos, cabeceras, cifras y
 // pestañas.
-import { KeyboardEvent, ReactNode } from "react";
+import { KeyboardEvent, ReactNode, useId, useState } from "react";
+import { useOpenHelp } from "./help/open";
+import type { HelpTarget } from "./help/pages";
 
 interface IconProps {
   size?: number;
@@ -351,6 +353,81 @@ export function Tabs<T extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Botón «?» con una explicación breve que sale con el ratón encima o con el foco del teclado
+ * (`aria-describedby`; Esc la cierra) y que, al pulsarlo, abre la ayuda (`onOpen`). El texto está
+ * siempre en el DOM, escondido, para que los lectores de pantalla lo lean al enfocar el botón.
+ * Se coloca bajo el botón, o bajo el ancestro posicionado si `.help-tip` se pone en `static`.
+ */
+export function HelpTip({
+  label,
+  text,
+  onOpen,
+}: {
+  /** Nombre accesible del botón: a qué se refiere. */
+  label: string;
+  /** La explicación. */
+  text: string;
+  /** Al pulsar: abrir la ayuda. Sin él, el botón solo enseña la explicación. */
+  onOpen?: () => void;
+}) {
+  const id = useId();
+  const [shown, setShown] = useState(false);
+  return (
+    <span
+      className="help-tip"
+      onMouseEnter={() => setShown(true)}
+      onMouseLeave={() => setShown(false)}
+    >
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon help-tip-button"
+        aria-label={label}
+        aria-describedby={id}
+        onClick={onOpen}
+        onFocus={() => setShown(true)}
+        onBlur={() => setShown(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && shown) {
+            e.stopPropagation();
+            setShown(false);
+          }
+        }}
+      >
+        <HelpIcon size={16} />
+      </button>
+      <span id={id} role="tooltip" className={shown ? "help-tip-text is-shown" : "help-tip-text"}>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** Título `h3` de una tarjeta con su «?»: la explicación fija en el tooltip y, al pulsarlo, la ayuda. */
+export function TitleWithHelp({
+  title,
+  text,
+  help,
+}: {
+  title: string;
+  /** Qué enseña y cómo leerlo. */
+  text: string;
+  /** Sección de la ayuda que lo explica. */
+  help: HelpTarget;
+}) {
+  const openHelp = useOpenHelp();
+  return (
+    <div className="title-help">
+      <h3>{title}</h3>
+      <HelpTip
+        label={`Qué enseña «${title}»: abre la ayuda`}
+        text={text}
+        onOpen={openHelp === null ? undefined : () => openHelp(help)}
+      />
     </div>
   );
 }

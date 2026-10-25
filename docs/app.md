@@ -964,9 +964,17 @@ desfase, formatos, compartir y atletas). Código en `app/src/help/`.
 - **Abrirla.** «Ayuda», en el bloque «Cuenta» de la barra lateral, abre la
   portada. El botón «?» a la derecha de la cabecera, o la tecla **F1** (`help/shortcut.ts`),
   abre la página de la pantalla abierta y, en la vista de carrera y en Estadísticas, la de la
-  pestaña abierta (`views.ts`). En la propia ayuda no sale y F1 no hace nada. La ayuda es una
+  pestaña abierta (`views.ts`). El «?» junto al título de una gráfica abre la de su vista bajando
+  hasta la sección de esa gráfica (más abajo, "Anclas a secciones"). En la propia ayuda no sale y F1 no hace nada. La ayuda es una
   pantalla más: entra en «volver» y en las migas («Ayuda / Tiempo perdido»), y no lleva delante
   el nombre del atleta que se esté viendo.
+- **Anclas a secciones** (#216). Una gráfica enlaza con la sección de su página por el título
+  (`## …` o `### …`): `HelpTarget` (`pages.ts`) es `{ page, section }`. Al pulsar su «?»
+  (`HelpOpenContext`, `help/open.ts`) se abre la ayuda con `section` en la pantalla (`Screen`,
+  `kind: "help"`): `HelpScreen` baja hasta ese título, le lleva el foco y lo marca un momento
+  (`is-target`); sin `section`, la página se lee desde arriba. Las migas y «volver» no cambian.
+  Los `##` y `###` de una página no se repiten, para que el ancla caiga en el bueno (lo comprueba
+  el build).
 - **Pantalla** (`HelpScreen.tsx`): a la izquierda, el índice de todas las páginas por bloques
   (Ayuda, Pantallas, Una carrera, Estadísticas y Conceptos); a la derecha, la página. Un enlace
   a otra página la abre como otra pantalla, desde arriba.
@@ -1027,7 +1035,9 @@ partes de la pantalla, cada uno con su página de ayuda:
 - Al compilar, el plugin `helpCheck` de `app/vite.config.ts` comprueba cada `.md` de
   `app/src/help/`: que está registrado en `pages.ts`, que empieza por `# Título`, que no lleva
   HTML ni listas anidadas y que sus enlaces van a una página que existe o a un fichero del
-  repositorio que existe. Si algo falla, el build falla con la lista.
+  repositorio que existe. Y que cada `help={{ page: "…", section: "…" }}` de `app/src/**/*.tsx`
+  apunta a una página y a un título que existen (si se renombra un título, el build falla). Si
+  algo falla, el build falla con la lista.
 
 **Añadir una página**:
 
@@ -1083,8 +1093,27 @@ sistema.
 
 Cada análisis se enseña en un **panel** (`app/src/charts/ChartPanel.tsx`), siempre abierto en las
 pestañas de Estadísticas y de la vista de carrera, y con un aspa para ocultarlo (#130): título,
-número de casos en los que se apoya, una frase que explica cómo leerlo y un selector **Gráfica / Tabla**. La tabla es la vista
-accesible de la gráfica: todo valor que se ve al pasar el ratón está también en ella.
+número de casos en los que se apoya, un **«?»** junto al título y un selector **Gráfica / Tabla**.
+La tabla es la vista accesible de la gráfica: todo valor que se ve al pasar el ratón está también
+en ella.
+
+**Poco texto a la vista** (#216). La explicación fija de cada gráfica (qué enseña y cómo leerla)
+no se pinta debajo del título: está en el «?» (`HelpTip`, en `ui.tsx`).
+
+- **Con el ratón encima o con el foco del teclado**, el «?» enseña la explicación en un tooltip.
+  El texto está siempre en el DOM, escondido, y el botón lo apunta con `aria-describedby`; Esc lo
+  cierra y se puede llevar el ratón hasta él. Su nombre accesible dice a qué gráfica se refiere.
+- **Al pulsarlo**, abre la página de ayuda de esa vista bajando hasta la sección de la gráfica
+  (abajo, "Ayuda"). Cada `ChartPanel` lleva su `help={{ page, section }}`, obligatorio: no hay
+  gráfica sin sección.
+- **Los avisos que dependen de los datos se quedan a la vista**, en una línea corta junto al
+  selector (`note`): «sin altitud en 2 carreras», tramos que no se comparan, errores sin tipo o
+  sin pulso, el veredicto de una tendencia, el resumen de lo que sale. Cambian cómo se leen los
+  números, así que no se esconden. El criterio al escribir un panel: lo que es igual para
+  cualquier dato va en `description` (tooltip); lo que cuenta algo de estos datos, en `note`.
+- Lo mismo vale para las tarjetas que no son un `ChartPanel` pero llevan un texto fijo largo
+  debajo del título (la elección de ruta y los tramos que fallaron varios, en una carrera con
+  varios atletas): `TitleWithHelp`, el título con su «?».
 
 **Sin librería de gráficas** (#21): son componentes propios en SVG y React (`app/src/charts/`).
 
@@ -1139,7 +1168,7 @@ Paneles de la vista de carrera:
 | Pérdida acumulada (P3) | Tiempo perdido sumado tramo a tramo desde la salida: solo suben los tramos con error, marcados con un punto. Acaba en el tiempo perdido de la carrera. | Errores y tramos. |
 | Dónde gano y dónde pierdo (P5) | Ganancia de cada tramo frente a lo esperado (`gain_s`, arriba gano en azul, abajo pierdo en naranja), la línea del acumulado (`cumulative_gain_s`) y una franja por cada racha de dos o más tramos seguidos perdiendo (`losing_streaks`). Todo sale del núcleo (`docs/tiempo-perdido.md`). | Tramos con ganancia y rachas. |
 | Rendimiento por tramo | IR de cada tramo como columna, con la línea del 100 % (la referencia). | Tramos con IR. |
-| ¿Lento o desorientado? (P2) | Cada error de los tramos que cuentan con tres columnas, desvío, paradas y ritmo (colores de serie 1–3, en ese orden), que suman su pérdida; la descripción resume el total de los errores en segundos y en %. La tabla da todos los tramos repartidos y la relación habitual `r0`. Sin FIT, o con menos de 3 tramos sin error con track, el panel lo dice en lugar de la gráfica. Lo pide aparte (`race_breakdown`). | Errores repartidos. |
+| ¿Lento o desorientado? (P2) | Cada error de los tramos que cuentan con tres columnas, desvío, paradas y ritmo (colores de serie 1–3, en ese orden), que suman su pérdida; una línea resume el total de los errores en segundos y en %. La tabla da todos los tramos repartidos y la relación habitual `r0`. Sin FIT, o con menos de 3 tramos sin error con track, el panel lo dice en lugar de la gráfica. Lo pide aparte (`race_breakdown`). | Errores repartidos. |
 
 Bajo «Frente al grupo» (P4, `GroupComparison.tsx`), el corredor junto a compañeros elegidos de
 su mismo recorrido (hasta 3, de entrada el ganador del recorrido). Las fichas de arriba eligen a

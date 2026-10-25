@@ -64,9 +64,7 @@ carrera. Las carreras sin [formato](formatos.md) salen en su propia fila.
 - **Por formato**: una tabla con sprint, media, larga (y sin formato, si hay) y el total:
   carreras, tramos que cuentan, errores, IR medio, tasa de error, pérdida por tramo en segundos y
   en % y consistencia.
-- **Gráficas por formato**: IR medio (con la línea del 100 %), tasa de error y pérdida por tramo
-  en %. En %, porque los tramos de un sprint duran mucho menos que los de una larga y los segundos
-  no se pueden comparar.
+- **Gráficas por formato**: tres gráficas con una columna por formato (explicadas más abajo).
 - **Carreras**: las que entran con los filtros, con sus números. Un clic abre la carrera.
 - **Tus rivales**: quien coincide contigo en el mismo recorrido en 3 carreras o más. Por cada
   uno, cuántas carreras le ganas, la diferencia mediana (tu tiempo menos el suyo: negativa si
@@ -79,6 +77,22 @@ carrera. Las carreras sin [formato](formatos.md) salen en su propia fila.
 Se reconoce a cada rival por su nombre (y su tarjeta, si dos se llaman igual). Si alguien escribe
 su nombre de otra forma en otra carrera, sale como otra persona.
 
+## Gráficas por formato
+
+Tres gráficas, una columna por formato ([Formatos](formatos.md)):
+
+- **IR medio por formato**: la media de tu [rendimiento habitual](ir.md) en las carreras de cada
+  formato, con la línea del 100 % (ir tan rápido como la referencia del recorrido). Por debajo,
+  más lento.
+- **Tasa de error por formato**: qué parte de tus tramos acaban en error. Cuentan los tramos con
+  pérdida, salvo el último y los de referencia corta (arriba, «Qué tramos cuentan»).
+- **Pérdida media por tramo**: el tiempo perdido en errores repartido entre todos tus tramos, en
+  % del tiempo esperado. En %, porque los tramos de un sprint duran mucho menos que los de una
+  larga y los segundos no se pueden comparar; en la tabla también salen en segundos.
+
+> En sprint tu IR medio es 96 % y en larga 84 %; la tasa de error pasa del 6 % al 19 %. Te sale
+> mejor lo corto: en lo largo pierdes más tramos y más seguido. (Números inventados.)
+
 ## Ocultar paneles
 
 Cada panel tiene un aspa para ocultarlo. **Personalizar**, junto a las pestañas, abre la lista de
@@ -88,6 +102,11 @@ esfuerzo percibido. Si ocultas un panel mientras ves a un atleta, se oculta tamb
 
 Cada panel dice en cuántos casos se apoya (n): con pocos casos, una cifra llamativa puede ser
 casualidad.
+
+Junto al título de cada panel hay un **?**: con el ratón encima (o con el teclado) te explica en
+una frase qué enseña y cómo leerlo, y si lo pulsas abre la ayuda en la sección de ese panel. Lo que
+se ve escrito debajo del título son avisos sobre tus datos con esos filtros (por ejemplo, «sin
+altitud en 2 carreras»), que cambian cómo leer los números.
 
 Detalle técnico:
 [histórico](https://github.com/Mendana/tramos/blob/main/docs/historico.md).

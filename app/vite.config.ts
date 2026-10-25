@@ -15,6 +15,9 @@ const host = process.env.TAURI_DEV_HOST;
 // - Sus enlaces van a otra página que existe (`otra.md`) o a un fichero del repositorio que
 //   existe (`https://github.com/Mendana/tramos/blob/main/docs/...`). Ningún otro destino.
 //
+// - Cada sección que una gráfica pide a la ayuda (`help={{ page: "…", section: "…" }}` en
+//   `src/**/*.tsx`: el «?» de su título) existe: la página tiene un `##` o `###` con ese título.
+//
 // Que cada pantalla y pestaña tenga su página lo comprueba `tsc` (`src/help/views.ts`).
 const DOCS_BASE = "https://github.com/Mendana/tramos/blob/main/";
 const HELP_DIR = new URL("./src/help/", import.meta.url);
@@ -30,6 +33,12 @@ function problemsOf(name: string, source: string, registry: string): string[] {
   if (/<\/?[a-zA-Z!]/.test(withoutCode)) problems.push("lleva HTML: usa solo Markdown");
   if (/^[ \t]+([-*]|\d+\.)\s/m.test(source))
     problems.push("lleva listas anidadas: solo hay un nivel");
+  const titles = source.split("\n").flatMap((l) => /^#{2,3}\s+(.*?)\s*$/.exec(l)?.slice(1) ?? []);
+  for (const t of titles) {
+    if (titles.indexOf(t) !== titles.lastIndexOf(t)) {
+      problems.push(`el título «${t}» está repetido: los «?» de las gráficas enlazan por título`);
+    }
+  }
   for (const match of withoutCode.matchAll(/\]\(([^)\s]*)\)/g)) {
     const href: string = match[1];
     const internal = /^([a-z0-9-]+\.md)$/.exec(href);
@@ -49,6 +58,34 @@ function problemsOf(name: string, source: string, registry: string): string[] {
   return problems.map((p) => `src/help/${name}: ${p}`);
 }
 
+/** Las secciones de ayuda que piden los `.tsx` de `src/` y que no existen en su página. */
+function sectionProblems(): string[] {
+  const SRC = new URL("./src/", import.meta.url);
+  const files = (readdirSync(SRC, { recursive: true }) as string[]).filter((f) =>
+    f.endsWith(".tsx"),
+  );
+  const problems: string[] = [];
+  for (const file of files) {
+    const source: string = readFileSync(new URL(file, SRC), "utf8");
+    for (const m of source.matchAll(/page:\s*"([a-z0-9-]+)",\s*section:\s*"([^"]+)"/g)) {
+      const [, page, section] = m;
+      const pageFile = new URL(`${page}.md`, HELP_DIR);
+      if (!existsSync(pageFile)) {
+        problems.push(`src/${file}: pide la página ${page}, que no existe`);
+        continue;
+      }
+      const titles = (readFileSync(pageFile, "utf8") as string)
+        .split("\n")
+        .map((line) => /^#{2,3}\s+(.*?)\s*$/.exec(line)?.[1])
+        .filter((t) => t !== undefined);
+      if (!titles.includes(section)) {
+        problems.push(`src/${file}: la página ${page} no tiene la sección «${section}»`);
+      }
+    }
+  }
+  return problems;
+}
+
 function helpCheck(): Plugin {
   return {
     name: "tramos-help-check",
@@ -56,9 +93,12 @@ function helpCheck(): Plugin {
     buildStart() {
       const registry: string = readFileSync(new URL("pages.ts", HELP_DIR), "utf8");
       const names = (readdirSync(HELP_DIR) as string[]).filter((f) => f.endsWith(".md")).sort();
-      const problems = names.flatMap((name) =>
-        problemsOf(name, readFileSync(new URL(name, HELP_DIR), "utf8"), registry),
-      );
+      const problems = [
+        ...names.flatMap((name) =>
+          problemsOf(name, readFileSync(new URL(name, HELP_DIR), "utf8"), registry),
+        ),
+        ...sectionProblems(),
+      ];
       if (problems.length > 0) {
         this.error(`Páginas de ayuda con problemas:\n${problems.join("\n")}`);
       }

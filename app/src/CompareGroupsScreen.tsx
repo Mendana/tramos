@@ -330,6 +330,7 @@ function ErrorTypesPanel({
   return (
     <ChartPanel
       id="groups-error-types"
+      help={{ page: "comparar-grupos", section: "Tipos de error de cada grupo" }}
       title="Tipos de error de cada grupo"
       description="Qué parte de los errores de orientación de cada grupo es de cada tipo (los sin tipo cuentan en el total)."
       cases={`${view.a.orientation_errors} y ${view.b.orientation_errors} errores`}
@@ -392,6 +393,7 @@ function LegLengthPanel({ view, names }: { view: GroupsComparison; names: string
   return (
     <ChartPanel
       id="groups-leg-length"
+      help={{ page: "comparar-grupos", section: "Tasa de error según duración del tramo" }}
       title="Tasa de error según duración del tramo"
       description="Errores entre tramos de cada duración de referencia (P7), en cada grupo."
       cases={`${view.a.stats.legs} y ${view.b.stats.legs} tramos`}
@@ -456,6 +458,7 @@ function SlopePanel({ view, names }: { view: GroupsComparison; names: string[] }
   return (
     <ChartPanel
       id="groups-slope"
+      help={{ page: "comparar-grupos", section: "IR medio según desnivel" }}
       title="IR medio según desnivel"
       description="IR medio de los tramos en subida, llano y bajada (P13), en cada grupo. Solo las carreras con track."
       cases={`${classes.length} clases`}

@@ -69,8 +69,10 @@ export function DaysOffPanel({
       <h3 className="section-title">Días sin competir</h3>
       <ChartPanel
         id="days-off-entry"
+        help={{ page: "estadisticas-evolucion", section: "Días sin competir" }}
         title="IR al entrar en mapa"
-        description={`IR medio de los tres primeros tramos de ${who.your} carreras, según los días desde la carrera anterior (cualquiera, pase o no los filtros), frente a ${who.pick("tu IR medio", "su IR medio", "el IR medio del grupo")}. ${who.pick("Si entras peor", "Si entra peor", "Si entran peor")} en mapa tras días sin competir, las columnas de la derecha quedan más bajas. ${firstLegs}.`}
+        description={`IR medio de los tres primeros tramos de ${who.your} carreras, según los días desde la carrera anterior (cualquiera, pase o no los filtros), frente a ${who.pick("tu IR medio", "su IR medio", "el IR medio del grupo")}. ${who.pick("Si entras peor", "Si entra peor", "Si entran peor")} en mapa tras días sin competir, las columnas de la derecha quedan más bajas.`}
+        note={`Cuentan ${firstLegs} (los tres primeros de cada carrera).`}
         cases={cases}
         chart={
           <ColumnChart
@@ -103,6 +105,7 @@ export function DaysOffPanel({
       />
       <ChartPanel
         id="days-off-start"
+        help={{ page: "estadisticas-evolucion", section: "Días sin competir" }}
         title="Errores al principio de la carrera"
         description={`Tasa de error del primer tercio de ${who.your} carreras (por número de tramos), según los días desde la carrera anterior, frente a ${who.pick("tu tasa de error", "su tasa de error", "la tasa de error del grupo")} con estos filtros.`}
         cases={cases}

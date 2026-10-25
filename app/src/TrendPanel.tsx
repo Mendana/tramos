@@ -56,8 +56,10 @@ function TrendChart({
   return (
     <ChartPanel
       id={id}
+      help={{ page: "estadisticas-evolucion", section: "¿Estoy mejorando?" }}
       title={title}
-      description={`${verdict} ${how}`}
+      description={how}
+      note={verdict}
       cases={racesLabel(p.length)}
       chart={
         p.length === 0 ? (

@@ -94,6 +94,7 @@ export function RaceBreakdownPanel({
     return (
       <ChartPanel
         id="race-breakdown"
+        help={{ page: "carrera-analisis", section: "¿Lento o desorientado?" }}
         title={title}
         description={HOW}
         cases="sin datos"
@@ -105,15 +106,17 @@ export function RaceBreakdownPanel({
 
   const errors = data.legs.filter((l) => l.is_error);
   const t = data.errors;
-  const description =
+  const note =
     errors.length === 0
-      ? `Ningún error que repartir. ${HOW}`
-      : `De los ${decimal(t.loss_s, 0)} s que perdiste en ${errorsLabel(t.legs)}: ${summary(t)}.${attackSummary(t)} ${HOW} ${ATTACK_HOW}`;
+      ? "Ningún error que repartir."
+      : `De los ${decimal(t.loss_s, 0)} s que perdiste en ${errorsLabel(t.legs)}: ${summary(t)}.${attackSummary(t)}`;
   return (
     <ChartPanel
       id="race-breakdown"
+      help={{ page: "carrera-analisis", section: "¿Lento o desorientado?" }}
       title={title}
-      description={description}
+      description={`${HOW} ${ATTACK_HOW}`}
+      note={note}
       cases={errorsLabel(errors.length)}
       chart={
         errors.length === 0 ? (
@@ -223,13 +226,14 @@ export function HistoryBreakdownPanel({ breakdown }: { breakdown: BreakdownHisto
       <h3 className="section-title">¿Lento o desorientado?</h3>
       <ChartPanel
         id="breakdown"
+        help={{ page: "estadisticas-donde", section: "¿Lento o desorientado?" }}
         title={`De qué está hecha la pérdida de ${who.your} errores`}
-        description={
+        description={HOW}
+        note={
           (t.legs === 0
             ? "Ningún error con FIT que repartir."
             : `De los ${decimal(t.loss_s, 0)} s perdidos en ${errorsLabel(t.legs)}: ${summary(t)}.`) +
-          without +
-          ` ${HOW}`
+          without
         }
         cases={`${errorsLabel(t.legs)} · ${racesLabel(breakdown.races_with_track)} con FIT`}
         chart={
@@ -299,12 +303,13 @@ function AttackPanel({ totals: t }: { totals: BreakdownTotals }) {
   return (
     <ChartPanel
       id="breakdown-attack"
+      help={{ page: "estadisticas-donde", section: "¿Por el camino o al llegar?" }}
       title="¿Por el camino o al llegar?"
-      description={
-        (t.attack_legs === 0
+      description={how}
+      note={
+        t.attack_legs === 0
           ? "Ningún error con tiempo de ataque."
-          : `De los ${decimal(base, 0)} s perdidos en ${errorsLabel(t.attack_legs)}, ${decimal(t.attack_loss_s, 0)} s fueron al llegar a la baliza. En ${t.attack_dominant} de ${errorsLabel(t.attack_legs)}, más de la mitad.`) +
-        ` ${how}`
+          : `De los ${decimal(base, 0)} s perdidos en ${errorsLabel(t.attack_legs)}, ${decimal(t.attack_loss_s, 0)} s fueron al llegar a la baliza. En ${t.attack_dominant} de ${errorsLabel(t.attack_legs)}, más de la mitad.`
       }
       cases={errorsLabel(t.attack_legs)}
       chart={

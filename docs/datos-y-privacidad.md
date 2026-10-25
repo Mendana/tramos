@@ -17,6 +17,15 @@
   manda nada a ningún sitio: el fichero lo guarda donde el usuario elige. Al restaurar, la base de
   antes queda en el equipo como `tramos.sqlite.antes-de-restaurar`, con todos sus datos, hasta que
   se borre o la sustituya otra restauración.
+- **Exportar datos para análisis** (#217, `docs/exportar-datos.md`) escribe en la carpeta que elige
+  el usuario unas tablas CSV de sus carreras y tramos, para analizarlas fuera de la app. A
+  diferencia de la copia de seguridad, está pensado para poder llevarlas a un cuaderno o a una
+  herramienta de ML: **no llevan nombres de nadie** (ni el suyo, ni los de otros corredores o
+  clubes, ni el de la prueba), **ni notas** de las etiquetas, **ni coordenadas**, **ni los
+  resultados de los demás corredores** (solo agregados que la app ya usa, como la referencia del
+  tramo). Sí llevan fechas, tiempos, pulso, cadencia y velocidades del propio usuario, que dicen
+  cómo corre y pueden identificarle para quien conozca la prueba: se comparten con cuidado. Los
+  identificadores son los números de la base de datos. La app no envía el fichero a ningún sitio.
 - Los **rivales habituales** (#193) salen de los resultados ya importados (nombre, club y tarjeta
   de cada corredor del recorrido). Se calculan al pedirlos, en local: no se guardan aparte ni van
   en los paquetes.

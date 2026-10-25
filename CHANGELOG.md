@@ -18,6 +18,10 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
   un **?** junto a su título. Pasa el ratón por encima (o enfócalo con el teclado) para leerla, y
   púlsalo para abrir la ayuda en la sección de esa gráfica. Los avisos sobre tus datos, como «sin
   altitud en 2 carreras», se quedan a la vista.
+- Exportar datos para análisis: en Ajustes, junto a la copia de seguridad, un botón escribe en
+  la carpeta que elijas tus carreras y tramos en tablas CSV (con un esquema que explica cada
+  columna), para analizarlas fuera de la app con pandas, R o un modelo. No llevan nombres, notas
+  ni coordenadas, ni los tiempos de los demás corredores.
 
 ## 0.4.2
 

@@ -71,6 +71,28 @@ arrepientes, lo de ahora se guarda al lado de la base de datos como
 reinicia solo con la copia puesta. Para volver atrás, con Tramos cerrado, cambia el nombre de ese
 fichero a `tramos.sqlite`. Solo se guarda la última: si restauras otra vez, la anterior se pierde.
 
+## Exportar datos para análisis
+
+Para mirar tus carreras fuera de la app (en una hoja de cálculo, con pandas o R, o para entrenar
+un modelo) no sirve la copia de seguridad: es la base entera. Para eso está **Exportar datos…**:
+eliges una carpeta y Tramos escribe ahí cuatro ficheros.
+
+- `races.csv`: una fila por carrera tuya, con el tiempo perdido, tus errores, el puesto y, si
+  tiene FIT, las cifras físicas (eficiencia, desacople, VAM, zancada, carga…).
+- `legs.csv`: una fila por tramo, con su tiempo, la referencia, el IR, la pérdida, si fue error
+  (el revisado y el que propuso el cálculo), el tipo de error de tu etiqueta y, con FIT, la
+  distancia, las velocidades, el pulso y el ataque. Se une con `races.csv` por `race_id`.
+- `schema.json` y `LEEME.md`: qué es cada columna, con su unidad y de dónde sale.
+
+Salen todas tus carreras, con los números que ves en la app: los umbrales de error de arriba, tus
+etiquetas y tus zonas de pulso de ahora. Al acabar, te dice cuántas carreras y tramos ha
+exportado. Si la carpeta ya tenía esos ficheros, los sustituye.
+
+**No llevan nombres de nadie** (ni el tuyo), **ni tus notas, ni coordenadas, ni los tiempos de
+los demás corredores**; de ellos, solo la referencia de cada tramo. Aun así son tus datos, con tus
+fechas y tu pulso: compártelos con cuidado. Cada columna está explicada en
+[Exportar datos](https://github.com/Mendana/tramos/blob/main/docs/exportar-datos.md).
+
 ## Acerca de Tramos
 
 La versión de Tramos que tienes, quién la hace y cómo avisar de un fallo. La app mira al arrancar

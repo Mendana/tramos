@@ -98,7 +98,7 @@ impl Accumulator {
 
 /// Días desde la carrera anterior a `date`: la de fecha más reciente **estrictamente** anterior
 /// de `competed` (ordenadas). `None` si no hay ninguna.
-fn days_since_previous(date: NaiveDate, competed: &[NaiveDate]) -> Option<i64> {
+pub fn days_since_previous(date: NaiveDate, competed: &[NaiveDate]) -> Option<i64> {
     let before = competed.partition_point(|d| *d < date);
     before
         .checked_sub(1)

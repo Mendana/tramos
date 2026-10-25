@@ -106,6 +106,18 @@ export const PANEL_GROUPS: PanelGroup[] = [
       { id: "race-breakdown", title: "¿Lento o desorientado?" },
     ],
   },
+  {
+    label: "Carrera · Físico",
+    panels: [
+      { id: "race-physical-series", title: "La carrera, de la salida a la meta" },
+      { id: "race-physical-efficiency", title: "Eficiencia por décimas" },
+      { id: "race-physical-heart-rate", title: "Pulso por décimas" },
+      { id: "race-physical-speed", title: "Velocidad por décimas" },
+      { id: "race-physical-grade-speed", title: "Velocidad por pendiente" },
+      { id: "race-physical-grade-heart-rate", title: "Pulso por pendiente" },
+      { id: "race-physical-zones", title: "Tiempo en zonas de pulso" },
+    ],
+  },
 ];
 
 export interface PanelVisibility {

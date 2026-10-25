@@ -131,7 +131,15 @@ export function Legend({
         <span className="legend-item" key={item.label}>
           {item.shape === "line" ? (
             <svg width="16" height="10" aria-hidden="true">
-              <line x1="1" x2="15" y1="5" y2="5" stroke={item.color} strokeWidth="2" strokeLinecap="round" />
+              <line
+                x1="1"
+                x2="15"
+                y1="5"
+                y2="5"
+                stroke={item.color}
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
             </svg>
           ) : (
             <span

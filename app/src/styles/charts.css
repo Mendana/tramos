@@ -364,3 +364,81 @@
   width: auto;
   max-width: 100%;
 }
+
+/* --- Gráficas apiladas con el mismo eje X (pestaña Físico, #213) --- */
+
+.chart-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.chart-stack:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.stack-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  padding-left: 52px;
+}
+
+.stack-row-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+/* Líneas de las picadas: finas y discretas. */
+.stack-marker {
+  stroke: var(--chart-reference);
+  stroke-width: 1;
+  opacity: 0.55;
+}
+
+.stack-missing {
+  fill: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Capas de fondo: tramos con error, ataque y paradas. Se pueden solapar. */
+.stack-band-error {
+  fill: var(--chart-loss);
+  opacity: 0.14;
+}
+
+.stack-band-attack {
+  fill: var(--chart-gain);
+  opacity: 0.16;
+}
+
+.stack-band-stopped {
+  fill: var(--chart-muted);
+  opacity: 0.32;
+}
+
+/* Fila de controles sobre las gráficas: eje, capas y magnitud. */
+.phys-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.phys-controls-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.phys-controls-label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 550;
+}

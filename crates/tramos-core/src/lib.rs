@@ -26,6 +26,7 @@ pub mod metrics;
 pub mod model;
 pub mod package;
 pub mod physical;
+pub mod physical_series;
 pub mod race_format;
 pub mod rivals;
 pub mod route_choice;

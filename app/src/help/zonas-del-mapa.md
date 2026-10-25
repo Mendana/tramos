@@ -38,5 +38,8 @@ Los **huecos** (más de 10 s sin datos del reloj) van en gris discontinuo. Por d
 Al ver a un [atleta](atletas.md), el mapa sale siempre por cuantiles: las zonas de cada
 corredor no viajan con sus carreras.
 
+Las zonas de pulso también cuentan el tiempo que pasas en cada una en la pestaña
+[Físico](carrera-fisico.md), con estos mismos colores.
+
 Detalle técnico: [app, «Mapa»](https://github.com/Mendana/tramos/blob/main/docs/app.md#mapa) y
 [«Ajustes»](https://github.com/Mendana/tramos/blob/main/docs/app.md#ajustes).

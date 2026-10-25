@@ -4,7 +4,7 @@
 // teclado). Ver la guía de visualización y `docs/app.md`, "Gráficas".
 import { useState } from "react";
 import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
-import { linear, niceDomain } from "./scale";
+import { linear, niceDomain, niceRange } from "./scale";
 
 export interface LinePoint {
   key: string | number;
@@ -28,6 +28,7 @@ export function LineChart({
   color = "var(--chart-series-1)",
   markerColor = color,
   labelSpacing = 28,
+  zeroBased = true,
 }: {
   points: LinePoint[];
   formatTick: (value: number) => string;
@@ -37,12 +38,18 @@ export function LineChart({
   markerColor?: string;
   /** Separación mínima entre etiquetas del eje X (px): si no caben todas, se salta alguna. */
   labelSpacing?: number;
+  /** El eje parte del 0 (por defecto). Con `false`, del rango de los datos: para magnitudes que
+   *  no se leen desde el 0, como el pulso; el velo se cierra en la base de la gráfica. */
+  zeroBased?: boolean;
 }) {
   const { ref, width } = useWidth();
   const [active, setActive] = useState<number | null>(null);
 
   const values = points.flatMap((p) => (p.value === null ? [] : [p.value]));
-  const { domain, ticks } = niceDomain(Math.min(...values, 0), Math.max(...values, 0));
+  const { domain, ticks } = zeroBased
+    ? niceDomain(Math.min(...values, 0), Math.max(...values, 0))
+    : niceRange(Math.min(...values), Math.max(...values));
+  const base = zeroBased ? 0 : domain[0];
   const plotW = Math.max(width - MARGIN.left - MARGIN.right, 0);
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
   const y = linear(domain, [MARGIN.top + plotH, MARGIN.top]);
@@ -66,7 +73,7 @@ export function LineChart({
             <g key={run.first}>
               <path
                 className="chart-area"
-                d={`${run.d} L${x(run.last)},${y(0)} L${x(run.first)},${y(0)} Z`}
+                d={`${run.d} L${x(run.last)},${y(base)} L${x(run.first)},${y(base)} Z`}
                 fill={color}
               />
               <path className="chart-line" d={run.d} stroke={color} />

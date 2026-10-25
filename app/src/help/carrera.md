@@ -2,7 +2,7 @@
 
 Todo lo de una carrera: arriba la cabecera y las cifras, y debajo las pestañas **Resumen**,
 [Tramos](carrera-tramos.md), [Mapa](carrera-mapa.md), [Frente al grupo](carrera-grupo.md) y
-[Análisis](carrera-analisis.md). El botón **?** abre la página de la pestaña que tengas abierta.
+[Análisis](carrera-analisis.md) y [Físico](carrera-fisico.md). El botón **?** abre la página de la pestaña que tengas abierta.
 
 ## Cabecera
 

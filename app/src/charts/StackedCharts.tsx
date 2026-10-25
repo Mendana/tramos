@@ -4,7 +4,16 @@
 // líneas verticales finas con etiqueta (capas opcionales). Ver la guía de visualización y
 // `docs/app.md`, "Gráficas".
 import { KeyboardEvent, PointerEvent, useId, useState } from "react";
-import { Legend, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
+import {
+  AxisUnits,
+  Legend,
+  MARGIN,
+  Tooltip,
+  TooltipText,
+  YGrid,
+  lineRuns,
+  useWidth,
+} from "./common";
 import { linear, niceRange, niceTicks } from "./scale";
 
 export interface StackSeries {
@@ -18,8 +27,10 @@ export interface StackSeries {
 
 export interface StackRow {
   key: string;
-  /** Qué magnitud es, con su unidad. */
+  /** Qué magnitud es (la unidad va aparte, en `unit`). */
   title: string;
+  /** Unidad del eje Y, una vez junto al eje (las marcas van sin ella). */
+  unit: string;
   /** La magnitud sola, para el tooltip. */
   name: string;
   /** Pasos «redondos» de las marcas del eje Y (p. ej. 15 y 30 s para un ritmo). */
@@ -53,10 +64,11 @@ export interface StackMarker {
 
 /** Alto del dibujo de cada gráfica (px), sin márgenes. */
 const PLOT_H = 112;
-/** Margen superior de la primera gráfica: ahí van las etiquetas de las líneas verticales. */
-const FIRST_TOP = 22;
-const TOP = 8;
-const LAST_BOTTOM = 28;
+/** Margen superior de cada gráfica: ahí van la unidad del eje Y y, en la primera, las etiquetas
+ *  de las líneas verticales. */
+const TOP = 22;
+/** Margen inferior de la última: las marcas del eje X y su unidad. */
+const LAST_BOTTOM = 42;
 const BOTTOM = 6;
 /** Separación mínima entre dos etiquetas de líneas verticales (px). */
 const MARKER_GAP = 18;
@@ -87,6 +99,7 @@ export function StackedCharts({
   xs,
   formatX,
   xSteps,
+  xUnit,
   rows,
   bands = [],
   markers = [],
@@ -98,6 +111,8 @@ export function StackedCharts({
   formatX: (value: number) => string;
   /** Pasos «redondos» de las marcas del eje X, de menor a mayor. */
   xSteps: number[];
+  /** Qué mide el eje X, una vez bajo la última gráfica: «tiempo de carrera (mm:ss)», «km». */
+  xUnit: string;
   rows: StackRow[];
   bands?: StackBand[];
   markers?: StackMarker[];
@@ -164,7 +179,7 @@ export function StackedCharts({
       ref={ref}
       tabIndex={0}
       role="group"
-      aria-label={`${label}. Con las flechas del teclado se mueve el cursor.`}
+      aria-label={`${label}. Eje horizontal: ${xUnit}. Con las flechas del teclado se mueve el cursor.`}
       onKeyDown={onKey}
       onBlur={() => setActive(null)}
       onPointerMove={onPointer}
@@ -175,7 +190,7 @@ export function StackedCharts({
         rows.map((row, r) => {
           const first = r === 0;
           const last = r === rows.length - 1;
-          const top = first ? FIRST_TOP : TOP;
+          const top = TOP;
           const bottom = last ? LAST_BOTTOM : BOTTOM;
           const height = top + PLOT_H + bottom;
           const values = row.series.flatMap((s) =>
@@ -209,7 +224,10 @@ export function StackedCharts({
             }));
             if (r === header) return { ...tooltipTitle(i), rows: seriesRows };
             return row.series.length === 1
-              ? { value: row.formatValue(row.series[0].values[i]), detail: row.name }
+              ? {
+                  value: row.formatValue(row.series[0].values[i]),
+                  detail: row.name,
+                }
               : { value: row.name, detail: "", rows: seriesRows };
           };
           return (
@@ -227,7 +245,12 @@ export function StackedCharts({
                 )}
               </div>
               <div className="chart">
-                <svg width={width} height={height} role="img" aria-label={`${row.title}`}>
+                <svg
+                  width={width}
+                  height={height}
+                  role="img"
+                  aria-label={`${row.title}. Eje vertical: ${row.unit}.`}
+                >
                   <clipPath id={`${clipId}-${row.key}`}>
                     <rect x={MARGIN.left} y={top} width={plotW} height={PLOT_H} />
                   </clipPath>
@@ -245,6 +268,12 @@ export function StackedCharts({
                       />
                     );
                   })}
+                  <AxisUnits
+                    y={row.unit}
+                    x={last ? xUnit : undefined}
+                    right={MARGIN.left + plotW}
+                    height={height}
+                  />
                   {!empty && <YGrid ticks={yTicks} y={y} plotW={plotW} format={row.formatTick} />}
                   {ticks.map((t) => (
                     <g key={t}>

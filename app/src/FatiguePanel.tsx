@@ -7,7 +7,7 @@ import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { Legend } from "./charts/common";
 import { GroupedColumnChart } from "./charts/GroupedColumnChart";
-import { legsLabel, percent, racesLabel, tickPercent } from "./HistoryPanels";
+import { legsLabel, percent, racesLabel, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 import { Notice } from "./ui";
 
@@ -23,8 +23,8 @@ const showRatio = (v: number | null) => (v === null ? "—" : percent(v));
 const effortValue = (v: number | null) => (v === null ? "—" : decimal(v, 1));
 /** Marca del eje con decimales solo si los tiene. */
 const tick = (v: number) => String(Number(v.toFixed(1))).replace(".", ",");
-const tickSignedPercent = (v: number) => `${v > 0 ? "+" : ""}${tickPercent(v)}`;
-const tickBpm = (v: number) => `${v > 0 ? "+" : ""}${tick(v)} ppm`;
+const tickSignedPercent = (v: number) => `${v > 0 ? "+" : ""}${tickNumber(v)}`;
+const tickSignedBpm = (v: number) => `${v > 0 ? "+" : ""}${tick(v)}`;
 
 const BEFORE = [
   { key: "before_error", label: "Antes de un error", color: "var(--chart-series-1)" },
@@ -171,6 +171,8 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
           <ColumnChart
             label="Pulso entre velocidad de los tramos limpios por tercio de carrera, frente a lo habitual en cada carrera"
             formatTick={tickSignedPercent}
+            yUnit="% sobre lo habitual"
+            xUnit="tercio de carrera"
             columns={thirds.map((t) => {
               // Diferencia con lo habitual: con el 100 % como base, un 6 % de deriva no se ve.
               const r = ratio(t.drift.mean_relative_ratio);
@@ -221,7 +223,9 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
                 };
               }}
               formatValue={relativeBpm}
-              formatTick={tickBpm}
+              formatTick={tickSignedBpm}
+              yUnit="ppm sobre la mediana"
+              xUnit="tercio de carrera"
             />
           </>
         }
@@ -268,6 +272,8 @@ export function FatiguePanel({ data }: { data: Fatigue }) {
                 }}
                 formatValue={effortValue}
                 formatTick={tick}
+                yUnit="esfuerzo (1–10)"
+                xUnit="tercio de carrera"
               />
             </>
           )

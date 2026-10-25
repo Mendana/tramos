@@ -329,7 +329,8 @@ function RaceCharts({ data, legs }: { data: PhysicalReady; legs: LegReport[] }) 
   const rows: StackRow[] = [
     {
       key: "altitude",
-      title: "Altitud (m)",
+      title: "Altitud",
+      unit: "m",
       name: "Altitud",
       area: true,
       series: [
@@ -346,7 +347,8 @@ function RaceCharts({ data, legs }: { data: PhysicalReady; legs: LegReport[] }) 
     },
     {
       key: "pace",
-      title: "Ritmo (min/km, más rápido arriba)",
+      title: "Ritmo (más rápido arriba)",
+      unit: "min/km",
       name: "Ritmo",
       tickSteps: PACE_STEPS,
       inverted: true,
@@ -375,7 +377,8 @@ function RaceCharts({ data, legs }: { data: PhysicalReady; legs: LegReport[] }) 
     },
     {
       key: "heart",
-      title: "Pulso (ppm)",
+      title: "Pulso",
+      unit: "ppm",
       name: "Pulso",
       series: [
         {
@@ -392,7 +395,8 @@ function RaceCharts({ data, legs }: { data: PhysicalReady; legs: LegReport[] }) 
     cadence === "cadence"
       ? {
           key: "cadence",
-          title: "Cadencia (pasos/min)",
+          title: "Cadencia",
+          unit: "pasos/min",
           name: "Cadencia",
           series: [
             {
@@ -408,7 +412,8 @@ function RaceCharts({ data, legs }: { data: PhysicalReady; legs: LegReport[] }) 
         }
       : {
           key: "stride",
-          title: "Zancada (m por paso)",
+          title: "Zancada",
+          unit: "m por paso",
           name: "Zancada",
           series: [
             {
@@ -578,7 +583,8 @@ function RaceCharts({ data, legs }: { data: PhysicalReady; legs: LegReport[] }) 
             {layerLegend.length > 0 && <Legend items={layerLegend} />}
             <StackedCharts
               xs={xs}
-              formatX={axis === "time" ? (v) => clock(v) : (v) => `${decimal(v / 1000, 1)} km`}
+              formatX={axis === "time" ? (v) => clock(v) : (v) => decimal(v / 1000, 1)}
+              xUnit={axis === "time" ? "tiempo de carrera (mm:ss)" : "distancia (km)"}
               xSteps={axis === "time" ? TIME_STEPS : DISTANCE_STEPS}
               rows={rows}
               bands={bands}
@@ -644,6 +650,7 @@ function DriftPanels({ data }: { data: PhysicalReady }) {
     value: (b: (typeof blocks)[number]) => number | null,
     format: (v: number) => string,
     tick: (v: number) => string,
+    unit: string,
     missing: string,
     note?: string,
   ) => {
@@ -666,6 +673,8 @@ function DriftPanels({ data }: { data: PhysicalReady }) {
               color={color}
               zeroBased={false}
               formatTick={tick}
+              yUnit={unit}
+              xUnit="décima del traslado"
               labelSpacing={20}
               points={blocks.map((b) => {
                 const v = value(b);
@@ -724,6 +733,7 @@ function DriftPanels({ data }: { data: PhysicalReady }) {
         (b) => b.efficiency_m_per_beat,
         (v) => `${decimal(v, 2)} m/latido`,
         (v) => decimal(v, 2),
+        "m/latido",
         "Sin pulso no hay eficiencia.",
       )}
       {panel(
@@ -734,6 +744,7 @@ function DriftPanels({ data }: { data: PhysicalReady }) {
         (b) => b.heart_rate_bpm,
         (v) => `${decimal(v, 0)} ppm`,
         (v) => decimal(v, 0),
+        "ppm",
         "El FIT no trae pulso.",
       )}
       {panel(
@@ -746,6 +757,7 @@ function DriftPanels({ data }: { data: PhysicalReady }) {
         (b) => (flat ? b.flat_speed_mps : b.speed_mps) ?? null,
         (v) => `${decimal(kmh(v), 1)} km/h`,
         (v) => decimal(kmh(v), 1),
+        "km/h",
         "Sin velocidad en el traslado.",
         flat
           ? undefined
@@ -807,6 +819,8 @@ function GradePanels({ data }: { data: PhysicalReady }) {
               tooltipTitle={where}
               formatValue={(v) => dash(v, (x) => `${decimal(x, 1)} km/h`)}
               formatTick={(v) => decimal(v, 0)}
+              yUnit="km/h"
+              xUnit="clase de pendiente"
               series={[
                 {
                   key: "real",
@@ -868,6 +882,8 @@ function GradePanels({ data }: { data: PhysicalReady }) {
             label="Pulso medio por clase de pendiente"
             zeroBased={false}
             formatTick={(v) => decimal(v, 0)}
+            yUnit="ppm"
+            xUnit="clase de pendiente"
             labelSpacing={60}
             points={classes.map((c, i) => ({
               key: c.class,
@@ -957,7 +973,9 @@ function ZonesPanel({ data, onSettings }: { data: PhysicalReady; onSettings: () 
       chart={
         <ColumnChart
           label="Minutos en cada zona de pulso"
-          formatTick={(v) => `${decimal(v, 0)} min`}
+          formatTick={(v) => decimal(v, 0)}
+          yUnit="min"
+          xUnit="zona de pulso (ppm)"
           columns={result.seconds.map((s, k) => ({
             key: k,
             label: label(k),

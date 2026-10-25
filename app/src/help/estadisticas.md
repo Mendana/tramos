@@ -93,6 +93,14 @@ Tres gráficas, una columna por formato ([Formatos](formatos.md)):
 > En sprint tu IR medio es 96 % y en larga 84 %; la tasa de error pasa del 6 % al 19 %. Te sale
 > mejor lo corto: en lo largo pierdes más tramos y más seguido. (Números inventados.)
 
+## Los ejes de las gráficas
+
+En todas las gráficas la unidad de cada eje está escrita **una sola vez**, sin repetirla en cada
+número: la del eje vertical, arriba a la izquierda (por ejemplo «s», «ppm» o «IR (%)»), y la del
+horizontal, abajo a la derecha («tramo», «fecha (dd/mm/aa)» o «tiempo de carrera (mm:ss)»). Si el
+eje no tiene unidad, dice qué cuenta: «% de tramos con error», «tercio de carrera». Los lectores
+de pantalla la leen al entrar en la gráfica.
+
 ## Ocultar paneles
 
 Cada panel tiene un aspa para ocultarlo. **Personalizar**, junto a las pestañas, abre la lista de

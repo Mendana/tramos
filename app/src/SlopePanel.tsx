@@ -4,7 +4,7 @@
 import { SLOPE_LABELS, SlopeHistory, SlopeStats, decimal } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
-import { legsLabel, percent, racesLabel, tickPercent } from "./HistoryPanels";
+import { legsLabel, percent, racesLabel, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 const performance = (s: SlopeStats) =>
@@ -19,6 +19,7 @@ function ClassColumns({
   value,
   detail,
   label,
+  yUnit,
   reference,
 }: {
   classes: SlopeStats[];
@@ -26,12 +27,16 @@ function ClassColumns({
   /** Texto del tooltip tras el valor. */
   detail: (s: SlopeStats) => string;
   label: string;
+  /** Unidad del eje Y. */
+  yUnit: string;
   reference?: { value: number; label: string };
 }) {
   return (
     <ColumnChart
       label={label}
-      formatTick={tickPercent}
+      formatTick={tickNumber}
+      yUnit={yUnit}
+      xUnit="pendiente"
       reference={reference}
       columns={classes.map((s) => {
         const v = value(s);
@@ -111,6 +116,7 @@ export function SlopePanel({ slope }: { slope: SlopeHistory }) {
             value={performance}
             detail={(s) => `${legsLabel(s.legs)} · tasa de error ${show(errorRate(s))}`}
             label="IR medio de los tramos en subida, llano y bajada frente al 100 % de la referencia"
+            yUnit="IR (%)"
             reference={{ value: 100, label: "Referencia" }}
           />
         }
@@ -128,6 +134,7 @@ export function SlopePanel({ slope }: { slope: SlopeHistory }) {
             value={errorRate}
             detail={(s) => `${legsLabel(s.legs)} · ${errorsLabel(s.errors)}`}
             label="Tasa de error de los tramos en subida, llano y bajada"
+            yUnit="% de tramos con error"
           />
         }
         table={<ClassTable classes={classes} />}

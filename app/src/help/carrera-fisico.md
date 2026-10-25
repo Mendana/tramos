@@ -45,7 +45,9 @@ el ajustado a la pendiente), **pulso** y **cadencia** o **zancada** (tú eliges)
 tiene su propia gráfica y su propia escala: no se mezclan en la misma. En el ritmo, lo más rápido
 va arriba.
 
-- **Eje**: tiempo o distancia, el que prefieras.
+- **Eje**: tiempo o distancia, el que prefieras. Abajo a la derecha dice cuál es: «tiempo de
+  carrera (mm:ss)» o «distancia (km)». La unidad de cada magnitud (m, min/km, ppm, pasos/min) está
+  arriba a la izquierda de su gráfica.
 - Al pasar el ratón (o con las flechas del teclado, Mayús para ir más deprisa) sale una línea
   vertical en las cuatro y, en cada una, el valor de ese momento, con el tramo y si estabas en
   ataque o parado.

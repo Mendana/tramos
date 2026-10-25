@@ -3,7 +3,16 @@
 // positivos y negativos desde la línea del 0, tooltip por grupo con el valor de cada serie
 // (ratón y teclado). Ver la guía de visualización y `docs/app.md`, "Gráficas".
 import { useState } from "react";
-import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, useWidth } from "./common";
+import {
+  AxisUnits,
+  HEIGHT,
+  MARGIN,
+  Tooltip,
+  TooltipText,
+  YGrid,
+  axesLabel,
+  useWidth,
+} from "./common";
 import { columnPath } from "./ColumnChart";
 import { linear, niceDomain } from "./scale";
 
@@ -26,6 +35,8 @@ export function GroupedColumnChart({
   tooltipTitle,
   formatValue,
   formatTick,
+  yUnit,
+  xUnit,
   label,
 }: {
   series: ColumnSeries[];
@@ -35,6 +46,10 @@ export function GroupedColumnChart({
   tooltipTitle: (i: number) => { value: string; detail: string };
   formatValue: (value: number | null) => string;
   formatTick: (value: number) => string;
+  /** Unidad del eje Y, una vez junto al eje (las marcas van sin ella): «ppm», «s», «IR (%)». */
+  yUnit: string;
+  /** Qué mide el eje X: «tramo», «fecha (dd/mm/aa)», «km»… */
+  xUnit: string;
   /** Descripción de la gráfica para lectores de pantalla. */
   label: string;
 }) {
@@ -58,14 +73,19 @@ export function GroupedColumnChart({
 
   const tooltip = (i: number): TooltipText => ({
     ...tooltipTitle(i),
-    rows: series.map((s) => ({ label: s.label, color: s.color, value: formatValue(s.values[i]) })),
+    rows: series.map((s) => ({
+      label: s.label,
+      color: s.color,
+      value: formatValue(s.values[i]),
+    })),
   });
 
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
-        <svg width={width} height={HEIGHT} role="img" aria-label={label}>
+        <svg width={width} height={HEIGHT} role="img" aria-label={axesLabel(label, yUnit, xUnit)}>
           <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
+          <AxisUnits y={yUnit} x={xUnit} right={MARGIN.left + plotW} />
           {xLabels.map((xl, i) => {
             const left = x(i) + (band - groupW) / 2;
             return (

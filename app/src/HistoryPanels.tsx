@@ -12,8 +12,8 @@ export function groupLabel(group: FormatHistory): string {
 
 export const percent = (v: number) => `${decimal(v, 0)} %`;
 export const percent1 = (v: number) => `${decimal(v, 1)} %`;
-/** Marca del eje en %, con decimales solo si los tiene (0,5 %). */
-export const tickPercent = (v: number) => `${String(Number(v.toFixed(2))).replace(".", ",")} %`;
+/** Marca del eje con decimales solo si los tiene (0,5); la unidad va en el eje, no en la marca. */
+export const tickNumber = (v: number) => String(Number(v.toFixed(2))).replace(".", ",");
 
 export function racesLabel(n: number): string {
   return `${n} ${n === 1 ? "carrera" : "carreras"}`;
@@ -70,6 +70,7 @@ function GroupColumns({
   cases,
   detail,
   label,
+  yUnit,
   reference,
 }: {
   groups: FormatHistory[];
@@ -78,12 +79,16 @@ function GroupColumns({
   /** Texto extra del tooltip, tras el formato y los casos. */
   detail?: (stats: HistoryStats) => string;
   label: string;
+  /** Unidad del eje Y. */
+  yUnit: string;
   reference?: { value: number; label: string };
 }) {
   return (
     <ColumnChart
       label={label}
-      formatTick={tickPercent}
+      formatTick={tickNumber}
+      yUnit={yUnit}
+      xUnit="formato"
       reference={reference}
       columns={groups.map((g) => {
         const v = measure.get(g.stats);
@@ -140,6 +145,7 @@ export function FormatPerformancePanel({
           measure={meanPerformance}
           cases={raceCases}
           label="IR medio de cada formato frente al 100 % de la referencia"
+          yUnit="IR (%)"
           reference={{ value: 100, label: "Referencia" }}
         />
       }
@@ -178,6 +184,7 @@ export function FormatErrorRatePanel({
           cases={legCases}
           detail={(s) => `${s.errors} ${s.errors === 1 ? "error" : "errores"}`}
           label="Tasa de error de cada formato"
+          yUnit="% de tramos con error"
         />
       }
       table={
@@ -217,6 +224,7 @@ export function FormatLossPanel({
           cases={legCases}
           detail={seconds}
           label="Pérdida media por tramo de cada formato, en % del tiempo esperado"
+          yUnit="% del tiempo esperado"
         />
       }
       table={

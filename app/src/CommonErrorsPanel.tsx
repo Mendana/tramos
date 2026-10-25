@@ -13,7 +13,7 @@ import {
 } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
-import { legsLabel, percent, tickPercent } from "./HistoryPanels";
+import { legsLabel, percent, tickNumber } from "./HistoryPanels";
 import { bucketLabel } from "./LegLengthPanel";
 import { useSubject } from "./subject";
 
@@ -162,7 +162,9 @@ export function CommonErrorsPanel({ data }: { data: CommonErrors }) {
             ) : (
               <ColumnChart
                 label="Parte de los errores que es de cada tipo"
-                formatTick={tickPercent}
+                formatTick={tickNumber}
+                yUnit="% de los errores"
+                xUnit="tipo de error"
                 columns={columns}
               />
             )}

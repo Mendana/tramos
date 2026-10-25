@@ -15,7 +15,7 @@ import {
 import { newRacesLabel } from "./AthletesScreen";
 import type { RaceTab } from "./RaceView";
 import { LineChart } from "./charts/LineChart";
-import { percent, tickPercent } from "./HistoryPanels";
+import { percent, tickNumber } from "./HistoryPanels";
 import { TrackThumb } from "./TrackThumb";
 import {
   AthletesIcon,
@@ -313,7 +313,9 @@ function Home({
           ) : (
             <LineChart
               label="Rendimiento de las últimas carreras"
-              formatTick={tickPercent}
+              formatTick={tickNumber}
+              yUnit="IR (%)"
+              xUnit="fecha (dd/mm/aa)"
               labelSpacing={64}
               points={trend.map((race) => ({
                 key: race.result_id,

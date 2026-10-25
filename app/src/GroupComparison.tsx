@@ -157,7 +157,9 @@ export function GroupComparison({ resultId }: { resultId: number }) {
                   : { value: legName(i - 1), detail: "Por detrás del ideal" }
               }
               // Hacia abajo es por detrás, como en la gráfica clásica de WinSplits.
-              formatTick={(v) => `${Math.round(-v) === 0 ? 0 : Math.round(-v)} s`}
+              formatTick={(v) => String(Math.round(-v) === 0 ? 0 : Math.round(-v))}
+              yUnit="s"
+              xUnit="tramo (S = salida)"
               formatValue={(v) => behind(v === null ? null : -v)}
               series={shown.map(({ runner, color }) => ({
                 key: keyOf(runner),
@@ -213,7 +215,9 @@ export function GroupComparison({ resultId }: { resultId: number }) {
               label="Pérdida en segundos de cada tramo, por corredor"
               xLabels={comparison.legs.map((l) => String(l.index))}
               tooltipTitle={(i) => ({ value: legName(i), detail: "Pérdida frente a lo esperado" })}
-              formatTick={(v) => `${Math.round(v)} s`}
+              formatTick={(v) => String(Math.round(v))}
+              yUnit="s"
+              xUnit="tramo"
               formatValue={loss}
               series={shown.map(({ runner, color }) => ({
                 key: keyOf(runner),

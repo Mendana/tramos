@@ -1,6 +1,8 @@
 # Pestaña Análisis
 
-Cuatro paneles para entender cómo fue la carrera de principio a fin.
+Cuatro paneles para entender cómo fue la carrera de principio a fin. En cada gráfica, la unidad de
+los ejes está escrita una vez (arriba a la izquierda el vertical, abajo a la derecha el
+horizontal); [Estadísticas](estadisticas.md) lo cuenta con más detalle.
 
 ## Pérdida acumulada
 

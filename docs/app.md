@@ -1244,6 +1244,29 @@ no se pinta debajo del título: está en el «?» (`HelpTip`, en `ui.tsx`).
 - Si algún día hace falta algo que no merezca la pena dibujar a mano, la alternativa sería una
   librería que pinte en SVG con atributos de React (por ejemplo, Recharts, MIT).
 
+**Unidades en los ejes** (#223). Cada eje dice en qué se mide, **una sola vez y fuera de las
+marcas**: las marcas son solo el número («160», «5:00») y la unidad es una etiqueta corta junto al
+eje. Se aplica igual en todos los componentes, que reciben la unidad como prop obligatoria
+(`yUnit` y `xUnit`; `unit` en cada fila de `StackedCharts`), de modo que no se puede pintar una
+gráfica sin ella.
+
+- **Eje Y**: la etiqueta va arriba a la izquierda, encima de la marca más alta («ppm», «s»,
+  «min/km», «m/latido»).
+- **Eje X**: va abajo a la derecha, bajo las marcas («tramo», «km», «tercio de carrera»).
+- **Sin unidad, qué mide**: IR, porcentajes, recuentos y categorías lo dicen igual («IR (%)»,
+  «% de tramos con error», «tramo», «tipo de error»), con la unidad entre paréntesis si la hay.
+- **Tiempo**: el eje X dice si son fechas con su formato («fecha (dd/mm/aa)»; en `DateLineChart`,
+  «fecha (mm/aa)» cuando las marcas son meses) o tiempo de carrera con el suyo («tiempo de carrera
+  (mm:ss)»). La distancia, «distancia (km)».
+- **Accesibilidad**: el `aria-label` de la gráfica añade «Eje vertical: …. Eje horizontal: ….»
+  (`axesLabel`, en `common.tsx`). En `StackedCharts` el eje X va en el del grupo y el Y, en el de
+  cada fila.
+- **Márgenes**: el margen de arriba (`MARGIN.top`) y el de abajo (`MARGIN.bottom`) de `common.tsx`
+  dejan sitio a las dos etiquetas y `HEIGHT` crece lo mismo, así que el dibujo mide igual que antes.
+  Lo hace el componente (`AxisUnits`); un uso no ajusta nada. La etiqueta del eje Y empieza en el
+  borde izquierdo y puede ser larga («eficiencia (% sobre su media)») sin cortarse.
+- Las escalas y las marcas no cambian: solo se les quita la unidad que repetían.
+
 Piezas:
 
 - `scale.ts`: escala lineal y dominio «redondo» con sus marcas, que siempre incluye el 0
@@ -1269,7 +1292,7 @@ Piezas:
   directa al final de cada línea y tooltip del punto más cercano. El eje Y sigue los datos.
 - `GroupedColumnChart`: columnas agrupadas, una por serie y punto, con 2 px de separación, y
   una segunda línea de etiqueta opcional en el eje X (p. ej. el número de casos de cada grupo).
-- `common.tsx`: tamaño, rejilla con marcas, tooltip (al lado de la marca, para no taparla) y
+- `common.tsx`: tamaño, rejilla con marcas, unidades de los ejes (`AxisUnits`), tooltip (al lado de la marca, para no taparla) y
   leyenda (cuadrado para barras, raya para líneas). Con dos o más series siempre hay leyenda.
 - Dos medidas de escala distinta nunca comparten eje: van en paneles separados.
 

@@ -4,7 +4,17 @@
 // visualización: columnas finas (≤ 24 px) con el extremo redondeado, rejilla tenue y texto en
 // los colores de texto, nunca en el de la serie.
 import { useState } from "react";
-import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
+import {
+  AxisUnits,
+  HEIGHT,
+  MARGIN,
+  Tooltip,
+  TooltipText,
+  YGrid,
+  axesLabel,
+  lineRuns,
+  useWidth,
+} from "./common";
 import { linear, niceDomain } from "./scale";
 
 export interface Column {
@@ -53,6 +63,8 @@ export function columnPath(x: number, w: number, y0: number, y1: number): string
 export function ColumnChart({
   columns,
   formatTick,
+  yUnit,
+  xUnit,
   reference,
   line,
   highlights = [],
@@ -60,6 +72,10 @@ export function ColumnChart({
 }: {
   columns: Column[];
   formatTick: (value: number) => string;
+  /** Unidad del eje Y, una vez junto al eje (las marcas van sin ella): «ppm», «s», «IR (%)». */
+  yUnit: string;
+  /** Qué mide el eje X: «tramo», «fecha (dd/mm/aa)», «km»… */
+  xUnit: string;
   /** Línea horizontal de referencia (p. ej. el 100 %), con su nombre. */
   reference?: { value: number; label: string };
   line?: ColumnLine;
@@ -93,7 +109,7 @@ export function ColumnChart({
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
-        <svg width={width} height={HEIGHT} role="img" aria-label={label}>
+        <svg width={width} height={HEIGHT} role="img" aria-label={axesLabel(label, yUnit, xUnit)}>
           {highlights.map((h) => (
             <rect
               key={h.from}
@@ -105,6 +121,7 @@ export function ColumnChart({
             />
           ))}
           <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
+          <AxisUnits y={yUnit} x={xUnit} right={MARGIN.left + plotW} />
 
           {reference !== undefined && (
             <g>

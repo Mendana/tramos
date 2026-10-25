@@ -403,7 +403,9 @@ function CourseSection({
                     : { value: legName(i - 1), detail: "Por detrás del ideal" }
                 }
                 // Hacia abajo es por detrás, como en la gráfica clásica de WinSplits.
-                formatTick={(v) => `${Math.round(-v) === 0 ? 0 : Math.round(-v)} s`}
+                formatTick={(v) => String(Math.round(-v) === 0 ? 0 : Math.round(-v))}
+                yUnit="s"
+                xUnit="tramo (S = salida)"
                 formatValue={(v) => behind(v === null ? null : -v)}
                 series={shown.map((s) => ({
                   key: String(s.runner.runner),
@@ -433,7 +435,9 @@ function CourseSection({
                   value: legName(i),
                   detail: "Pérdida frente a lo esperado",
                 })}
-                formatTick={(v) => `${Math.round(v)} s`}
+                formatTick={(v) => String(Math.round(v))}
+                yUnit="s"
+                xUnit="tramo"
                 formatValue={loss}
                 series={shown.map((s) => ({
                   key: String(s.runner.runner),

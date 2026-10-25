@@ -6,7 +6,17 @@
 // `hollow` se dibuja hueco: un dato que no se lee igual que los demás. Ver la guía de
 // visualización y `docs/app.md`, "Gráficas".
 import { useState } from "react";
-import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
+import {
+  AxisUnits,
+  HEIGHT,
+  MARGIN,
+  Tooltip,
+  TooltipText,
+  YGrid,
+  axesLabel,
+  lineRuns,
+  useWidth,
+} from "./common";
 import { linear, niceRange } from "./scale";
 
 export interface DatePoint {
@@ -52,8 +62,13 @@ interface Tick {
 /**
  * Marcas del eje X entre los días `min` y `max`: con más de tres meses, primeros de mes cada 1, 2,
  * 3, 6, 12 o 24 meses (`MM/AA`); con menos, días repartidos por igual (`DD/MM/AA`).
+ * `monthly` dice cuál de las dos, para la unidad del eje.
  */
-export function dateTicks(min: number, max: number, count: number): Tick[] {
+export function dateTicks(
+  min: number,
+  max: number,
+  count: number,
+): { ticks: Tick[]; monthly: boolean } {
   const from = new Date(min * DAY_MS);
   if (max - min >= 90) {
     for (const step of MONTH_STEPS) {
@@ -67,11 +82,11 @@ export function dateTicks(min: number, max: number, count: number): Tick[] {
           label: `${two(d.getUTCMonth() + 1)}/${two(d.getUTCFullYear() % 100)}`,
         });
       }
-      if (ticks.length <= count) return ticks;
+      if (ticks.length <= count) return { ticks, monthly: true };
     }
   }
   const n = Math.max(1, count - 1);
-  return Array.from({ length: n + 1 }, (_, k) => {
+  const ticks = Array.from({ length: n + 1 }, (_, k) => {
     const day = Math.round(min + ((max - min) * k) / n);
     const d = new Date(day * DAY_MS);
     return {
@@ -79,20 +94,27 @@ export function dateTicks(min: number, max: number, count: number): Tick[] {
       label: `${two(d.getUTCDate())}/${two(d.getUTCMonth() + 1)}/${two(d.getUTCFullYear() % 100)}`,
     };
   }).filter((t, k, all) => k === 0 || t.day !== all[k - 1].day);
+  return { ticks, monthly: false };
 }
 
 export function DateLineChart({
   series,
   formatTick,
+  yUnit,
   label,
 }: {
   series: DateSeries[];
   formatTick: (value: number) => string;
+  /** Unidad del eje Y, una vez junto al eje (las marcas van sin ella). */
+  yUnit: string;
   /** Descripción de la gráfica para lectores de pantalla. */
   label: string;
 }) {
   const { ref, width } = useWidth();
-  const [active, setActive] = useState<{ series: number; point: number } | null>(null);
+  const [active, setActive] = useState<{
+    series: number;
+    point: number;
+  } | null>(null);
 
   const drawn = series.flatMap((s) =>
     s.points.flatMap((p) => (p.value === null ? [] : [{ day: dayOf(p.date), value: p.value }])),
@@ -110,11 +132,13 @@ export function DateLineChart({
   // Un poco de aire a los lados para que los puntos de los extremos no se corten.
   const pad = MARKER_R + 2;
   const xOf = linear(dayDomain, [MARGIN.left + pad, MARGIN.left + plotW - pad]);
-  const xTicks = dateTicks(
+  const { ticks: xTicks, monthly } = dateTicks(
     dayDomain[0],
     dayDomain[1],
     Math.max(2, Math.floor(plotW / TICK_SPACING)),
   );
+
+  const xUnit = monthly ? "fecha (mm/aa)" : "fecha (dd/mm/aa)";
 
   const px = (s: DateSeries, i: number) => xOf(dayOf(s.points[i].date));
 
@@ -164,11 +188,12 @@ export function DateLineChart({
           width={width}
           height={HEIGHT}
           role="img"
-          aria-label={label}
+          aria-label={axesLabel(label, yUnit, xUnit)}
           onPointerMove={(e) => setActive(nearest(e.clientX, e.clientY, e.currentTarget))}
           onPointerLeave={() => setActive(null)}
         >
           <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
+          <AxisUnits y={yUnit} x={xUnit} right={MARGIN.left + plotW} />
           {xTicks.map((t) => (
             <text
               key={t.day}

@@ -3,7 +3,7 @@
 import { Trend, decimal } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { MultiLineChart } from "./charts/MultiLineChart";
-import { racesLabel, tickPercent } from "./HistoryPanels";
+import { racesLabel, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 /** `AAAA-MM-DD` → `DD/MM/AA`, para el eje. */
@@ -16,6 +16,7 @@ function TrendChart({
   id,
   title,
   measure,
+  yUnit,
   trend,
   higherIsBetter,
 }: {
@@ -23,6 +24,8 @@ function TrendChart({
   title: string;
   /** «tu IR», «tu tasa de error»… */
   measure: string;
+  /** Unidad del eje Y. */
+  yUnit: string;
   trend: Trend;
   higherIsBetter: boolean;
 }) {
@@ -69,7 +72,9 @@ function TrendChart({
             label={`${title}: cada carrera, la tendencia y su margen`}
             xLabels={p.map((point) => shortDate(point.date))}
             formatValue={(v) => (v === null ? "—" : `${decimal(v, 0)} %`)}
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit={yUnit}
+            xUnit="fecha (dd/mm/aa)"
             tooltipTitle={(i) => ({
               value: p[i] === undefined ? "" : percent0(p[i].value),
               detail: p[i]?.date ?? "",
@@ -146,6 +151,7 @@ export function TrendPanel({ performance, errorRate }: { performance: Trend; err
         id="trend-performance"
         title="Tendencia del IR"
         measure={`${who.yourOne} IR`}
+        yUnit="IR (%)"
         trend={performance}
         higherIsBetter
       />
@@ -153,6 +159,7 @@ export function TrendPanel({ performance, errorRate }: { performance: Trend; err
         id="trend-error-rate"
         title="Tendencia de la tasa de error"
         measure={`${who.yourOne} tasa de error`}
+        yUnit="% de tramos con error"
         trend={errorRate}
         higherIsBetter={false}
       />

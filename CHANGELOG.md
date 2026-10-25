@@ -14,6 +14,10 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+- Las gráficas dicen la unidad de cada eje a simple vista: «ppm», «s», «min/km» arriba a la
+  izquierda del eje vertical y «tramo», «fecha (dd/mm/aa)» o «tiempo de carrera (mm:ss)» abajo a
+  la derecha del horizontal, una sola vez en lugar de en cada número. Los ejes de porcentajes,
+  IR o recuentos dicen qué miden, y los lectores de pantalla oyen las dos unidades.
 - Exportar datos para análisis puede incluir ahora la serie de cada carrera con FIT
   (`samples.csv`): una fila por segundo con la distancia, la altitud, la velocidad, el pulso, la
   cadencia, la zancada, el tramo y el estado, para modelos de secuencias. Es opcional (casilla

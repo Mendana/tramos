@@ -4,7 +4,7 @@
 import { HistoryStats, LegLengthStats, decimal } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
-import { legsLabel, percent, percent1, tickPercent } from "./HistoryPanels";
+import { legsLabel, percent, percent1, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 /** Nombre del cubo: «20–30 s», «1–2 min» o «≥ 8 min» (el inicio entra, el final no). */
@@ -47,7 +47,9 @@ export function LegLengthPanel({
         chart={
           <ColumnChart
             label="Tasa de error según el tiempo de referencia del tramo"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="% de tramos con error"
+            xUnit="duración de referencia del tramo"
             reference={reference}
             columns={buckets.map((b) => {
               const v = errorRate(b);

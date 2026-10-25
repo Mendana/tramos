@@ -15,7 +15,7 @@ import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
 import { Legend } from "./charts/common";
 import { GroupedColumnChart } from "./charts/GroupedColumnChart";
-import { racesLabel, tickPercent } from "./HistoryPanels";
+import { racesLabel, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 /** Las tres partes, en orden fijo, con su color de serie. */
@@ -29,7 +29,7 @@ const HOW =
   "Desvío: los metros que corriste de más respecto a lo habitual en la carrera, al ritmo al que ibas. Paradas: el tiempo parado (sin los 5 s tras picar). Ritmo: el resto. Es una estimación: una parte puede salir negativa.";
 
 const secs = (v: number) => `${signed(v)} s`;
-const tickSeconds = (v: number) => `${String(Number(v.toFixed(1))).replace(".", ",")} s`;
+const tickSeconds = (v: number) => String(Number(v.toFixed(1))).replace(".", ",");
 const errorsLabel = (n: number) => `${n} ${n === 1 ? "error" : "errores"}`;
 
 const ATTACK_HOW =
@@ -142,6 +142,8 @@ export function RaceBreakdownPanel({
               }}
               formatValue={(v) => (v === null ? "—" : secs(v))}
               formatTick={tickSeconds}
+              yUnit="s"
+              xUnit="tramo con error"
             />
           </>
         )
@@ -239,7 +241,9 @@ export function HistoryBreakdownPanel({ breakdown }: { breakdown: BreakdownHisto
         chart={
           <ColumnChart
             label="Parte de la pérdida de los errores que es desvío, paradas y ritmo"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="% de la pérdida"
+            xUnit="causa"
             columns={PARTS.map((p) => {
               const v = pct(t[p.key]);
               return {
@@ -315,7 +319,9 @@ function AttackPanel({ totals: t }: { totals: BreakdownTotals }) {
       chart={
         <ColumnChart
           label="Parte de la pérdida de los errores que es al llegar a la baliza y por el camino"
-          formatTick={tickPercent}
+          formatTick={tickNumber}
+          yUnit="% de la pérdida"
+          xUnit="dónde se pierde"
           columns={parts.map((p, i) => {
             const v = pct(p.seconds);
             return {

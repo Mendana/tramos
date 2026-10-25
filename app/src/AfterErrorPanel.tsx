@@ -4,7 +4,7 @@
 import { AfterError, HistoryStats, Rate } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
-import { legsLabel, percent, tickPercent } from "./HistoryPanels";
+import { legsLabel, percent, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 const pct = (r: Rate) => (r.error_rate === null ? null : r.error_rate * 100);
@@ -98,7 +98,9 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
         chart={
           <ColumnChart
             label="Tasa de error del tramo siguiente a uno limpio, a un error, acelerando y sin acelerar"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="% de tramos con error"
+            xUnit="tramo anterior"
             reference={reference}
             columns={chain.map((c) => column(c.key, c.label, c.rate))}
           />
@@ -114,7 +116,9 @@ export function AfterErrorPanel({ data, total }: { data: AfterError; total: Hist
         chart={
           <ColumnChart
             label="Tasa de error según los tramos limpios seguidos previos"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="% de tramos con error"
+            xUnit="tramos limpios seguidos antes"
             reference={reference}
             columns={streaks.map((s) => column(s.key, `${s.label} limpios`, s.rate))}
           />

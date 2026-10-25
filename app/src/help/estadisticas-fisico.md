@@ -15,7 +15,8 @@ gráficas dicen poco: una línea con tres puntos no es una tendencia.
   [formato](formatos.md): sprint, media y larga. No se mezclan porque no se comparan: en una larga
   el pulso y la carga son otros que en un sprint. Compara cada línea con ella misma.
 - **Cada magnitud, su escala.** Nunca hay dos escalas en la misma gráfica. El eje vertical no
-  empieza en cero, para que se vean los cambios; fíjate en los números del eje.
+  empieza en cero, para que se vean los cambios; fíjate en los números del eje y en su unidad,
+  escrita arriba a la izquierda («m/latido», «km/h», «ppm»…).
 - **Punto hueco**: la carrera no tiene altitud, así que su velocidad (y su eficiencia) usa los
   metros reales y no los equivalentes en llano. No se compara bien con las demás: un aviso cuenta
   cuántos hay.

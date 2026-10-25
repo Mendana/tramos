@@ -22,7 +22,7 @@ import { Legend, SERIES_COLORS } from "./charts/common";
 import { GroupedColumnChart } from "./charts/GroupedColumnChart";
 import { GroupDot } from "./GroupsScreen";
 import { Filters } from "./HistoryScreen";
-import { percent, tickPercent } from "./HistoryPanels";
+import { percent, tickNumber } from "./HistoryPanels";
 import { bucketLabel } from "./LegLengthPanel";
 import { EmptyState, GroupIcon, Notice, PageHeader } from "./ui";
 
@@ -346,7 +346,9 @@ function ErrorTypesPanel({
               series={series(names, [value(view.a), value(view.b)])}
               tooltipTitle={(i) => ({ value: typeName(keys[i] ?? ""), detail: "De sus errores" })}
               formatValue={(v) => (v === null ? "—" : percent(v))}
-              formatTick={tickPercent}
+              formatTick={tickNumber}
+              yUnit="% de los errores"
+              xUnit="tipo de error"
             />
           </>
         )
@@ -409,7 +411,9 @@ function LegLengthPanel({ view, names }: { view: GroupsComparison; names: string
               detail: "Tasa de error",
             })}
             formatValue={(v) => (v === null ? "Sin tramos" : percent(v))}
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="% de tramos con error"
+            xUnit="duración de referencia del tramo"
           />
         </>
       }
@@ -477,7 +481,9 @@ function SlopePanel({ view, names }: { view: GroupsComparison; names: string[] }
                 detail: "IR medio",
               })}
               formatValue={(v) => (v === null ? "Sin tramos" : percent(v))}
-              formatTick={tickPercent}
+              formatTick={tickNumber}
+              yUnit="IR (%)"
+              xUnit="pendiente"
             />
           </>
         )

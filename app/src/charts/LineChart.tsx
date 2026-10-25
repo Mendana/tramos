@@ -3,7 +3,17 @@
 // superficie y un cursor vertical que se ajusta al punto más cercano, con tooltip (ratón y
 // teclado). Ver la guía de visualización y `docs/app.md`, "Gráficas".
 import { useState } from "react";
-import { HEIGHT, MARGIN, Tooltip, TooltipText, YGrid, lineRuns, useWidth } from "./common";
+import {
+  AxisUnits,
+  HEIGHT,
+  MARGIN,
+  Tooltip,
+  TooltipText,
+  YGrid,
+  axesLabel,
+  lineRuns,
+  useWidth,
+} from "./common";
 import { linear, niceDomain, niceRange } from "./scale";
 
 export interface LinePoint {
@@ -24,6 +34,8 @@ const LABEL_OVERFLOW = 4;
 export function LineChart({
   points,
   formatTick,
+  yUnit,
+  xUnit,
   label,
   color = "var(--chart-series-1)",
   markerColor = color,
@@ -32,6 +44,10 @@ export function LineChart({
 }: {
   points: LinePoint[];
   formatTick: (value: number) => string;
+  /** Unidad del eje Y, una vez junto al eje (las marcas van sin ella): «ppm», «s», «IR (%)». */
+  yUnit: string;
+  /** Qué mide el eje X: «tramo», «fecha (dd/mm/aa)», «km»… */
+  xUnit: string;
   /** Descripción de la gráfica para lectores de pantalla. */
   label: string;
   color?: string;
@@ -67,8 +83,9 @@ export function LineChart({
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
-        <svg width={width} height={HEIGHT} role="img" aria-label={label}>
+        <svg width={width} height={HEIGHT} role="img" aria-label={axesLabel(label, yUnit, xUnit)}>
           <YGrid ticks={ticks} y={y} plotW={plotW} format={formatTick} />
+          <AxisUnits y={yUnit} x={xUnit} right={MARGIN.left + plotW} />
           {runs.map((run) => (
             <g key={run.first}>
               <path

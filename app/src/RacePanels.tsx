@@ -14,7 +14,8 @@ function cases(n: number): string {
   return `${n} ${n === 1 ? "tramo" : "tramos"}`;
 }
 
-const seconds = (v: number) => `${decimal(v, 0)} s`;
+/** Marca del eje: entero, sin unidad (va en el eje). */
+const tickInteger = (v: number) => decimal(v, 0);
 
 /** IR de cada tramo frente al 100 % de la referencia. */
 export function PerformancePanel({ legs }: { legs: LegReport[] }) {
@@ -30,7 +31,9 @@ export function PerformancePanel({ legs }: { legs: LegReport[] }) {
       chart={
         <ColumnChart
           label="Rendimiento (IR) de cada tramo frente al 100 % de la referencia"
-          formatTick={percent}
+          formatTick={tickInteger}
+          yUnit="IR (%)"
+          xUnit="tramo"
           reference={{ value: 100, label: "Referencia" }}
           columns={legs.map((leg) => ({
             key: leg.index,
@@ -93,7 +96,9 @@ export function LossPanel({ legs }: { legs: LegReport[] }) {
           />
           <ColumnChart
             label="Pérdida en segundos de cada tramo; los tramos con error, en naranja"
-            formatTick={seconds}
+            formatTick={tickInteger}
+            yUnit="s"
+            xUnit="tramo"
             columns={legs.map((leg) => ({
               key: leg.index,
               label: String(leg.index),
@@ -162,7 +167,9 @@ export function CumulativeLossPanel({ legs }: { legs: LegReport[] }) {
       chart={
         <LineChart
           label="Tiempo perdido acumulado tras cada tramo"
-          formatTick={seconds}
+          formatTick={tickInteger}
+          yUnit="s"
+          xUnit="tramo (S = salida)"
           markerColor="var(--chart-error)"
           points={[
             {
@@ -247,7 +254,9 @@ export function GainLossPanel({ legs, streaks }: { legs: LegReport[]; streaks: L
           />
           <ColumnChart
             label="Ganancia en segundos de cada tramo, su acumulado y las rachas perdiendo"
-            formatTick={seconds}
+            formatTick={tickInteger}
+            yUnit="s"
+            xUnit="tramo"
             highlights={streaks.map((s) => ({
               from: position(s.first_leg),
               to: position(s.last_leg),

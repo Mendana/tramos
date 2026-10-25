@@ -4,7 +4,7 @@
 import { FORMAT_LABELS, HistoryRaceRow, HistoryStats, spread } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { LineChart } from "./charts/LineChart";
-import { racesLabel, tickPercent } from "./HistoryPanels";
+import { racesLabel, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 /** `AAAA-MM-DD` → `DD/MM/AA`, para el eje. */
@@ -40,7 +40,9 @@ export function ConsistencyPanel({
         chart={
           <LineChart
             label="Consistencia de cada carrera a lo largo del tiempo"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="desviación del IR (%)"
+            xUnit="fecha (dd/mm/aa)"
             labelSpacing={64}
             points={series.map(({ race, consistency }) => ({
               key: race.result_id,

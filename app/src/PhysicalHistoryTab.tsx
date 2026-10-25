@@ -35,6 +35,8 @@ interface Metric {
   value: (race: RaceFigures) => number | null;
   format: (value: number) => string;
   tick: (value: number) => string;
+  /** Unidad del eje Y (las marcas van sin ella). */
+  unit: string;
   /** Por qué falta en una carrera, para el aviso («2 carreras sin pulso»). */
   lacks: string;
   /** Mensaje cuando ninguna carrera la tiene. */
@@ -53,6 +55,7 @@ const METRICS: Metric[] = [
     value: (r) => r.efficiency_m_per_beat,
     format: (v) => `${decimal(v, 2)} m/latido`,
     tick: (v) => decimal(v, 2),
+    unit: "m/latido",
     lacks: "sin pulso",
     empty: "Ninguna carrera tiene pulso: sin él no hay eficiencia.",
     withoutAltitudeIsDifferent: true,
@@ -65,7 +68,8 @@ const METRICS: Metric[] = [
     help: { page: "estadisticas-fisico", section: "Desacople" },
     value: (r) => r.decoupling_pct,
     format: (v) => `${signed(v)} %`,
-    tick: (v) => `${decimal(v, 0)} %`,
+    tick: (v) => decimal(v, 0),
+    unit: "desacople (%)",
     lacks: "sin pulso o con menos de 2 min de traslado en cada mitad",
     empty: "Ninguna carrera tiene pulso y traslado para comparar sus dos mitades.",
   },
@@ -78,6 +82,7 @@ const METRICS: Metric[] = [
     value: (r) => (r.transit_speed_mps === null ? null : kmh(r.transit_speed_mps)),
     format: (v) => `${decimal(v, 1)} km/h`,
     tick: (v) => decimal(v, 1),
+    unit: "km/h",
     lacks: "sin traslado",
     empty: "Ninguna carrera tiene tiempo de traslado.",
     withoutAltitudeIsDifferent: true,
@@ -91,6 +96,7 @@ const METRICS: Metric[] = [
     value: (r) => r.heart_rate_bpm,
     format: (v) => `${decimal(v, 0)} ppm`,
     tick: (v) => decimal(v, 0),
+    unit: "ppm",
     lacks: "sin pulso",
     empty: "Ninguna carrera tiene pulso.",
   },
@@ -103,6 +109,7 @@ const METRICS: Metric[] = [
     value: (r) => r.vam_m_per_h,
     format: (v) => `${decimal(v, 0)} m/h`,
     tick: (v) => decimal(v, 0),
+    unit: "m/h",
     lacks: "sin altitud o con menos de 1 min de subida",
     empty: "Ninguna carrera tiene altitud y al menos un minuto de subida.",
   },
@@ -115,6 +122,7 @@ const METRICS: Metric[] = [
     value: (r) => r.cadence_spm,
     format: (v) => `${decimal(v, 0)} pasos/min`,
     tick: (v) => decimal(v, 0),
+    unit: "pasos/min",
     lacks: "sin cadencia",
     empty: "Ninguna carrera tiene cadencia.",
   },
@@ -127,6 +135,7 @@ const METRICS: Metric[] = [
     value: (r) => r.stride_m,
     format: (v) => `${decimal(v, 2)} m`,
     tick: (v) => decimal(v, 2),
+    unit: "m",
     lacks: "sin cadencia",
     empty: "Ninguna carrera tiene cadencia.",
   },
@@ -139,6 +148,7 @@ const METRICS: Metric[] = [
     value: (r) => r.load,
     format: (v) => decimal(v, 1),
     tick: (v) => decimal(v, 0),
+    unit: "carga (min × zona)",
     lacks: "sin pulso",
     empty: "Ninguna carrera tiene zonas y pulso.",
   },
@@ -318,6 +328,7 @@ function EvolutionPanel({
             <DateLineChart
               label={`${metric.title} de cada carrera, por fecha y formato`}
               formatTick={metric.tick}
+              yUnit={metric.unit}
               series={series}
             />
           </>
@@ -453,6 +464,8 @@ function GradePanels({ view, formats }: { view: PhysicalHistoryView; formats: nu
               tooltipTitle={where}
               formatValue={(v) => dash(v, (x) => `${decimal(x, 1)} km/h`)}
               formatTick={(v) => decimal(v, 0)}
+              yUnit="km/h"
+              xUnit="clase de pendiente"
               series={[
                 {
                   key: "real",
@@ -498,6 +511,8 @@ function GradePanels({ view, formats }: { view: PhysicalHistoryView; formats: nu
             color="var(--chart-series-3)"
             zeroBased={false}
             formatTick={(v) => decimal(v, 0)}
+            yUnit="ppm"
+            xUnit="clase de pendiente"
             labelSpacing={60}
             points={classes.map((c, i) => ({
               key: c.class,
@@ -546,7 +561,9 @@ function DriftPanel({ view, formats }: { view: PhysicalHistoryView; formats: num
         ) : (
           <ColumnChart
             label="Eficiencia de cada décima del traslado frente a la media de su carrera, con todas las carreras"
-            formatTick={(v) => `${decimal(v, 0)} %`}
+            formatTick={(v) => decimal(v, 0)}
+            yUnit="eficiencia (% sobre su media)"
+            xUnit="décima del traslado"
             columns={drift.map((d) => ({
               key: d.index,
               label: String(d.index + 1),

@@ -4,7 +4,7 @@
 import { DaysOffStats, HistoryStats } from "./api";
 import { ChartPanel } from "./charts/ChartPanel";
 import { ColumnChart } from "./charts/ColumnChart";
-import { legsLabel, percent, racesLabel, tickPercent } from "./HistoryPanels";
+import { legsLabel, percent, racesLabel, tickNumber } from "./HistoryPanels";
 import { useSubject } from "./subject";
 
 /** Nombre del cubo: «≤ 7 días», «8–14 días» o «> 30 días». */
@@ -77,7 +77,9 @@ export function DaysOffPanel({
         chart={
           <ColumnChart
             label="IR medio de los tres primeros tramos según los días desde la carrera anterior"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="IR (%)"
+            xUnit="días desde la carrera anterior"
             reference={
               total.mean_performance === null
                 ? undefined
@@ -112,7 +114,9 @@ export function DaysOffPanel({
         chart={
           <ColumnChart
             label="Tasa de error del primer tercio según los días desde la carrera anterior"
-            formatTick={tickPercent}
+            formatTick={tickNumber}
+            yUnit="% de tramos con error"
+            xUnit="días desde la carrera anterior"
             reference={
               total.error_rate === null
                 ? undefined

@@ -1,8 +1,12 @@
 // Piezas comunes de las gráficas: tamaño, rejilla con marcas del eje Y, tooltip y leyenda.
 import { useEffect, useRef, useState } from "react";
 
-export const HEIGHT = 220;
-export const MARGIN = { top: 12, right: 12, bottom: 28, left: 52 };
+// El margen de arriba deja sitio a la unidad del eje Y y el de abajo a la del eje X (más una
+// línea de marcas): así el dibujo mide lo mismo que antes de poner las unidades.
+export const HEIGHT = 244;
+export const MARGIN = { top: 22, right: 12, bottom: 42, left: 52 };
+/** Baja de la base del dibujo hasta la línea de la unidad del eje X (px). */
+const UNIT_X_BOTTOM = 4;
 
 /** Colores de las series, en orden fijo: la primera es siempre el corredor. */
 export const SERIES_COLORS = [
@@ -24,6 +28,46 @@ export function useWidth() {
     return () => observer.disconnect();
   }, []);
   return { ref, width };
+}
+
+/**
+ * Descripción de la gráfica para lectores de pantalla, con la unidad de cada eje (la misma que se
+ * ve en la gráfica).
+ */
+export function axesLabel(label: string, yUnit: string, xUnit: string): string {
+  return `${label}. Eje vertical: ${yUnit}. Eje horizontal: ${xUnit}.`;
+}
+
+/**
+ * Unidad de cada eje, una sola vez y sin repetirla en las marcas: la del Y, a la izquierda y
+ * encima de la marca más alta; la del X, a la derecha y bajo las marcas. `right` es el borde
+ * derecho del dibujo y `height`, el alto del SVG.
+ */
+export function AxisUnits({
+  y,
+  x,
+  right,
+  height = HEIGHT,
+}: {
+  y?: string;
+  x?: string;
+  right: number;
+  height?: number;
+}) {
+  return (
+    <>
+      {y !== undefined && (
+        <text className="chart-unit" x={0} y={MARGIN.top - 10}>
+          {y}
+        </text>
+      )}
+      {x !== undefined && (
+        <text className="chart-unit" x={right} y={height - UNIT_X_BOTTOM} textAnchor="end">
+          {x}
+        </text>
+      )}
+    </>
+  );
 }
 
 /** Líneas de la rejilla (la del 0, más marcada) con sus marcas a la izquierda. */
@@ -101,7 +145,10 @@ export function Tooltip({ text, x, width }: { text: TooltipText; x: number; widt
   return (
     <div
       className={onRight ? "chart-tooltip" : "chart-tooltip is-left"}
-      style={{ left: onRight ? x + TOOLTIP_GAP : x - TOOLTIP_GAP, top: MARGIN.top }}
+      style={{
+        left: onRight ? x + TOOLTIP_GAP : x - TOOLTIP_GAP,
+        top: MARGIN.top,
+      }}
     >
       <strong>{text.value}</strong>
       <span>{text.detail}</span>

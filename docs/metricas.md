@@ -79,24 +79,45 @@ en bajada «más rápido» aunque el esfuerzo sea el mismo. Para comparar la vel
 tramos** (P8 y P14) hace falta descontarlo. Comparar con los demás en el mismo tramo (`p_i`, P2)
 no lo necesita: el desnivel es el mismo para todos, y P13 mide justo su efecto.
 
-- **Coste de correr con pendiente** (`running_cost`): el polinomio de Minetti et al. (2002),
-  `C(i) = 155,4 i⁵ − 30,4 i⁴ − 43,3 i³ + 46,3 i² + 19,5 i + 3,6` J/(kg·m), con `i` la pendiente
-  (0,1 = 10 % de subida). Vale entre −45 % y +45 % (`MAX_GRADE`); fuera, se recorta. En llano,
-  3,6; al 10 % de subida, 5,97 (×1,66); al 10 % de bajada, 2,15 (×0,60).
+- **Factor de la pendiente** (`grade_factor`, #218): por cuánto se multiplica la velocidad real
+  para tener la equivalente en llano. Es una tabla (`GRADE_FACTORS`) interpolada en línea recta
+  entre sus puntos, de −45 % a +45 % (`MAX_GRADE`); fuera, se recorta:
+
+  | Pendiente | −30 % | −20 % | −15 % | −10 % | −8 % | −6 % | −4 % | −2 % | 0 | 2 % | 4 % | 6 % | 8 % | 10 % | 15 % | 20 % | 30 % |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | Factor | 1,495 | 1,081 | 0,941 | 0,876 | 0,876 | 0,891 | 0,918 | 0,96 | 1 | 1,055 | 1,135 | 1,228 | 1,337 | 1,459 | 1,846 | 2,297 | 3,158 |
+
+  Más los extremos: 2,096 a −45 %, 1,273 a −25 %, 2,727 a +25 % y 4,286 a +45 %.
 - **Trozos**: los intervalos en movimiento seguidos se juntan en trozos de al menos 20 m
   (`GRADE_CHUNK_M`). Un intervalo parado o un hueco cierra el trozo. La pendiente de un trozo es
   la diferencia de la altitud suavizada entre su principio y su final entre su distancia. No se
   mide intervalo a intervalo: en 1 s (unos 3 m) unos decímetros de ruido son un 10 % de
-  pendiente, y como el coste es convexo el ruido inflaría el resultado.
-- **Distancia equivalente**: cada trozo vale `distancia · C(i) / C(0)`. `flat_speed_mps` es la
+  pendiente, y como el factor es convexo el ruido inflaría el resultado.
+- **Distancia equivalente**: cada trozo vale `distancia · factor(pendiente)`. `flat_speed_mps` es la
   suma de las distancias equivalentes entre `moving_s`. En llano coincide con
   `moving_speed_mps`.
 - Si a algún trozo le falta altitud en un extremo, no hay velocidad en llano: no se inventa la
   pendiente de un trozo.
 
-Es el coste metabólico: en bajadas fuertes exagera lo que se «ahorra», porque bajando el límite es
-la técnica y no la energía, y no sabe nada del terreno (vegetación, piedras), que necesitaría el
-mapa. Basta para que una cuesta no pase por cansancio ni una bajada por acelerar.
+### De dónde sale la tabla
+
+Es el ajuste por pendiente (GAP) de Strava desde 2017: en lugar de un modelo de laboratorio, sale
+del pulso de millones de carreras, buscando qué ritmo en llano da el mismo pulso que cada ritmo en
+cuesta. Strava no publica la fórmula; los valores los midió Aaron Schroeder subiendo actividades
+sintéticas a velocidad y pendiente constantes (paquete `specialsauce`, licencia MIT,
+<https://github.com/aaron-schroeder/specialsauce>, `specialsauce/sources/strava.py`).
+
+Hasta #218 se usaba el coste metabólico de Minetti et al. (2002). En subida se parecen (Minetti
+algo más alto: ×1,66 al 10 % frente a ×1,459), pero en bajada Minetti supone que se ahorra mucha
+energía (×0,60 al −10 %, ×0,48 al −20 %), y bajando por monte el límite es la técnica, no la
+energía. Con el pulso real, lo más rápido es bajar al −8/−10 % (×0,876), y del −17 % en adelante
+bajar ya cuesta más que el llano. Con una carrera real de media distancia, la velocidad en llano
+por clase de pendiente pasó de ir de 1,5 a 3,0 m/s con Minetti a quedarse entre 2,5 y 2,7 m/s, y
+la eficiencia (metros por latido) quedó casi igual en todas las clases: lo esperable si el ajuste
+quita bien la pendiente.
+
+No sabe nada del terreno (vegetación, piedras), que necesitaría el mapa, ni del corredor: es un
+ajuste medio. Basta para que una cuesta no pase por cansancio ni una bajada por acelerar.
 
 **Qué velocidad compara una carrera** (`RaceSpeed`): la equivalente en llano si la tienen todos
 sus tramos con velocidad en movimiento; si no (track sin altitud), la velocidad en movimiento.
@@ -163,9 +184,9 @@ rango, `MetricsError::InvalidOptions`.
 - Unitarias con tracks hechos a mano: distancia, velocidad y paradas; margen tras la picada;
   huecos; distancia del reloj frente al GPS (también si falta o retrocede); ida y vuelta sin
   relación; medias ponderadas de pulso y cadencia; suavizado frente a ruido alterno; suavizado
-  que no cruza huecos; tramos sin sub-track; opciones inválidas; JSON; coste de Minetti a mano
-  (llano, ±10 %, recorte), velocidad en llano en llano, subida, bajada y pendiente recortada, con
-  un parón en medio y sin altitud; tiempo de ataque con una búsqueda en la zona, con un tramo
+  que no cruza huecos; tramos sin sub-track; opciones inválidas; JSON; factor de la pendiente a
+  mano (puntos de la tabla, interpolación, recorte), velocidad en llano en llano, subida, bajada
+  y pendiente recortada, con un parón en medio y sin altitud; tiempo de ataque con una búsqueda en la zona, con un tramo
   que pasa cerca, se aleja y vuelve, y en tramos cortos.
 - FIT sintético: en los 21 tramos, duración = split, distancia a ±0,5 m, línea recta a ±1 m y
   subida y bajada a ±1,5 m del terreno sin ruido (campos `ascent_m` y `descent_m` del

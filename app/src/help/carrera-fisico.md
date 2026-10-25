@@ -86,9 +86,8 @@ definirlas. Al ver a un [atleta](atletas.md), sus zonas no vienen en el paquete 
 - **El pulso de muñeca** llega con retraso (sube y baja medio minuto después que el esfuerzo) y da
   saltos. Por eso el pulso de una subida corta sale más bajo de lo real, y el desacople es más
   fiable que cualquier pulso suelto.
-- **El ajuste a pendiente** usa lo que cuesta correr con cada pendiente según un modelo general
-  (Minetti), no el tuyo. En una **bajada fuerte exagera** lo que ahorras (ahí manda la técnica, no la energía): para la bajada,
-  fíate de la velocidad real. Tampoco sabe del terreno: vegetación, piedras o barro te frenan y la
+- **El ajuste a pendiente** es una media de muchos corredores (el de Strava, sacado del pulso), no
+  el tuyo: si bajas muy bien o muy mal, te sales de él. Tampoco sabe del terreno: vegetación, piedras o barro te frenan y la
   altitud no lo ve.
 - **El desacople mezcla cansancio y terreno**: si la segunda mitad tiene más bajada fuerte o un
   terreno peor, sale más alto. Compáralo entre carreras parecidas.

@@ -6,7 +6,7 @@ de rápido corre el corredor, cuánto pulso le cuesta, cómo se degrada a lo lar
 cómo sube y baja. No mira la orientación: ni la pérdida, ni los errores, ni los demás corredores.
 
 Usa la segmentación (`docs/segmentacion.md`) y las mismas definiciones que las métricas de tramo
-(`docs/metricas.md`): intervalos, paradas, huecos, altitud suavizada, coste de correr con
+(`docs/metricas.md`): intervalos, paradas, huecos, altitud suavizada, ajuste por
 pendiente y tiempo de ataque. El último argumento son los límites de las zonas de pulso de Ajustes
 (ppm, de menor a mayor), si las hay. Los tests están en `crates/tramos-core/src/physical.rs`
 (tracks calculados a mano) y `crates/tramos-core/tests/physical.rs` (FIT sintético).
@@ -27,7 +27,7 @@ el final del tramo cierran el trozo, aunque mida menos. Cada trozo tiene:
 
 - duración, distancia y, con altitud, **pendiente** (diferencia de la altitud suavizada entre su
   final y su principio, entre su distancia) y **distancia equivalente en llano** (distancia ×
-  `C(pendiente) / C(0)`, el coste de Minetti);
+  `grade_factor(pendiente)`, el ajuste por pendiente de `docs/metricas.md`);
 - **pulso medio** (cada intervalo vale la media de sus dos extremos, ponderada por tiempo), si hay
   pulso en al menos la mitad del trozo;
 - **cadencia media**, igual.
@@ -116,7 +116,7 @@ La serie empieza en el primer punto del primer tramo con track y acaba en el úl
 | `distance_m` | Metros recorridos desde la salida, sumando los intervalos de los tramos (los huecos también, como `RacePhysical::distance_m`). |
 | `altitude_m` | Altitud suavizada (`altitude_smoothing_s`); `null` sin altitud. |
 | `speed_mps` | **Velocidad real**: metros recorridos en una ventana de ±5 s (`SPEED_WINDOW_S`) entre su duración, la misma ventana que el ritmo del mapa (`docs/app.md`, "Mapa"). La ventana se recorta al tramo continuo: no cruza un hueco ni un tramo sin track. |
-| `flat_speed_mps` | **Velocidad en llano**: la real por `C(pendiente) / C(0)` (Minetti, como los trozos). La pendiente es la de la altitud suavizada en esa misma ventana; si no llega a 20 m (`GRADE_CHUNK_M`), se ensancha al doble y luego al cuádruple. `null` sin altitud o sin pendiente medible. |
+| `flat_speed_mps` | **Velocidad en llano**: la real por `grade_factor(pendiente)`, como los trozos. La pendiente es la de la altitud suavizada en esa misma ventana; si no llega a 20 m (`GRADE_CHUNK_M`), se ensancha al doble y luego al cuádruple. `null` sin altitud o sin pendiente medible. |
 | `heart_rate_bpm` | Media de las muestras de pulso a ±5 s (`HEART_RATE_SMOOTHING_S`, la del pulso máximo); `null` si no hay ninguna. |
 | `cadence_spm` | Media de la cadencia a ±5 s (`CADENCE_SMOOTHING_S`). |
 | `stride_m` | **Zancada**: velocidad real entre cadencia suavizada, en m por paso; `null` sin cadencia o parado (menos de `stop_speed_mps`). |
@@ -236,10 +236,10 @@ Décima 1 en tres carreras, con eficiencias en la décima y en la carrera de 2,2
 - **Pulso de muñeca**: tiene retraso (sube y baja medio minuto después que el esfuerzo) y saltos.
   Por eso el pulso de una clase de pendiente subestima el de las subidas cortas, y el desacople es
   más fiable que cualquier pulso suelto.
-- **El ajuste a pendiente es el coste metabólico** (Minetti). En bajadas fuertes exagera lo que
-  se ahorra: bajando, el límite es la técnica y no la energía. Con una carrera real, la clase
-  `steep_down` sale con una velocidad en llano muy baja y una eficiencia que dice más del modelo
-  que del corredor. Para la bajada, mejor la velocidad real.
+- **El ajuste a pendiente es medio** (el de Strava, `docs/metricas.md`): no es el del corredor ni
+  sabe del terreno. Desde #218 ya no exagera la bajada (con Minetti, la clase `steep_down` salía
+  con una velocidad en llano muy baja), pero un corredor que baja muy bien o muy mal se sale de
+  él.
 - **El desacople mezcla terreno y cansancio**: si la segunda mitad tiene más bajada fuerte o un
   terreno más lento (vegetación, piedras, que no se ven en la altitud), sale más alto. Compararlo
   entre carreras parecidas.
@@ -257,8 +257,8 @@ El intervalo de 299 a 300 está en la primera mitad y vale la media de sus extre
 - Desacople: `1 − 150,025 / 165 = 9,08 %`. Cambio de velocidad: 0 %. Cambio de pulso: +14,98 ppm.
 
 Clases de pendiente: 100 s a 4 m/s en llano, 100 s subiendo al 10 % y 100 s bajando al 5 %. La
-subida es `steep_up` con velocidad en llano `4 · 5,968214 / 3,6 = 6,6313` m/s y la bajada, `down`
-con `4 · 2,745924 / 3,6 = 3,0510` m/s. VAM: 40 m en 100 s, 1440 m/h.
+subida es `steep_up` con velocidad en llano `4 · 1,459 = 5,836` m/s y la bajada, `down` con
+`4 · (0,918 + 0,891) / 2 = 3,618` m/s. VAM: 40 m en 100 s, 1440 m/h.
 
 Zonas con límites 140 y 160 y pulso 130, 150 y 170 durante 60, 120 y 60 s: los intervalos de los
 cambios valen 140 y 160, así que caen en la zona de arriba: 59, 120 y 61 s. Carga:
@@ -267,4 +267,4 @@ cambios valen 140 y 160, así que caen en la zona de arriba: 59, 120 y 61 s. Car
 Serie (60 s a 4 m/s, pulso 150 hasta el segundo 29 y 170 desde el 30, un instante cada 5 s): en
 el segundo 30 la ventana de ±5 s tiene 5 muestras a 150 (25 a 29) y 6 a 170 (30 a 35), así que el
 pulso es `(5 · 150 + 6 · 170) / 11 = 160,91`. Con 180 pasos/min, la zancada es `4 · 60 / 180 =
-1,3333` m. Subiendo al 10 % a 4 m/s, la velocidad en llano es `4 · 5,968214 / 3,6 = 6,6313` m/s.
+1,3333` m. Subiendo al 10 % a 4 m/s, la velocidad en llano es `4 · 1,459 = 5,836` m/s.

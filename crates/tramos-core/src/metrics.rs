@@ -13,7 +13,7 @@
 //! - La altitud se suaviza con una media móvil en el tiempo sobre el track entero, y la subida
 //!   y la bajada son la suma de los cambios de la altitud suavizada dentro del tramo.
 //! - La velocidad equivalente en llano (#191) pesa cada trozo en movimiento por el coste de
-//!   correr con su pendiente ([`running_cost`]).
+//!   correr con su pendiente ([`grade_factor`]).
 //! - El tiempo de ataque (#189) es el que pasa el corredor cerca de la baliza antes de picarla.
 
 use chrono::{DateTime, Utc};
@@ -32,7 +32,7 @@ const MAX_ALTITUDE_SMOOTHING_S: f64 = 120.0;
 /// La pendiente se mide en trozos en movimiento de al menos esta distancia (m): en un intervalo
 /// de 1 s (unos 3 m) el ruido de la altitud daría pendientes enormes.
 pub const GRADE_CHUNK_M: f64 = 20.0;
-/// Pendiente máxima (fracción, ±) del modelo de coste; fuera, se recorta.
+/// Pendiente máxima (fracción, ±) del ajuste por pendiente; fuera, se recorta.
 pub const MAX_GRADE: f64 = 0.45;
 
 /// Parámetros de las métricas. Los valores por defecto son los de `docs/metricas.md`.
@@ -319,20 +319,53 @@ pub fn attack_s(points: &[TrackPoint], radius_m: f64) -> Option<f64> {
     Some(seconds_between(before.time, control.time) - entry)
 }
 
-/// Coste energético de correr con pendiente `grade` (fracción: 0,1 = 10 % de subida), en J por
-/// kg y metro: el polinomio de Minetti et al. (2002), válido entre −45 % y +45 %. Fuera de ese
-/// rango se recorta. En llano vale 3,6.
-pub fn running_cost(grade: f64) -> f64 {
-    let i = grade.clamp(-MAX_GRADE, MAX_GRADE);
-    ((((155.4 * i - 30.4) * i - 43.3) * i + 46.3) * i + 19.5) * i + 3.6
+/// Factor del ajuste por pendiente en cada pendiente (%, de menor a mayor): la velocidad
+/// equivalente en llano es la real por el factor. Es el GAP de Strava, que sale del pulso de
+/// millones de carreras, medido por Aaron Schroeder subiendo a Strava actividades sintéticas a
+/// velocidad y pendiente constantes (`specialsauce`, licencia MIT,
+/// <https://github.com/aaron-schroeder/specialsauce>). Ver `docs/metricas.md` (#218).
+pub const GRADE_FACTORS: [(f64, f64); 21] = [
+    (-45.0, 2.096),
+    (-30.0, 1.495),
+    (-25.0, 1.273),
+    (-20.0, 1.081),
+    (-15.0, 0.941),
+    (-10.0, 0.876),
+    (-8.0, 0.876),
+    (-6.0, 0.891),
+    (-4.0, 0.918),
+    (-2.0, 0.96),
+    (0.0, 1.0),
+    (2.0, 1.055),
+    (4.0, 1.135),
+    (6.0, 1.228),
+    (8.0, 1.337),
+    (10.0, 1.459),
+    (15.0, 1.846),
+    (20.0, 2.297),
+    (25.0, 2.727),
+    (30.0, 3.158),
+    (45.0, 4.286),
+];
+
+/// Por cuánto se multiplica la velocidad real con pendiente `grade` (fracción: 0,1 = 10 % de
+/// subida) para tener la equivalente en llano: [`GRADE_FACTORS`] interpolado en línea recta.
+/// Fuera de ±[`MAX_GRADE`] se recorta. En llano vale 1; el mínimo, 0,876, entre −8 % y −10 %.
+pub fn grade_factor(grade: f64) -> f64 {
+    let pct = (grade * 100.0).clamp(-MAX_GRADE * 100.0, MAX_GRADE * 100.0);
+    let upper = GRADE_FACTORS
+        .partition_point(|&(g, _)| g < pct)
+        .clamp(1, GRADE_FACTORS.len() - 1);
+    let ((g0, f0), (g1, f1)) = (GRADE_FACTORS[upper - 1], GRADE_FACTORS[upper]);
+    f0 + (pct - g0) / (g1 - g0) * (f1 - f0)
 }
 
 /// Distancia equivalente en llano de los trozos en movimiento de un tramo.
 ///
 /// Los intervalos en movimiento seguidos se juntan en trozos de al menos [`GRADE_CHUNK_M`]; un
 /// intervalo parado o un hueco cierra el trozo. Cada trozo vale su distancia por
-/// `running_cost(pendiente) / running_cost(0)`, con la pendiente de la altitud suavizada entre
-/// su principio y su final.
+/// `grade_factor(pendiente)`, con la pendiente de la altitud suavizada entre su principio y su
+/// final.
 #[derive(Default)]
 struct FlatDistance {
     /// Trozo abierto: principio, final y distancia.
@@ -361,7 +394,7 @@ impl FlatDistance {
         }
         match altitude.at(start).zip(altitude.at(end)) {
             Some((a, b)) => {
-                self.equivalent_m += d * running_cost((b - a) / d) / running_cost(0.0);
+                self.equivalent_m += d * grade_factor((b - a) / d);
                 self.chunks += 1;
             }
             None => self.missing_altitude = true,
@@ -690,14 +723,24 @@ mod tests {
     }
 
     #[test]
-    fn running_cost_is_minettis_polynomial() {
-        assert!(close(running_cost(0.0), 3.6));
-        // A mano: 155,4·10⁻⁵ − 30,4·10⁻⁴ − 43,3·10⁻³ + 46,3·10⁻² + 19,5·10⁻¹ + 3,6.
-        assert!(close(running_cost(0.1), 5.968214));
-        assert!(close(running_cost(-0.1), 2.151706));
+    fn grade_factor_interpolates_the_table() {
+        // En los puntos de la tabla, su valor.
+        assert!(close(grade_factor(0.0), 1.0));
+        assert!(close(grade_factor(0.1), 1.459));
+        assert!(close(grade_factor(-0.1), 0.876));
+        assert!(close(grade_factor(-0.2), 1.081));
+        assert!(close(grade_factor(0.45), 4.286));
+        assert!(close(grade_factor(-0.45), 2.096));
+        // Entre puntos, en línea recta: 5 % entre 1,135 y 1,228; −12,5 % entre 0,876 y 0,941;
+        // −9 % entre dos 0,876.
+        assert!(close(grade_factor(0.05), 1.1815));
+        assert!(close(grade_factor(-0.125), 0.9085));
+        assert!(close(grade_factor(-0.09), 0.876));
         // Fuera de ±45 % se recorta.
-        assert!(close(running_cost(0.8), running_cost(MAX_GRADE)));
-        assert!(close(running_cost(-0.8), running_cost(-MAX_GRADE)));
+        assert!(close(grade_factor(0.8), grade_factor(MAX_GRADE)));
+        assert!(close(grade_factor(-0.8), grade_factor(-MAX_GRADE)));
+        // La tabla va de menor a mayor pendiente.
+        assert!(GRADE_FACTORS.windows(2).all(|w| w[0].0 < w[1].0));
     }
 
     #[test]
@@ -705,23 +748,26 @@ mod tests {
         // Llano: igual que la velocidad en movimiento.
         let m = run(slope_run(0.0), &raw_altitude());
         assert!((m.flat_speed_mps.unwrap() - 3.0).abs() < 1e-4);
-        // Subida del 10 % (0,3 m por cada 3 m): 3 · 5,968214 / 3,6.
+        // Subida del 10 % (0,3 m por cada 3 m): 3 · 1,459.
         let m = run(slope_run(0.3), &raw_altitude());
-        assert!((m.flat_speed_mps.unwrap() - 4.973512).abs() < 1e-3);
+        assert!((m.flat_speed_mps.unwrap() - 4.377).abs() < 1e-3);
         assert!((m.moving_speed_mps.unwrap() - 3.0).abs() < 1e-4);
-        // Bajada del 10 %: 3 · 2,151706 / 3,6.
+        // Bajada del 10 %: 3 · 0,876.
         let m = run(slope_run(-0.3), &raw_altitude());
-        assert!((m.flat_speed_mps.unwrap() - 1.793088).abs() < 1e-3);
+        assert!((m.flat_speed_mps.unwrap() - 2.628).abs() < 1e-3);
+        // Bajada del 20 %: ya cuesta más que el llano, 3 · 1,081.
+        let m = run(slope_run(-0.6), &raw_altitude());
+        assert!((m.flat_speed_mps.unwrap() - 3.243).abs() < 1e-3);
         // Pendiente del 100 %: se recorta al 45 %.
         let m = run(slope_run(3.0), &raw_altitude());
-        let clipped = 3.0 * running_cost(MAX_GRADE) / 3.6;
+        let clipped = 3.0 * grade_factor(MAX_GRADE);
         assert!((m.flat_speed_mps.unwrap() - clipped).abs() < 1e-3);
     }
 
     #[test]
     fn flat_speed_ignores_stops_and_needs_altitude() {
         // 0–10 s subiendo al 10 %, 20 s parado y 10 s más en llano: el parón no cuenta y cada
-        // trozo lleva su pendiente. 30 m a 5,968214 / 3,6 y 30 m a 1, en 20 s.
+        // trozo lleva su pendiente. 30 m a 1,459 y 30 m a 1, en 20 s.
         let mut points: Vec<TrackPoint> = (0..=10)
             .map(|s| TrackPoint {
                 altitude_m: Some(0.3 * s as f64),
@@ -737,7 +783,7 @@ mod tests {
             ..point(s as f64, 30.0 + 3.0 * (s - 30) as f64)
         }));
         let m = run(points.clone(), &raw_altitude());
-        let expected = (30.0 * 5.968214 / 3.6 + 30.0) / 20.0;
+        let expected = (30.0 * 1.459 + 30.0) / 20.0;
         assert!((m.flat_speed_mps.unwrap() - expected).abs() < 1e-3);
 
         // Sin altitud en un trozo, no hay velocidad en llano (no se inventa la pendiente).

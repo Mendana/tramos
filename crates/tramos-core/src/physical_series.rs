@@ -7,16 +7,16 @@
 //!   le da [`crate::physical::race_physical`]: hueco, ataque, parado o traslado. La interfaz
 //!   dibuja lo que recibe y no vuelve a decidir qué es cada cosa.
 //! - La velocidad es la distancia recorrida en una ventana de ±[`SPEED_WINDOW_S`] (como el ritmo
-//!   del mapa) sin cruzar huecos. La velocidad en llano la pesa por el coste de correr con la
-//!   pendiente de esa zona ([`crate::metrics::running_cost`]).
+//!   del mapa) sin cruzar huecos. La velocidad en llano la multiplica por el ajuste de la
+//!   pendiente de esa zona ([`crate::metrics::grade_factor`]).
 //! - El pulso y la cadencia son la media de las muestras a ±5 s.
 
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::metrics::{
-    GRADE_CHUNK_M, MetricsError, MetricsOptions, Smoothed, attack_s, interval_distance_m,
-    running_cost, seconds_between, validate,
+    GRADE_CHUNK_M, MetricsError, MetricsOptions, Smoothed, attack_s, grade_factor,
+    interval_distance_m, seconds_between, validate,
 };
 use crate::model::{ControlCode, Track, TrackPoint};
 use crate::physical::HEART_RATE_SMOOTHING_S;
@@ -312,7 +312,7 @@ pub fn race_series(
             let altitude_m = altitude_at(t_s);
             let flat_speed_mps = speed_mps.zip(altitude_m).and_then(|(speed, _)| {
                 let grade = timeline.grade(iv, t_s, &altitude_at)?;
-                Some(speed * running_cost(grade) / running_cost(0.0))
+                Some(speed * grade_factor(grade))
             });
             let cadence_spm = window_mean(&cadence, t_s, CADENCE_SMOOTHING_S);
             let stride_m = speed_mps
@@ -716,12 +716,12 @@ mod tests {
         let at = |t: usize| &s.samples[t / 10];
         assert!(close(at(50).flat_speed_mps.unwrap(), 4.0));
         assert!(close(at(50).altitude_m.unwrap(), 500.0));
-        // Subida del 10 %: 4 · 5,968214 / 3,6 = 6,631349 m/s en llano.
-        assert!((at(150).flat_speed_mps.unwrap() - 6.631349).abs() < 1e-5);
+        // Subida del 10 %: 4 · 1,459 = 5,836 m/s en llano.
+        assert!((at(150).flat_speed_mps.unwrap() - 5.836).abs() < 1e-9);
         assert!(close(at(150).speed_mps.unwrap(), 4.0));
         assert!(close(at(150).altitude_m.unwrap(), 520.0));
         // En el cambio de pendiente, la ventana ve medio llano y media subida: 2 m en 40 m.
-        let expected = 4.0 * running_cost(0.05) / running_cost(0.0);
+        let expected = 4.0 * grade_factor(0.05);
         assert!((at(100).flat_speed_mps.unwrap() - expected).abs() < 1e-9);
     }
 
@@ -737,7 +737,7 @@ mod tests {
         let s = series(points, 20.0);
         let sample = &s.samples[3];
         assert!(close(sample.speed_mps.unwrap(), 1.0));
-        let expected = running_cost(0.1) / running_cost(0.0);
+        let expected = grade_factor(0.1);
         assert!((sample.flat_speed_mps.unwrap() - expected).abs() < 1e-9);
     }
 

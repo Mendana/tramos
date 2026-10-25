@@ -38,6 +38,11 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
   (deriva cardiaca), el pulso, la VAM, la cadencia y la zancada, cómo cambian a lo largo de la
   carrera, cómo corres según la pendiente y el tiempo en cada zona de pulso.
 
+- El ritmo ajustado a la pendiente es más realista en las bajadas: ahora sale de cómo corre la
+  gente de verdad (el ajuste de Strava, basado en el pulso) y no de un modelo de laboratorio que
+  suponía que bajar ahorra mucho. En las bajadas empinadas ya no parece que vayas lentísimo, y la
+  eficiencia y la velocidad en llano por pendiente se pueden comparar entre subidas y bajadas.
+
 ## 0.4.2
 
 - Lo que etiquetas manda en toda la app: si marcas «No» o «Físico» en un tramo, deja de contar

@@ -197,7 +197,7 @@ function Summary({ data }: { data: PhysicalReady }) {
               ? `En llano ${paceOf(t.flat_speed_mps)} min/km`
               : `${decimal(kmh(t.speed_mps), 1)} km/h · sin altitud, la real`
         }
-        hint="Ritmo medio del traslado. «En llano» ajusta cada trozo por su pendiente con el coste de correr de Minetti: lo que habrías corrido sin subidas ni bajadas."
+        hint="Ritmo medio del traslado. «En llano» ajusta cada trozo por su pendiente (el ajuste de Strava, sacado del pulso de muchos corredores): lo que habrías corrido sin subidas ni bajadas."
       />
       <Stat
         label="Eficiencia"
@@ -790,7 +790,7 @@ function GradePanels({ data }: { data: PhysicalReady }) {
         id="race-physical-grade-speed"
         title="Velocidad por pendiente"
         help={{ page: "carrera-fisico", section: "Por pendiente" }}
-        description="Km/h reales y equivalentes en llano en cada clase de pendiente. Si subes más despacio de lo que tu ritmo en llano haría esperar, ahí pierdes. En bajada fuerte, el ajuste exagera lo que se ahorra: mira la real."
+        description="Km/h reales y equivalentes en llano en cada clase de pendiente. Si subes más despacio de lo que tu ritmo en llano haría esperar, ahí pierdes."
         cases={`${used} ${used === 1 ? "clase" : "clases"}`}
         chart={
           <>

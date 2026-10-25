@@ -14,6 +14,8 @@ Cómo se mantiene (`docs/distribucion.md`, «Publicar una versión»):
 
 ## Sin publicar
 
+## 0.4.2
+
 - Lo que etiquetas manda en toda la app: si marcas «No» o «Físico» en un tramo, deja de contar
   como error en las cifras de la carrera (errores, tiempo perdido, tiempo y puesto sin errores),
   en las estadísticas y en lo que ve quien te entrena. Si marcas «Sí» en un tramo que la app no

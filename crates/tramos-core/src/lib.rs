@@ -43,6 +43,6 @@ mod tests {
 
     #[test]
     fn version_matches_manifest() {
-        assert_eq!(VERSION, "0.4.1");
+        assert_eq!(VERSION, "0.4.2");
     }
 }

@@ -1,7 +1,7 @@
 // Tipos y llamada del comando `race_physical` (`src-tauri/src/race_physical.rs`,
 // `docs/rendimiento-fisico.md`). Todo viene calculado de Rust: la interfaz solo dibuja.
 import { invoke } from "@tauri-apps/api/core";
-import type { Zones } from "./api";
+import type { EventKind, HistoryFilter, RaceFormat, Zones } from "./api";
 
 /** Velocidad con la que se compara el traslado: en llano, o la real si falta la altitud. */
 export type SpeedKind = "flat" | "moving";
@@ -15,8 +15,12 @@ export interface TransitStats {
   speed_mps: number | null;
   flat_speed_mps: number | null;
   heart_rate_bpm: number | null;
+  /** Tiempo de los trozos con pulso (s): el peso del pulso al juntar carreras. */
+  heart_rate_s: number;
   efficiency_m_per_beat: number | null;
   cadence_spm: number | null;
+  /** Tiempo de los trozos con cadencia (s). */
+  cadence_s: number;
   stride_m: number | null;
 }
 
@@ -118,3 +122,64 @@ export type PhysicalView =
 
 export const racePhysical = (resultId: number) =>
   invoke<PhysicalView>("race_physical", { resultId });
+
+// Pestaña Físico del histórico (#214, `src-tauri/src/physical_history.rs`).
+
+/** Las cifras de una carrera para las gráficas de evolución. */
+export interface RaceFigures {
+  speed: SpeedKind;
+  transit_s: number;
+  efficiency_m_per_beat: number | null;
+  decoupling_pct: number | null;
+  /** En llano si `speed` es `flat`; la real si es `moving`. */
+  transit_speed_mps: number | null;
+  heart_rate_bpm: number | null;
+  vam_m_per_h: number | null;
+  cadence_spm: number | null;
+  stride_m: number | null;
+  load: number | null;
+}
+
+/** Una carrera con FIT del histórico. */
+export interface PhysicalRaceRow extends RaceFigures {
+  result_id: number;
+  date: string;
+  name: string | null;
+  format: RaceFormat | null;
+  kind: EventKind;
+  class_name: string;
+}
+
+/** Una clase de pendiente con los trozos de todas las carreras. */
+export interface GradeHistory extends TransitStats {
+  class: GradeClass;
+  /** Carreras con traslado en esta clase. */
+  races: number;
+}
+
+/** Una décima con la eficiencia relativa a la de su carrera (1 = la media de su carrera). */
+export interface DriftHistory {
+  index: number;
+  races: number;
+  relative_efficiency: number | null;
+}
+
+export interface PhysicalHistoryView {
+  /** Carreras que pasan el filtro, tengan FIT o no. */
+  races_in_filter: number;
+  /** Las que no tienen FIT o no se pueden alinear. */
+  races_without_track: number;
+  /** Si hay zonas de pulso en Ajustes (sin ellas no hay carga). */
+  has_zones: boolean;
+  /** Las carreras con FIT, de la más antigua a la más reciente. */
+  races: PhysicalRaceRow[];
+  history: {
+    races: number;
+    graded_races: number;
+    by_grade: GradeHistory[];
+    drift: DriftHistory[];
+  };
+}
+
+export const physicalHistory = (filter: HistoryFilter) =>
+  invoke<PhysicalHistoryView>("physical_history", { filter });

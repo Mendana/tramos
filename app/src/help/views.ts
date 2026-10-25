@@ -44,6 +44,7 @@ const HISTORY_TAB_HELP: Record<HistoryTab, HelpPageId> = {
   where: "estadisticas-donde",
   progress: "estadisticas-evolucion",
   body: "estadisticas-cabeza",
+  physical: "estadisticas-fisico",
 };
 
 /** La página de ayuda de lo que se está viendo. */

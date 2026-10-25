@@ -22,7 +22,7 @@ import { useViewer } from "./viewer";
 
 /** Nombre (entero y corto, para el eje) y rango de cada clase de pendiente (`GRADE_LIMITS` del
  *  núcleo). */
-const GRADE_LABELS: Record<GradeClass, { name: string; short: string; range: string }> = {
+export const GRADE_LABELS: Record<GradeClass, { name: string; short: string; range: string }> = {
   steep_down: { name: "Bajada fuerte", short: "Baj. fuerte", range: "< −8 %" },
   down: { name: "Bajada", short: "Bajada", range: "−8 a −3 %" },
   flat: { name: "Llano", short: "Llano", range: "−3 a 3 %" },
@@ -46,8 +46,8 @@ const PACE_STEPS = [10, 15, 30, 60, 120];
 /** Una fila de la tabla del panel de la carrera por cada tanto tiempo. */
 const TABLE_EVERY_S = 60;
 
-const kmh = (mps: number) => mps * 3.6;
-const dash = (v: number | null, f: (v: number) => string) => (v === null ? "—" : f(v));
+export const kmh = (mps: number) => mps * 3.6;
+export const dash = (v: number | null, f: (v: number) => string) => (v === null ? "—" : f(v));
 
 /** Ritmo en s/km → `m:ss`. */
 function paceLabel(secondsPerKm: number): string {

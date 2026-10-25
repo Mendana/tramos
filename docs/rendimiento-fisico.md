@@ -49,8 +49,10 @@ como `RaceSpeed` en P8 y P14.
 | `speed_mps` | Distancia / tiempo. |
 | `flat_speed_mps` | Distancia equivalente en llano / tiempo; `null` si a algún trozo le falta altitud. |
 | `heart_rate_bpm` | Media ponderada por tiempo de los trozos con pulso; `null` si esos trozos no suman la mitad del tiempo del grupo (`MIN_COVERAGE`). |
+| `heart_rate_s` | Tiempo de los trozos con pulso (s); 0 si `heart_rate_bpm` es `null`. Es el peso del pulso y de la eficiencia al juntar carreras (abajo, "Histórico"). |
 | `efficiency_m_per_beat` | **Eficiencia**: metros (en llano o reales, según `speed`) por latido en los trozos con pulso. Es la velocidad en m/min entre el pulso. Sube si el corredor va más rápido con el mismo pulso. |
 | `cadence_spm` | Cadencia media de los trozos con cadencia, con la misma condición. |
+| `cadence_s` | Tiempo de los trozos con cadencia (s); 0 si `cadence_spm` es `null`. El peso de la cadencia y de la zancada al juntar carreras. |
 | `stride_m` | **Zancada**: metros reales por paso en los trozos con cadencia. |
 
 ## Carrera (`RacePhysical`)
@@ -152,6 +154,82 @@ partidos por una picada, que no empiezan en un segundo entero (como mucho 1 s po
 `controls`, cada picada con hora que cae dentro de la serie (`position`, `code`, `t_s`,
 `distance_m`). Con eso la interfaz sitúa las líneas de las picadas y los tramos con error sin
 buscar nada en el track.
+
+## Histórico
+
+`tramos_core::physical_history` (#214) junta las `RacePhysical` de varias carreras con FIT para la
+pestaña Físico de Estadísticas (`docs/historico.md`, "Rendimiento físico"). La app calcula
+`race_physical` de cada carrera que pasa el filtro del histórico con su track guardado (alineado
+y troceado como el mapa) y las zonas de pulso de Ajustes, y el núcleo hace tres cosas. Los tests
+están en `crates/tramos-core/src/physical_history.rs` (cifras calculadas a mano) y en
+`app/src-tauri/src/physical_history.rs` (fixture de Baltanás).
+
+### Cifras de cada carrera (`RaceFigures`)
+
+Para las gráficas de evolución, una por carrera con FIT y todas `null` si no se pueden dar:
+
+| Campo | De dónde sale |
+| --- | --- |
+| `speed`, `transit_s` | `RacePhysical::speed` y `transit.transit_s`. |
+| `efficiency_m_per_beat` | `transit.efficiency_m_per_beat`: del traslado entero, en llano o real según `speed`. |
+| `decoupling_pct` | `decoupling_pct`. |
+| `transit_speed_mps` | `transit.flat_speed_mps` si `speed` es `flat`; `transit.speed_mps` si es `moving`. |
+| `heart_rate_bpm` | `heart_rate_bpm` de la carrera: de la salida a la meta, parado incluido. |
+| `vam_m_per_h`, `cadence_spm`, `stride_m` | Los de la carrera (`transit.cadence_spm`, `transit.stride_m`). |
+| `load` | `heart_rate_zones.load`; `null` sin zonas de Ajustes o sin pulso. |
+
+Cada formato es una serie aparte (sprint, media, larga y sin formato) y no se compara con los
+demás: lo decide la interfaz con el formato de la carrera. Dos carreras de distinto `speed` no
+se comparan bien (la eficiencia en metros reales no es la de metros en llano), así que la interfaz
+marca las de `moving` y las cuenta en un aviso.
+
+### Juntar grupos de trozos (`merge_stats`)
+
+Las cifras de un grupo (`TransitStats`) son medias, y la media de dos medias no es la media de
+los dos grupos: cada una pesa por el tiempo en que se midió. Para juntar varios grupos (la misma
+clase de pendiente de varias carreras) como si fueran uno:
+
+| Cifra | Cómo se junta |
+| --- | --- |
+| `transit_s`, `distance_m` | La suma. |
+| `speed_mps` | Σ distancia / Σ tiempo de traslado. |
+| `flat_speed_mps` | Σ (velocidad en llano × tiempo) / Σ tiempo: los metros en llano de cada grupo, sumados, entre el tiempo total. `null` si a algún grupo con traslado le falta. |
+| `heart_rate_bpm` | Σ (pulso × `heart_rate_s`) / Σ `heart_rate_s`. Solo se da si `heart_rate_s` suma la mitad del traslado total (`MIN_COVERAGE`), como en una carrera. |
+| `efficiency_m_per_beat` | Σ metros comparados / Σ latidos, con latidos = pulso × `heart_rate_s` / 60 y metros comparados = eficiencia × latidos. Es la eficiencia de cada grupo ponderada por sus latidos. |
+| `cadence_spm` | Σ (cadencia × `cadence_s`) / Σ `cadence_s`, con la misma condición que el pulso. |
+| `stride_m` | Σ metros / Σ pasos, con pasos = cadencia × `cadence_s` / 60 y metros = zancada × pasos. |
+
+Todos los grupos deben comparar con la misma velocidad (`speed`): la eficiencia mezcla metros, y
+los metros en llano y los reales no se suman.
+
+### Por pendiente (`GradeHistory`)
+
+Las cinco clases, siempre las cinco y en orden. Cada una junta con `merge_stats` el grupo de esa
+clase de cada carrera que pasa el filtro y la tiene con traslado (`races` cuenta cuántas). Solo
+aportan las carreras con altitud en todo su traslado (`speed` `flat`, las únicas con `by_grade`):
+`PhysicalHistory::graded_races` dice cuántas son de las `races` totales. Como solo aportan
+carreras en llano, la eficiencia es siempre de metros en llano por latido. Con varios formatos
+en el filtro se juntan; la interfaz lo avisa y deja el filtro de formato para separarlos.
+
+### Deriva media (`DriftHistory`)
+
+Para cada una de las 10 décimas: para cada carrera con eficiencia en el traslado entero y en esa
+décima, `eficiencia de la décima / eficiencia del traslado entero` (1 = igual que su carrera);
+`relative_efficiency` es la **media simple** de esos cocientes entre las carreras (cada carrera
+pesa lo mismo, dure lo que dure) y `races`, cuántas la aportan. Una décima sin carreras da
+`null`. Es un cociente, así que carreras en llano y con velocidad real se pueden promediar. La
+interfaz lo dibuja como la diferencia con 1, en %: 0 % es la media de la carrera.
+
+### Ejemplo de test
+
+Grupo A: 100 s a 4 m/s reales y 5 m/s en llano, pulso 150 todo el tiempo (250 latidos, 500 m en
+llano: 2 m por latido). Grupo B: 300 s a 2 m/s reales y 3 m/s en llano, pulso 170 (850 latidos, 900
+m en llano). Juntos: 400 s y 1000 m, así que **2,5 m/s** reales (la media de las velocidades, 3,
+sería falsa); (500 + 900) / 400 = **3,5 m/s** en llano; (250 + 850) latidos en 400 s = **165
+ppm**; (500 + 900) / (250 + 850) = **1,2727 m/latido**.
+
+Décima 1 en tres carreras, con eficiencias en la décima y en la carrera de 2,2 y 2,0, 1,2 y 1,0, y
+1,5 y 1,5: cocientes 1,1, 1,2 y 1,0, media **1,1** (+10 %).
 
 ## Límites
 

@@ -71,6 +71,7 @@ Se abre al arrancar (aplicando las migraciones pendientes) y la comparten todos 
 | `save_leg_tag(resultId, legIndex, tag)` | Guarda la etiqueta de un tramo (desde 1, también el último) y devuelve la guardada; una etiqueta vacía borra la del tramo y devuelve `null`. Antes la normaliza (nota sin espacios en los extremos, causas ordenadas y sin repetir) y comprueba que el tramo existe en el recorrido y que la etiqueta encaja en la taxonomía. |
 | `race_map(resultId)` | El mapa del resultado: track por tramos coloreado por ritmo y pulso, balizas y escalas (abajo, "Mapa"). |
 | `race_physical(resultId)` | La pestaña Físico del resultado (#213, abajo, "Pestaña Físico"): `status` `no_track` (sin FIT), `not_aligned` (con el `message` de por qué, como el mapa) o `ready` con `physical` (`tramos_core::physical::race_physical`, `docs/rendimiento-fisico.md`), `series` (`tramos_core::physical_series::race_series` cada 5 s) y `zones`, las zonas de pulso de Ajustes con sus colores (`null` si no hay: en la vista de un atleta no las hay). Alinea y trocea el track guardado como `race_map` (con su desfase manual si lo tiene). |
+| `physical_history(filter)` | La pestaña Físico de Estadísticas (#214, `docs/historico.md`, "Rendimiento físico"; `src-tauri/src/physical_history.rs`) de las carreras del usuario o del atleta que se ve que pasan el filtro: `races` (las que tienen FIT, de la más antigua a la más reciente, con sus cifras `RaceFigures`), `races_in_filter`, `races_without_track`, `has_zones` y `history` (`tramos_core::physical_history`: `by_grade`, `drift`, `races`, `graded_races`). Calcula `race_physical` de cada carrera con el track alineado como el mapa y las zonas de pulso de Ajustes. |
 | `history(filter)` | Histórico de las carreras del usuario por formato (P6): `tramos_core::history` con los umbrales de los ajustes. `filter` = `{from, to, format, kind}` (fechas `AAAA-MM-DD` incluidas, formato y tipo, `race` o `training`; `null` no filtra). Devuelve además cuántas carreras tiene el usuario sin filtrar, la fecha de la primera y la última, una fila por carrera que pasa el filtro (`races`), la pérdida según duración del tramo (P7, `by_leg_length`: `tramos_core::leg_length`) y la pérdida según desnivel (P13, `by_slope`: `tramos_core::slope` con el umbral por defecto; para cada carrera con track, el track guardado se alinea (con su desfase manual si lo tiene) y se trocea como en `race_map` y sus métricas son las de `tramos_core::metrics::leg_metrics`), y los errores más comunes (P9, `common_errors`: `tramos_core::common_errors` con las etiquetas guardadas de cada carrera); además, el cansancio (P14, `fatigue`: `tramos_core::fatigue` con las métricas del track y las etiquetas de cada carrera), la tendencia del IR y de la tasa de error (#192, `trends`: `tramos_core::trend`), y el resumen en frases (`insights`: como mucho tres, `tramos_core::insights::history_insights` sobre esos mismos análisis y con el mismo filtro; `docs/frases.md`). |
 | `rivals(filter)` | Rivales habituales (#193): `tramos_core::rivals` sobre las carreras del usuario (o del atleta que se ve) que pasan `filter`, el mismo que el de `history`, con los umbrales de los ajustes. Una fila por rival con al menos 3 carreras juntas (`docs/historico.md`, "Rivales habituales"). |
 
@@ -901,6 +902,41 @@ cuando cambia el desfase del reloj. De arriba abajo:
 
 Los siete paneles se pueden ocultar (`race-physical-*`, "Carrera · Físico" en Personalizar).
 
+### Pestaña Físico de Estadísticas (#214)
+
+`PhysicalHistoryTab.tsx` (comando `physical_history`; `docs/historico.md`, "Rendimiento físico";
+`docs/rendimiento-fisico.md`, "Histórico"). Pide los datos al abrir la pestaña y al cambiar el
+filtro, y sirve igual en la vista de un atleta (sin zonas de pulso, así que sin carga). La interfaz
+solo dibuja lo que recibe. Con los filtros de Estadísticas:
+
+- **Avisos:** cuántas carreras con el filtro no salen por no tener FIT (o no poder situarlo), y que
+  con menos de tres carreras no hay evolución que ver. Sin ninguna carrera con FIT, un aviso en lugar
+  de los paneles.
+- **Ocho gráficas de evolución** (`charts/DateLineChart.tsx`, paneles `history-physical-*`):
+  eficiencia, desacople, velocidad de traslado, pulso medio, VAM, cadencia, zancada y carga. Cada
+  magnitud en su gráfica y con su escala (nunca dos ejes Y), con la **fecha en el eje X a escala
+  real** (marcas en primeros de mes si abarca más de tres meses; si no, en días), un punto por
+  carrera y una línea por **formato** que los une. Los colores de los formatos son fijos
+  (`--chart-series-1` a `-4`: sprint, media, larga y sin formato) y la leyenda sale con dos series o
+  más. El eje Y sigue los datos y no parte del 0. Las carreras sin altitud (`speed` `moving`) tienen
+  su velocidad y su eficiencia en metros reales: se dibujan con el punto **hueco** y un aviso las
+  cuenta. Otro aviso dice cuántas carreras no tienen el dato (sin pulso, sin cadencia…). El tooltip
+  sigue al punto más cercano (ratón y teclado) y lleva la fecha, el formato y la carrera. La carga
+  sin zonas de Ajustes se sustituye por un aviso.
+- **Por pendiente** (`history-physical-grade-speed`, `history-physical-grade-heart-rate`): como en
+  la pestaña de una carrera pero con los trozos de todas (columnas agrupadas de velocidad real y en
+  llano, y línea de pulso, una clase por punto), con el rango, el tiempo y cuántas carreras hay en
+  cada clase en el tooltip y en la tabla. Avisos: cuántas carreras sin altitud no cuentan y, con
+  varios formatos, que están juntos.
+- **Deriva media por décimas** (`history-physical-drift`): columnas desde el 0, la eficiencia de
+  cada décima frente a la de su carrera en % (0 % = su media), con el número de carreras de cada
+  una debajo.
+- **Carreras con FIT:** la tabla, de la más reciente a la más antigua, con todas las cifras; un clic
+  abre la carrera.
+
+Los once paneles se pueden ocultar ("Estadísticas · Físico" en Personalizar) y cada uno tiene su
+«?» y su sección en `estadisticas-fisico.md` (ayuda).
+
 ## Vista histórica (P6)
 
 Pantalla **Estadísticas** de la barra lateral (`HistoryScreen.tsx`): todas las carreras del usuario
@@ -942,6 +978,7 @@ mirada se recuerda mientras la app está abierta:
 | ¿Dónde fallo? | Por duración del tramo (P7), tipos de error (P9), por desnivel (P13) y ¿lento o desorientado? (P2). |
 | ¿Cómo evoluciono? | ¿Estoy mejorando? (#192), consistencia (P10) y días sin competir (P11). |
 | Cabeza y piernas | Después de fallar (P8) y cansancio (P14). |
+| Físico | El rendimiento físico de las carreras con FIT, carrera a carrera (#214, abajo). No sale en las estadísticas de un grupo. |
 
 Los paneles están abiertos, en rejilla de dos columnas (una por debajo de 1100 px), y los avisos y
 recuentos de cada análisis ocupan la fila entera.
@@ -1227,6 +1264,9 @@ Piezas:
   etiqueta como capas opcionales. Lo usa la pestaña Físico.
 - `MultiLineChart`: varias líneas sobre los mismos puntos, la destacada (el corredor) más
   gruesa, etiqueta directa al final de cada línea y tooltip con el valor de cada serie.
+- `DateLineChart` (#214): evolución con la fecha en el eje X a escala real, una línea por grupo
+  (los formatos), un punto por carrera (hueco si el dato no se compara con los demás), etiqueta
+  directa al final de cada línea y tooltip del punto más cercano. El eje Y sigue los datos.
 - `GroupedColumnChart`: columnas agrupadas, una por serie y punto, con 2 px de separación, y
   una segunda línea de etiqueta opcional en el eje X (p. ej. el número de casos de cada grupo).
 - `common.tsx`: tamaño, rejilla con marcas, tooltip (al lado de la marca, para no taparla) y

@@ -1,6 +1,6 @@
 // Estadísticas (vista histórica, P6, docs/app.md): todas las carreras del usuario agregadas por
 // formato, con filtros de fechas y formato. Los análisis que se apoyan en el histórico (P7, P10,
-// P11, P13…) van en pestañas por pregunta (#130), con los mismos filtros.
+// P11, P13…, y el físico, #214) van en pestañas por pregunta (#130), con los mismos filtros.
 import { useEffect, useState } from "react";
 import { useViewer } from "./viewer";
 import { Subject, useSubject } from "./subject";
@@ -40,10 +40,11 @@ import { HistoryBreakdownPanel } from "./BreakdownPanel";
 import { AfterErrorPanel } from "./AfterErrorPanel";
 import { CommonErrorsPanel } from "./CommonErrorsPanel";
 import { FatiguePanel } from "./FatiguePanel";
+import { PhysicalHistoryTab } from "./PhysicalHistoryTab";
 import { InsightPlace, Insights, useInsightFocus } from "./Insights";
 
 /** Pestañas de Estadísticas: una por pregunta (#130). */
-export type HistoryTab = "summary" | "where" | "progress" | "body";
+export type HistoryTab = "summary" | "where" | "progress" | "body" | "physical";
 
 /**
  * Las pestañas, con las preguntas y las explicaciones en la voz de quien se mira (#165): el propio
@@ -82,6 +83,14 @@ export function historyTabs(who: Subject): (TabItem<HistoryTab> & { intro: strin
       id: "body",
       label: "Cabeza y piernas",
       intro: "Qué pasa después de un error y si el cansancio lo anticipa.",
+    },
+    {
+      id: "physical",
+      label: "Físico",
+      intro: who.pick(
+        "Cómo evoluciona tu rendimiento físico, carrera a carrera: eficiencia, pulso, velocidad, y cómo corres en cada pendiente y si te caes al final.",
+        "Cómo evoluciona su rendimiento físico, carrera a carrera: eficiencia, pulso, velocidad, y cómo corre en cada pendiente y si se cae al final.",
+      ),
     },
   ];
 }
@@ -426,6 +435,10 @@ function Summary({
                 <FatiguePanel data={view.fatigue} />
               )}
             </div>
+          )}
+
+          {tab === "physical" && (
+            <PhysicalHistoryTab filter={view.history.filter} onOpen={onOpen} />
           )}
         </PanelsOpen.Provider>
         {visibility !== null && visibility.hidden.size > 0 && (

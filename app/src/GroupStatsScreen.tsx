@@ -39,8 +39,8 @@ import { GroupDot } from "./GroupsScreen";
 import { SubjectContext, subjectOf } from "./subject";
 import { ChartIcon, EmptyState, Notice, PageHeader, SlidersIcon, Stat, Tabs } from "./ui";
 
-/** Las pestañas de Estadísticas, contadas para el grupo. */
-const TABS = historyTabs(subjectOf("group"));
+/** Las pestañas de Estadísticas, contadas para el grupo. El físico no se compara entre atletas. */
+const TABS = historyTabs(subjectOf("group")).filter((t) => t.id !== "physical");
 
 const memberName = (m: GroupStatsMember) =>
   m.is_self

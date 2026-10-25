@@ -60,6 +60,25 @@ export const PANEL_GROUPS: PanelGroup[] = [
     ],
   },
   {
+    label: "Estadísticas · Físico",
+    panels: [
+      { id: "history-physical-efficiency", title: "Eficiencia por carrera" },
+      { id: "history-physical-decoupling", title: "Desacople por carrera" },
+      { id: "history-physical-speed", title: "Velocidad de traslado por carrera" },
+      { id: "history-physical-heart-rate", title: "Pulso medio por carrera" },
+      { id: "history-physical-vam", title: "VAM por carrera" },
+      { id: "history-physical-cadence", title: "Cadencia por carrera" },
+      { id: "history-physical-stride", title: "Zancada por carrera" },
+      { id: "history-physical-load", title: "Carga por carrera" },
+      { id: "history-physical-grade-speed", title: "Velocidad por pendiente (todas las carreras)" },
+      {
+        id: "history-physical-grade-heart-rate",
+        title: "Pulso por pendiente (todas las carreras)",
+      },
+      { id: "history-physical-drift", title: "Deriva media por décimas" },
+    ],
+  },
+  {
     // Lo que lleva cada tarjeta de Mis atletas (#142).
     label: "Atletas · Tarjetas de Mis atletas",
     panels: [

@@ -42,7 +42,7 @@ fn the_detour_leg_is_mostly_detour_and_stop() {
     let alignment = align(&track, result, &AlignmentOptions::default()).unwrap();
     let segmentation = segment(&track, &alignment).unwrap();
     let metrics = leg_metrics(&track, &segmentation, &MetricsOptions::default()).unwrap();
-    let report = runner_report(&event, at, &LostTimeConfig::default()).unwrap();
+    let report = runner_report(&event, at, &LostTimeConfig::default(), &[]).unwrap();
     let b = race_breakdown(&report.lost_time, &metrics);
 
     // Fuera del rodeo, el corredor sintético va casi en línea recta: r0 algo por encima de 1.

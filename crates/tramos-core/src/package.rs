@@ -296,7 +296,7 @@ pub struct PackageInput<'a> {
     pub format: Option<RaceFormat>,
     pub kind: EventKind,
     pub config: LostTimeConfig,
-    /// Se incluyen desde `legs`.
+    /// Se incluyen desde `legs`; el resumen las aplica con cualquier nivel.
     pub tags: Vec<PackageTag>,
     /// Se incluye en `track`, que lo exige.
     pub track: Option<SharedTrack>,
@@ -304,8 +304,13 @@ pub struct PackageInput<'a> {
 
 /// Construye el paquete del resultado `input.at` con lo que permite su nivel.
 pub fn build(input: PackageInput<'_>) -> Result<RacePackage, PackageError> {
-    let report =
-        runner_report(input.event, input.at, &input.config).ok_or(PackageError::NotAnalyzed)?;
+    let tags: Vec<(usize, LegTag)> = input
+        .tags
+        .iter()
+        .map(|t| (t.leg_index, t.tag.clone()))
+        .collect();
+    let report = runner_report(input.event, input.at, &input.config, &tags)
+        .ok_or(PackageError::NotAnalyzed)?;
     let summary =
         RaceSummary::of(input.event, input.at, &report).ok_or(PackageError::NotAnalyzed)?;
     let with_legs = input.level >= ShareLevel::Legs;
@@ -475,8 +480,16 @@ mod tests {
     #[test]
     fn the_summary_is_what_the_runner_sees() {
         let event = fixture();
-        let package = build(input(&event, ShareLevel::Aggregates)).unwrap();
-        let report = runner_report(&event, AT, &LostTimeConfig::default()).unwrap();
+        let input = input(&event, ShareLevel::Aggregates);
+        let tags: Vec<(usize, LegTag)> = input
+            .tags
+            .iter()
+            .map(|t| (t.leg_index, t.tag.clone()))
+            .collect();
+        let package = build(input).unwrap();
+        // Con sus etiquetas, aunque en este nivel no viajen.
+        let report = runner_report(&event, AT, &LostTimeConfig::default(), &tags).unwrap();
+        assert!(package.tags.is_empty());
         assert_eq!(package.summary.class_name, "M-SEN");
         assert_eq!(package.summary.place, Some(16));
         assert_eq!(package.summary.lost_time_s, report.lost_time.lost_time_s);
@@ -494,6 +507,42 @@ mod tests {
                 "tramos-{}-0123456789abcdef0123456789abcdef.json",
                 package.race.race_id
             )
+        );
+    }
+
+    #[test]
+    fn the_summary_counts_the_errors_as_the_runner_tagged_them() {
+        let event = fixture();
+        let calculated = runner_report(&event, AT, &LostTimeConfig::default(), &[]).unwrap();
+        let errors: Vec<usize> = calculated
+            .lost_time
+            .legs
+            .iter()
+            .filter(|l| l.is_error)
+            .map(|l| l.index)
+            .collect();
+        assert!(!errors.is_empty(), "el fixture tiene errores");
+        // «No» en todos los errores del cálculo: el resumen no tiene ninguno.
+        let package = build(PackageInput {
+            tags: errors
+                .iter()
+                .map(|&leg_index| PackageTag {
+                    leg_index,
+                    taxonomy_version: "0".into(),
+                    tag: LegTag {
+                        confirmation: Some(Confirmation::NoError),
+                        ..LegTag::default()
+                    },
+                })
+                .collect(),
+            ..input(&event, ShareLevel::Aggregates)
+        })
+        .unwrap();
+        assert_eq!(package.summary.error_count, 0);
+        assert_eq!(package.summary.lost_time_s, Some(0.0));
+        assert_eq!(
+            package.summary.time_without_errors_s,
+            calculated.lost_time.total_s
         );
     }
 
@@ -569,8 +618,8 @@ mod tests {
         );
         // La app de destino recalcula lo mismo con los originales reducidos.
         let config = LostTimeConfig::default();
-        let original = runner_report(&event, AT, &config).unwrap();
-        let recomputed = runner_report(&course.event, course.result, &config).unwrap();
+        let original = runner_report(&event, AT, &config, &[]).unwrap();
+        let recomputed = runner_report(&course.event, course.result, &config, &[]).unwrap();
         assert_eq!(recomputed.lost_time, original.lost_time);
     }
 

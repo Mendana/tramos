@@ -291,7 +291,7 @@ fn baltanas_place_without_errors() {
             class_index,
             result_index,
         };
-        let lost = runner_report(&event, at, &config).unwrap().lost_time;
+        let lost = runner_report(&event, at, &config, &[]).unwrap().lost_time;
         let Some(without) = lost.place_without_errors else {
             assert_ne!(result.status, RaceStatus::Ok);
             continue;

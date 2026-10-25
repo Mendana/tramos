@@ -520,6 +520,7 @@ mod tests {
             loss_s: Some(if i < errors { 30.0 } else { 0.0 }),
             loss_pct: Some(0.0),
             is_error: i < errors,
+            calculated_error: i < errors,
             gain_s: None,
             cumulative_gain_s: None,
             ideal_elapsed_s: None,

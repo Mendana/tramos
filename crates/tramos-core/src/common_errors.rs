@@ -39,13 +39,21 @@ pub enum LegStatus {
 /// - Confirmación de la etiqueta: «error» es error; «no» es sin error; «físico» es físico.
 /// - Sin confirmación pero con tipo: error (el corredor le ha puesto tipo).
 /// - Sin nada de eso: lo que diga el cálculo, sin revisar.
+///
+/// Como el informe del corredor ya trae las etiquetas aplicadas ([`crate::runner_report`]),
+/// `leg.is_error` es el error revisado; con la misma etiqueta da el mismo estado.
 pub fn leg_status(leg: &LegReport, tag: Option<&LegTag>) -> LegStatus {
+    reviewed_status(leg.is_error, tag)
+}
+
+/// [`leg_status`] de un tramo que según el cálculo es error (`calculated_error`) o no.
+pub fn reviewed_status(calculated_error: bool, tag: Option<&LegTag>) -> LegStatus {
     match tag.and_then(|t| t.confirmation) {
         Some(Confirmation::Error) => LegStatus::Error { reviewed: true },
         Some(Confirmation::NoError) => LegStatus::Clean,
         Some(Confirmation::Physical) => LegStatus::Physical,
         None if tag.is_some_and(|t| t.error_type.is_some()) => LegStatus::Error { reviewed: true },
-        None if leg.is_error => LegStatus::Error { reviewed: false },
+        None if calculated_error => LegStatus::Error { reviewed: false },
         None => LegStatus::Clean,
     }
 }
@@ -334,6 +342,7 @@ mod tests {
                     loss_s: Some(loss),
                     loss_pct: Some(loss / reference * 100.0),
                     is_error: error,
+                    calculated_error: error,
                     gain_s: None,
                     cumulative_gain_s: None,
                     ideal_elapsed_s: None,

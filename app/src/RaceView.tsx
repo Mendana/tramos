@@ -130,7 +130,13 @@ function RaceView({
               })
               .catch((err: unknown) => setError(String(err)));
           }}
-          onTagged={onChanged}
+          onTagged={() => {
+            // La etiqueta decide qué tramos son error: cambian la tabla y las cifras (#209).
+            raceDetail(resultId)
+              .then(setDetail)
+              .catch((err: unknown) => setError(String(err)));
+            onChanged();
+          }}
           tab={tab}
           onTab={onTab}
           onTogether={onTogether}
@@ -152,7 +158,7 @@ function Detail({
   detail: RaceDetail;
   onFormatChange: (format: RaceFormat | null) => void;
   onKindChange: (kind: EventKind) => void;
-  /** Se ha guardado una etiqueta: cambia el número de errores sin revisar. */
+  /** Se ha guardado una etiqueta: cambian los errores, sus cifras y los que quedan sin revisar. */
   onTagged: () => void;
   tab: RaceTab;
   onTab: (tab: RaceTab) => void;
@@ -179,7 +185,7 @@ function Detail({
   const course = detail.report.course;
   const name = `${detail.given_name} ${detail.family_name}`.trim();
   const shared = course.classes.length > 1 ? course.classes.map((c) => c.name).join(", ") : null;
-  const proposed = lost.legs.filter((leg) => leg.is_error);
+  const proposed = lost.legs.filter((leg) => leg.calculated_error);
   const confirmed = proposed.filter(
     (leg) => tagging.tags.get(leg.index)?.tag.confirmation != null,
   ).length;
@@ -205,7 +211,8 @@ function Detail({
   ];
   const legs = onlyErrors
     ? lost.legs.filter(
-        (leg) => leg.is_error || tagging.tags.get(leg.index)?.tag.confirmation === "error",
+        // También los propuestos que se descartaron, para poder cambiar de idea.
+        (leg) => leg.is_error || leg.calculated_error,
       )
     : lost.legs;
   return (
@@ -758,7 +765,7 @@ function LegRow({
           ) : (
             <TagControls
               leg={leg.index}
-              proposed={leg.is_error}
+              proposed={leg.calculated_error}
               state={tagging}
               open={editing}
               onToggleOpen={onToggleEditing}

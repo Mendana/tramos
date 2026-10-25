@@ -51,7 +51,7 @@ fn winner_finishes_behind_the_ideal_by_total_minus_ideal() {
             class_index: first["class_index"].as_u64().unwrap() as usize,
             result_index: first["result_index"].as_u64().unwrap() as usize,
         };
-        let comparison = course_comparison(&event, at, &config).unwrap();
+        let comparison = course_comparison(&event, at, &config, &[]).unwrap();
         let winner = &comparison.runners[0];
         assert_eq!(winner.course_place, Some(1));
         assert!((winner.total_s.unwrap() - winner_total).abs() <= TOLERANCE);

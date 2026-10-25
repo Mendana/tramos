@@ -109,6 +109,7 @@ mod tests {
             loss_s: ir.map(|_| 0.0),
             loss_pct: ir.map(|_| 0.0),
             is_error: false,
+            calculated_error: false,
             gain_s: None,
             cumulative_gain_s: None,
             ideal_elapsed_s: None,

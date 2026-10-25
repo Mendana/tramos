@@ -13,8 +13,9 @@ Una carrera del histórico (`HistoryRace`) es un resultado del corredor con:
 - `kind`: competición o entrenamiento (`race`, `training`; `docs/modelo.md`, "Competición o
   entrenamiento");
 - `lost_time`: su tiempo perdido (`RunnerLostTime` de `tramos_core::runner_report`), calculado
-  al pedirlo con los umbrales de los ajustes. Nada se guarda: cambiar un umbral cambia el
-  histórico.
+  al pedirlo con los umbrales de los ajustes y las etiquetas del corredor: sus errores son los
+  revisados (`docs/tiempo-perdido.md`, "Errores revisados"), así que todos los análisis de abajo
+  cuentan los mismos. Nada se guarda: cambiar un umbral o una etiqueta cambia el histórico.
 
 ## Filtro
 
@@ -264,7 +265,7 @@ día. Implementado en `tramos_core::rivals`; el comando `rivals(filter)` lo devu
   | `races_compared`, `races_ahead` | Las que los dos acabasteis clasificados con tiempo, y en cuántas fuiste más rápido. |
   | `median_gap_s` | Mediana de `tu tiempo − el suyo` en esas carreras: negativa si sueles ganarle. |
   | `legs_compared`, `legs_ahead` | Tramos que cuentan (`excluded_from_patterns` falso: ni el último ni los de referencia corta) con split de los dos, y en cuántos fuiste más rápido (un empate no cuenta). |
-  | `clean_legs`, `error_legs` | Mediana de `tu split − el suyo` en los tramos en los que **no fallaste** y en los que **sí** (el error, con los umbrales de los ajustes), con cuántos son. Si le pierdes sobre todo en los errores, le pierdes por orientación; si también sin fallar, por ritmo. |
+  | `clean_legs`, `error_legs` | Mediana de `tu split − el suyo` en los tramos en los que **no fallaste** y en los que **sí** (el error revisado: tu etiqueta y, sin ella, los umbrales de los ajustes), con cuántos son. Si le pierdes sobre todo en los errores, le pierdes por orientación; si también sin fallar, por ritmo. |
   | `meetings` | Las carreras juntas con los dos tiempos, de la más reciente a la más antigua. |
 
 - **Orden**: de más carreras juntas a menos; a igualdad, más tramos comparados.
@@ -505,7 +506,8 @@ comunes» (`docs/app.md`, "Vista histórica").
   que cuentan (`pattern_legs`). Una etiqueta en el último tramo o en uno de referencia corta no
   entra, igual que no entra su pérdida en el resto de patrones.
 - **Qué fue cada tramo** (`leg_status`): manda la etiqueta del corredor; si no dice nada, el
-  cálculo.
+  cálculo. Es el mismo criterio que el de todos los análisis (`docs/tiempo-perdido.md`, "Errores
+  revisados"): el total de errores de P9 es el del histórico.
 
   | Etiqueta | Estado |
   | --- | --- |

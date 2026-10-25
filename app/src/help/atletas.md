@@ -17,8 +17,8 @@ lectura**. Si además corres, usas las dos cosas a la vez, sin cambiar de modo.
 - **Comparar atletas**: todos juntos, o los de un grupo ([Comparar atletas](grupo.md)).
 - **Grupos**: para organizarlos y ver las estadísticas de cada grupo ([Grupos](grupos.md)).
 
-Los números se recalculan en tu app con los umbrales de cada atleta, así que salen los mismos que
-ve él. Las carreras que compartió solo con el resumen salen aparte y no se pueden abrir. El mapa
+Los números se recalculan en tu app con los umbrales y las etiquetas de cada atleta, así que salen
+los mismos que en su app. Las carreras que compartió solo con el resumen salen aparte y no se pueden abrir. El mapa
 sale con los colores por cuantiles: las [zonas](zonas-del-mapa.md) de cada atleta no viajan con
 sus carreras.
 

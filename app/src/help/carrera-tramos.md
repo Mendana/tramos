@@ -17,13 +17,16 @@ Una fila por tramo, de la salida (S) a la meta (M):
 | Pérdida y %     | Lo que perdiste frente a lo que te tocaba con tu ritmo de ese día ([Tiempo perdido](tiempo-perdido.md)). Negativo si ganaste. |
 | Notas           | Último tramo, referencia corta, el tipo de error si lo etiquetaste y los botones para etiquetar.                              |
 
-Los tramos con error van resaltados. **Solo errores** deja solo los propuestos y los que hayas
-marcado como error. Un clic en una fila la selecciona, también en el mapa; otro clic la quita.
+Los tramos con error van resaltados. **Solo errores** deja solo los errores y los propuestos,
+también los que descartaste, por si cambias de idea. Un clic en una fila la selecciona, también en el mapa; otro clic la quita.
 
 ## Etiquetar un error
 
-La app **propone** como error los tramos que pasan los umbrales. Tú decides si lo fueron. Ninguna
-etiqueta es obligatoria, pero con ellas las [Estadísticas](estadisticas.md) saben qué te pasa.
+La app **propone** como error los tramos que pasan los umbrales. Tú decides si lo fueron, y lo que
+decides manda en toda la app: al marcar **No**, ese tramo deja de contar como error en la tabla,
+en las cifras de arriba (errores, tiempo perdido, tiempo y puesto sin errores) y en las
+[Estadísticas](estadisticas.md). Ninguna etiqueta es obligatoria: sin ella cuenta lo que propone
+la app.
 
 1. **¿Fue un error?** En cada tramo propuesto, **Sí**, **No** o **Físico** (perdiste tiempo, pero
    no por orientarte mal: cansancio, cuesta, terreno). Un clic guarda; otro clic en la marcada la
@@ -32,7 +35,8 @@ etiqueta es obligatoria, pero con ellas las [Estadísticas](estadisticas.md) sab
    causas, en qué parte del tramo, cuántos segundos crees que perdiste, el esfuerzo (1 a 10) y una
    nota. **Guardar** lo guarda y **Quitar etiqueta** lo borra.
 
-El lápiz está en todos los tramos: sirve también para apuntar un error que la app no propuso.
+El lápiz está en todos los tramos: sirve también para apuntar un error que la app no propuso, y
+desde ese momento cuenta como error.
 
 > El tramo 7 sale propuesto: perdiste 48 s. Recuerdas que saliste de la baliza hacia el lado
 > contrario. Marcas **Sí** y, con el lápiz, eliges «Salida de baliza → Salir en mala dirección»,

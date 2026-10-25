@@ -185,9 +185,9 @@ pub fn same_race(inputs: &[SameRaceInput<'_>]) -> SameRace {
 /// Un atleta como en su vista de carrera: su informe, su resumen, su puesto en el recorrido y
 /// el estado de cada tramo con sus etiquetas.
 fn analyze(input: &SameRaceInput<'_>) -> Option<Analyzed> {
-    let report = runner_report(input.event, input.result, &input.config)?;
+    let report = runner_report(input.event, input.result, &input.config, input.tags)?;
     let summary = RaceSummary::of(input.event, input.result, &report)?;
-    let course_place = course_comparison(input.event, input.result, &input.config)?
+    let course_place = course_comparison(input.event, input.result, &input.config, input.tags)?
         .runners
         .iter()
         .find(|r| r.is_self)
@@ -519,8 +519,11 @@ mod tests {
         let course = &race.courses[0];
         assert!(course.shared_errors.is_empty());
         assert_eq!(course.runners[1].is_error, [false, false]);
-        // El cálculo no cambia: la pérdida sigue ahí.
+        // El cálculo no cambia: la pérdida sigue ahí. Su resumen ya no cuenta ese error.
         assert!(close(course.runners[1].loss_s[1], 110.0 - 50.0 * 7.0 / 6.0));
+        let summary = &race.runners[1].as_ref().unwrap().summary;
+        assert_eq!(summary.error_count, 0);
+        assert_eq!(summary.time_without_errors_s, summary.total_s);
 
         // Con c1 sin etiqueta, vuelven a ser dos; el de a0 lleva su etiqueta y va revisado.
         let race = same_race(&[input(&e, r(0, 0), &a0_tags), input(&e, r(2, 1), &[])]);

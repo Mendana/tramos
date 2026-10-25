@@ -19,6 +19,7 @@ use crate::loss_breakdown::median;
 use crate::lost_time::{LostTimeConfig, RunnerAnalysis, analyze_course};
 use crate::model::{Event, RaceStatus};
 use crate::race_format::RaceFormat;
+use crate::taxonomy::LegTag;
 
 /// Carreras juntas mínimas para ser rival habitual.
 pub const MIN_RACES_TOGETHER: usize = 3;
@@ -33,6 +34,9 @@ pub struct RivalRace<'a> {
     pub event: &'a Event,
     /// Su resultado en la carrera.
     pub at: ResultRef,
+    /// Sus etiquetas (`(tramo, etiqueta)`, con el tramo desde 1): deciden qué tramos suyos son
+    /// error.
+    pub tags: &'a [(usize, LegTag)],
 }
 
 /// Diferencia por tramo frente a un rival en un grupo de tramos.
@@ -99,7 +103,8 @@ struct RaceData<'a> {
 }
 
 /// Los rivales habituales en las carreras que pasan `filter`, con al menos `min_races` carreras
-/// juntas, de más carreras juntas a menos. `config` decide qué tramos tuyos son error.
+/// juntas, de más carreras juntas a menos. `config` y las etiquetas de cada carrera deciden qué
+/// tramos tuyos son error.
 pub fn rivals(
     races: &[RivalRace<'_>],
     filter: &HistoryFilter,
@@ -118,12 +123,13 @@ pub fn rivals(
         else {
             continue;
         };
-        let course = analyze_course(race.event, &group, config);
+        let mut course = analyze_course(race.event, &group, config);
         let Some(own) = course.runners.iter().position(|r| {
             r.class_index == race.at.class_index && r.result_index == race.at.result_index
         }) else {
             continue;
         };
+        course.runners[own].apply_tags(race.tags);
         if course.runners[own].status == RaceStatus::DidNotStart {
             continue;
         }
@@ -410,6 +416,7 @@ mod tests {
                     class_index: 0,
                     result_index: 0,
                 },
+                tags: &[],
             })
             .collect()
     }
@@ -445,6 +452,34 @@ mod tests {
         let dates: Vec<String> = ana.meetings.iter().map(|m| m.date.to_string()).collect();
         assert_eq!(dates, ["2026-05-01", "2026-04-01", "2026-03-01"]);
         assert_eq!(ana.meetings[0].rival_total_s, Some(240.0));
+    }
+
+    #[test]
+    fn your_tags_decide_which_legs_were_errors() {
+        use crate::taxonomy::{Confirmation, LegTag};
+        let events = events();
+        // El primer tramo de mayo (120 frente a 100) lo marcas «No»: no fue error.
+        let no = [(
+            1,
+            LegTag {
+                confirmation: Some(Confirmation::NoError),
+                ..LegTag::default()
+            },
+        )];
+        let mut races = races(&events);
+        races[2].tags = &no;
+        let found = rivals(
+            &races,
+            &HistoryFilter::default(),
+            &LostTimeConfig::default(),
+            MIN_RACES_TOGETHER,
+        );
+        let ana = &found[0];
+        // Queda el error de abril (120 s); los limpios son 10, 0, 5, 0 y 20: mediana 5.
+        assert_eq!(ana.error_legs.legs, 1);
+        assert_eq!(ana.error_legs.median_gap_s, Some(120.0));
+        assert_eq!(ana.clean_legs.legs, 5);
+        assert_eq!(ana.clean_legs.median_gap_s, Some(5.0));
     }
 
     #[test]

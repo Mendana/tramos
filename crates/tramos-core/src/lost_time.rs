@@ -17,10 +17,12 @@ use std::iter;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::common_errors::{LegStatus, reviewed_status};
 use crate::courses::{ClassRef, CourseGroup, group_by_course};
 use crate::model::{
     ControlCode, Course, Event, FINISH_CODE, Punch, RaceResult, RaceStatus, START_CODE,
 };
+use crate::taxonomy::LegTag;
 
 /// Umbral de error en segundos por defecto.
 pub const DEFAULT_ERROR_THRESHOLD_S: f64 = 15.0;
@@ -303,8 +305,6 @@ fn analyze_runner(
     let usual = weighted_median(&weighted);
 
     let start = entry.times.first().copied().flatten();
-    let mut lost = usual.map(|_| 0.0);
-    let mut error_count = 0;
     let mut runner_legs = Vec::with_capacity(legs.len());
     for (leg, reference) in legs.iter().enumerate() {
         let t = split(leg);
@@ -323,10 +323,6 @@ fn analyze_runner(
         let is_error = loss.zip(loss_pct).is_some_and(|(p, pct)| {
             p > config.error_threshold_s && pct > config.error_threshold_pct
         });
-        if is_error {
-            lost = lost.zip(loss).map(|(acc, p)| acc + p);
-            error_count += 1;
-        }
         let behind_ideal = elapsed.zip(reference.ideal_elapsed_s).map(|(e, i)| e - i);
         runner_legs.push(RunnerLeg {
             index: leg + 1,
@@ -342,18 +338,49 @@ fn analyze_runner(
         });
     }
 
-    let total = seconds_between(start, entry.times.last().copied().flatten());
-    RunnerAnalysis {
+    let mut runner = RunnerAnalysis {
         class_index: entry.class_index,
         result_index: entry.result_index,
         status: entry.result.status,
         place: entry.result.place,
-        total_s: total,
+        total_s: seconds_between(start, entry.times.last().copied().flatten()),
         usual_performance: usual,
-        lost_time_s: lost,
-        error_count,
-        time_without_errors_s: total.zip(lost).map(|(t, l)| t - l),
+        lost_time_s: None,
+        error_count: 0,
+        time_without_errors_s: None,
         legs: runner_legs,
+    };
+    runner.update_totals();
+    runner
+}
+
+impl RunnerAnalysis {
+    /// Aplica las etiquetas del corredor (`(tramo, etiqueta)`, con el tramo desde 1): `is_error`
+    /// de cada tramo pasa a ser el de [`reviewed_status`] y se rehacen los totales
+    /// (`docs/tiempo-perdido.md`, "Errores revisados").
+    pub fn apply_tags(&mut self, tags: &[(usize, LegTag)]) {
+        for leg in &mut self.legs {
+            let tag = tags
+                .iter()
+                .find(|(index, _)| *index == leg.index)
+                .map(|(_, tag)| tag);
+            leg.is_error = matches!(reviewed_status(leg.is_error, tag), LegStatus::Error { .. });
+        }
+        self.update_totals();
+    }
+
+    /// Tiempo perdido, errores y tiempo sin errores a partir de los `is_error` de los tramos. Un
+    /// error suma su pérdida, o 0 si es negativa (un error marcado a mano en un tramo rápido):
+    /// el tiempo sin errores nunca pasa del total.
+    fn update_totals(&mut self) {
+        let errors = || self.legs.iter().filter(|leg| leg.is_error);
+        self.error_count = errors().count();
+        self.lost_time_s = self.usual_performance.map(|_| {
+            errors()
+                .filter_map(|leg| leg.loss_s)
+                .fold(0.0, |acc, p| acc + p.max(0.0))
+        });
+        self.time_without_errors_s = self.total_s.zip(self.lost_time_s).map(|(t, l)| t - l);
     }
 }
 
@@ -587,6 +614,50 @@ mod tests {
         close(d.legs[0].elapsed_s, 90.0);
         close(d.legs[0].behind_ideal_s, 30.0);
         close(d.legs[1].behind_ideal_s, 30.0);
+    }
+
+    #[test]
+    fn tags_decide_the_errors_and_redo_the_totals() {
+        use crate::taxonomy::Confirmation;
+        let tag = |confirmation, error_type: Option<&str>| LegTag {
+            confirmation,
+            error_type: error_type.map(String::from),
+            ..LegTag::default()
+        };
+        let runner = |i: usize, tags: &[(usize, LegTag)]| {
+            let mut r = single_course(&doc_example()).runners[i].clone();
+            r.apply_tags(tags);
+            r
+        };
+        // D: el tramo 1 es error del cálculo (18 s). «No» o «Físico» lo dejan sin errores: no
+        // pierde nada y el tiempo sin errores es el total (150 s).
+        for confirmation in [Confirmation::NoError, Confirmation::Physical] {
+            let d = runner(3, &[(1, tag(Some(confirmation), None))]);
+            assert!(!d.legs[0].is_error);
+            assert_eq!(d.error_count, 0);
+            close(d.lost_time_s, 0.0);
+            close(d.time_without_errors_s, 150.0);
+        }
+        // A: el tramo 2 pierde 3,143 s, por debajo de los umbrales. «Sí» lo hace error: pierde
+        // 3,143 s y sin errores habría hecho 126 − 3,143 = 122,857 s.
+        let a = runner(0, &[(2, tag(Some(Confirmation::Error), None))]);
+        assert!(a.legs[1].is_error);
+        assert_eq!(a.error_count, 1);
+        close(a.lost_time_s, 22.0 / 7.0);
+        close(a.time_without_errors_s, 126.0 - 22.0 / 7.0);
+        // D: un tipo sin confirmar en el tramo 2 (−12 s) también lo hace error, pero su pérdida
+        // negativa cuenta 0: siguen 18 s perdidos y 132 s sin errores.
+        let d = runner(3, &[(2, tag(None, Some("navigation")))]);
+        assert!(d.legs[0].is_error && d.legs[1].is_error);
+        assert_eq!(d.error_count, 2);
+        close(d.lost_time_s, 18.0);
+        close(d.time_without_errors_s, 132.0);
+        // Una etiqueta sin confirmación ni tipo (solo el esfuerzo) deja lo que dice el cálculo.
+        let effort = LegTag {
+            effort: Some(7),
+            ..LegTag::default()
+        };
+        assert_eq!(runner(3, &[(1, effort)]), runner(3, &[]));
     }
 
     #[test]

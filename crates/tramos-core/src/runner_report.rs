@@ -13,6 +13,7 @@ use crate::gain_loss::{LosingStreak, leg_gains, losing_streaks};
 use crate::identify::ResultRef;
 use crate::lost_time::{LostTimeConfig, RunnerAnalysis, analyze_course};
 use crate::model::{ControlCode, Event, RaceStatus};
+use crate::taxonomy::LegTag;
 
 /// Informe de un corredor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -81,7 +82,11 @@ pub struct LegReport {
     pub expected_s: Option<f64>,
     pub loss_s: Option<f64>,
     pub loss_pct: Option<f64>,
+    /// Error revisado: el que dice la etiqueta del corredor y, sin ella, el cálculo
+    /// (`docs/tiempo-perdido.md`, "Errores revisados").
     pub is_error: bool,
+    /// Error según el cálculo (los umbrales), diga lo que diga la etiqueta: el error propuesto.
+    pub calculated_error: bool,
     /// Ganancia `esp_i − t_i` y su acumulado (P5, [`crate::gain_loss`]).
     pub gain_s: Option<f64>,
     pub cumulative_gain_s: Option<f64>,
@@ -95,21 +100,26 @@ pub struct LegReport {
 /// Informe del resultado `result` de `event`; `None` si `result` no existe en la carrera.
 ///
 /// Calcula el tiempo perdido de todo el recorrido del corredor (la referencia sale de todas las
-/// categorías que lo comparten) y se queda con su parte.
+/// categorías que lo comparten) y se queda con su parte. Las etiquetas del corredor (`tags`:
+/// `(tramo, etiqueta)`, con el tramo desde 1) deciden qué tramos son error
+/// ([`RunnerAnalysis::apply_tags`]).
 pub fn runner_report(
     event: &Event,
     result: ResultRef,
     config: &LostTimeConfig,
+    tags: &[(usize, LegTag)],
 ) -> Option<RunnerReport> {
     result.get(event)?;
     let group = group_by_course(event)
         .into_iter()
         .find(|g| g.classes.iter().any(|c| c.index == result.class_index))?;
     let course = analyze_course(event, &group, config);
-    let runner = course
+    let calculated = course
         .runners
         .iter()
         .find(|r| r.class_index == result.class_index && r.result_index == result.result_index)?;
+    let mut runner = calculated.clone();
+    runner.apply_tags(tags);
 
     let losses: Vec<Option<f64>> = runner.legs.iter().map(|leg| leg.loss_s).collect();
     let gains = leg_gains(&losses);
@@ -118,8 +128,9 @@ pub fn runner_report(
         .legs
         .iter()
         .zip(&runner.legs)
+        .zip(&calculated.legs)
         .zip(&gains)
-        .map(|((reference, leg), gain)| LegReport {
+        .map(|(((reference, leg), proposed), gain)| LegReport {
             index: reference.index,
             from: reference.from,
             to: reference.to,
@@ -134,6 +145,7 @@ pub fn runner_report(
             loss_s: leg.loss_s,
             loss_pct: leg.loss_pct,
             is_error: leg.is_error,
+            calculated_error: proposed.is_error,
             gain_s: gain.gain_s,
             cumulative_gain_s: gain.cumulative_gain_s,
             ideal_elapsed_s: reference.ideal_elapsed_s,
@@ -150,7 +162,7 @@ pub fn runner_report(
         lost_time_s: runner.lost_time_s,
         error_count: runner.error_count,
         time_without_errors_s: runner.time_without_errors_s,
-        place_without_errors: place_without_errors(&course.runners, runner),
+        place_without_errors: place_without_errors(&course.runners, &runner),
         ideal_time_s: course.legs.last().and_then(|l| l.ideal_elapsed_s),
         behind_ideal_s: runner.legs.last().and_then(|l| l.behind_ideal_s),
         losing_streaks: losing_streaks(&gains),
@@ -277,6 +289,7 @@ mod tests {
                 result_index: 0,
             },
             &config,
+            &[],
         )
         .unwrap();
         // La referencia sale de las categorías A y C, que comparten recorrido.
@@ -320,6 +333,50 @@ mod tests {
     }
 
     #[test]
+    fn tags_decide_the_errors_of_the_report() {
+        use crate::taxonomy::{Confirmation, LegTag};
+        let mut e = event();
+        // Un tercero en A, para que el puesto sin errores cambie: 70 y 140 s.
+        e.classes[0].results.push(result([70, 140]));
+        let config = LostTimeConfig::default();
+        let at = ResultRef {
+            class_index: 0,
+            result_index: 1,
+        };
+        // 90 y 60 s con referencias de 60 s: el tramo 1 pierde 18 s (error del cálculo); 132 s
+        // sin errores, 2.º de 3 (solo 120 s es menos).
+        let calculated = runner_report(&e, at, &config, &[]).unwrap().lost_time;
+        assert!(calculated.legs[0].is_error && calculated.legs[0].calculated_error);
+        assert_eq!(calculated.error_count, 1);
+        assert_eq!(calculated.time_without_errors_s, Some(132.0));
+        assert_eq!(calculated.place_without_errors.map(|p| p.place), Some(2));
+
+        // «No» en el tramo 1: deja de ser error, aunque el cálculo lo siga proponiendo. Sin
+        // errores son los 150 s reales: 3.º de 3.
+        let no = LegTag {
+            confirmation: Some(Confirmation::NoError),
+            ..LegTag::default()
+        };
+        let reviewed = runner_report(&e, at, &config, &[(1, no)])
+            .unwrap()
+            .lost_time;
+        assert!(!reviewed.legs[0].is_error && reviewed.legs[0].calculated_error);
+        assert_eq!(reviewed.error_count, 0);
+        assert_eq!(reviewed.lost_time_s, Some(0.0));
+        assert_eq!(reviewed.time_without_errors_s, Some(150.0));
+        assert_eq!(
+            reviewed.place_without_errors,
+            Some(PlaceWithoutErrors {
+                place: 3,
+                classified: 3
+            })
+        );
+        // Lo demás no cambia.
+        assert_eq!(reviewed.legs[0].loss_s, calculated.legs[0].loss_s);
+        assert_eq!(reviewed.total_s, calculated.total_s);
+    }
+
+    #[test]
     fn missing_result_has_no_report() {
         let e = event();
         let config = LostTimeConfig::default();
@@ -331,6 +388,7 @@ mod tests {
                     result_index,
                 },
                 &config,
+                &[],
             )
         };
         assert_eq!(missing(0, 2), None);
@@ -411,6 +469,7 @@ mod tests {
                 result_index: 0,
             },
             &config,
+            &[],
         )
         .unwrap();
         // El ganador de A (120 s) sigue primero entre los dos clasificados de A; C no cuenta

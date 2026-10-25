@@ -1,10 +1,11 @@
 //! Exportar los datos para análisis (#217, `docs/exportar-datos.md`): escribe en una carpeta
-//! `races.csv`, `legs.csv`, `schema.json` y `LEEME.md` con las carreras propias.
+//! `races.csv`, `legs.csv`, `schema.json` y `LEEME.md` con las carreras propias y, si se pide
+//! (#219), `samples.csv` con la serie de cada carrera con FIT, con o sin coordenadas.
 //!
 //! Aquí solo se lee la base y se reúne lo que ya calcula el núcleo: el informe de cada carrera
-//! con las etiquetas ([`runner_report`], como en el histórico), las métricas de tramo del FIT y
-//! el rendimiento físico ([`race_physical`]). Las filas y los formatos son de
-//! [`tramos_core::export`].
+//! con las etiquetas ([`runner_report`], como en el histórico), las métricas de tramo del FIT, el
+//! rendimiento físico ([`race_physical`]) y la serie de la carrera ([`race_series`], la misma de
+//! la pestaña Físico pero cada segundo). Las filas y los formatos son de [`tramos_core::export`].
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -17,13 +18,16 @@ use serde::Serialize;
 use thiserror::Error;
 use tramos_core::days_off::days_since_previous;
 use tramos_core::export::{
-    ExportError, ExportSummary, LEG_COLUMNS, RACE_COLUMNS, RaceMeta, RaceRecord, leg_records,
-    readme_md, schema_json, write_csv,
+    Column, ExportError, ExportOptions, ExportSummary, LEG_COLUMNS, RACE_COLUMNS, RaceMeta,
+    RaceRecord, SAMPLES_STEP_S, leg_records, readme_md, sample_columns, sample_rows, schema_json,
+    write_csv, write_csv_header, write_csv_rows,
 };
 use tramos_core::metrics::{MetricsOptions, leg_metrics};
-use tramos_core::model::{Event, RaceStatus};
+use tramos_core::model::{Event, RaceStatus, Track};
 use tramos_core::physical::race_physical;
+use tramos_core::physical_series::{race_series, series_positions};
 use tramos_core::runner_report::runner_report;
+use tramos_core::segmentation::Segmentation;
 use tramos_store::{EventId, Store, StoreError};
 
 use crate::import::stored_self_person;
@@ -31,6 +35,9 @@ use crate::race_map::aligned_legs;
 use crate::races::RaceError;
 use crate::settings;
 use crate::tags::result_tags;
+
+/// El fichero de la serie.
+const SAMPLES_FILE: &str = "samples.csv";
 
 /// Errores al exportar. Los mensajes van a la interfaz, en español.
 #[derive(Debug, Error)]
@@ -54,8 +61,64 @@ pub struct ExportReport {
     pub folder: String,
     pub races: usize,
     pub legs: usize,
+    /// Carreras con filas en `samples.csv` (0 si no se ha pedido la serie).
+    pub sample_races: usize,
+    /// Filas de `samples.csv` (0 si no se ha pedido la serie).
+    pub sample_rows: usize,
     /// Los ficheros escritos.
     pub files: Vec<String>,
+    /// Los ficheros de una exportación anterior que se han borrado.
+    pub removed: Vec<String>,
+}
+
+/// El `samples.csv` en construcción: ya en bytes, carrera a carrera, porque a un instante por
+/// segundo son miles de filas por carrera y no hace falta tenerlas todas como texto a la vez.
+struct SamplesCsv {
+    columns: &'static [Column],
+    coordinates: bool,
+    bytes: Vec<u8>,
+    races: usize,
+    rows: usize,
+}
+
+impl SamplesCsv {
+    fn new(options: ExportOptions) -> Result<Self, ExportDataError> {
+        let columns = sample_columns(options.with_coordinates());
+        let mut bytes = Vec::new();
+        write_csv_header(&mut bytes, columns)?;
+        Ok(Self {
+            columns,
+            coordinates: options.with_coordinates(),
+            bytes,
+            races: 0,
+            rows: 0,
+        })
+    }
+
+    /// Añade la serie de una carrera ya alineada. Si el núcleo no puede dar la serie, la carrera
+    /// no tiene filas.
+    fn add(
+        &mut self,
+        race_id: i64,
+        track: &Track,
+        segmentation: &Segmentation,
+        options: &MetricsOptions,
+    ) -> Result<(), ExportDataError> {
+        let Ok(series) = race_series(track, segmentation, options, SAMPLES_STEP_S) else {
+            return Ok(());
+        };
+        if series.samples.is_empty() {
+            return Ok(());
+        }
+        let positions = self
+            .coordinates
+            .then(|| series_positions(track, segmentation, &series));
+        let rows = sample_rows(race_id, &series, positions.as_deref());
+        write_csv_rows(&mut self.bytes, self.columns, &rows)?;
+        self.races += 1;
+        self.rows += rows.len();
+        Ok(())
+    }
 }
 
 /// Las filas de las carreras propias y las de sus tramos, listas para escribir.
@@ -65,8 +128,8 @@ struct Tables {
 }
 
 /// Reúne las filas de todas las carreras propias en las que el usuario tomó la salida, de la más
-/// antigua a la más reciente.
-fn tables(store: &Store) -> Result<Tables, ExportDataError> {
+/// antigua a la más reciente. Con `samples`, añade ahí la serie de las que tienen track.
+fn tables(store: &Store, mut samples: Option<&mut SamplesCsv>) -> Result<Tables, ExportDataError> {
     let mut tables = Tables {
         races: Vec::new(),
         legs: Vec::new(),
@@ -117,6 +180,12 @@ fn tables(store: &Store) -> Result<Tables, ExportDataError> {
                 heart_rate_limits.as_deref(),
             )
             .ok();
+            // Solo las carreras con `has_track`: las mismas que cuentan con cifras físicas.
+            if metrics.is_some()
+                && let Some(samples) = samples.as_deref_mut()
+            {
+                samples.add(r.result.0, &track, &segmentation, &options)?;
+            }
         }
 
         let days = days_since_previous(r.event_date, &competed);
@@ -153,38 +222,70 @@ fn write_file(dir: &Path, name: &str, bytes: &[u8]) -> Result<(), ExportDataErro
 }
 
 /// Exporta las carreras propias a la carpeta `dir` (la crea si no existe): `races.csv`,
-/// `legs.csv`, `schema.json` y `LEEME.md`. Sustituye los que ya hubiera con esos nombres.
-pub fn export_analysis(store: &Store, dir: &str) -> Result<ExportReport, ExportDataError> {
+/// `legs.csv`, `schema.json` y `LEEME.md`, y con `options.samples`, `samples.csv`. Sustituye los
+/// que ya hubiera con esos nombres. Sin `options.samples` borra el `samples.csv` de una
+/// exportación anterior, para que no quede junto a un esquema que ya no lo cuenta.
+pub fn export_analysis(
+    store: &Store,
+    dir: &str,
+    options: ExportOptions,
+) -> Result<ExportReport, ExportDataError> {
     let dir = Path::new(dir);
     // Se arma todo antes de escribir nada: si falla, la carpeta no se toca.
-    let tables = tables(store)?;
+    let mut samples = options
+        .samples
+        .then(|| SamplesCsv::new(options))
+        .transpose()?;
+    let tables = tables(store, samples.as_mut())?;
     let summary = ExportSummary {
         races: tables.races.len(),
         legs: tables.legs.len(),
+        sample_races: samples.as_ref().map_or(0, |s| s.races),
+        sample_rows: samples.as_ref().map_or(0, |s| s.rows),
     };
     let mut races = Vec::new();
     write_csv(&mut races, RACE_COLUMNS, &tables.races)?;
     let mut legs = Vec::new();
     write_csv(&mut legs, LEG_COLUMNS, &tables.legs)?;
-    let mut schema = serde_json::to_vec_pretty(&schema_json())?;
+    let mut schema = serde_json::to_vec_pretty(&schema_json(options))?;
     schema.push(b'\n');
-    let readme = readme_md(summary, Utc::now());
+    let readme = readme_md(summary, options, Utc::now());
 
     fs::create_dir_all(dir).map_err(|source| ExportDataError::Write {
         path: dir.to_string_lossy().into_owned(),
         source,
     })?;
+    let mut files = vec!["races.csv".to_string(), "legs.csv".to_string()];
     write_file(dir, "races.csv", &races)?;
     write_file(dir, "legs.csv", &legs)?;
+    let mut removed = Vec::new();
+    match &samples {
+        Some(samples) => {
+            write_file(dir, SAMPLES_FILE, &samples.bytes)?;
+            files.push(SAMPLES_FILE.to_string());
+        }
+        None => match fs::remove_file(dir.join(SAMPLES_FILE)) {
+            Ok(()) => removed.push(SAMPLES_FILE.to_string()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(source) => {
+                return Err(ExportDataError::Write {
+                    path: dir.join(SAMPLES_FILE).to_string_lossy().into_owned(),
+                    source,
+                });
+            }
+        },
+    }
     write_file(dir, "schema.json", &schema)?;
     write_file(dir, "LEEME.md", readme.as_bytes())?;
+    files.extend(["schema.json".to_string(), "LEEME.md".to_string()]);
     Ok(ExportReport {
         folder: dir.to_string_lossy().into_owned(),
         races: summary.races,
         legs: summary.legs,
-        files: ["races.csv", "legs.csv", "schema.json", "LEEME.md"]
-            .map(String::from)
-            .to_vec(),
+        sample_races: summary.sample_races,
+        sample_rows: summary.sample_rows,
+        files,
+        removed,
     })
 }
 
@@ -192,14 +293,15 @@ pub fn export_analysis(store: &Store, dir: &str) -> Result<ExportReport, ExportD
 mod tests {
     use super::*;
     use crate::import::{ImportRequest, import, preview};
+    use crate::race_physical::{PhysicalView, race_physical_view};
     use crate::races::race_detail;
     use crate::tags::save_leg_tag;
-    use tramos_core::export::FORMAT_VERSION;
+    use tramos_core::export::{FORMAT_VERSION, SAMPLE_COLUMNS};
     use tramos_core::identify::RunnerIdentity;
     use tramos_core::importers::spl;
     use tramos_core::race_format::RaceFormat;
     use tramos_core::taxonomy::{Confirmation, LegTag};
-    use tramos_store::PersonId;
+    use tramos_store::{PersonId, ResultId};
 
     fn spl_path() -> String {
         format!(
@@ -278,7 +380,8 @@ mod tests {
         let (store, result_id) = two_races();
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().join("analisis");
-        let report = export_analysis(&store, out.to_str().unwrap()).unwrap();
+        let report =
+            export_analysis(&store, out.to_str().unwrap(), ExportOptions::default()).unwrap();
 
         let detail = race_detail(&store, result_id).unwrap();
         let lost = &detail.report.lost_time;
@@ -421,7 +524,12 @@ mod tests {
         save_leg_tag(&mut store, result_id, error, tag).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
-        export_analysis(&store, dir.path().to_str().unwrap()).unwrap();
+        export_analysis(
+            &store,
+            dir.path().to_str().unwrap(),
+            ExportOptions::default(),
+        )
+        .unwrap();
         let (header, legs) = read_csv(&dir.path().join("legs.csv"));
         let row = legs
             .iter()
@@ -458,7 +566,12 @@ mod tests {
         let detail = race_detail(&store, result_id).unwrap();
         let event = spl::read(&std::fs::read(spl_path()).unwrap()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        export_analysis(&store, dir.path().to_str().unwrap()).unwrap();
+        export_analysis(
+            &store,
+            dir.path().to_str().unwrap(),
+            ExportOptions::default(),
+        )
+        .unwrap();
 
         let mut private: Vec<String> = vec![detail.class_name.clone()];
         private.extend(detail.name.clone());
@@ -492,11 +605,269 @@ mod tests {
         }
     }
 
+    const WITH_SAMPLES: ExportOptions = ExportOptions {
+        samples: true,
+        coordinates: false,
+    };
+    const WITH_COORDINATES: ExportOptions = ExportOptions {
+        samples: true,
+        coordinates: true,
+    };
+
+    fn column_names(columns: &[Column]) -> Vec<String> {
+        columns.iter().map(|c| c.name.to_string()).collect()
+    }
+
+    /// La serie de la pestaña Físico (cada 5 s) del resultado.
+    fn tab_series(store: &Store, result_id: i64) -> tramos_core::physical_series::RaceSeries {
+        match race_physical_view(store, result_id).unwrap() {
+            PhysicalView::Ready(ready) => ready.series,
+            other => panic!("se esperaba la pestaña lista: {other:?}"),
+        }
+    }
+
+    /// Con la casilla de la serie sale `samples.csv`: solo la carrera con track, un instante por
+    /// segundo, con los números de la pestaña Físico y sin coordenadas.
+    #[test]
+    fn exports_the_series_of_the_race_with_track() {
+        let (store, result_id) = two_races();
+        let dir = tempfile::tempdir().unwrap();
+        let report = export_analysis(&store, dir.path().to_str().unwrap(), WITH_SAMPLES).unwrap();
+
+        let (header, rows) = read_csv(&dir.path().join("samples.csv"));
+        assert_eq!(header, column_names(sample_columns(false)));
+        assert_eq!(header.len(), 11);
+        assert!(!header.iter().any(|h| h == "lat" || h == "lon"));
+        assert!(rows.iter().all(|r| r.len() == header.len()));
+        assert_eq!(
+            report.files,
+            [
+                "races.csv",
+                "legs.csv",
+                "samples.csv",
+                "schema.json",
+                "LEEME.md"
+            ]
+        );
+        assert!(report.removed.is_empty());
+
+        // Solo la carrera con track (la copia de junio no tiene FIT).
+        let id = result_id.to_string();
+        assert!(rows.iter().all(|r| cell(&header, r, "race_id") == id));
+        assert_eq!((report.sample_races, report.sample_rows), (1, rows.len()));
+
+        // Un instante cada segundo, de la salida a la meta, más el de la meta.
+        let tab = tab_series(&store, result_id);
+        let whole = tab.duration_s.floor();
+        let expected = whole as usize + 1 + usize::from(tab.duration_s - whole > 1e-9);
+        assert_eq!(rows.len(), expected);
+        assert!(rows.len() > 300, "{} filas", rows.len());
+        let times: Vec<f64> = rows
+            .iter()
+            .map(|r| cell(&header, r, "t_s").parse().unwrap())
+            .collect();
+        assert_eq!(times[0], 0.0);
+        assert!(
+            times
+                .windows(2)
+                .all(|w| w[1] > w[0] && w[1] - w[0] <= 1.0 + 1e-9)
+        );
+        assert!((times[times.len() - 1] - tab.duration_s).abs() < 1e-3);
+
+        // Los mismos números que la serie de la pestaña (cada 5 s), con el redondeo del CSV.
+        let close = |name: &str, row: &[String], value: Option<f64>| match value {
+            Some(v) => {
+                let got: f64 = cell(&header, row, name).parse().unwrap();
+                assert!((got - v).abs() < 0.0051, "{name}: {got} frente a {v}");
+            }
+            None => assert_eq!(cell(&header, row, name), "", "{name}"),
+        };
+        for (k, sample) in tab.samples.iter().enumerate().take(tab.samples.len() - 1) {
+            let row = &rows[5 * k];
+            close("t_s", row, Some(sample.t_s));
+            close("distance_m", row, Some(sample.distance_m));
+            close("altitude_m", row, sample.altitude_m);
+            close("speed_mps", row, sample.speed_mps);
+            close("flat_speed_mps", row, sample.flat_speed_mps);
+            close("heart_rate_bpm", row, sample.heart_rate_bpm);
+            close("stride_m", row, sample.stride_m);
+            assert_eq!(
+                cell(&header, row, "leg"),
+                sample.leg.map_or_else(String::new, |l| l.to_string())
+            );
+        }
+        // Los estados son los de la serie, y el último instante, la meta.
+        let states = ["transit", "attack", "stopped", "gap"];
+        assert!(
+            rows.iter()
+                .all(|r| states.contains(&cell(&header, r, "state")))
+        );
+        assert!(
+            rows.iter().any(|r| cell(&header, r, "state") == "transit"
+                && !cell(&header, r, "speed_mps").is_empty())
+        );
+        let last = rows.last().unwrap();
+        assert_eq!(cell(&header, last, "leg"), "21");
+
+        // El esquema y el LEEME cuentan el fichero, su paso y sin coordenadas.
+        let schema: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.path().join("schema.json")).unwrap())
+                .unwrap();
+        let tables = schema["tables"].as_array().unwrap();
+        assert_eq!(tables.len(), 3);
+        assert_eq!(tables[2]["file"], "samples.csv");
+        assert_eq!(tables[2]["step_s"], 1.0);
+        assert_eq!(tables[2]["columns"].as_array().unwrap().len(), 11);
+        let readme = std::fs::read_to_string(dir.path().join("LEEME.md")).unwrap();
+        assert!(readme.contains("`samples.csv`"));
+        assert!(readme.contains(&format!("{} filas de 1 carreras", rows.len())));
+        assert!(readme.contains("ni coordenadas"));
+    }
+
+    /// Con la casilla de coordenadas, `samples.csv` lleva `lat` y `lon` dentro del track del FIT,
+    /// y vacíos en los huecos; las otras columnas no cambian.
+    #[test]
+    fn exports_the_coordinates_only_when_asked() {
+        let (store, result_id) = two_races();
+        let plain = tempfile::tempdir().unwrap();
+        export_analysis(&store, plain.path().to_str().unwrap(), WITH_SAMPLES).unwrap();
+        let located = tempfile::tempdir().unwrap();
+        let report =
+            export_analysis(&store, located.path().to_str().unwrap(), WITH_COORDINATES).unwrap();
+
+        let (plain_header, plain_rows) = read_csv(&plain.path().join("samples.csv"));
+        let (header, rows) = read_csv(&located.path().join("samples.csv"));
+        assert_eq!(header, column_names(SAMPLE_COLUMNS));
+        assert_eq!(&header[11..], ["lat", "lon"]);
+        assert_eq!(rows.len(), plain_rows.len());
+        assert_eq!(report.sample_rows, rows.len());
+        assert!(rows.iter().all(|r| r.len() == 13));
+        for (with, without) in rows.iter().zip(&plain_rows) {
+            assert_eq!(&with[..11], &without[..]);
+        }
+        assert_eq!(&header[..11], &plain_header[..]);
+
+        // Dentro de la caja del track guardado (con un margen de redondeo), y vacías solo en los
+        // huecos.
+        let track = store.load_track(ResultId(result_id)).unwrap().unwrap();
+        let (mut lat_min, mut lat_max) = (f64::MAX, f64::MIN);
+        let (mut lon_min, mut lon_max) = (f64::MAX, f64::MIN);
+        for p in &track.points {
+            lat_min = lat_min.min(p.lat);
+            lat_max = lat_max.max(p.lat);
+            lon_min = lon_min.min(p.lon);
+            lon_max = lon_max.max(p.lon);
+        }
+        let mut positioned = 0;
+        for row in &rows {
+            let (lat, lon) = (cell(&header, row, "lat"), cell(&header, row, "lon"));
+            assert_eq!(lat.is_empty(), lon.is_empty());
+            assert_eq!(
+                lat.is_empty(),
+                cell(&header, row, "state") == "gap",
+                "las posiciones faltan solo en los huecos"
+            );
+            if lat.is_empty() {
+                continue;
+            }
+            let (lat, lon): (f64, f64) = (lat.parse().unwrap(), lon.parse().unwrap());
+            assert!((lat_min - 1e-6..=lat_max + 1e-6).contains(&lat), "{lat}");
+            assert!((lon_min - 1e-6..=lon_max + 1e-6).contains(&lon), "{lon}");
+            positioned += 1;
+        }
+        assert!(positioned > 300);
+
+        // El LEEME avisa de que hay coordenadas.
+        let readme = std::fs::read_to_string(located.path().join("LEEME.md")).unwrap();
+        assert!(readme.contains("dicen por dónde has corrido"));
+        assert!(!readme.contains("ni coordenadas"));
+        let schema = std::fs::read_to_string(located.path().join("schema.json")).unwrap();
+        assert!(schema.contains("\"lat\"") && schema.contains("\"lon\""));
+    }
+
+    /// Sin la casilla de la serie no sale `samples.csv` ni coordenadas en ningún fichero, aunque
+    /// se pidan las coordenadas.
+    #[test]
+    fn without_the_series_nothing_has_coordinates() {
+        let (store, _) = two_races();
+        for options in [
+            ExportOptions::default(),
+            ExportOptions {
+                samples: false,
+                coordinates: true,
+            },
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let report = export_analysis(&store, dir.path().to_str().unwrap(), options).unwrap();
+            assert_eq!(
+                report.files,
+                ["races.csv", "legs.csv", "schema.json", "LEEME.md"]
+            );
+            assert_eq!((report.sample_races, report.sample_rows), (0, 0));
+            assert!(report.removed.is_empty());
+            assert!(!dir.path().join("samples.csv").exists());
+            for name in ["races.csv", "legs.csv", "schema.json", "LEEME.md"] {
+                let text = std::fs::read_to_string(dir.path().join(name)).unwrap();
+                assert!(!text.contains("samples"), "{name}");
+                assert!(
+                    !text.contains("\"lat\"") && !text.contains("\"lon\""),
+                    "{name}"
+                );
+                assert!(!text.starts_with("race_id,t_s"), "{name}");
+            }
+            let (race_header, _) = read_csv(&dir.path().join("races.csv"));
+            let (leg_header, _) = read_csv(&dir.path().join("legs.csv"));
+            for h in race_header.iter().chain(&leg_header) {
+                assert!(h != "lat" && h != "lon", "{h}");
+            }
+        }
+    }
+
+    /// Exportar sin la serie en una carpeta con un `samples.csv` de antes lo borra y lo dice.
+    #[test]
+    fn a_previous_series_is_removed_when_not_asked() {
+        let (store, _) = two_races();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_str().unwrap();
+        export_analysis(&store, path, WITH_COORDINATES).unwrap();
+        assert!(dir.path().join("samples.csv").exists());
+
+        // Un fichero que no es del formato no se toca.
+        std::fs::write(dir.path().join("mis-notas.txt"), "hola").unwrap();
+        let report = export_analysis(&store, path, ExportOptions::default()).unwrap();
+        assert_eq!(report.removed, ["samples.csv"]);
+        assert!(!dir.path().join("samples.csv").exists());
+        assert!(dir.path().join("mis-notas.txt").exists());
+        assert_eq!(report.files.len(), 4);
+
+        // La siguiente vez ya no hay nada que borrar.
+        let again = export_analysis(&store, path, ExportOptions::default()).unwrap();
+        assert!(again.removed.is_empty());
+    }
+
+    /// Sin carreras con track, `samples.csv` lleva solo la cabecera.
+    #[test]
+    fn without_a_track_the_series_has_only_the_header() {
+        let store = Store::open_in_memory().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let report =
+            export_analysis(&store, dir.path().to_str().unwrap(), WITH_COORDINATES).unwrap();
+        assert_eq!((report.sample_races, report.sample_rows), (0, 0));
+        let (header, rows) = read_csv(&dir.path().join("samples.csv"));
+        assert_eq!(header.len(), 13);
+        assert!(rows.is_empty());
+    }
+
     #[test]
     fn without_a_self_person_it_exports_empty_tables() {
         let store = Store::open_in_memory().unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let report = export_analysis(&store, dir.path().to_str().unwrap()).unwrap();
+        let report = export_analysis(
+            &store,
+            dir.path().to_str().unwrap(),
+            ExportOptions::default(),
+        )
+        .unwrap();
         assert_eq!((report.races, report.legs), (0, 0));
         let (header, rows) = read_csv(&dir.path().join("races.csv"));
         assert_eq!(header.len(), RACE_COLUMNS.len());
@@ -509,7 +880,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("no-es-carpeta");
         std::fs::write(&file, "x").unwrap();
-        let err = export_analysis(&store, file.to_str().unwrap()).unwrap_err();
+        let err =
+            export_analysis(&store, file.to_str().unwrap(), ExportOptions::default()).unwrap_err();
         assert!(err.to_string().starts_with("no se pudo escribir"), "{err}");
     }
 }

@@ -121,6 +121,13 @@ La serie empieza en el primer punto del primer tramo con track y acaba en el úl
 | `leg` | Número del tramo (empezando en 1); `null` en un hueco. |
 | `state` | `transit`, `attack`, `stopped` o `gap`, abajo. |
 
+La serie no lleva la posición de cada instante: la pestaña Físico no la usa y haría más pesado lo
+que recibe la interfaz. Quien la necesita (la exportación para análisis con coordenadas, #219,
+`docs/exportar-datos.md`) la pide con `series_positions(&Track, &Segmentation, &RaceSeries) ->
+Vec<Option<(f64, f64)>>`: la latitud y la longitud de cada instante, en el mismo orden, interpoladas
+en línea recta entre los dos puntos del track que lo rodean (como la segmentación con las picadas).
+En un instante `gap` no hay posición (`None`): no hay track que interpolar.
+
 ### Estado de un instante
 
 El instante cae en un intervalo entre dos puntos seguidos del track y toma su estado, con las

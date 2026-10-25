@@ -212,14 +212,22 @@ fn backup_restore(state: tauri::State<'_, AppState>, path: String) -> Result<Str
 }
 
 /// Escribe en la carpeta `dir`, que ha elegido el usuario, `races.csv`, `legs.csv`, `schema.json` y
-/// `LEEME.md` con sus carreras propias, para analizarlas fuera de la app (#217). Devuelve cuántas
-/// carreras y tramos ha exportado.
+/// `LEEME.md` con sus carreras propias, para analizarlas fuera de la app (#217). Con `samples`
+/// escribe también `samples.csv`, la serie de cada carrera con FIT cada segundo (#219), y con
+/// `coordinates` (solo con `samples`) le añade la latitud y la longitud de cada instante. Devuelve
+/// cuántas carreras y tramos ha exportado.
 #[tauri::command]
 fn export_analysis(
     state: tauri::State<'_, AppState>,
     dir: String,
+    samples: bool,
+    coordinates: bool,
 ) -> Result<export::ExportReport, String> {
-    export::export_analysis(&*state.store()?, &dir).map_err(|e| e.to_string())
+    let options = tramos_core::export::ExportOptions {
+        samples,
+        coordinates,
+    };
+    export::export_analysis(&*state.store()?, &dir, options).map_err(|e| e.to_string())
 }
 
 /// Si ya se ha dicho cómo se usa la app (corre, entrena o las dos cosas). Al instalar, no: la
